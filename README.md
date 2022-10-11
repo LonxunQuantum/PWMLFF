@@ -8,3 +8,5 @@ PWmatMLFF is an open source software under GNU GPL license. It aims at generatin
 
 A complete user manual can be found here: http://doc.lonxun.com/MLFF/MLFF.html
 
+**Usage**
+
