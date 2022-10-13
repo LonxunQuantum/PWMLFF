@@ -50,6 +50,7 @@ from sklearn.feature_selection import VarianceThreshold
 
 # src/aux 
 from opts import opt_values 
+from feat_modifier import feat_modifier
 
 import pickle
 import logging
@@ -175,7 +176,11 @@ class nn_network:
         ########################
         # feature set feature type 
         pm.use_Ftype = feature_type 
-
+        self.f_mdfr = feat_modifier() 
+        
+        """
+            What about changing the parameters? 
+        """ 
         # set final layer bias for NN. 
         # ##################################
         #        UNDER CONSTRUCTION 

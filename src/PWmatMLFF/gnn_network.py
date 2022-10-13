@@ -10,6 +10,7 @@ import os
 import re
 from select import select
 import sys
+from tkinter import EXCEPTION
 from unittest.mock import NonCallableMagicMock
 from os.path import isdir
 from pathlib import Path
@@ -364,11 +365,17 @@ class gnn_network:
         
         print(".xyz file has been saved to:"+xyz_output)
 
-    def train(self):
+    def train(self, train_data = r"./PWdata/training_data.xyz" ):
         
         """
             Launching training 
         """
+        # update training data path  
+        self.config["dataset_file_name"]  = train_data
+        
+        if not os.path.exists(self.config["dataset_file_name"]):
+            raise Exception(train_data,"not found")
+
         from nequip.scripts.train import restart, fresh_start
 
         set_up_script_logger(self.config.get("log", None), self.config.verbose)
@@ -517,12 +524,18 @@ class gnn_network:
             args.log = Path(log)
 
         args.metrics_config = metrics_config 
+
         if model is not None:
             args.model = Path(model)
+        else:
+            raise Exception("must specify the model to be evaluated")
+            
 
         if output is not None:
             args.output = Path(output)
+
         args.output_fields = output_fields
+
         args.repeat = repeat
 
         if test_indices is not None:
