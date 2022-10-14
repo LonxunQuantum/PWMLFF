@@ -8,7 +8,7 @@ import default_para as pm
 #for default_para, data_loader_2type dfeat_sparse
 #sys.path.append(codepath+'/../pre_data')
 
-class feat_modifer:
+class feat_modifier:
     """
         modify feature parameters.
     """ 

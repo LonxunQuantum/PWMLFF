@@ -437,7 +437,7 @@ module calc_NN
 
         pi=4*datan(1.d0)
 
-        write(*,*) "test natom_n=",natom_n
+        !write(*,*) "test natom_n=",natom_n
         
         !featType: feature index, atom index, atom type
         

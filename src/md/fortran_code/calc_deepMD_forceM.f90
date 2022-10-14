@@ -124,9 +124,11 @@ module calc_deepMD
         rewind(10)
         read(10,*) iflag_PCA   ! this can be used to turn off degmm part
         read(10,*) nfeat_type_n
+
         do kkk=1,nfeat_type_n
           read(10,*) ifeat_type_n(kkk)   ! the index (1,2,3) of the feature type
         enddo
+
         read(10,*) ntype,m_neigh
         close(10)
         
@@ -176,26 +178,29 @@ module calc_deepMD
         enddo
         close(10)
 
-           nfeat1m=0   ! the original feature
-           do i=1,ntype
+        nfeat1m=0   ! the original feature
+        do i=1,ntype
            if(nfeat1(i).gt.nfeat1m) nfeat1m=nfeat1(i)
            enddo
-! **************** read fit_linearMM.input ********************    
-! ****************** read vdw ************************
+        ! **************** read fit_linearMM.input ********************    
+        ! ****************** read vdw ************************
         open(10,file=trim(vdw_path))
         rewind(10)
         read(10,*) ntype_t,nterm
         if(nterm.gt.2) then
-        write(6,*) "nterm.gt.2,stop"
-        stop
+            write(6,*) "nterm.gt.2,stop"
+            stop
         endif
+
         if(ntype_t.ne.ntype) then
-        write(6,*) "ntype not same in vwd_fitB.ntype,something wrong"
-        stop
+            write(6,*) "ntype not same in vwd_fitB.ntype,something wrong"
+            stop
         endif
-         do itype1=1,ntype
-         read(10,*) itype_t,rad_atom(itype1),E_ave_vdw(itype1),((wp_atom(i,itype1,j1),i=1,ntype),j1=1,nterm)
+
+        do itype1=1,ntype
+            read(10,*) itype_t,rad_atom(itype1),E_ave_vdw(itype1),((wp_atom(i,itype1,j1),i=1,ntype),j1=1,nterm)
         enddo
+
         close(10)
 
 
@@ -216,11 +221,15 @@ module calc_deepMD
         if(node_em(ii).gt.nodeMM_em) nodeMM_em=node_em(ii)
         enddo
         enddo
-
-        allocate(Wij_em(nodeMM_em,nodeMM_em,nlayer_em,ntype,ntype))
-        allocate(B_em(nodeMM_em,nlayer_em,ntype,ntype))
-
-
+        
+        if (.not.allocated(Wij_em)) then
+            allocate(Wij_em(nodeMM_em,nodeMM_em,nlayer_em,ntype,ntype))
+        endif 
+        
+        if (.not. allocated(B_em)) then
+            allocate(B_em(nodeMM_em,nlayer_em,ntype,ntype))
+        endif
+        
         do itype1=1,ntype
         do itype2=1,ntype
         do ll=1,nlayer_em
@@ -256,25 +265,31 @@ module calc_deepMD
         enddo
         enddo
 
-        allocate(Wij_nn(nodeMM_nn,nodeMM_nn,nlayer_nn,ntype))
-        allocate(B_nn(nodeMM_nn,nlayer_nn,ntype))
+        if (.not.allocated(Wij_nn)) then
+            allocate(Wij_nn(nodeMM_nn,nodeMM_nn,nlayer_nn,ntype))
+        endif 
+
+        if (.not.allocated(B_nn)) then 
+            allocate(B_nn(nodeMM_nn,nlayer_nn,ntype))
+        endif 
 
         do itype=1,ntype
-        do ll=1,nlayer_nn
-         do j1=1,node_nn(ll)
-          read(12,*) (Wij_NN(j1,j2,ll,itype),j2=1,node_nn(ll+1))
-! Wij_NN(j1,j2,itype):
-! itype: center atom
-! j1: the layer ll node
-! j2: the layer ll+1 node
-         enddo
-         read(12,*) (B_NN(j2,ll,itype),j2=1,node_nn(ll+1))
-        enddo
+            do ll=1,nlayer_nn
+                do j1=1,node_nn(ll)
+                    read(12,*) (Wij_NN(j1,j2,ll,itype),j2=1,node_nn(ll+1))
+                    ! Wij_NN(j1,j2,itype):
+                    ! itype: center atom
+                    ! j1: the layer ll node
+                    ! j2: the layer ll+1 node
+                enddo
+                read(12,*) (B_NN(j2,ll,itype),j2=1,node_nn(ll+1))
+            enddo
         enddo
         close(12)
 
-
-        allocate(W_res_NN(nodeMM_nn,nlayer_nn+1,ntype))
+        if (.not.allocated(W_res_NN)) then
+            allocate(W_res_NN(nodeMM_nn,nlayer_nn+1,ntype))
+        endif
 
 
         open(12,file="fittingNet.resnet")
@@ -311,51 +326,51 @@ module calc_deepMD
         close(12)
 
 
-        write(6,*) "finished read W_res_NN"
+        !write(6,*) "finished read W_res_NN"
 
 
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
+    !cccccccccccccccccccccccccccccccccccccccccccccccccccc
 
-!********************add_force****************
+    !********************add_force****************
         inquire(file='add_force',exist=alive)
     !     status = access ("add_force",' ')    ! blank mode
     !   if (status .eq. 0 ) then
-      if (alive) then
-        open(10,file="add_force")
-        rewind(10)
-        read(10,*) add_force_num, alpha,y1,z1
-        allocate(add_force_atom(add_force_num))
-        ! allocate(direction(add_force_num))
-        allocate(const_fa(add_force_num))
-        allocate(const_fb(add_force_num))
-        allocate(const_fc(add_force_num))
-        do i=1,add_force_num
-            read(10,*) add_force_atom(i), const_fa(i), const_fb(i),const_fc(i)
-        enddo
-        close(10)
-    else
-        add_force_num=0
-    endif
+        if (alive) then
+            open(10,file="add_force")
+            rewind(10)
+            read(10,*) add_force_num, alpha,y1,z1
+            allocate(add_force_atom(add_force_num))
+            ! allocate(direction(add_force_num))
+            allocate(const_fa(add_force_num))
+            allocate(const_fb(add_force_num))
+            allocate(const_fc(add_force_num))
+            do i=1,add_force_num
+                read(10,*) add_force_atom(i), const_fa(i), const_fb(i),const_fc(i)
+            enddo
+            close(10)
+        else
+            add_force_num=0
+        endif
 !********************
-    inquire(file='force_constraint',exist=alive)
-    !     status = access ("add_force",' ')    ! blank mode
-    !   if (status .eq. 0 ) then
-      if (alive) then
-        open(10,file="force_constraint")
-        rewind(10)
-        read(10,*) const_force_num
-        allocate(const_force_atom(const_force_num))
-        ! allocate(direction(add_force_num))
-        allocate(const_fx(const_force_num))
-        allocate(const_fy(const_force_num))
-        allocate(const_fz(const_force_num))
-        do i=1,const_force_num
-            read(10,*) const_force_atom(i), const_fx(i), const_fy(i), const_fz(i)
-        enddo
-        close(10)
-    else
-        const_force_num=0
-    endif
+        inquire(file='force_constraint',exist=alive)
+        !     status = access ("add_force",' ')    ! blank mode
+        !   if (status .eq. 0 ) then
+        if (alive) then
+            open(10,file="force_constraint")
+            rewind(10)
+            read(10,*) const_force_num
+            allocate(const_force_atom(const_force_num))
+            ! allocate(direction(add_force_num))
+            allocate(const_fx(const_force_num))
+            allocate(const_fy(const_force_num))
+            allocate(const_fz(const_force_num))
+            do i=1,const_force_num
+                read(10,*) const_force_atom(i), const_fx(i), const_fy(i), const_fz(i)
+            enddo
+            close(10)
+        else
+            const_force_num=0
+        endif
 
     end subroutine load_model_deepMD
   

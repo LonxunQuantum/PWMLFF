@@ -176,16 +176,19 @@ class nn_network:
         ########################
         # feature set feature type 
         pm.use_Ftype = feature_type 
+        
         self.f_mdfr = feat_modifier() 
         
         """
-            What about changing the parameters? 
+            usage:
+            traienr.f_mdfr.set_feat1_xxxx([])
         """ 
+        
         # set final layer bias for NN. 
         # ##################################
         #        UNDER CONSTRUCTION 
         # pm.itype_Ei_mean = self.get_b_init()   
-
+        
         # label to be trained 
         self.is_trainForce = is_trainForce
         self.is_trainEi = is_trainEi
@@ -484,7 +487,7 @@ class nn_network:
         if (self.opts.opt_recover_mode == True):
             
             if (self.opts.opt_session_name == ''):
-                raise RuntimeError("session not specified for the recover mode. Use set_session_dir")
+                raise RuntimeError("session not specified for the recover mode. Use     _dir")
 
             if model_name is None:
                 # use lattest.pt as default 

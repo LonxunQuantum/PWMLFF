@@ -54,39 +54,59 @@ subroutine load_model_deepMD_f()
         enddo
         close(10)
 
-       write(6,*) "TEST load_model_deepMD_f",ntype
+       !write(6,*) "TEST load_model_deepMD_f",ntype
 
     !cccccccccccccccccccccccccccccccccccccccc
 end subroutine load_model_deepMD_f
 
 subroutine set_image_info_deepMD_f(atom_type_list,is_reset,natom_tmp)
-        integer(4),dimension(:),intent(in) :: atom_type_list(natom_tmp)
-        logical,intent(in) :: is_reset
-        integer,intent(in) :: natom_tmp
+        
+    integer(4),dimension(:),intent(in) :: atom_type_list(natom_tmp)
+    logical,intent(in) :: is_reset
+    integer,intent(in) :: natom_tmp
 
 
-            natom=natom_tmp
-            if(is_reset) then
-                if(allocated(iatom))then
-                    deallocate(iatom)
-                endif
+    natom=natom_tmp
+    
+    if(is_reset) then
+        if(allocated(iatom))then
+            deallocate(iatom)
+        endif
+        
+        allocate(iatom(natom))
+            
+        iatom(1:natom)=atom_type_list(1:natom)
+    endif
+    
+    if (.not.allocated(s_neigh)) then 
+        allocate(s_neigh(m_neigh,ntype,natom))
+    endif
 
-                allocate(iatom(natom))
-                
-                iatom(1:natom)=atom_type_list(1:natom)
-            endif
+    if(.not.allocated(ds_neigh)) then 
+        allocate(ds_neigh(3,m_neigh,ntype,natom))
+    endif
+    
+    if(.not.allocated(dR_neigh)) then
+        allocate(dR_neigh(3,m_neigh,ntype,natom))
+    endif
+    
+    if(.not.allocated(dxyz_neigh)) then 
+        allocate(dxyz_neigh(4,m_neigh,ntype,natom))
+    endif
+    
+    if(.not.allocated(dxyz_dx_neigh)) then 
+        allocate(dxyz_dx_neigh(3,4,m_neigh,ntype,natom))
+    endif 
 
-     allocate(s_neigh(m_neigh,ntype,natom))
-     allocate(ds_neigh(3,m_neigh,ntype,natom))
-     allocate(dR_neigh(3,m_neigh,ntype,natom))
-     allocate(dxyz_neigh(4,m_neigh,ntype,natom))
-     allocate(dxyz_dx_neigh(3,4,m_neigh,ntype,natom))
-     allocate(num_neigh(ntype,natom))
+    if(.not.allocated(num_neigh)) then
+        allocate(num_neigh(ntype,natom))
+    endif 
 
-    end subroutine set_image_info_deepMD_f
+end subroutine set_image_info_deepMD_f
 
    
 subroutine gen_deepMD_feature(AL,xatom)
+
     integer(4)  :: itype,i,j
     integer ii,jj,jjm,iat
 

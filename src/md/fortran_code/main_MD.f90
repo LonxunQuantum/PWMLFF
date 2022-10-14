@@ -90,8 +90,6 @@ program main_MD
 
         natom_n=iat1     ! different prorcessor might have different natom_n
 
-
-
         call get_ALI(AL,ALI)
 
         if(right_logical) then

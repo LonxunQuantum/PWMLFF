@@ -11,8 +11,8 @@ ifneq ($(is_mpiifort),0)
 	MPIFC=mpif90
 endif
 
-FFLAG = -O3 -I/opt/iotk/src/ -mkl
-#FFLAG = -g -traceback -C -I/opt/iotk/src/ -mkl -debug
+#FFLAG = -O3 -I/opt/iotk/src/ -mkl
+FFLAG = -g -traceback -C -I/opt/iotk/src/ -mkl -debug
 CFLAG = -O2 --std=c++11 -mkl -I../
 FLINKFLAG = -cxxlib -nofor_main
 #SRCS = $(wildcard *.f90)
