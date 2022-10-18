@@ -66,7 +66,7 @@ subroutine set_image_info_deepMD_f(atom_type_list,is_reset,natom_tmp)
     integer,intent(in) :: natom_tmp
 
 
-    natom=natom_tmp
+    natom = natom_tmp
     
     if(is_reset) then
         if(allocated(iatom))then
@@ -205,8 +205,6 @@ subroutine gen_deepMD_feature(AL,xatom)
 
             do j=1,num_neigh(itype,iat)
 
-                
-                
                 rr=dR_neigh(1,j,itype,iat)**2+dR_neigh(2,j,itype,iat)**2+dR_neigh(3,j,itype,iat)**2
                 r=dsqrt(rr)
 
@@ -287,7 +285,7 @@ subroutine gen_deepMD_feature(AL,xatom)
     
     !    write(*,'(F16.12 F16.12 F16.12 F16.12)',advance='no') dxyz_neigh(:,j,2,1) 
     !    write(*,*) " "
-        
+    
     !enddo
     !deallocate(list_neigh)
     deallocate(map2neigh_M)
@@ -303,7 +301,7 @@ subroutine gen_deepMD_feature(AL,xatom)
     deallocate(map2neigh_alltypeM)
     deallocate(list_tmp)
     deallocate(itype_atom)
-!--------------------------------------------------------
+    !--------------------------------------------------------
 
 
 end subroutine gen_deepMD_feature

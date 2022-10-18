@@ -762,76 +762,70 @@ module calc_NN
     !     enddo
 
 
-       endif
-       enddo
-    ! do j=1,add_force_num
-        
-           
-    !     if (axis.eq.0) force_pred_tmp(1,add_force_atom(j))= force_pred_tmp(1,add_force_atom(j))+(direction(j)-1)*const_f(j)   !give a force on x axis
-    !     if (axis.eq.1) force_pred_tmp(2,add_force_atom(j))= force_pred_tmp(2,add_force_atom(j))+(direction(j)-1)*const_f(j)
-    !     if (axis.eq.2) force_pred_tmp(3,add_force_atom(j))= force_pred_tmp(3,add_force_atom(j))+(direction(j)-1)*const_f(j)
+        endif
+        enddo
+        ! do j=1,add_force_num
             
-    ! enddo
- 
-    ! do j=1,const_force_num
-         
             
-    !     force_pred_tmp(1,const_force_atom(j))= const_fx(j)   !give a force on x axis
-    !     force_pred_tmp(2,const_force_atom(j))= const_fy(j)
-    !     force_pred_tmp(3,const_force_atom(j))= const_fz(j)
-         
-    ! enddo
-
-!ccccccccccccccccccccccccccccccccccccccccccc
-
-       call mpi_allreduce(energy_pred_tmp,energy_pred_NN,natom,MPI_REAL8,MPI_SUM,MPI_COMM_WORLD,ierr)
-       call mpi_allreduce(force_pred_tmp,force_pred_NN,3*natom,MPI_REAL8,MPI_SUM,MPI_COMM_WORLD,ierr)
-
-
-
-       mean=0.0
-       do j=1,add_force_num
-        
-        
-        ! direct= sign(1.0,xatom(j,3)-0.5)
-        
-        if ((xatom(3,add_force_atom(j))-0.5).gt.0.0) direct = 1.0
-        if ((xatom(3,add_force_atom(j))-0.5).lt.0.0) direct = - 1.0
-        if (abs(xatom(3,add_force_atom(j))-0.5).lt.1.0E-5) direct=0.0
+        !     if (axis.eq.0) force_pred_tmp(1,add_force_atom(j))= force_pred_tmp(1,add_force_atom(j))+(direction(j)-1)*const_f(j)   !give a force on x axis
+        !     if (axis.eq.1) force_pred_tmp(2,add_force_atom(j))= force_pred_tmp(2,add_force_atom(j))+(direction(j)-1)*const_f(j)
+        !     if (axis.eq.2) force_pred_tmp(3,add_force_atom(j))= force_pred_tmp(3,add_force_atom(j))+(direction(j)-1)*const_f(j)
+                
+        ! enddo
     
-        const_fa(j)=0.0
-        const_fb(j)= - alpha*direct*(xatom(3,add_force_atom(j))-z1)*AL(3,3)
-        const_fc(j)=   alpha*direct*(xatom(2,add_force_atom(j))-y1)*AL(2,2)     
-        mean=mean+ const_fb(j)
-       enddo
-!ccccccccccccccccccccccccccccccccccccccccccc
-   do j=1,add_force_num
-          
-    force_pred_NN(1,add_force_atom(j))= force_pred_NN(1,add_force_atom(j))+const_fa(j)   !give a force on x axis
-    force_pred_NN(2,add_force_atom(j))= force_pred_NN(2,add_force_atom(j))+const_fb(j)- mean/add_force_num
-    force_pred_NN(3,add_force_atom(j))= force_pred_NN(3,add_force_atom(j))+const_fc(j)
-           
-   enddo
+        ! do j=1,const_force_num
+            
+                
+        !     force_pred_tmp(1,const_force_atom(j))= const_fx(j)   !give a force on x axis
+        !     force_pred_tmp(2,const_force_atom(j))= const_fy(j)
+        !     force_pred_tmp(3,const_force_atom(j))= const_fz(j)
+            
+        ! enddo
 
-   do j=1,const_force_num
+        !ccccccccccccccccccccccccccccccccccccccccccc
         
-           
-    force_pred_NN(1,const_force_atom(j))= const_fx(j)   !give a force on x axis
-    force_pred_NN(2,const_force_atom(j))= const_fy(j)
-    force_pred_NN(3,const_force_atom(j))= const_fz(j)
+        ! collecting E and force from all nodes 
+        call mpi_allreduce(energy_pred_tmp,energy_pred_NN,natom,MPI_REAL8,MPI_SUM,MPI_COMM_WORLD,ierr)
+        call mpi_allreduce(force_pred_tmp,force_pred_NN,3*natom,MPI_REAL8,MPI_SUM,MPI_COMM_WORLD,ierr)
         
-enddo
+        mean=0.0
+        do j=1,add_force_num
+
+            ! direct= sign(1.0,xatom(j,3)-0.5)
+            
+            if ((xatom(3,add_force_atom(j))-0.5).gt.0.0) direct = 1.0
+            if ((xatom(3,add_force_atom(j))-0.5).lt.0.0) direct = - 1.0
+            if (abs(xatom(3,add_force_atom(j))-0.5).lt.1.0E-5) direct=0.0
+        
+            const_fa(j)=0.0
+            const_fb(j)= - alpha*direct*(xatom(3,add_force_atom(j))-z1)*AL(3,3)
+            const_fc(j)=   alpha*direct*(xatom(2,add_force_atom(j))-y1)*AL(2,2)     
+            mean=mean+ const_fb(j)
+        enddo
 !ccccccccccccccccccccccccccccccccccccccccccc
-        
+        do j=1,add_force_num
+                
+            force_pred_NN(1,add_force_atom(j))= force_pred_NN(1,add_force_atom(j))+const_fa(j)   !give a force on x axis
+            force_pred_NN(2,add_force_atom(j))= force_pred_NN(2,add_force_atom(j))+const_fb(j)- mean/add_force_num
+            force_pred_NN(3,add_force_atom(j))= force_pred_NN(3,add_force_atom(j))+const_fc(j)
+                
+        enddo
+
+        do j=1,const_force_num
+                
+            force_pred_NN(1,const_force_atom(j))= const_fx(j)   !give a force on x axis
+            force_pred_NN(2,const_force_atom(j))= const_fy(j)
+            force_pred_NN(3,const_force_atom(j))= const_fz(j)
+                
+        enddo
+        !ccccccccccccccccccccccccccccccccccccccccccc
+        ! calculating etot
         etot_pred_NN = 0.d0
         do i = 1, natom
             !etot = etot + energy(i)
             etot_pred_NN = etot_pred_NN + energy_pred_NN(i)
         end do
 
-
-
-        
         deallocate(feat_type)
         deallocate(energy_type)
         deallocate(dEdf_type)
@@ -839,7 +833,7 @@ enddo
         deallocate(f_out)
         deallocate(f_d)
         deallocate(f_back)
-!        deallocate(dfeat_type)
+        !        deallocate(dfeat_type)
         ! deallocate(dfeat)
     end subroutine cal_energy_force_NN
 

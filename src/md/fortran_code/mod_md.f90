@@ -1044,6 +1044,7 @@ contains
     subroutine exchange_data_scf2md(mymd,f,Etot,stress)
 
             use mod_data, only: e_atom
+
             implicit none
             type(type_md) :: mymd
             real*8 :: f(3,matom_1)
@@ -1054,13 +1055,15 @@ contains
             mymd.f_old=mymd.f
             mymd.f_scf_old=mymd.f_scf
             mymd.atomic_energy = e_atom 
-            !
-            mymd.Etot=Etot
+            ! 
+            mymd.Etot = Etot
             !mymd.stress=stress*mymd.stress_mask
             mymd.stress=stress
+
             do i=1,MCTRL_natom
                 mymd.f(:,i)=f(:,i)*mymd.imov_at(:,i)
             enddo
+            
             mymd.f_scf=f
             
     end subroutine exchange_data_scf2md
@@ -1138,6 +1141,7 @@ contains
             implicit none 
             type(type_md) :: mymd
             integer :: istep,totstep
+
             if(inode.eq.1) then
                 open(223, file="MOVEMENT", position="append")
                 write(223, 1111) MCTRL_natom,mymd.curtime,(mymd.Etot+mymd.Ek)*Hartree_ev,mymd.Etot*Hartree_ev,mymd.Ek*Hartree_ev
@@ -1150,21 +1154,22 @@ contains
                 call write_position(223,mymd.r)
                 call write_force(223,mymd.f_scf)
                 call write_velocity(223,mymd.v)
-
+                
                 ! wlj delete condition, 2022.10.8
                 !if(mymd.method==100.or.mymd.method==101) then
                 call write_atomic_energy(223,mymd)
                 !end if
                 
-                !                if(iflag_energydecomp.eq.1) then
-                !                    call write_atomic_energy(223,mymd)
-                !                endif
+                ! if(iflag_energydecomp.eq.1) then
+                !     call write_atomic_energy(223,mymd)
+                ! endif
                 if(istep==totstep) then
                     write(223,*) '----------------------------------------------END'
                 else
                     write(223,*) '-------------------------------------------------'
                 endif
                 close(223)
+
             endif
     end subroutine write_MOVEMENT
 
@@ -1325,8 +1330,7 @@ contains
                 write(fileunit,"(i4, 1x, 3(f25.15,1x))") MCTRL_iatom(ia),f(1,ia)*Hartree_ev/A_AU_1,f(2,ia)*Hartree_ev/A_AU_1,f(3,ia)*Hartree_ev/A_AU_1
             enddo
     end subroutine write_norm_force
-
-
+    
     subroutine write_velocity(fileunit,v)
 
             implicit none

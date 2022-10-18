@@ -4,7 +4,8 @@ subroutine f2c_calc_energy_force(i_model_lvn, n_atom, type_atom, lat,&
     use mod_md
     use mod_mpi
     use data_ewald
-    !use mod_control, only : MCTRL_iMD, MCTRL_AL,MCTRL_output_nstep
+    
+    !use mod_control, only : MCTRL_iMD, MCTRL_AL,MCTRL_output_nstep 
     use mod_control
     use mod_data  ! xatom, iatom, natom, AL, f_atom, e_atom, iflag_reneigh_inout, iflag_born_charge_ewald and etc
     use calc_ftype1, only: load_model_type1, set_image_info_type1
@@ -15,17 +16,21 @@ subroutine f2c_calc_energy_force(i_model_lvn, n_atom, type_atom, lat,&
     use calc_SNAP_feature, only: load_model_type6, set_image_info_type6
     use calc_deepMD1_feature, only: load_model_type7, set_image_info_type7
     use calc_deepMD2_feature, only: load_model_type8, set_image_info_type8
+    
     use calc_lin, only: set_paths_lin, load_model_lin, set_image_info_lin, nfeat_type_l, ifeat_type_l
     use calc_VV, only: set_paths_VV, load_model_VV, set_image_info_VV, nfeat_type_v, ifeat_type_v
+    
     use calc_NN, only: set_paths_NN, load_model_NN, set_image_info_NN, nfeat_type_n, ifeat_type_n
     
     use calc_deepMD, only :set_paths_deepMD,load_model_deepMD,set_image_info_deepMD
     use calc_deepMD_f,only: load_model_deepMD_f,set_image_info_deepMD_f
+    
     implicit none
 
     integer, intent(in) :: i_model_lvn
     integer, intent(in) :: n_atom
     integer, dimension(n_atom), intent(in) :: type_atom
+
     real*8, dimension(3,3), intent(in) :: lat
     real*8, dimension(3,n_atom), intent(in) :: x_frac
     real*8, dimension(n_atom), intent(inout) :: e_atom_out
@@ -33,16 +38,19 @@ subroutine f2c_calc_energy_force(i_model_lvn, n_atom, type_atom, lat,&
     real*8, allocatable, dimension(:, :) :: f_atom_predict
     real*8 e_tot_predict
     real*8, intent(inout) :: e_tot_out
-    integer, intent(inout) :: iflag_reneigh_inout
 
-    integer argc
     character(len=32) argv
+
+    integer, intent(inout) :: iflag_reneigh_inout
+    integer argc
     integer i, j, k, kk, ierr, ifile
     integer iat1
     integer i_image
     integer nfeat_type
     integer ifeat_type(100)
+
     logical :: scanit, is_reset
+    
     integer iMD,MDstep
     real(8) dtMD, Temperature1, Temperature2
     logical right_logical

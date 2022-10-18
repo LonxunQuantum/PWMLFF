@@ -29,7 +29,7 @@ subroutine ML_FF_EF(Etot,fatom,xatom,AL,natom_tmp,e_stress)
         use calc_lin, only : cal_energy_force_lin,Etot_pred_lin,force_pred_lin,nfeat_type_l,ifeat_type_l,energy_pred_lin
         use calc_VV, only : cal_energy_force_VV,Etot_pred_VV,force_pred_VV,nfeat_type_v,ifeat_type_v, energy_pred_vv
         use calc_NN, only : cal_energy_force_NN,Etot_pred_NN,force_pred_NN,nfeat_type_n,ifeat_type_n, energy_pred_nn
-        use calc_deepMD, only : cal_energy_force_deepMD,Etot_pred_deepMD
+        use calc_deepMD, only : cal_energy_force_deepMD 
         implicit none
 
         integer natom_tmp,natom,m_neigh  ! conflict with the one in calc_lin
@@ -478,10 +478,16 @@ subroutine ML_FF_EF(Etot,fatom,xatom,AL,natom_tmp,e_stress)
         if(iflag_model.eq.5) then   
             
             call cal_energy_force_deepMD(AL,xatom,Etot,fatom)
-            
+            ! something is missing here 
+            ! should copy force and atomic energy into the global variable 
+        
+            !Etot=Etot_pred_dp
+            !e_atom(1:natom_tmp) = energy_pred_dp(1:natom_tmp)
+            !fatom(:,1:natom_tmp) = force_pred_dp(:,1:natom_tmp)   ! unit, and - sign?
+                
         endif
         
-        ! the following routine is extremely slow and should not be used.   
+        ! deprecated 
         if(iflag_model.eq.4) then 
             write(*,*) "calling pytorch..."
             s = runqq("predict.py","--dp=True -n DP_cfg_dp 2> err > out")
