@@ -261,7 +261,7 @@ Ftype7_para={
     'weight_r': [1.0  for tmp in range(10)],
     }
 
-Ftype8_para={
+Ftype8_para={   
     'Rc':[5.4  for tmp in range(10)],     # number of elements in Rc = num atom type
     'M':[8  for tmp in range(10)],
     'weight_r':[1.0  for tmp in range(10)],
