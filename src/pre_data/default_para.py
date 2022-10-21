@@ -76,7 +76,7 @@ dp_predict = False
 DP_cfg = {
     'embeding_net': {
         'network_size': [16, 32, 64], # 第一维表示输入的维度
-	'bias': True,
+	'bias': True,   
 	'resnet_dt': True,
 	'activation': F.softplus,    #torch.sigmoid,
 	},
@@ -257,7 +257,7 @@ Ftype7_para={
     'Rc':[5.4  for tmp in range(10)],     # number of elements in Rc = num atom type
     'Rc2':[3.0  for tmp in range(10)],
     'Rm':[1.0  for tmp in range(10)],
-    'M': [20  for tmp in range(10)],
+    'M': [16  for tmp in range(10)],
     'weight_r': [1.0  for tmp in range(10)],
     }
 
@@ -267,6 +267,10 @@ Ftype8_para={
     'weight_r':[1.0  for tmp in range(10)],
     'w':[1.0, 1.5, 2.0, 2.5 ],
     }
+
+# for dp S function 
+Rc = 5.4
+Rm = 3.0
 
 kfnn_trainEtot = True
 kfnn_trainEi = False

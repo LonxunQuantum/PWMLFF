@@ -1,4 +1,4 @@
-      subroutine calc_chebyshev(x,mx,poly,dpoly)
+subroutine calc_chebyshev(x,mx,poly,dpoly)
       implicit double precision (a-h,o-z)
       
       real*8 poly(100),dpoly(100)
@@ -18,7 +18,5 @@
       enddo
 
       return
-      end subroutine calc_chebyshev
-
-      
+end subroutine calc_chebyshev
 

@@ -745,7 +745,7 @@ class L1KalmanFilter(nn.Module):
         res = np.random.choice(index, select_num).reshape(-1, group_num)
         return res
 
-    def update_energy(self, inputs, Etot_label, update_prefactor=1):
+    def update_energy(self, inputs, Etot_label, update_prefactor = 1.0):
         torch.cuda.synchronize()
         time_start = time.time()
         Etot_predict, Ei_predict, force_predict = self.model(
@@ -816,7 +816,7 @@ class L1KalmanFilter(nn.Module):
         time_end = time.time()
         print("SPLITTING1: Layerwised KF update Energy time:", time_end - time_start, "s")
 
-    def update_force(self, inputs, Force_label):
+    def update_force(self, inputs, Force_label,update_prefactor = 1.0):
         torch.cuda.synchronize()
         time_start = time.time()
         natoms_sum = inputs[3][0, 0]

@@ -110,3 +110,30 @@ class feat_modifier:
     def set_feat4_w(self,val):
         pm.Ftype4_para["w"] = val 
     
+
+    """
+        feat 7: dp-chebyshev
+    """
+    def set_feat7_Rc(self,val):
+        
+        pm.Ftype7_para["Rc"] = val 
+    
+    def set_feat7_Rc2(self,val):
+        pm.Ftype7_para["Rc2"] = val
+
+    def set_feat7_Rm(self,val):
+        pm.Ftype7_para["Rm"] = val
+    
+    def set_feat7_M(self,val):
+        pm.Ftype7_para["M"] = val 
+    
+    def set_feat7_weight_r(self,val):
+        pm.Ftype7_para["weight_r"] = val 
+
+
+    
+
+
+        
+
+    

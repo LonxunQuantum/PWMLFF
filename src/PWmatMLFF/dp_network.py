@@ -8,6 +8,8 @@ import os,sys
 import pathlib
 from xml.sax.handler import feature_external_ges
 
+from pre_data.default_para import Rc
+
 codepath = str(pathlib.Path(__file__).parent.resolve())
 
 #for model.mlff 
@@ -53,6 +55,7 @@ from sklearn.feature_selection import VarianceThreshold
 
 # src/aux 
 from opts import opt_values 
+from feat_modifier import feat_modifier
 
 import pickle
 import logging
@@ -108,10 +111,24 @@ class dp_network:
                     embedding_net_config = None,
                     fitting_net_config = None, 
 
-                    recover = False):
+                    recover = False,
+                    
+                    # smooth function calculation 
+                    Rmin = None,
+                    Rmax = None
+                    ):
+        
         # parsing command line args 
         self.opts = opt_values()  
         
+        # feature para modifier
+        self.feat_mod = feat_modifier 
+        
+        if Rmin is not None:
+            pm.Rm = Rmin
+
+        if Rmax is not None:
+            pm.Rc = Rmax
         # scaling
         # recover training. Need to load both scaler and model 
         pm.use_storage_scaler = recover  
@@ -136,28 +153,30 @@ class dp_network:
 
         # setting kalman 
         self.kalman_type = kalman_type
-        
-
+            
         if kalman_type is None:
             self.network_config = pm.DP_cfg_dp 
         else:
-            self.network_config = pm.DP_cfg_dp_kf       
-        
+            self.network_config = pm.DP_cfg_dp_kf               
+
         # passed-in configs 
         if embedding_net_config is not None:
             print("overwritting embedding network config ",self.network_config['embeding_net']["network_size"], " with ", embedding_net_config) 
             self.network_config['embeding_net']["network_size"] = embedding_net_config
 
         if fitting_net_config is not None: 
-            print("overwritting fitting network config ",self.network_config['fitting_net']["network_size"], " with ", embedding_net_config) 
-            self.network_config['fitting_net']["network_size"] = embedding_net_config
+            print("overwritting fitting network config ",self.network_config['fitting_net']["network_size"], " with ", fitting_net_config) 
+            self.network_config['fitting_net']["network_size"] = fitting_net_config
 
+        print ("network config used for training:")
+        print (self.network_config)
+        
         # label to be trained 
         self.is_trainForce = is_trainForce
         self.is_trainEi = is_trainEi
         self.is_trainEgroup = is_trainEgroup
         self.is_trainEtot = is_trainEtot
-
+        
         # prefactor in kf 
         self.kf_prefac_Etot = 1.0  
         self.kf_prefac_Ei = 1.0
@@ -265,7 +284,8 @@ class dp_network:
         self.LR_step = self.opts.opt_step
         
         print ("device:",self.device)
-
+        
+        
 
     """
         ============================================================
@@ -375,8 +395,20 @@ class dp_network:
     def set_train_Egroup(self,val):
         self.is_trainEgroup = val  
     """
-    
+    def set_fitting_net_config(self,val):
+        self.network_config['fitting_net']["network_size"] = val
 
+    def set_embedding_net_config(self,val):
+        self.network_config['embeding_net']["network_size"] = val
+
+    def print_feat_para(self):
+        # print feature parameter 
+        for feat_idx in pm.use_Ftype:    
+            name  = "Ftype"+str(feat_idx)+"_para"   
+            print(name,":")
+            print(getattr(pm,name)) 
+    
+    
     """
         ============================================================
         =================training related functions=================
@@ -660,12 +692,13 @@ class dp_network:
             raise RuntimeError("train(): unsupported opt_dtype %s" %self.opts.opt_dtype)
 
         Etot_label = torch.sum(Ei_label, dim=1)
+        
         natoms_img = Variable(sample_batches['natoms_img'].int().to(self.device))
 
         kalman_inputs = [Ri, Ri_d, dR_neigh_list, natoms_img, None, None]
 
         if self.is_trainEtot: 
-            kalman.update_energy(kalman_inputs, Etot_label,update_prefactor = self.kf_prefac_Etot)
+            kalman.update_energy(kalman_inputs, Etot_label, update_prefactor = self.kf_prefac_Etot)
 
         if self.is_trainForce:
             kalman.update_force(kalman_inputs, Force_label, update_prefactor = self.kf_prefac_F)
@@ -673,7 +706,7 @@ class dp_network:
         """
             No Ei and Egroup update at this moment              
         """
-
+        
         Etot_predict, Ei_predict, Force_predict = model(Ri, Ri_d, dR_neigh_list, natoms_img, None, None)
         
         loss_F = criterion(Force_predict, Force_label)
