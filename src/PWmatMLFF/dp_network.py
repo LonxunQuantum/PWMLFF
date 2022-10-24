@@ -400,6 +400,13 @@ class dp_network:
 
     def set_embedding_net_config(self,val):
         self.network_config['embeding_net']["network_size"] = val
+    
+    def set_Rmin(self,val):
+        pm.Rm = val 
+
+    def set_Rmax(self,val):
+        pm.Rc = val
+    
 
     def print_feat_para(self):
         # print feature parameter 
@@ -407,6 +414,7 @@ class dp_network:
             name  = "Ftype"+str(feat_idx)+"_para"   
             print(name,":")
             print(getattr(pm,name)) 
+    
     
     
     """
@@ -1002,11 +1010,11 @@ class dp_network:
 
         import plot_evaluation
         plot_evaluation.plot()
-        
+
     """
         parameter extraction related functions
     """
-
+    
     def catNameEmbedingW(self,idxNet, idxLayer):
         return "embeding_net."+str(idxNet)+".weights.weight"+str(idxLayer)
 
@@ -1245,9 +1253,9 @@ class dp_network:
 
             f.close()
 
-        print("******** converting resnet ends  *********\n")
+        print("******** converting resnet done *********\n")
 
-        print("******** generating gen_dp.in  *********")
+        print("******** generating gen_dp.in  *********\n")
         
         orderedAtomList = [str(atom) for atom in pm.atomType]
 
@@ -1266,13 +1274,13 @@ class dp_network:
 
         # in default_para.py, Rc_M = 6.0 Rc_min = 5.8. This is also used for feature generations 
 
-        f_out.write(str(pm.Rc_M) + ' ') 
+        f_out.write(str(pm.Rc) + ' ') 
         f_out.write(str(pm.maxNeighborNum)+"\n")
         f_out.write(str(dstd_size)+"\n")
 
         for i,atom in enumerate(orderedAtomList):
             f_out.write(atom+"\n")
-            f_out.write(str(pm.Rc_M)+' '+str(pm.Rc_min)+'\n')
+            f_out.write(str(pm.Rc)+' '+str(pm.Rm)+'\n')
 
             for idx in range(4):
                 f_out.write(str(davg[i][idx])+" ")

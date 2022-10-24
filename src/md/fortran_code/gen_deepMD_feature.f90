@@ -42,16 +42,20 @@ subroutine load_model_deepMD_f()
         rewind(10)
         read(10,*) Rc_M,m_neigh
         read(10,*) ntype
+
         do i=1,ntype
             read(10,*) iat_type(i)
             read(10,*) Rc_type(i),R_cs(i)
-                if(Rc_type(i).gt.Rc_M) then
-                    write(6,*) "Rc_type must be smaller than Rc_M,gen_3b_feature.in",i,Rc_type(i),Rc_M
-                    stop
-                endif
+
+            if(Rc_type(i).gt.Rc_M) then
+                write(6,*) "Rc_type must be smaller than Rc_M,gen_3b_feature.in",i,Rc_type(i),Rc_M
+                stop
+            endif
+
             read(10,*) ave_shift(1,i),ave_shift(2,i),ave_shift(3,i),ave_shift(4,i)
             read(10,*) ave_norm(1,i),ave_norm(2,i),ave_norm(3,i),ave_norm(4,i)
         enddo
+
         close(10)
 
        !write(6,*) "TEST load_model_deepMD_f",ntype

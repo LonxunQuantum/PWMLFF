@@ -171,6 +171,8 @@ class linear_regressor:
     
     def set_ei_weight(self,val):
         pm.fortranFitWeightOfEnergy = val 
+
+
         
 """
 if __name__ == "__main__":

@@ -357,10 +357,11 @@ contains
             MCTRL_XATOM_FILE=f_xatom
             !real md calling
 
-!!!!!
-          call molecular_dynamics_kernel(Etot,fatom,e_stress)
+            !!!!!
+            call molecular_dynamics_kernel(Etot,fatom,e_stress)
             !
     end subroutine molecular_dynamics_new
+
     subroutine md_init(mymd)
             use mod_data, only: vx_1,vy_1,vz_1,langevin_factT,langevin_factG
             implicit none

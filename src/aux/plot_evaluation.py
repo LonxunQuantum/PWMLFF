@@ -68,10 +68,10 @@ def plot():
     tmp_atoms, tmp_iters, nn_total_energy,  nn_atomic_energy,  nn_force  = read_dft_movement(file_dft='MOVEMENT')
     
     if num_atoms != tmp_atoms:
-        raise Exception("number of atoms in two files do not match")
+        raise Exception("number of atoms in two files does not match")
 
     if num_iters != tmp_iters:
-        raise Exception("number of images in two files do not match")
+        raise Exception("number of images in two files does not match")
 
     e_min = min(min(dft_atomic_energy), min(nn_atomic_energy))
     e_max = max(max(dft_atomic_energy), max(nn_atomic_energy))
@@ -112,9 +112,9 @@ def plot():
     print('f_rmse: %.3E' % f_rms)
 
     
-        # plot atomic energy
+    # plot atomic energy
     plt.title('atomic energy')
-    plt.scatter(dft_atomic_energy, nn_atomic_energy, s=0.1)
+    plt.scatter(dft_atomic_energy, nn_atomic_energy, s=0.5)
     plt.plot((lim_min, lim_max), (lim_min, lim_max), ls='--', color='red')
     plt.xlim(lim_min, lim_max)
     plt.ylim(lim_min, lim_max)
@@ -130,7 +130,7 @@ def plot():
     #plt.clf()
     #plt.subplot(1,2,1)
     plt.title('total energy')
-    plt.scatter(dft_total_energy, nn_total_energy, s=0.1)
+    plt.scatter(dft_total_energy, nn_total_energy, s=0.5)
     plt.plot((lim_tot_min, lim_tot_max), (lim_tot_min, lim_tot_max), ls='--', color='red')
     plt.xlim(lim_tot_min, lim_tot_max)
     plt.ylim(lim_tot_min, lim_tot_max)
@@ -147,7 +147,7 @@ def plot():
     plt.ylim(lim_f_min, lim_f_max)
     plt.text(fmin, fmax,'Force, rmse: %.3E' %(f_rms))
     plt.plot((lim_f_min, lim_f_max), (lim_f_min, lim_f_max), ls='--', color='red')
-    plt.scatter(f_dft_plot, f_nn_plot, s=0.1)
+    plt.scatter(f_dft_plot, f_nn_plot, s=0.5)
     plt.ylabel('MLFF Force')
     plt.xlabel('DFT Force')
     plt.savefig('force.png', format='png')
