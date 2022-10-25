@@ -10,4 +10,4 @@ A complete user manual can be found here: http://doc.lonxun.com/MLFF/MLFF.html
 
 **Data archive**
 
-Visit https://www.jianguoyun.com/p/DUWoiP4Ql-&#95;OChiEk8IEIAA for the data archive
+Visit https://www.jianguoyun.com/p/DUWoiP4Ql-_OChiEk8IEIAA for the data archive
