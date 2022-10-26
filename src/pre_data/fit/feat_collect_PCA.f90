@@ -30,17 +30,17 @@ program feat_collect_PCA
        character(len=:), allocatable :: fread_dfeat
 
        ! this file should be create by prepare.py
-        write(*,*) "liuliping: test1"
+       !write(*,*) "liuliping: test1"
        open(1314, file="input/info_dir")
        rewind(1314)
        read(1314,"(A200)") fitModelDir
        close(1314)
-        write(*,*) "liuliping: test2"
+       !write(*,*) "liuliping: test2"
        tmp_i = len(trim(adjustl(fitModelDir)))
        allocate(character(len=tmp_i) :: fread_dfeat)
        fread_dfeat = trim(adjustl(fitModelDir))
-       write(*,*) "liuliping, fread_dfeat: ", fread_dfeat
-! liuliping, end, all .r .x file should be invoke out of fread_dfeat
+       !write(*,*) "liuliping, fread_dfeat: ", fread_dfeat
+       ! liuliping, end, all .r .x file should be invoke out of fread_dfeat
        
        open(10,file=fread_dfeat//"feat_collect.in") 
        rewind(10)
@@ -164,19 +164,19 @@ program feat_collect_PCA
        enddo
 
 
-       num_case(ii)=num_case(ii)+1
-       if(kkk.eq.1) then
-       Ei_case(num_case(ii),ii)=Ei_tmp
-       else
-        if(abs(Ei_case(num_case(ii),ii)-Ei_tmp).gt.1.D-9) then
-        write(6,*) "Ei not the same in trainData.txt.Ftype,stop"
-        write(6,*) i2,Ei_case(num_case(ii),ii), Ei_tmp
-        stop
+        num_case(ii)=num_case(ii)+1
+        if(kkk.eq.1) then
+        Ei_case(num_case(ii),ii)=Ei_tmp
+        else
+            if(abs(Ei_case(num_case(ii),ii)-Ei_tmp).gt.1.D-9) then
+            write(6,*) "Ei not the same in trainData.txt.Ftype,stop"
+            write(6,*) i2,Ei_case(num_case(ii),ii), Ei_tmp
+            stop
+            endif
         endif
-       endif
       
        do j=1,nfeat_tmp
-       feat_case(j+icount_feat(ii),num_case(ii),ii)=feat_tmp(j)
+              feat_case(j+icount_feat(ii),num_case(ii),ii)=feat_tmp(j)
        enddo
        
        enddo  ! do iii=1,10000
@@ -219,7 +219,7 @@ program feat_collect_PCA
         write(10,*) i,EW(nfeat1-k+1)
         enddo
         close(10)
-
+        
         num=0
         do k=1,nfeat1
         if(abs(EW(nfeat1-k+1)).gt.1.D-4) num=num+1

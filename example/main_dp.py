@@ -14,9 +14,9 @@ if __name__ == "__main__":
     
     # load data into memeory 
     dp_trainer.load_data()  
-    
+        
     # initialize network 
-    dp_trainer.set_model()
+    dp_trainer.set_model()  
     
     # set optimzer 
     dp_trainer.set_optimizer()

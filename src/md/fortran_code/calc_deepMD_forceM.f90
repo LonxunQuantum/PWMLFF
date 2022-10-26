@@ -49,6 +49,8 @@ module calc_deepMD
     real(8),allocatable,dimension(:) :: energy_pred_tmp        !每个原子的能量预测值
     real(8),allocatable,dimension(:,:) :: force_pred_NN       !每个原子的受力预测值
     real(8),allocatable,dimension(:,:) :: force_pred_tmp       !每个原子的受力预测值
+    
+
     real(8) :: etot_pred_deepMD
     character(200) :: error_msg
     integer(4) :: istat
@@ -82,7 +84,6 @@ module calc_deepMD
   
     contains
     
-  
    
     subroutine set_paths_deepMD(fit_dir_input)
         character(*),intent(in) :: fit_dir_input
@@ -108,32 +109,40 @@ module calc_deepMD
     
         integer(4) :: nimage,num_refm,num_reftot,nfeat1_tmp,itype,i,k,itmp,j1
         integer(4) :: iflag_PCA,kkk,ntype_tmp,iatom_tmp,ntype_t,nterm,itype_t
+
         real(8) :: dist0
         character*20 txt
-        integer i1,i2,j,ii,ntmp,nlayer_tmp,j2
+        integer i1,i2,j,ii,ntmp,nlayer_tmp,j2 
+
         real*8 w_tmp,b_tmp
+        
         integer itype1,itype2,ntype_pair,ll
         integer node_tmp,node_nn_tmp(100),nlayer_nn_tmp
+
         real*8 sum
 
         ! integer(4),allocatable,dimension(:,:) :: nfeat,ipos_feat
-
-
-! **************** read feat.info ********************
+        
+        ! **************** read feat.info ********************
         open(10,file=trim(feat_info_path))
+        
         rewind(10)
+
         read(10,*) iflag_PCA   ! this can be used to turn off degmm part
         read(10,*) nfeat_type_n
+
         do kkk=1,nfeat_type_n
-          read(10,*) ifeat_type_n(kkk)   ! the index (1,2,3) of the feature type
+            read(10,*) ifeat_type_n(kkk)   ! the index (1,2,3) of the feature type
         enddo
+        
         read(10,*) ntype,m_neigh
+        
         close(10)
         
-!  m_neight get from gen_feature input file
-!   just to get ntype,m_neight, will read again
-
-! **************** read fit_linearMM.input ********************    
+        !  m_neight get from gen_feature input file
+        !   just to get ntype,m_neight, will read again 
+        
+        ! **************** read fit_linearMM.input ********************    
         if (allocated(itype_atom)) deallocate(itype_atom)
         if (allocated(nfeat1)) deallocate(nfeat1)
         if (allocated(rad_atom)) deallocate(rad_atom)
@@ -176,26 +185,29 @@ module calc_deepMD
         enddo
         close(10)
 
-           nfeat1m=0   ! the original feature
-           do i=1,ntype
+        nfeat1m=0   ! the original feature
+        do i=1,ntype
            if(nfeat1(i).gt.nfeat1m) nfeat1m=nfeat1(i)
            enddo
-! **************** read fit_linearMM.input ********************    
-! ****************** read vdw ************************
+        ! **************** read fit_linearMM.input ********************    
+        ! ****************** read vdw ************************
         open(10,file=trim(vdw_path))
         rewind(10)
         read(10,*) ntype_t,nterm
         if(nterm.gt.2) then
-        write(6,*) "nterm.gt.2,stop"
-        stop
+            write(6,*) "nterm.gt.2,stop"
+            stop
         endif
+
         if(ntype_t.ne.ntype) then
-        write(6,*) "ntype not same in vwd_fitB.ntype,something wrong"
-        stop
+            write(6,*) "ntype not same in vwd_fitB.ntype,something wrong"
+            stop
         endif
-         do itype1=1,ntype
-         read(10,*) itype_t,rad_atom(itype1),E_ave_vdw(itype1),((wp_atom(i,itype1,j1),i=1,ntype),j1=1,nterm)
+
+        do itype1=1,ntype
+            read(10,*) itype_t,rad_atom(itype1),E_ave_vdw(itype1),((wp_atom(i,itype1,j1),i=1,ntype),j1=1,nterm)
         enddo
+
         close(10)
 
 
@@ -216,11 +228,15 @@ module calc_deepMD
         if(node_em(ii).gt.nodeMM_em) nodeMM_em=node_em(ii)
         enddo
         enddo
-
-        allocate(Wij_em(nodeMM_em,nodeMM_em,nlayer_em,ntype,ntype))
-        allocate(B_em(nodeMM_em,nlayer_em,ntype,ntype))
-
-
+        
+        if (.not.allocated(Wij_em)) then
+            allocate(Wij_em(nodeMM_em,nodeMM_em,nlayer_em,ntype,ntype))
+        endif 
+        
+        if (.not. allocated(B_em)) then
+            allocate(B_em(nodeMM_em,nlayer_em,ntype,ntype))
+        endif
+        
         do itype1=1,ntype
         do itype2=1,ntype
         do ll=1,nlayer_em
@@ -256,25 +272,31 @@ module calc_deepMD
         enddo
         enddo
 
-        allocate(Wij_nn(nodeMM_nn,nodeMM_nn,nlayer_nn,ntype))
-        allocate(B_nn(nodeMM_nn,nlayer_nn,ntype))
+        if (.not.allocated(Wij_nn)) then
+            allocate(Wij_nn(nodeMM_nn,nodeMM_nn,nlayer_nn,ntype))
+        endif 
+
+        if (.not.allocated(B_nn)) then 
+            allocate(B_nn(nodeMM_nn,nlayer_nn,ntype))
+        endif 
 
         do itype=1,ntype
-        do ll=1,nlayer_nn
-         do j1=1,node_nn(ll)
-          read(12,*) (Wij_NN(j1,j2,ll,itype),j2=1,node_nn(ll+1))
-! Wij_NN(j1,j2,itype):
-! itype: center atom
-! j1: the layer ll node
-! j2: the layer ll+1 node
-         enddo
-         read(12,*) (B_NN(j2,ll,itype),j2=1,node_nn(ll+1))
-        enddo
+            do ll=1,nlayer_nn
+                do j1=1,node_nn(ll)
+                    read(12,*) (Wij_NN(j1,j2,ll,itype),j2=1,node_nn(ll+1))
+                    ! Wij_NN(j1,j2,itype):
+                    ! itype: center atom
+                    ! j1: the layer ll node
+                    ! j2: the layer ll+1 node
+                enddo
+                read(12,*) (B_NN(j2,ll,itype),j2=1,node_nn(ll+1))
+            enddo
         enddo
         close(12)
 
-
-        allocate(W_res_NN(nodeMM_nn,nlayer_nn+1,ntype))
+        if (.not.allocated(W_res_NN)) then
+            allocate(W_res_NN(nodeMM_nn,nlayer_nn+1,ntype))
+        endif
 
 
         open(12,file="fittingNet.resnet")
@@ -311,51 +333,51 @@ module calc_deepMD
         close(12)
 
 
-        write(6,*) "finished read W_res_NN"
+        !write(6,*) "finished read W_res_NN"
 
 
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
+    !cccccccccccccccccccccccccccccccccccccccccccccccccccc
 
-!********************add_force****************
+    !********************add_force****************
         inquire(file='add_force',exist=alive)
     !     status = access ("add_force",' ')    ! blank mode
     !   if (status .eq. 0 ) then
-      if (alive) then
-        open(10,file="add_force")
-        rewind(10)
-        read(10,*) add_force_num, alpha,y1,z1
-        allocate(add_force_atom(add_force_num))
-        ! allocate(direction(add_force_num))
-        allocate(const_fa(add_force_num))
-        allocate(const_fb(add_force_num))
-        allocate(const_fc(add_force_num))
-        do i=1,add_force_num
-            read(10,*) add_force_atom(i), const_fa(i), const_fb(i),const_fc(i)
-        enddo
-        close(10)
-    else
-        add_force_num=0
-    endif
+        if (alive) then
+            open(10,file="add_force")
+            rewind(10)
+            read(10,*) add_force_num, alpha,y1,z1
+            allocate(add_force_atom(add_force_num))
+            ! allocate(direction(add_force_num))
+            allocate(const_fa(add_force_num))
+            allocate(const_fb(add_force_num))
+            allocate(const_fc(add_force_num))
+            do i=1,add_force_num
+                read(10,*) add_force_atom(i), const_fa(i), const_fb(i),const_fc(i)
+            enddo
+            close(10)
+        else
+            add_force_num=0
+        endif
 !********************
-    inquire(file='force_constraint',exist=alive)
-    !     status = access ("add_force",' ')    ! blank mode
-    !   if (status .eq. 0 ) then
-      if (alive) then
-        open(10,file="force_constraint")
-        rewind(10)
-        read(10,*) const_force_num
-        allocate(const_force_atom(const_force_num))
-        ! allocate(direction(add_force_num))
-        allocate(const_fx(const_force_num))
-        allocate(const_fy(const_force_num))
-        allocate(const_fz(const_force_num))
-        do i=1,const_force_num
-            read(10,*) const_force_atom(i), const_fx(i), const_fy(i), const_fz(i)
-        enddo
-        close(10)
-    else
-        const_force_num=0
-    endif
+        inquire(file='force_constraint',exist=alive)
+        !     status = access ("add_force",' ')    ! blank mode
+        !   if (status .eq. 0 ) then
+        if (alive) then
+            open(10,file="force_constraint")
+            rewind(10)
+            read(10,*) const_force_num
+            allocate(const_force_atom(const_force_num))
+            ! allocate(direction(add_force_num))
+            allocate(const_fx(const_force_num))
+            allocate(const_fy(const_force_num))
+            allocate(const_fz(const_force_num))
+            do i=1,const_force_num
+                read(10,*) const_force_atom(i), const_fx(i), const_fy(i), const_fz(i)
+            enddo
+            close(10)
+        else
+            const_force_num=0
+        endif
 
     end subroutine load_model_deepMD
   
@@ -390,11 +412,9 @@ module calc_deepMD
             allocate(force_pred_NN(3,natom))
             allocate(force_pred_tmp(3,natom))
             !allocate()
-              
 
-              
             iatom=iatom_tmp
-              
+            
             do i = 1, natom
                 iitype = 0
                 do itype = 1, ntype
@@ -418,8 +438,8 @@ module calc_deepMD
     end subroutine set_image_info_deepMD
   
     subroutine cal_energy_force_deepMD(AL,xatom,Etot,fatom)
-
-
+        
+        use mod_data, only: e_atom
 
         integer(4)  :: itype,ixyz,i,j,jj
         integer natom_tmp,nfeat0_tmp,m_neigh_tmp,kk
@@ -429,7 +449,7 @@ module calc_deepMD
         real(8) xatom(3,natom),fatom(3,natom)
         real(8) Etot
 
-
+        
         integer natom_n_type(50)
         integer,allocatable,dimension(:,:) :: iat_ind
                 
@@ -449,7 +469,9 @@ module calc_deepMD
         real(8),allocatable,dimension(:,:) :: dE_dfout
         real(8),allocatable,dimension(:,:,:) :: f_back0_em,f_back_em
         real(8),allocatable,dimension(:,:) :: force_all,force_all_tmp
-
+        
+        ! atomic energy 
+        real(8),allocatable,dimension(:) :: energy_pred_dp, energy_pred_dp_local
        
       
         real(8),allocatable,dimension(:,:,:) :: s_neigh_tmp
@@ -796,31 +818,28 @@ module calc_deepMD
         !    write(*,*) "layer0 feature -> layer1. layer1:"
         !    write(*,*) f_in(:,1,ii+1)
         !endif
-         do i=1,num
-         do j=1,node_NN(ll+1)
-         f_in_NN(j,i,ll+1)=f_in_NN(j,i,ll+1)+B_NN(j,ll,itype1)
-         enddo
-         enddo
+        do i=1,num
+            do j=1,node_NN(ll+1)
+                f_in_NN(j,i,ll+1)=f_in_NN(j,i,ll+1)+B_NN(j,ll,itype1)
+            enddo
+        enddo
 
        !write(*,*) "llp test, x_ii+1 = wij*x_ii+bj,layer: ", ii+1
        !write(*,*) f_in(:,1,ii+1)
 
- 101     continue
+101     continue
 
+        !ccccccccccccc   get the 100 R(s). 
 
+        if(node_NN(nlayer_NN+1).ne.1) then
+            write(6,*) "node_NN(nlayer_NN+1).ne.1,stop",node_NN(nlayer_NN+1)
+            stop
+        endif
 
-!ccccccccccccc   get the 100 R(s). 
-        
-         
-
-         if(node_NN(nlayer_NN+1).ne.1) then
-         write(6,*) "node_NN(nlayer_NN+1).ne.1,stop",node_NN(nlayer_NN+1)
-         stop
-         endif
-!cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-         do i=1,natom_n_type(itype1)
-         energy_type(i,itype1)=f_in_NN(1,i,nlayer_NN+1)
-         enddo
+        !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+        do i=1,natom_n_type(itype1)
+            energy_type(i,itype1)=f_in_NN(1,i,nlayer_NN+1)
+        enddo
 
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !   Now, we wil do the back propagation
@@ -874,9 +893,7 @@ module calc_deepMD
 ! Now, there are two terms for the force:
 !   (dE/df_NN)*(df_NN/d_x)
 !   (dE/df_NN)*(df_NN/d_fem)*(d_fem/d_s)*(d_s/d_x)
-!  let't do the first term
-
-
+!  let't do the first term  
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -911,11 +928,11 @@ module calc_deepMD
          enddo
          enddo
          enddo
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+        !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+        !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+        !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+        !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+        !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
  
          nn1=node_em(nlayer_em+1)
          do 130 itype2=1,ntype
@@ -992,63 +1009,87 @@ module calc_deepMD
      
          
          jj=0
-         do i=1,natom_n_type(itype1)
-         iat=iat_ind(i,itype1)
-         do j=1,num_neigh(itype2,iat)
-         jj=jj+1
+        do i=1,natom_n_type(itype1)
+            iat=iat_ind(i,itype1)
+                do j=1,num_neigh(itype2,iat)
+                    jj=jj+1
 
-         do m2=1,3
-         dE_dx(m2,j,itype2,iat)=dE_dx(m2,j,itype2,iat)+f_back0_em(1,jj,1)*ds_neigh(m2,j,itype2,iat)
-!1 This is the derivative through s_neigh change, has through the back
-!propagation of the embedding net
-         enddo
-         enddo
-         enddo
+                    do m2=1,3
+                        dE_dx(m2,j,itype2,iat)=dE_dx(m2,j,itype2,iat)+f_back0_em(1,jj,1)*ds_neigh(m2,j,itype2,iat)
+            !1 This is the derivative through s_neigh change, has through the back
+            !propagation of the embedding net
+                    enddo
+                enddo
+        enddo
 
-130      continue
+130     continue
 
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !  back propagation for the embedding net. 
 
-400      continue
+400     continue
 
+        ! update etot & atomic energy 
+        Etot=0.d0
 
-         Etot=0.d0
-         do itype=1,ntype
-         do i=1,natom_n_type(itype)
-         Etot=Etot+energy_type(i,itype)
-         enddo
-         enddo
+        
 
+        allocate(energy_pred_dp(natom))
+        allocate(energy_pred_dp_local(natom))
 
-         allocate(force_all(3,natom))
-         allocate(force_all_tmp(3,natom))
+        energy_pred_dp = 0.d0
+        energy_pred_dp_local = 0.d0
 
-         force_all=0.d0
-         do itype1=1,ntype
-         do i=1,natom_n_type(itype1)
-         iat=iat_ind(i,itype1)
-         do itype2=1,ntype
-         do j=1,num_neigh(itype2,iat)
-         iat2=list_neigh(j,itype2,iat)
-         force_all(:,iat2)=force_all(:,iat2)+dE_dx(:,j,itype2,iat)
-         force_all(:,iat)=force_all(:,iat)-dE_dx(:,j,itype2,iat)   ! the centeratom is a negative derivative
-         enddo
-         enddo
-         enddo
-         enddo
+        do itype=1,ntype
 
+            do i=1,natom_n_type(itype)
+                Etot=Etot+energy_type(i,itype)
 
-       call mpi_allreduce(Etot,Etot_tmp,1,MPI_REAL8,MPI_SUM,MPI_COMM_WORLD,ierr)
-       call mpi_allreduce(force_all,force_all_tmp,3*natom,MPI_REAL8,MPI_SUM,MPI_COMM_WORLD,ierr)
+                iat=iat_ind(i,itype)
+                
+                energy_pred_dp_local(iat) = energy_type(i,itype)
+            enddo
+        enddo
 
+        allocate(force_all(3,natom))
+        allocate(force_all_tmp(3,natom))
+        
+        ! update force
+        force_all=0.d0
+        do itype1=1,ntype
+            do i=1,natom_n_type(itype1)
+                iat=iat_ind(i,itype1)
+                do itype2=1,ntype
+                    do j=1,num_neigh(itype2,iat)
+                        iat2=list_neigh(j,itype2,iat)
+
+                        force_all(:,iat2)=force_all(:,iat2)+dE_dx(:,j,itype2,iat)
+                        force_all(:,iat)=force_all(:,iat)-dE_dx(:,j,itype2,iat)   ! the centeratom is a negative derivative
+                    enddo
+                enddo
+            enddo
+        enddo
+
+        call mpi_allreduce(Etot,Etot_tmp,1,MPI_REAL8,MPI_SUM,MPI_COMM_WORLD,ierr)
+        
+        call mpi_allreduce(force_all,force_all_tmp,3*natom,MPI_REAL8,MPI_SUM,MPI_COMM_WORLD,ierr)
+        
+        call mpi_allreduce(energy_pred_dp_local,energy_pred_dp,natom,MPI_REAL8,MPI_SUM,MPI_COMM_WORLD,ierr) 
+        
         Etot=Etot_tmp
+
         force_all=force_all_tmp
-
-
+        
+        ! now energy_pred_dp contians the final atomic energy to be written 
+        
+        e_atom(1:natom) = energy_pred_dp(1:natom)
+        ! force copy is done here
         fatom(:,1:natom)=force_all(:,1:natom)
+
         deallocate(force_all)
         deallocate(force_all_tmp)
+        deallocate(energy_pred_dp)
+        deallocate(energy_pred_dp_local)
         deallocate(f_in)
         deallocate(f_out)
         deallocate(f_d)

@@ -10,6 +10,7 @@ import os
 import re
 from select import select
 import sys
+from tkinter import EXCEPTION
 from unittest.mock import NonCallableMagicMock
 from os.path import isdir
 from pathlib import Path
@@ -50,18 +51,21 @@ from tqdm.auto import tqdm
 
 #  for depolying 
 from nequip.scripts.deploy import _compile_for_deploy
+
 if sys.version_info[1] >= 8:
     from typing import Final
 else:
     from typing_extensions import Final
+
+
 
 class gnn_network:
     
     def __init__(   self,
 
                     #job related                 
-                    root = "record",
-                    run_name = "gnn",
+                    session_dir = "record",
+                    task_name = "gnn",
                     seed = 123,
                     dataset_seed = 3581,
                     append = False, 
@@ -69,10 +73,20 @@ class gnn_network:
                     device = "cuda", 
 
                     # network related
-                    r_max = 4.0,
+
+                    # cutoff radius in length units, here Angstrom, this is an important hyperparamter to scan
+                    r_max = 4.0,                                                     
+                    
+                    # number of interaction blocks, we find 3-5 to work best
                     num_layers = 4, 
+
+                    # the maximum irrep order (rotation order) for the network's features, l=1 is a good default, l=2 is more accurate but slower
                     l_max = 1, 
+
+                    # whether to include features with odd mirror parityy; often turning parity off gives equally good results but faster networks, so do consider this
                     parity = True,
+                    
+                    # the multiplicity of the features, 32 is a good default for accurate network, if you want to be more accurate, go larger, if you want to be faster, go lower
                     num_features = 32, 
                     nonlinearity_type = 'gate',
 
@@ -80,14 +94,27 @@ class gnn_network:
                     nonlinearity_gates = {"e": "silu" , "o": "tanh"},
                     
                     # radial network 
-                    num_basis = 8,                                                                      # number of basis functions used in the radial basis, 8 usually works best
-                    BesselBasis_trainable = True,                                                       # set true to train the bessel weights
-                    PolynomialCutoff_p = 6,                                                             # p-exponent used in polynomial cutoff function, smaller p corresponds to stronger decay with distance
-                    
-                    invariant_layers = 2,                                                               # number of radial layers, usually 1-3 works best, smaller is faster
-                    invariant_neurons = 64,                                                             # number of hidden neurons in radial function, smaller is faster
-                    avg_num_neighbors = "auto",                                                         # number of neighbors to divide by, null => no normalization, auto computes it based on dataset 
-                    use_sc = True,                                                                      # use self-connection or not, usually gives big improvement
+
+                    # number of basis functions used in the radial basis, 8 usually works best
+                    num_basis = 8,         
+
+                    # set true to train the bessel weights                                                  
+                    BesselBasis_trainable = True,     
+
+                    # p-exponent used in polynomial cutoff function, smaller p corresponds to stronger decay with distance
+                    PolynomialCutoff_p = 6,                 
+
+                    # number of radial layers, usually 1-3 works best, smaller is faster
+                    invariant_layers = 2,         
+
+                    # number of hidden neurons in radial function, smaller is faster
+                    invariant_neurons = 64,                                         
+
+                    # number of neighbors to divide by, null => no normalization, auto computes it based on dataset
+                    avg_num_neighbors = "auto",  
+
+                    # use self-connection or not, usually gives big improvement
+                    use_sc = True,                                                                     
 
                     # dataset  
                     dataset = "ase",
@@ -96,19 +123,19 @@ class gnn_network:
                     chemical_symbols = ["Cu"], 
 
                     # info 
-                    verbose = "info",                                                                      # the same as python logging, e.g. warning, info, debug, error; case insensitive
+                    verbose = "info",                                                                    # the same as python logging, e.g. warning, info, debug, error; case insensitive
                     log_batch_freq = 1,                                                                  # batch frequency, how often to print training errors withinin the same epoch
                     log_epoch_freq = 1,                                                                  # epoch frequency, how often to print
                     save_checkpoint_freq = -1,                                                           # frequency to save the intermediate checkpoint. no saving of intermediate checkpoints when the value is not positive.
                     save_ema_checkpoint_freq = -1,
                     
                     # training 
-                    n_train = 600,                                                                       # number of training data
-                    n_val = 200,                                                                         # number of validation data
+                    num_train_img = 600,                                                                       # number of training data
+                    num_valid_img = 200,                                                                         # number of validation data
                     learning_rate = 0.005,                                                               # learning rate, we found values between 0.01 and 0.005 to work best - this is often one of the most important hyperparameters to tune
-                    batch_size = 5,                                                                      # batch size, we found it important to keep this small for most applications including forces (1-5); for energy-only training, higher batch sizes work better
-                    validation_batch_size = 10,                                                          # batch size for evaluating the model during validation. This does not affect the training results, but using the highest value possible (<=n_val) without running out of memory will speed up your training.
-                    max_epochs = 10,                                                                     # stop training after _ number of epochs, we set a very large number, as e.g. 1million and then just use early stopping and not train the full number of epochs
+                    train_batch_size = 5,                                                                      # batch size, we found it important to keep this small for most applications including forces (1-5); for energy-only training, higher batch sizes work better
+                    valid_batch_size = 10,                                                          # batch size for evaluating the model during validation. This does not affect the training results, but using the highest value possible (<=n_val) without running out of memory will speed up your training.
+                    epoch_num = 10,                                                                     # stop training after _ number of epochs, we set a very large number, as e.g. 1million and then just use early stopping and not train the full number of epochs
                     train_val_split = "random",                                                            # can be random or sequential. if sequential, first n_train elements are training, next n_val are val, else random, usually random is the right choice
                     shuffle = True,                                                                       # if true, the data loader will shuffle the data, usually a good idea
                     metrics_key = "validation_loss",                                                       # metrics used for scheduling and saving best model. Options: `set`_`quantity`, set can be either "train" or "validation, "quantity" can be loss or anything that appears in the validation batch step header, such as f_mae, f_rmse, e_mae, e_rmse
@@ -152,12 +179,14 @@ class gnn_network:
         del input_args["self"]
         
         """
+            change 
+        """
+        
+        """
             Dump the input_args if needed. 
         """ 
 
         config_raw = dict(
-                root="./",
-                run_name="NequIP",
                 wandb=False,
                 wandb_project="NequIP",
                 model_builders=[
@@ -168,31 +197,51 @@ class gnn_network:
                     "RescaleEnergyEtc",
                 ],
                 dataset_statistics_stride=1,
-                default_dtype="float32",
+
                 allow_tf32=False,  # TODO: until we understand equivar issues
-                verbose="INFO",
+
                 model_debug_mode=False,
                 equivariance_test=False,
                 grad_anomaly_mode=False,
-                append=False,
                 _jit_bailout_depth=2, 
                 _jit_fusion_strategy=[("DYNAMIC", 3)],
             )
         
         # add all args to the config
         for args in input_args:
-            config_raw[args] = input_args[args]
+            # some re-parsing here for user's delight
+
+            if args == "session_dir":
+                config_raw["root"] = input_args[args]
+            
+            elif args == "task_name": 
+                config_raw["run_name"] = input_args[args]
+
+            elif args == "epoch_num":
+                config_raw["max_epochs"] = input_args[args]
+
+            elif args == "num_train_img":
+                config_raw["n_train"] = input_args[args]
+            
+            elif args == "num_valid_img":
+                config_raw["n_val"] = input_args[args]
+
+            elif args == "train_batch_size":
+                config_raw["batch_size"] = input_args[args]
+
+            elif args == "valid_batch_size":
+                config_raw["validation_batch_size"] = input_args[args]
+
+            else:
+                config_raw[args] = input_args[args]
         
-        #print("CONFIGURATION OF TRAINER:\n" )
-
-        #for args in config_raw:
-        #    print(" ** ", args,":" ,config_raw[args])  
-
+        #print("CONFIGURATION OF TRAINER:\n" )  
+        
         """
             add user-defined ones 
         """ 
-
-        # NEquiP's Config class. All in one
+        
+        # NEquiP's Config class. All in one 
         self.config = Config(config_raw)
         
         print ("************************************************************")
@@ -204,10 +253,18 @@ class gnn_network:
         print ("*    DOI: https://doi.org/10.1038/s41467-022-29939-5       *")
         print ("*    GitHub: https://github.com/mir-group/nequip           *")
         print ("************************************************************")
-        
+    
     """
         Auxiliary functions 
     """ 
+    def set_device(self,val):
+        self.config["device"] = val
+    
+    def set_session_dir(self,val):
+        self.config["root"] = val 
+
+    def set_task_name(self,val):
+        self.config["run_name"] = val
     
     def set_epoch_num(self,val):
         self.config["max_epochs"] = val
@@ -217,15 +274,6 @@ class gnn_network:
     
     def set_num_valid_img(self,val):
         self.config["n_val"] = val 
-
-    def set_atom_type(self,val):
-        self.config["chemical_symbols"] = val 
-
-    def set_session_dir(self,val):
-        self.config["root"] = val 
-
-    def set_task_name(self,val):
-        self.config["run_name"] = val 
     
     def set_train_batch_size(self,val):
         self.config["batch_size"] = val 
@@ -235,7 +283,35 @@ class gnn_network:
 
     def set_learning_rate(self,val):
         self.config["learning_rate"] = val 
+    
+    # network related 
+    def set_r_max(self,val):
+        # cutoff radius in length units, here Angstrom, this is an important hyperparamter to scan
+        self.config["r_max"] = val
+    
+    def set_num_layers(self,val):
+        # number of interaction blocks, we find 3-5 to work best
+        self.config["num_layers"] = val 
+    
+    def set_l_max(self,val):
+        # the maximum irrep order (rotation order) for the network's features, l=1 is a good default, l=2 is more accurate but slower
+        self.config["l_max"] = val
 
+    def set_num_features(self,val):
+        # the multiplicity of the features, 32 is a good default for accurate network, if you want to be more accurate, go larger, if you want to be faster, go lower
+        self.config["num_features"] = val
+
+    def set_num_basis(self,val):
+        # number of basis functions used in the radial basis, 8 usually works best
+        self.config["num_basis"] = val 
+
+    def set_PolynomialCutoff_p(self,val):
+        # p-exponent used in polynomial cutoff function, smaller p corresponds to stronger decay with distance
+        self.config["PolynomialCutoff_p"] = val 
+
+    def set_invariant_layers(self,val):
+        # number of radial layers, usually 1-3 works best, smaller is faster
+        self.config["invariant_layers"] = val 
     
     """
         Generating data
@@ -289,11 +365,17 @@ class gnn_network:
         
         print(".xyz file has been saved to:"+xyz_output)
 
-    def train(self):
+    def train(self, train_data = r"./PWdata/training_data.xyz" ):
         
         """
             Launching training 
         """
+        # update training data path  
+        self.config["dataset_file_name"]  = train_data
+        
+        if not os.path.exists(self.config["dataset_file_name"]):
+            raise Exception(train_data,"not found")
+
         from nequip.scripts.train import restart, fresh_start
 
         set_up_script_logger(self.config.get("log", None), self.config.verbose)
@@ -442,12 +524,18 @@ class gnn_network:
             args.log = Path(log)
 
         args.metrics_config = metrics_config 
+
         if model is not None:
             args.model = Path(model)
+        else:
+            raise Exception("must specify the model to be evaluated")
+            
 
         if output is not None:
             args.output = Path(output)
+
         args.output_fields = output_fields
+
         args.repeat = repeat
 
         if test_indices is not None:

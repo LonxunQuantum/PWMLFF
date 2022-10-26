@@ -33,6 +33,9 @@ class MovementDataset(Dataset):
         self.ind_img = np.load(ind_img_path)
         self.itype = np.load(itype_path)
 
+        self.Rc = pm.Rc  # default 6.0
+        self.Rm = pm.Rm  # default 5.8
+
         if pm.dR_neigh == False:
             self.feat = np.load(feat_path)
             self.dfeat = np.load(dfeat_path)
@@ -72,9 +75,8 @@ class MovementDataset(Dataset):
                 
 
             self.Ri_all = np.load(Ri_path) #(12, 108, 100, 4)
-            self.Ri_d_all = np.load(Ri_d_path)
-                
-    
+            self.Ri_d_all = np.load(Ri_d_path)  
+
     def prepare(self, Ri_path, Ri_d_path):
         image_dR = self.dR
         list_neigh = self.dR_neigh_list
@@ -90,6 +92,7 @@ class MovementDataset(Dataset):
         img_seq = [0]
         seq_len = 0
         tmp_img = self.natoms_img[0]
+
         for i in range(image_num):
             if (self.natoms_img[i] != tmp_img).sum() > 0 or seq_len >= 1000:
                 img_seq.append(i)
@@ -218,18 +221,22 @@ class MovementDataset(Dataset):
         res = torch.zeros_like(x)
 
         # x < rcut_min vv = 1
-        mask_min = x < 5.8   #set rcut=25, 10  min=0,max=30
+        #mask_min = x < 5.8   #set rcut=25, 10  min=0,max=30
+        mask_min = x < self.Rm 
+
         mask_1 = mask & mask_min  #[2,108,100]
         vv[mask_1] = 1
         dvv[mask_1] = 0
-
+    
         # rcut_min< x < rcut_max
-        mask_max = x < 6.0
+        #mask_max = x < 6.0
+        mask_max = x < self.Rc 
         mask_2 = ~mask_min & mask_max & mask
         # uu = (xx - rmin) / (rmax - rmin) ;
-        uu[mask_2] = (x[mask_2] - 5.8)/(6.0 -5.8)
+        uu[mask_2] = (x[mask_2] - self.Rm)/(self.Rc - self.Rm)
         vv[mask_2] = uu[mask_2] * uu[mask_2] * uu[mask_2] * (-6 * uu[mask_2] * uu[mask_2] + 15 * uu[mask_2] - 10) + 1
-        du = 1.0 / ( 6.0 - 5.8)
+
+        du = 1.0 / ( self.Rc - self.Rm)
         # dd = ( 3 * uu*uu * (-6 * uu*uu + 15 * uu - 10) + uu*uu*uu * (-12 * uu + 15) ) * du;
         dvv[mask_2] = (3 * uu[mask_2] * uu[mask_2] * (-6 * uu[mask_2] * uu[mask_2] + 15 * uu[mask_2] -10) + uu[mask_2] * uu[mask_2] * uu[mask_2] * (-12 * uu[mask_2] + 15)) * du
  
@@ -407,11 +414,13 @@ class MovementDataset(Dataset):
         
 
 def get_torch_data(examplespath, is_train=True):
+    
     '''
     input para:
     examplespath : npy_file_dir
     data_file_frompwmat : read train_data.csv or test_data.csv
     '''
+    
     # examplespath='./train_data/final_train'   # for example
     f_itype = os.path.join(examplespath+'/itypes.npy')
     f_nblist = os.path.join(examplespath+'/nblist.npy')

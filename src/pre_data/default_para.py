@@ -76,7 +76,7 @@ dp_predict = False
 DP_cfg = {
     'embeding_net': {
         'network_size': [16, 32, 64], # 第一维表示输入的维度
-	'bias': True,
+	'bias': True,   
 	'resnet_dt': True,
 	'activation': F.softplus,    #torch.sigmoid,
 	},
@@ -189,14 +189,17 @@ Ftype1_para={               #2b
     'dR1':[0.5 for tmp in range(10)],
     'iflag_ftype':3       # same value for different types, iflag_ftype:1,2,3 when 3, iflag_grid must be 3
 }
+
 Ftype2_para={             # 3b
     'numOf3bfeat1':[3 for tmp in range(10)],
     'numOf3bfeat2':[3 for tmp in range(10)],
     'Rc':[Rc_M for tmp in range(10)],
     'Rc2':[Rc_M for tmp in range(10)],
     'Rm':[Rc_min for tmp in range(10)],
+
     'iflag_grid':[3 for tmp in range(10)],                      # 1 or 2 or 3
     'fact_base':[0.2 for tmp in range(10)],
+
     'dR1':[0.5 for tmp in range(10)],
     'dR2':[0.5 for tmp in range(10)],
     'iflag_ftype':3   # same value for different types, iflag_ftype:1,2,3 when 3, iflag_grid must be 3
@@ -218,6 +221,7 @@ Ftype4_para={           # 3bcos
     'w':    [ [0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0] for tmp in range(10)],  # feature changed
     # 1/w^2 is the \eta in formula, and w is the width of gaussian fuction
     # 'lambda':[ [1.0,-1.0] for tmp in range(10)], # lambda === [1.0, -1.0]
+    
 }
 Ftype5_para={           # MTP
     'Rc':[5.4 for tmp in range(10)],     # number of elements in Rc = num atom type
@@ -253,16 +257,20 @@ Ftype7_para={
     'Rc':[5.4  for tmp in range(10)],     # number of elements in Rc = num atom type
     'Rc2':[3.0  for tmp in range(10)],
     'Rm':[1.0  for tmp in range(10)],
-    'M': [4  for tmp in range(10)],
+    'M': [16  for tmp in range(10)],
     'weight_r': [1.0  for tmp in range(10)],
     }
 
-Ftype8_para={
+Ftype8_para={   
     'Rc':[5.4  for tmp in range(10)],     # number of elements in Rc = num atom type
     'M':[8  for tmp in range(10)],
     'weight_r':[1.0  for tmp in range(10)],
     'w':[1.0, 1.5, 2.0, 2.5 ],
     }
+
+# for dp S function 
+Rc = 5.4
+Rm = 3.0
 
 kfnn_trainEtot = True
 kfnn_trainEi = False

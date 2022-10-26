@@ -14,6 +14,8 @@ import datetime
 import time
 import math
 
+#git test
+
 import default_para as pm    
 # import prepare as pp
 # pp.readFeatnum()
@@ -90,8 +92,7 @@ class DP(nn.Module):
         Egroup_out = torch.divide(Egroup, divider)
 
         return Egroup_out
-        
-        
+            
     def forward(self, Ri, dfeat, list_neigh, natoms_img, Egroup_weight, divider, is_calc_f=None):
 
         torch.autograd.set_detect_anomaly(True)

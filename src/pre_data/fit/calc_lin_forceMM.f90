@@ -813,10 +813,10 @@ program linear_forceMM
 
      close(70)
 
-     write(6,*) "AEM_Eatom=", dsqrt(AEM_Eatom/num_AEM_Eatom) 
-     write(6,*) "AEM_Egroup=", dsqrt(AEM_Egroup/num_AEM_Egroup) 
-     write(6,*) "AEM_Etot=", dsqrt(AEM_Etot/num_AEM_Etot) 
-     write(6,*) "AEM_F=", dsqrt(AEM_F/num_AEM_F) 
+     write(6,*) "RMSE Eatom=", dsqrt(AEM_Eatom/num_AEM_Eatom) 
+     write(6,*) "RMSE Egroup=", dsqrt(AEM_Egroup/num_AEM_Egroup) 
+     write(6,*) "RMSE Etot=", dsqrt(AEM_Etot/num_AEM_Etot) 
+     write(6,*) "RMSE F=", dsqrt(AEM_F/num_AEM_F) 
 
      deallocate(fread_dfeat)
      stop

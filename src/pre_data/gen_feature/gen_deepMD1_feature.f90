@@ -111,9 +111,12 @@ PROGRAM gen_deepMD1_feature
 
      nfeat0m=0
      do itype=1,ntype
-     M1=M_type(itype)*ntype
-     nfeat0(itype)=M1*(M1+1)/2
-     if(nfeat0(itype).gt.nfeat0m) nfeat0m=nfeat0(itype)
+        M1=M_type(itype)*ntype
+        ! wlj altered 
+        !nfeat0(itype) = M1*M1
+        nfeat0(itype)=M1*(M1+1)/2
+        
+        if(nfeat0(itype).gt.nfeat0m) nfeat0m=nfeat0(itype)
      enddo
      write(6,*) "itype,nfeat0=",(nfeat0(itype),itype=1,ntype)
 
@@ -233,7 +236,7 @@ PROGRAM gen_deepMD1_feature
 
     if(.not.nextline) goto 2000
     num_step=num_step+1
-
+    
     backspace(move_file) 
     read(move_file, *) natom
     ALLOCATE (iatom(natom),xatom(3,natom),fatom(3,natom),Eatom(natom))
@@ -398,50 +401,57 @@ PROGRAM gen_deepMD1_feature
     write(25) Eatom
     write(25) fatom
     write(25) feat
-!    write(25) num_neigh_alltype
-!    write(25) list_neigh_alltype
+    !    write(25) num_neigh_alltype
+    !    write(25) list_neigh_alltype
     write(25) num_neigh_alltypeM    ! the num of neighbor using Rc_M
     write(25) list_neigh_alltypeM   ! The list of neighor using Rc_M
-!    write(25) map2neigh_alltypeM    ! the neighbore atom, from list_neigh_alltype list to list_neigh_alltypeM list
-!    write(25) nfeat_atom  ! The number of feature for this atom 
+    !    write(25) map2neigh_alltypeM    ! the neighbore atom, from list_neigh_alltype list to list_neigh_alltypeM list
+    !    write(25) nfeat_atom  ! The number of feature for this atom 
 
-!cccccccccccccccccccccccccccccccccccccccccccccchhhhhh
-!  Only output the nonzero points for dfeat
+    !cccccccccccccccccccccccccccccccccccccccccccccchhhhhh
+    !  Only output the nonzero points for dfeat
     num_tmp=0
     do jj_tmp=1,m_neigh
-    do iat2=1,natom
-    do ii_tmp=1,nfeat0M
-    if(abs(dfeat(ii_tmp,iat2,jj_tmp,1))+abs(dfeat(ii_tmp,iat2,jj_tmp,2))+ &
-         abs(dfeat(ii_tmp,iat2,jj_tmp,3)).gt.1.E-7) then
-    num_tmp=num_tmp+1
-    endif
+        do iat2=1,natom
+            do ii_tmp=1,nfeat0M
+                if(abs(dfeat(ii_tmp,iat2,jj_tmp,1))+abs(dfeat(ii_tmp,iat2,jj_tmp,2))+ &
+                    abs(dfeat(ii_tmp,iat2,jj_tmp,3)).gt.1.E-7) then
+
+                    num_tmp=num_tmp+1
+                
+                endif
+            enddo
+        enddo
     enddo
-    enddo
-    enddo
+
     allocate(dfeat_tmp(3,num_tmp))
     allocate(iat_tmp(num_tmp))
     allocate(jneigh_tmp(num_tmp))
     allocate(ifeat_tmp(num_tmp))
 
     num_tmp=0
+    
     do jj_tmp=1,m_neigh
-    do iat2=1,natom
-    do ii_tmp=1,nfeat0M
-    if(abs(dfeat(ii_tmp,iat2,jj_tmp,1))+abs(dfeat(ii_tmp,iat2,jj_tmp,2))+ &
-          abs(dfeat(ii_tmp,iat2,jj_tmp,3)).gt.1.E-7) then
-    num_tmp=num_tmp+1
-    dfeat_tmp(:,num_tmp)=dfeat(ii_tmp,iat2,jj_tmp,:)
-    iat_tmp(num_tmp)=iat2
-!    jneigh_tmp(num_tmp)=jj_tmp
+        do iat2=1,natom
+            do ii_tmp=1,nfeat0M
+                if(abs(dfeat(ii_tmp,iat2,jj_tmp,1))+abs(dfeat(ii_tmp,iat2,jj_tmp,2))+ &
+                    abs(dfeat(ii_tmp,iat2,jj_tmp,3)).gt.1.E-7) then
+                
+                num_tmp=num_tmp+1
+                dfeat_tmp(:,num_tmp)=dfeat(ii_tmp,iat2,jj_tmp,:)
+                iat_tmp(num_tmp)=iat2
+                
+                !  jneigh_tmp(num_tmp)=jj_tmp
 
-    jneigh_tmp(num_tmp)=map2neigh_alltypeM(jj_tmp,iat2)
+                jneigh_tmp(num_tmp)=map2neigh_alltypeM(jj_tmp,iat2)
 
-    ifeat_tmp(num_tmp)=ii_tmp
-    endif
+                ifeat_tmp(num_tmp)=ii_tmp
+                endif
+            enddo
+        enddo
     enddo
-    enddo
-    enddo
-!TODO:
+    
+    !TODO:
     ! write(25) dfeat
     write(25) num_tmp
     write(25) iat_tmp
@@ -450,15 +460,15 @@ PROGRAM gen_deepMD1_feature
     write(25) dfeat_tmp
     write(25) xatom
     write(25) AL
-
-
+    
     open(55,file=trainDataDir,position="append")
-    do i=1,natom
-    write(55,"(i5,',',i3,',',f12.7,',', i3,<nfeat0m>(',',E23.16))")  &
-       i,iatom(i),Eatom(i),nfeat_atom(i),(feat(j,i),j=1,nfeat_atom(i))
-    enddo
-    close(55)
 
+    do i=1,natom
+        write(55,"(i5,',',i3,',',f12.7,',', i4,<nfeat0m>(',',E23.16))")  &
+        i,iatom(i),Eatom(i),nfeat_atom(i),(feat(j,i),j=1,nfeat_atom(i))
+    enddo
+    
+    close(55)   
 
     deallocate(iat_tmp)
     deallocate(jneigh_tmp)

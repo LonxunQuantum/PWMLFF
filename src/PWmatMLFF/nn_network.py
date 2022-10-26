@@ -50,6 +50,7 @@ from sklearn.feature_selection import VarianceThreshold
 
 # src/aux 
 from opts import opt_values 
+from feat_modifier import feat_modifier
 
 import pickle
 import logging
@@ -175,12 +176,19 @@ class nn_network:
         ########################
         # feature set feature type 
         pm.use_Ftype = feature_type 
-
+        
+        self.feat_mod = feat_modifier() 
+        
+        """
+            usage:
+            traienr.f_mdfr.set_feat1_xxxx([])
+        """ 
+        
         # set final layer bias for NN. 
         # ##################################
         #        UNDER CONSTRUCTION 
         # pm.itype_Ei_mean = self.get_b_init()   
-
+        
         # label to be trained 
         self.is_trainForce = is_trainForce
         self.is_trainEi = is_trainEi
@@ -377,7 +385,7 @@ class nn_network:
             if img < pair[0][1] and img >= pair[0][1]:
                 mvt_name = pair[1] 
                 break 
-
+        
         return self.movement_weights[mvt_name]  
 
     def scale(self,train_data,valid_data):
@@ -409,7 +417,6 @@ class nn_network:
                 pickle.dump(self.scaler, open(self.opts.opt_session_dir+"scaler.pkl",'wb'))
                 print ("scaler.pkl saved to:",self.opts.opt_session_dir)
 
-        
         #atom index within this image, neighbor index, feature index, spatial dimension   
         if pm.is_dfeat_sparse == False: 
             
@@ -420,8 +427,8 @@ class nn_network:
             train_data.dfeat = trans(trans(train_data.dfeat) * self.scaler.scale_) 
             valid_data.dfeat = trans(trans(valid_data.dfeat) * self.scaler.scale_)
 
-
     def load_data(self):
+
         """
             In default, training data is not shuffled.  
         """
@@ -479,7 +486,7 @@ class nn_network:
         if (self.opts.opt_recover_mode == True):
             
             if (self.opts.opt_session_name == ''):
-                raise RuntimeError("session not specified for the recover mode. Use set_session_dir")
+                raise RuntimeError("session not specified for the recover mode. Use     _dir")
 
             if model_name is None:
                 # use lattest.pt as default 
@@ -596,7 +603,7 @@ class nn_network:
             self.scheduler = optim.lr_scheduler.ExponentialLR(self.optimizer, gamma= self.LR_gamma)
         elif (opt_scheduler == 'NONE'):
             pass
-        else:
+        else:   
             raise RuntimeError("unsupported scheduler: %s" %opt_scheduler)
 
     def train(self):
@@ -1237,7 +1244,18 @@ class nn_network:
         pm.nFeatures = sum([int(item) for item in raw])
 
         print("number of features:",pm.nFeatures)
+    
+    def print_feat_para(self):
+        # print feature parameter 
+        
+        for feat_idx in pm.feature_type:
+            name  = "" 
             
+            print(name)
+            print(getattr(pm,name))
+            
+        pass 
+
     # print starting info
     def print_parameters(self):
 

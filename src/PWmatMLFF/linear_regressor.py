@@ -113,7 +113,6 @@ class linear_regressor:
 
     def plot_evaluation(self):
         
-        
         if not os.path.exists("MOVEMENT"):
             raise Exception("MOVEMENT not found. It should be force field MD result")
 
@@ -172,6 +171,9 @@ class linear_regressor:
     
     def set_ei_weight(self,val):
         pm.fortranFitWeightOfEnergy = val 
+
+
+        
 """
 if __name__ == "__main__":
 

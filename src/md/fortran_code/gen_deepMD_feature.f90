@@ -42,51 +42,75 @@ subroutine load_model_deepMD_f()
         rewind(10)
         read(10,*) Rc_M,m_neigh
         read(10,*) ntype
+
         do i=1,ntype
             read(10,*) iat_type(i)
             read(10,*) Rc_type(i),R_cs(i)
-                if(Rc_type(i).gt.Rc_M) then
-                    write(6,*) "Rc_type must be smaller than Rc_M,gen_3b_feature.in",i,Rc_type(i),Rc_M
-                    stop
-                endif
+
+            if(Rc_type(i).gt.Rc_M) then
+                write(6,*) "Rc_type must be smaller than Rc_M,gen_3b_feature.in",i,Rc_type(i),Rc_M
+                stop
+            endif
+
             read(10,*) ave_shift(1,i),ave_shift(2,i),ave_shift(3,i),ave_shift(4,i)
             read(10,*) ave_norm(1,i),ave_norm(2,i),ave_norm(3,i),ave_norm(4,i)
         enddo
+
         close(10)
 
-       write(6,*) "TEST load_model_deepMD_f",ntype
+       !write(6,*) "TEST load_model_deepMD_f",ntype
 
     !cccccccccccccccccccccccccccccccccccccccc
 end subroutine load_model_deepMD_f
 
 subroutine set_image_info_deepMD_f(atom_type_list,is_reset,natom_tmp)
-        integer(4),dimension(:),intent(in) :: atom_type_list(natom_tmp)
-        logical,intent(in) :: is_reset
-        integer,intent(in) :: natom_tmp
+        
+    integer(4),dimension(:),intent(in) :: atom_type_list(natom_tmp)
+    logical,intent(in) :: is_reset
+    integer,intent(in) :: natom_tmp
 
 
-            natom=natom_tmp
-            if(is_reset) then
-                if(allocated(iatom))then
-                    deallocate(iatom)
-                endif
+    natom = natom_tmp
+    
+    if(is_reset) then
+        if(allocated(iatom))then
+            deallocate(iatom)
+        endif
+        
+        allocate(iatom(natom))
+            
+        iatom(1:natom)=atom_type_list(1:natom)
+    endif
+    
+    if (.not.allocated(s_neigh)) then 
+        allocate(s_neigh(m_neigh,ntype,natom))
+    endif
 
-                allocate(iatom(natom))
-                
-                iatom(1:natom)=atom_type_list(1:natom)
-            endif
+    if(.not.allocated(ds_neigh)) then 
+        allocate(ds_neigh(3,m_neigh,ntype,natom))
+    endif
+    
+    if(.not.allocated(dR_neigh)) then
+        allocate(dR_neigh(3,m_neigh,ntype,natom))
+    endif
+    
+    if(.not.allocated(dxyz_neigh)) then 
+        allocate(dxyz_neigh(4,m_neigh,ntype,natom))
+    endif
+    
+    if(.not.allocated(dxyz_dx_neigh)) then 
+        allocate(dxyz_dx_neigh(3,4,m_neigh,ntype,natom))
+    endif 
 
-     allocate(s_neigh(m_neigh,ntype,natom))
-     allocate(ds_neigh(3,m_neigh,ntype,natom))
-     allocate(dR_neigh(3,m_neigh,ntype,natom))
-     allocate(dxyz_neigh(4,m_neigh,ntype,natom))
-     allocate(dxyz_dx_neigh(3,4,m_neigh,ntype,natom))
-     allocate(num_neigh(ntype,natom))
+    if(.not.allocated(num_neigh)) then
+        allocate(num_neigh(ntype,natom))
+    endif 
 
-    end subroutine set_image_info_deepMD_f
+end subroutine set_image_info_deepMD_f
 
    
 subroutine gen_deepMD_feature(AL,xatom)
+
     integer(4)  :: itype,i,j
     integer ii,jj,jjm,iat
 
@@ -185,8 +209,6 @@ subroutine gen_deepMD_feature(AL,xatom)
 
             do j=1,num_neigh(itype,iat)
 
-                
-                
                 rr=dR_neigh(1,j,itype,iat)**2+dR_neigh(2,j,itype,iat)**2+dR_neigh(3,j,itype,iat)**2
                 r=dsqrt(rr)
 
@@ -267,7 +289,7 @@ subroutine gen_deepMD_feature(AL,xatom)
     
     !    write(*,'(F16.12 F16.12 F16.12 F16.12)',advance='no') dxyz_neigh(:,j,2,1) 
     !    write(*,*) " "
-        
+    
     !enddo
     !deallocate(list_neigh)
     deallocate(map2neigh_M)
@@ -283,7 +305,7 @@ subroutine gen_deepMD_feature(AL,xatom)
     deallocate(map2neigh_alltypeM)
     deallocate(list_tmp)
     deallocate(itype_atom)
-!--------------------------------------------------------
+    !--------------------------------------------------------
 
 
 end subroutine gen_deepMD_feature

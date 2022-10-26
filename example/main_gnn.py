@@ -34,4 +34,3 @@ if __name__ == "__main__":
     # save the model
     gnn_trainer.deploy(train_dir = "record/20220902-test", out_file = "./20220902-test.pth") 
     
-    

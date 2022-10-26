@@ -4,7 +4,8 @@ subroutine f2c_calc_energy_force(i_model_lvn, n_atom, type_atom, lat,&
     use mod_md
     use mod_mpi
     use data_ewald
-    !use mod_control, only : MCTRL_iMD, MCTRL_AL,MCTRL_output_nstep
+    
+    !use mod_control, only : MCTRL_iMD, MCTRL_AL,MCTRL_output_nstep 
     use mod_control
     use mod_data  ! xatom, iatom, natom, AL, f_atom, e_atom, iflag_reneigh_inout, iflag_born_charge_ewald and etc
     use calc_ftype1, only: load_model_type1, set_image_info_type1
@@ -15,15 +16,21 @@ subroutine f2c_calc_energy_force(i_model_lvn, n_atom, type_atom, lat,&
     use calc_SNAP_feature, only: load_model_type6, set_image_info_type6
     use calc_deepMD1_feature, only: load_model_type7, set_image_info_type7
     use calc_deepMD2_feature, only: load_model_type8, set_image_info_type8
+    
     use calc_lin, only: set_paths_lin, load_model_lin, set_image_info_lin, nfeat_type_l, ifeat_type_l
     use calc_VV, only: set_paths_VV, load_model_VV, set_image_info_VV, nfeat_type_v, ifeat_type_v
+    
     use calc_NN, only: set_paths_NN, load_model_NN, set_image_info_NN, nfeat_type_n, ifeat_type_n
-    !!!
+    
+    use calc_deepMD, only :set_paths_deepMD,load_model_deepMD,set_image_info_deepMD
+    use calc_deepMD_f,only: load_model_deepMD_f,set_image_info_deepMD_f
+    
     implicit none
 
     integer, intent(in) :: i_model_lvn
     integer, intent(in) :: n_atom
     integer, dimension(n_atom), intent(in) :: type_atom
+
     real*8, dimension(3,3), intent(in) :: lat
     real*8, dimension(3,n_atom), intent(in) :: x_frac
     real*8, dimension(n_atom), intent(inout) :: e_atom_out
@@ -31,16 +38,19 @@ subroutine f2c_calc_energy_force(i_model_lvn, n_atom, type_atom, lat,&
     real*8, allocatable, dimension(:, :) :: f_atom_predict
     real*8 e_tot_predict
     real*8, intent(inout) :: e_tot_out
-    integer, intent(inout) :: iflag_reneigh_inout
 
-    integer argc
     character(len=32) argv
+
+    integer, intent(inout) :: iflag_reneigh_inout
+    integer argc
     integer i, j, k, kk, ierr, ifile
     integer iat1
     integer i_image
     integer nfeat_type
     integer ifeat_type(100)
+
     logical :: scanit, is_reset
+    
     integer iMD,MDstep
     real(8) dtMD, Temperature1, Temperature2
     logical right_logical
@@ -151,51 +161,67 @@ mass_type = 16  ! not use
         ifeat_type = ifeat_type_n
     end if
 
+
+    if(iflag_model.eq.5) then
+        call set_paths_deepMD('.')
+        call load_model_deepMD()
+        call set_image_info_deepMD(iatom,is_reset,natom)
+        call load_model_deepMD_f()
+        is_reset=.true.      ! why
+        call set_image_info_deepMD_f(iatom,is_reset,natom)   ! why need this?
+    endif
+
     is_reset = .true.
-    do kk = 1, nfeat_type
-        if (ifeat_type(kk) .eq. 1) then
-            call load_model_type1()      ! load up the parameter etc
-            call set_image_info_type1(iatom, is_reset, natom)
-        end if
-        if (ifeat_type(kk) .eq. 2) then
-            call load_model_type2()      ! load up the parameter etc
-            call set_image_info_type2(iatom, is_reset, natom)
-        end if
-        if (ifeat_type(kk) .eq. 3) then
-            call load_model_type3()      ! load up the parameter etc
-            call set_image_info_type3(iatom, is_reset, natom)
-        end if
-        if (ifeat_type(kk) .eq. 4) then
-            call load_model_type4()      ! load up the parameter etc
-            call set_image_info_type4(iatom, is_reset, natom)
-        end if
-        if (ifeat_type(kk) .eq. 5) then
-            call load_model_type5()      ! load up the parameter etc
-            call set_image_info_type5(iatom, is_reset, natom)
-        end if
-        if (ifeat_type(kk) .eq. 6) then
-            call load_model_type6()      ! load up the parameter etc
-            call set_image_info_type6(iatom, is_reset, natom)
-        end if
-        if (ifeat_type(kk) .eq. 7) then
-            call load_model_type7()      ! load up the parameter etc
-            call set_image_info_type7(iatom, is_reset, natom)
-        end if
-        if (ifeat_type(kk) .eq. 8) then
-            call load_model_type8()      ! load up the parameter etc
-            call set_image_info_type8(iatom, is_reset, natom)
-        end if
 
-    end do
 
-   !open(4396, file="flag")
-   !write(4396,*) 4
-   !close(4396)
+    if ((iflag_model.eq.1) .or. (iflag_model.eq.2) .or. (iflag_model.eq.3)) then 
+
+        do kk = 1, nfeat_type
+            if (ifeat_type(kk) .eq. 1) then
+                call load_model_type1()      ! load up the parameter etc
+                call set_image_info_type1(iatom, is_reset, natom)
+            end if
+            if (ifeat_type(kk) .eq. 2) then
+                call load_model_type2()      ! load up the parameter etc
+                call set_image_info_type2(iatom, is_reset, natom)
+            end if
+            if (ifeat_type(kk) .eq. 3) then
+                call load_model_type3()      ! load up the parameter etc
+                call set_image_info_type3(iatom, is_reset, natom)
+            end if
+            if (ifeat_type(kk) .eq. 4) then
+                call load_model_type4()      ! load up the parameter etc
+                call set_image_info_type4(iatom, is_reset, natom)
+            end if
+            if (ifeat_type(kk) .eq. 5) then
+                call load_model_type5()      ! load up the parameter etc
+                call set_image_info_type5(iatom, is_reset, natom)
+            end if
+            if (ifeat_type(kk) .eq. 6) then
+                call load_model_type6()      ! load up the parameter etc
+                call set_image_info_type6(iatom, is_reset, natom)
+            end if
+            if (ifeat_type(kk) .eq. 7) then
+                call load_model_type7()      ! load up the parameter etc
+                call set_image_info_type7(iatom, is_reset, natom)
+            end if
+            if (ifeat_type(kk) .eq. 8) then
+                call load_model_type8()      ! load up the parameter etc
+                call set_image_info_type8(iatom, is_reset, natom)
+            end if
+
+        end do
+    endif 
+
+    !open(4396, file="flag")
+    !write(4396,*) 4
+    !close(4396)
 
         !write(*,*) "before mlff-ef:"
-        f_atom_predict = 0.0
-        e_tot_predict = 0.0
-        call ML_FF_EF(e_tot_predict, f_atom_predict, x_frac, AL, n_atom)
+    f_atom_predict = 0.0
+    e_tot_predict = 0.0
+    
+    call ML_FF_EF(e_tot_predict, f_atom_predict, x_frac, AL, n_atom)
         ! the force calculated by ML_FF_EF is \partial E / \partial x, lacking a minus sign
         !write(*,*) "after mlff-ef:"
         !write(*,*) "e_atom_predict, size:", size(e_atom)
@@ -203,11 +229,11 @@ mass_type = 16  ! not use
         !write(*,*) "f_atom_predict:"
         !write(*,*) f_atom_predict(1:3,1:5)
         !write(*,*) "e_tot_predict:", e_tot_predict
-        e_tot_out = e_tot_predict
+    e_tot_out = e_tot_predict
         ! the force calculated by ML_FF_EF is \partial E / \partial x, lacking a minus sign
-        f_atom_out(1:3,1:n_atom) = -f_atom_predict(1:3,1:n_atom)
-        e_atom_out(1:n_atom) = e_atom(1:n_atom) ! mod_data::e_atom, calculated by ML_FF_EF
-        goto 8889 ! end
+    f_atom_out(1:3,1:n_atom) = -f_atom_predict(1:3,1:n_atom)
+    e_atom_out(1:n_atom) = e_atom(1:n_atom) ! mod_data::e_atom, calculated by ML_FF_EF
+    goto 8889 ! end
         ! the following subroutine writes images to MD/md/MOVEMENT, and same format as old mlff movement,but different from PWmat
         !call write_to_mlff_movement(i_image, E_tot_predict, f_atom_predict, x_atom_predict, AL_predict, n_atom)
 

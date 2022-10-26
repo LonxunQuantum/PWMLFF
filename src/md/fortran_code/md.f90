@@ -24,7 +24,8 @@ subroutine molecular_dynamics_kernel(Etot,fatom,e_stress)
         integer iislda
        
         real*8 cpu_rss1, cpu_rss2, cpu_vm1, cpu_vm2
-        !
+        
+
         !data for interpolation
         real*8,allocatable,dimension(:,:,:) :: r_his
         integer lp,llp,lllp 
@@ -203,8 +204,7 @@ subroutine molecular_dynamics_kernel(Etot,fatom,e_stress)
 
             ! the scaling must follow get_energy_kinetic & get_temperature
             call energy_scaling(md,istep)
-
-
+            
             do j=1,const_vel_num
 
                 md.v(1,const_vel_atom(j))= const_vx(j)   !give a force on x axis
@@ -223,9 +223,10 @@ subroutine molecular_dynamics_kernel(Etot,fatom,e_stress)
             ! output 
             !--------------------------------
             call write_MDSTEPS(md)
+            
             if(mod(istep-1,MCTRL_output_nstep).eq.0) then
-            call write_MOVEMENT(md,istep,MCTRL_MDstep)
-            call write_finalconfig(md)    
+                call write_MOVEMENT(md,istep,MCTRL_MDstep)
+                call write_finalconfig(md)    
             endif
             !            call write_finalconfig(md)    ! cost time !
 
