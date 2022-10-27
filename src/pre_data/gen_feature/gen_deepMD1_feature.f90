@@ -105,11 +105,11 @@ PROGRAM gen_deepMD1_feature
     close(13)
     trainDataDir=trim(trainSetDir)//"/trainData.txt.Ftype7"
     inquirepos1=trim(trainSetDir)//"/inquirepos7.txt"
-!cccccccccccccccccccccccccccccccccccccccc
+    !cccccccccccccccccccccccccccccccccccccccc
 
-!cccccccccccccccccccccccccccccccccccccccccccccccc
+    !cccccccccccccccccccccccccccccccccccccccccccccccc
 
-     nfeat0m=0
+    nfeat0m=0
      do itype=1,ntype
         M1=M_type(itype)*ntype
         ! wlj altered 

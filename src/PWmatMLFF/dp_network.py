@@ -18,7 +18,6 @@ sys.path.append(codepath+'/../model')
 #for default_para, data_loader_2type dfeat_sparse
 sys.path.append(codepath+'/../pre_data')
 
-
 #for optimizer
 sys.path.append(codepath+'/..')
 sys.path.append(codepath+'/../aux')
@@ -1272,12 +1271,13 @@ class dp_network:
 
         f_out = open("gen_dp.in","w")
 
-        # in default_para.py, Rc_M = 6.0 Rc_min = 5.8. This is also used for feature generations 
+        # in default_para.py, Rc is the max cut, beyond which S(r) = 0 
+        # Rm is the min cut, below which S(r) = 1
 
         f_out.write(str(pm.Rc) + ' ') 
         f_out.write(str(pm.maxNeighborNum)+"\n")
         f_out.write(str(dstd_size)+"\n")
-
+        
         for i,atom in enumerate(orderedAtomList):
             f_out.write(atom+"\n")
             f_out.write(str(pm.Rc)+' '+str(pm.Rm)+'\n')
@@ -1320,7 +1320,6 @@ class dp_network:
         for i_batch, sample_batches in enumerate(self.loader_train):
             
             # ONLY handle the 1st image
-            
             print ("testing image:",i_batch)
             natoms_sum = sample_batches['natoms_img'][0, 0].item()
             nr_batch_sample = sample_batches['output_energy'].shape[0]

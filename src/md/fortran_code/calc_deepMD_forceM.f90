@@ -50,7 +50,6 @@ module calc_deepMD
     real(8),allocatable,dimension(:,:) :: force_pred_NN       !每个原子的受力预测值
     real(8),allocatable,dimension(:,:) :: force_pred_tmp       !每个原子的受力预测值
     
-
     real(8) :: etot_pred_deepMD
     character(200) :: error_msg
     integer(4) :: istat
@@ -78,9 +77,8 @@ module calc_deepMD
     integer nodeMM,nlayer ! to be removed
     integer iflag_resNN(100)
   
-    
-  
-  !!!!!!!!!!!!!          以上为  module variables     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+    !!!!!!!!!!!!!          以上为  module variables     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   
     contains
     
@@ -497,12 +495,12 @@ module calc_deepMD
         integer iflag_ghost_neigh,neigh_add
         real*8 fact1
 
-!        write(6,*) "nnodes,inode",nnodes,inode
+        !        write(6,*) "nnodes,inode",nnodes,inode
 
-         iflag_ghost_neigh=1   ! 1: use the ghost neigh, 0: not use the ghost neigh
+        iflag_ghost_neigh=1   ! 1: use the ghost neigh, 0: not use the ghost neigh
 
 
-         pi=4*datan(1.d0)
+        pi=4*datan(1.d0)
         
         tt0=mpi_wtime()
         call gen_deepMD_feature(AL,xatom)
@@ -1032,9 +1030,9 @@ module calc_deepMD
         ! update etot & atomic energy 
         Etot=0.d0
 
-        
-
         allocate(energy_pred_dp(natom))
+
+        ! array for each single process 
         allocate(energy_pred_dp_local(natom))
 
         energy_pred_dp = 0.d0
@@ -1043,14 +1041,15 @@ module calc_deepMD
         do itype=1,ntype
 
             do i=1,natom_n_type(itype)
-                Etot=Etot+energy_type(i,itype)
+                Etot=Etot+energy_type(i,itype)  
 
+                ! wlj add below. Accumulate atomic energy
                 iat=iat_ind(i,itype)
-                
-                energy_pred_dp_local(iat) = energy_type(i,itype)
+                energy_pred_dp_local(iat) =  energy_type(i,itype)
+
             enddo
         enddo
-
+        
         allocate(force_all(3,natom))
         allocate(force_all_tmp(3,natom))
         
@@ -1071,17 +1070,13 @@ module calc_deepMD
         enddo
 
         call mpi_allreduce(Etot,Etot_tmp,1,MPI_REAL8,MPI_SUM,MPI_COMM_WORLD,ierr)
-        
         call mpi_allreduce(force_all,force_all_tmp,3*natom,MPI_REAL8,MPI_SUM,MPI_COMM_WORLD,ierr)
-        
         call mpi_allreduce(energy_pred_dp_local,energy_pred_dp,natom,MPI_REAL8,MPI_SUM,MPI_COMM_WORLD,ierr) 
         
         Etot=Etot_tmp
 
         force_all=force_all_tmp
-        
         ! now energy_pred_dp contians the final atomic energy to be written 
-        
         e_atom(1:natom) = energy_pred_dp(1:natom)
         ! force copy is done here
         fatom(:,1:natom)=force_all(:,1:natom)
@@ -1109,11 +1104,11 @@ module calc_deepMD
         deallocate(iat_ind)
         tt2=mpi_wtime()
 
-!        write(6,"('time find_neigh,calc_force ',2(f10.4,1x))") tt1-tt0,tt2-tt1
-!        write(6,*) "natom_n_type", natom_n_type(1:ntype)
+        !        write(6,"('time find_neigh,calc_force ',2(f10.4,1x))") tt1-tt0,tt2-tt1
+        !        write(6,*) "natom_n_type", natom_n_type(1:ntype)
 
         return
-!  Now, back propagation for the derivative for energy, in respect to the f_in(j,i,1)      
+        !  Now, back propagation for the derivative for energy, in respect to the f_in(j,i,1)      
 
 
 !ccccccccccccccccccccccccccccccccccccccccccccc

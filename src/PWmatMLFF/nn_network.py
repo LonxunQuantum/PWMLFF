@@ -80,7 +80,7 @@ class nn_network:
         
         Using default_para is purely a legacy problem
 
-    """ 
+    """        
 
     def __init__(   self,
                     # some must-haves
@@ -139,7 +139,7 @@ class nn_network:
         self.opts.opt_recover_mode = recover
 
         pm.maxNeighborNum = max_neigh_num 
-
+        
         # setting NN network configuration 
         if nn_layer_config == None: 
             #node of each layer
@@ -156,7 +156,7 @@ class nn_network:
         pm.ntypes = len(pm.atomType)
         
         #number of layer
-        pm.nLayer = len(nn_layer_config)    
+        pm.nLayer = len(pm.nodeDim)    
         # passing working_dir to opts.session_name 
         self.set_session_dir(session_dir)
 
