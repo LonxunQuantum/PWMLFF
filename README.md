@@ -8,6 +8,6 @@ PWmatMLFF is an open source software under GNU GPL license. It aims at generatin
 
 A complete user manual can be found here: http://doc.lonxun.com/MLFF/MLFF.html
 
-**Data archive**
+**Data Archive**
 
 Visit https://www.jianguoyun.com/p/DUWoiP4Ql-_OChiEk8IEIAA for the data archive. Contact wanglijun@pwmat.com for data contribution. 
