@@ -1335,6 +1335,7 @@ class dp_network:
 
             break
         
+        
         test_loss /= nr_total_sample
         test_loss_Etot /= nr_total_sample
         test_loss_Ei /= nr_total_sample
