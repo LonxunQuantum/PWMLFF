@@ -1,6 +1,7 @@
 
 import os
 import re
+from socket import NI_MAXHOST
 import numpy as np
 import pymatgen as pym
 
@@ -46,7 +47,7 @@ class Structure:
 
     def __init__(self, path,path_2='./POSCAR',type='MOVEMENT',is_charge=False):
         self.NELM=200
-        self.atom_num=0
+        self.atom_num = 0 
         self.lattice = []
         self.eles_list = []
         self.eles_num_list=[]
@@ -84,7 +85,7 @@ class Structure:
     #def unit_conversion(self):
         #self.lattice=self.lattice*ANGSTROM2BOHR
         #self.etot=self.etot*EV2HA
-
+    """
     def ACFDATAloader(self,path):
         '''
         Because bader method can't deal with MD traj, we split traj into every step to get ACF.dat.
@@ -108,7 +109,9 @@ class Structure:
         self.charge=charge_list
         self.charge_tot=total_charge
         return
+    """
 
+    """
     def POSCARloader(self,path):
         # structure = pm.Structure.from_file(path, False)
         # self.lattice=structure.lattice.matrix
@@ -140,7 +143,9 @@ class Structure:
                     num+=1
                     num1=0
         return
+    """
 
+    """
     def XDATCARloader(self,path):
         self.fcoord = np.loadtxt(path, comments='D', skiprows=7).reshape((-1, self.atom_num, 3))
         self.nimages=len(self.fcoord)
@@ -148,7 +153,9 @@ class Structure:
             tmp=f.readlines()
             self.heads=tmp[:7]
         return
+    """
 
+    """
     def RuNNerdataloader(self,path):
         '''
         now it can only deal with one type of atom_num
@@ -191,7 +198,9 @@ class Structure:
                     tmp_natom=0
 
         return
+    """
 
+    """
     def OSZICARloader(self,path):
         with open(path,'r') as f:
             file_tmp=f.readlines()
@@ -200,7 +209,9 @@ class Structure:
                     self.etot.append(float(file_tmp[i].split()[10]))
 
         return
+    """
 
+    """
     def VASPRUNloader(self,path):
         tmp=0
         tmp_natom=0
@@ -254,11 +265,12 @@ class Structure:
                     self.etot.append(float(file_tmp[i].split()[2]))
 
         return
+    """
 
     def MOVEMENTloader(self,path):
         '''
-        now it can only deal with one type of atom_num
-        Attension!!! PWmat Force unit is (-force, eV/Angstrom), so we should take negative value
+            No limitation on types of 
+            Attension!!! PWmat Force unit is (-force, eV/Angstrom), so we should take negative value
         '''
         tmp=0
         iter_loop=[]
@@ -266,18 +278,31 @@ class Structure:
         position_loop=[]
         force_loop=[]
         dE_loop=[]
+        
         self.nimages=int(os.popen('grep Iter {}|wc -l'.format(path)).read())
+
+        #print ("num of total image:", self.nimages
+
         with open(path,'r') as f:
+            
             file_tmp = f.readlines()
             self.atom_num = int(file_tmp[0].split()[0])
+
             self.lattice = [[[],[],[]]for i in range(self.nimages)]
             self.atom_position = [[[] for i in range(self.atom_num)] for i in range(self.nimages)]
             self.cartesian_position=[[[] for i in range(self.atom_num)] for i in range(self.nimages)]
             self.atom_force=[[[] for i in range(self.atom_num)] for i in range(self.nimages)]
+            
             for i in range(len(file_tmp)):
                 #if re.match(file_tmp[i].split()[0], '{}'.format(self.atom_num)) != None:
-                if file_tmp[i].split()[0].count('{}'.format(self.atom_num))==1:
-                    iter_loop.append(i)
+                # should not use numeric to identify the starting line
+                
+                #if file_tmp[i].split()[0].count('{}'.format(self.atom_num))==1:
+                
+                if len(file_tmp[i].split()) > 1:
+                    if file_tmp[i].split()[1] == "atoms,Iteration": 
+                        iter_loop.append(i)
+
                 if file_tmp[i].split()[0].count('Lattice')==1:
                     lattice_loop.append(i)
                 # if file_tmp[i].split()[0].count('Position')==1:
@@ -293,17 +318,20 @@ class Structure:
             if len(lattice_loop)!=self.nimages or len(position_loop)!=self.nimages or len(force_loop)!=self.nimages:
                 print("Warning!, loop not equal to nimages!!!")
                 return
-
+            
             '''be careful! the loop only consider about NVT with MD type 6'''
             for j in range(self.nimages):
                 '''NOTICE！ the MOVEMENT Etot should not be Ep! we use Ei_sum as Etot, it has a shift between Ep! '''
+                
                 #print (file_tmp[iter_loop[j]].split())
                 self.etot.append(float(file_tmp[iter_loop[j]].split()[9]))
+                
                 for i in range(lattice_loop[j]+1,lattice_loop[j]+4):
                     for ii in range(0, 3):
                        self.lattice[j][tmp].append(float(file_tmp[i].split()[ii]))
                     tmp = tmp + 1
                 tmp = 0
+
                 for i in range(position_loop[j]+1,position_loop[j]+self.atom_num+1):
                     if j==0 :
                         self.eles_list.append(int(file_tmp[i].split()[0]))
@@ -311,15 +339,19 @@ class Structure:
                         self.atom_position[j][tmp].append(float(file_tmp[i].split()[ii]))
                     tmp = tmp + 1
                 tmp=0
+                
                 for i in range(force_loop[j]+1,force_loop[j]+self.atom_num+1):
                     for ii in range(1,4):
                         self.atom_force[j][tmp].append(-float(file_tmp[i].split()[ii]))
                     tmp=tmp+1
                 tmp=0
+                
                 self.dE.append(float(file_tmp[dE_loop[j]].split()[-1]))
 
         return
+        
 
+    """
     def OUTCARloader(self,path):
         tmp=0
         mag_loop=[]
@@ -408,7 +440,9 @@ class Structure:
             self.nimages=nimage_tmp
 
         return
-
+    """
+    
+    """
     def spin_judgement(self):
         for i in range(self.nimages):
             for j in range(self.atom_num):
@@ -417,8 +451,7 @@ class Structure:
                 if self.mag[i][j]<-0.5:
                     self.eles_list[i][j]-=1
         return
-
-
+    
     def image_conv_judgment(self,path):
         iter_loop=[]
         unconv_list=[]
@@ -439,8 +472,9 @@ class Structure:
                 unconv_list.append(True)
 
         return unconv_list
+    """
 
-    def coordinate2cartesian(self):  # 需要转成矩阵乘法以提速
+    def coordinate2cartesian(self):  
         for j in range(self.nimages):
             for i in range(self.atom_num):
                 for ii in range(3):
@@ -474,7 +508,7 @@ class Structure:
         The total energy and force will include
         the default format is element/position_x/position_y/position_z/force_x/force_y/force_z
         the unit is Ångström
-        ''' 
+        '''     
         
         #print ("number of totol image:",self.nimage)
         with open(path,'w') as f:
@@ -500,9 +534,10 @@ class Structure:
                     f.write('\n')
            
         print ("total number of images:",self.nimages) 
-        return
+
+        return self.nimages
         
-    
+    """
     def out_MOVEMENT(self,path):
         '''
         out as MD_DETAIL=6(NVT)
@@ -642,7 +677,7 @@ class Structure:
 
     def test(self):
         print(ANGSTROM2BOHR)
-
+    """
 def get_eles_list(eles_list,eles_num_list):
     '''
     for get the eles_list from the POSCAR format 

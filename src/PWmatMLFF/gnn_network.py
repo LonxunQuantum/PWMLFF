@@ -11,6 +11,7 @@ import re
 from select import select
 import sys
 from tkinter import EXCEPTION
+from turtle import title
 from unittest.mock import NonCallableMagicMock
 from os.path import isdir
 from pathlib import Path
@@ -323,19 +324,23 @@ class gnn_network:
             multiple MOVEMENTs are concatonate into MOVEMENT_ALL
             default output: PWdata/training_data.xyz
         """    
-
+        
         # the converting module 
         import gnn_convert
         import subprocess
-
+        
         # find dirs that contain MOVEMENT
         mvmt_dir = [] 
-        
+        tmpxyz_dir = []
+
         # a single MOVEMENT in PWdata
         if os.path.exists("PWdata/MOVEMENT"):
             mvmt_dir.append("PWdata/MOVEMENT")
+            tmpxyz_dir.append("PWdata/tmp.xyz")
+        # multiple movements in PWdata
         else:
             mvmt_dir = ["PWdata/"+name+"/MOVEMENT" for name in os.listdir("./PWdata") if os.path.isdir("./PWdata/"+name)]
+            tmpxyz_dir = ["PWdata/"+name+"/tmp.xyz" for name in os.listdir("./PWdata") if os.path.isdir("./PWdata/"+name)]
         
         print("These files will be used for trianing:")
         for dir in mvmt_dir:
@@ -345,25 +350,33 @@ class gnn_network:
         if len(mvmt_dir)==0:
             raise Exception("Input MOVEMENT for training not found")
 
-        # concatenate 
+        total_img_num = 0 
+
+        # concatenate .xyz instead of movement 
+
+        for mvmt_name, xyz_name in zip(mvmt_dir,tmpxyz_dir):
+            print ("\nprocessing "+mvmt_name)
+
+            a= gnn_convert.Structure(mvmt_name,type='MOVEMENT')
+
+            a.coordinate2cartesian()
+
+            img_tmp = a.out_extxyz(xyz_name)  
+            total_img_num += img_tmp
+        
         cmd_cat = "cat "
-        for dir in mvmt_dir:
-            cmd_cat = cmd_cat + dir + " "
+
+        for xyz_name in tmpxyz_dir:
+            cmd_cat = cmd_cat + xyz_name + " "
         
-        cmd_cat = cmd_cat + "> PWdata/MOVEMENT_ALL"
+        cmd_cat = cmd_cat + "> " + xyz_output
         
+        print (cmd_cat)
         subprocess.run(cmd_cat,shell=True)
 
-        path='./PWdata/MOVEMENT_ALL'
-        path_out = xyz_output
-        
-        a= gnn_convert.Structure(path,type='MOVEMENT')
-
-        a.coordinate2cartesian()
-
-        a.out_extxyz(path_out)  
-        
         print(".xyz file has been saved to:"+xyz_output)
+        print("total number of image:",total_img_num)
+
 
     def train(self, train_data = r"./PWdata/training_data.xyz" ):
         
