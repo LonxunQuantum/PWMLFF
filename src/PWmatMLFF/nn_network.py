@@ -640,10 +640,6 @@ class nn_network:
 
             for i_batch, sample_batches in enumerate(self.loader_train):
 
-                # MUST REMOVE
-                if i_batch > 1:
-                    break
-
                 nr_batch_sample = sample_batches['input_feat'].shape[0]
 
                 global_step = (epoch - 1) * len(self.loader_train) + i_batch * nr_batch_sample
