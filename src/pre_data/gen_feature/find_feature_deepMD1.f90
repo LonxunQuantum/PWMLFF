@@ -86,13 +86,13 @@ subroutine find_feature_deepMD1(natom,itype_atom,Rc,RC2,Rm,weight_rterm, &
         
         tensor=0.d0
         dtensor=0.d0
-      
-
+        
         do 1000 itype=1,ntype
         do 1000 j=1,num_neigh(itype,iat)
 
         jj=ind_all_neigh(j,itype,iat)
-
+        
+        
         dx(1)=dR_neigh(1,j,itype,iat)
         dx(2)=dR_neigh(2,j,itype,iat)
         dx(3)=dR_neigh(3,j,itype,iat)
@@ -109,7 +109,6 @@ subroutine find_feature_deepMD1(natom,itype_atom,Rc,RC2,Rm,weight_rterm, &
             f2=0.5*(cos(x)+1)
             df2=-0.5*sin(x)*pi/(Rc(itype0)-Rc2(itype))   ! need to add dx/d
         endif
-        
 
         s=f2/d
 
@@ -120,7 +119,7 @@ subroutine find_feature_deepMD1(natom,itype_atom,Rc,RC2,Rm,weight_rterm, &
         do i=1,M1
             dpoly(i)=dpoly(i)*(df2/d-f2/d**2)*2*Rm(itype)  ! need to add dx/d
         enddo
-        
+            
 
         do i=1,M1
 

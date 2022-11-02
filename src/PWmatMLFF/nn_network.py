@@ -4,6 +4,7 @@
     L. Wang, 2022.8
 """
 import os,sys
+from re import I
 import pathlib
 
 codepath = str(pathlib.Path(__file__).parent.resolve())
@@ -380,12 +381,12 @@ class nn_network:
     def get_movement_weight(self, imgIdx):
 
         mvt_name = None 
-
+    
         for pair in self.movement_idx:
             if img < pair[0][1] and img >= pair[0][1]:
                 mvt_name = pair[1] 
                 break 
-        
+                
         return self.movement_weights[mvt_name]  
 
     def scale(self,train_data,valid_data):
@@ -616,7 +617,7 @@ class nn_network:
         iter_valid = 0 
 
         for epoch in range(self.start_epoch, self.n_epoch + 1):
-
+            
             timeEpochStart = time.time()
 
             if (epoch == self.n_epoch):
@@ -629,7 +630,7 @@ class nn_network:
             """
                 ========== training starts ==========
             """
-
+            
             nr_total_sample = 0
             loss = 0.
             loss_Etot = 0.
@@ -638,6 +639,11 @@ class nn_network:
             loss_Egroup = 0.0   
 
             for i_batch, sample_batches in enumerate(self.loader_train):
+
+                # MUST REMOVE
+                if i_batch > 1:
+                    break
+
                 nr_batch_sample = sample_batches['input_feat'].shape[0]
 
                 global_step = (epoch - 1) * len(self.loader_train) + i_batch * nr_batch_sample
@@ -736,15 +742,15 @@ class nn_network:
 
             """
                 ========== validation starts ==========
-            """
-
+            """ 
+            
             nr_total_sample = 0
             valid_loss = 0.
             valid_loss_Etot = 0.
             valid_loss_Ei = 0.
             valid_loss_F = 0.
             valid_loss_Egroup = 0.0
-
+            
             for i_batch, sample_batches in enumerate(self.loader_valid):
                 
                 iter_valid +=1 
@@ -755,6 +761,9 @@ class nn_network:
                 if pm.is_dfeat_sparse == True:
                     sample_batches['input_dfeat']  = self.dfeat.transform(i_batch,"valid")
 
+                if sample_batches['input_dfeat'] == "aborted":
+                    continue 
+
                 valid_error_iter, batch_loss_Etot, batch_loss_Ei, batch_loss_F, batch_loss_Egroup = self.valid_img(sample_batches, self.model, nn.MSELoss())
 
                 # n_iter = (epoch - 1) * len(loader_valid) + i_batch + 1
@@ -764,7 +773,7 @@ class nn_network:
                 valid_loss_Ei += batch_loss_Ei * nr_batch_sample
                 valid_loss_F += batch_loss_F * nr_batch_sample
                 valid_loss_Egroup += batch_loss_Egroup * nr_batch_sample
-
+                
                 nr_total_sample += nr_batch_sample
 
                 f_err_log = self.opts.opt_session_dir+'iter_loss_valid.dat'
@@ -773,8 +782,7 @@ class nn_network:
                     fid_err_log = open(f_err_log, 'w')
                     fid_err_log.write('iter\t loss\t RMSE_Etot\t RMSE_Ei\t RMSE_F\t lr\n')
                     fid_err_log.close() 
-                
-                                
+
                 fid_err_log = open(f_err_log, 'a')
                 fid_err_log.write('%d %e %e %e %e %e \n'%(iter, batch_loss, math.sqrt(batch_loss_Etot)/natoms_sum, math.sqrt(batch_loss_Ei), math.sqrt(batch_loss_F), real_lr))
                 fid_err_log.close() 
@@ -860,7 +868,7 @@ class nn_network:
             # Ep_label = Variable(sample_batches['output_ep'][:,:,:].float().to(device))
 
         else:
-            error("train(): unsupported opt_dtype %s" %self.opts.opt_dtype)
+            #error("train(): unsupported opt_dtype %s" %self.opts.opt_dtype)
             raise RuntimeError("train(): unsupported opt_dtype %s" %self.opts.opt_dtype)  
 
 
@@ -927,7 +935,7 @@ class nn_network:
             divider = Variable(sample_batches['input_divider'].float().to(self.device))
 
         else:
-            error("train(): unsupported opt_dtype %s" %self.opts.opt_dtype)
+            #error("train(): unsupported opt_dtype %s" %self.opts.opt_dtype)
             raise RuntimeError("train(): unsupported opt_dtype %s" %self.opts.opt_dtype)
 
         atom_number = Ei_label.shape[1]
@@ -989,7 +997,6 @@ class nn_network:
         
         return loss, loss_Etot, loss_Ei, loss_F, loss_egroup
 
-    
     def valid_img(self,sample_batches, model, criterion):
         if (self.opts.opt_dtype == 'float64'):
             Ei_label = Variable(sample_batches['output_energy'][:,:,:].double().to(self.device))

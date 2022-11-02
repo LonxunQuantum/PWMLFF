@@ -447,7 +447,7 @@ class GKalmanFilter(nn.Module):
             self.__update(H, error,  weights)
 
         time_end = time.time()
-        print("Global KF update Force time:", time_end - time_start, "s")
+        #print("Global KF update Force time:", time_end - time_start, "s")
 
     def update_egroup(self, inputs, Egroup_label, update_prefactor=0.1):
 

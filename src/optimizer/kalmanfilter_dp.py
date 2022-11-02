@@ -129,7 +129,7 @@ class GKalmanFilter(nn.Module):
             i += 1
         self.__update(H, errore, weights)
         time_end = time.time()
-        print("Global KF update Energy time:", time_end - time_start, "s")
+        #print("Global KF update Energy time:", time_end - time_start, "s")
 
     def update_force(self, inputs, Force_label, update_prefactor=1):
         time_start = time.time()
