@@ -730,7 +730,7 @@ class dp_network:
         loss_Ei = torch.zeros([1,1], device = self.device)
         loss_Egroup = torch.zeros([1,1], device = self.device)
         loss = loss_F + loss_Etot
-        
+            
         print("RMSE_Etot = %.10f, RMSE_Ei = %.10f, RMSE_Force = %.10f, RMSE_Egroup = %.10f" %(loss_Etot ** 0.5, loss_Ei ** 0.5, loss_F ** 0.5, loss_Egroup**0.5))
         
         """

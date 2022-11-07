@@ -152,7 +152,7 @@ void PairQCAD::compute(int eflag, int vflag)
       x_frac[i][2] = tmp_v3[2];
   }
   // call fortran subroutine energy force
-  if (iago > ievery)
+  if (iago >= ievery)
   {
     iflag_reneighbor = 1;
     iago = 0;

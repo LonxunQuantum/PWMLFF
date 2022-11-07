@@ -65,7 +65,8 @@ PROGRAM gen_deepMD1_feature
     real*8 fact_grid,dR_grid1,dR_grid2
 
     real*8 Rc_type(100), Rc2_type(100), Rm_type(100),weight_rterm(100)
-    integer M_type(100),M1
+    real*8 w_dummy
+    integer M_type(100),M1,M2_type(100),M2
 
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
     INTERFACE
@@ -83,15 +84,21 @@ PROGRAM gen_deepMD1_feature
     read(10,*) Rc_M,m_neigh
     read(10,*) ntype
     do i=1,ntype
-    read(10,*) iat_type(i)
-    read(10,*) Rc_type(i),Rc2_type(i),Rm_type(i)
-    read(10,*) M_type(i),weight_rterm(i)
-     if(Rc_type(i).gt.Rc_M) then
-      write(6,*) "Rc_type must be smaller than Rc_M, gen_3b_feature.in",i,Rc_type(i),Rc_M
-      stop
-     endif
+        read(10,*) iat_type(i)
+        read(10,*) Rc_type(i),Rc2_type(i),Rm_type(i)
+        read(10,*) M_type(i), weight_rterm(i)
+        ! wlj 
+        ! add M2 as parameter defined by user
+        read(10,*) M2_type(i), w_dummy
+
+        if(Rc_type(i).gt.Rc_M) then
+            write(6,*) "Rc_type must be smaller than Rc_M, gen_3b_feature.in",i,Rc_type(i),Rc_M
+            stop
+        endif
     enddo
+
     read(10,*) E_tolerance
+    
     close(10)
 
     open(13,file="input/location")
@@ -112,10 +119,11 @@ PROGRAM gen_deepMD1_feature
     nfeat0m=0
     
     do itype=1,ntype
-        M1=M_type(itype)*ntype
+        M1 = M_type(itype) * ntype
+        M2 = M2_type(itype) * ntype 
         ! wlj altered 
-        !nfeat0(itype) = M1*4
-        nfeat0(itype)=M1*(M1+1)/2
+        nfeat0(itype) = M1*M2
+        !nfeat0(itype)=M1*(M1+1)/2
         
         if(nfeat0(itype).gt.nfeat0m) nfeat0m=nfeat0(itype)
     enddo
@@ -385,7 +393,7 @@ PROGRAM gen_deepMD1_feature
     dfeat=0.d0
     feat=0.d0
     call find_feature_deepMD1(natom,itype_atom,Rc_type,Rc2_type,Rm_type,weight_rterm,&
-       num_neigh,list_neigh,dR_neigh,iat_neigh,ntype,M_type, &
+       num_neigh,list_neigh,dR_neigh,iat_neigh,ntype,M_type, M2_type,&
        feat,dfeat,nfeat0m,m_neigh,nfeat_atom)
 !cccccccccccccccccccccccccccccccccccccccccccccccccccc
 !cccccccccccccccccccccccccccccccccccccccccccccccccccc

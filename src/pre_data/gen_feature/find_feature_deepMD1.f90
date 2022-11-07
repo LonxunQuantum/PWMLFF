@@ -1,6 +1,6 @@
 subroutine find_feature_deepMD1(natom,itype_atom,Rc,RC2,Rm,weight_rterm, &
         num_neigh,list_neigh, &
-        dR_neigh,iat_neigh,ntype,M_type, &
+        dR_neigh,iat_neigh,ntype,M_type, M2_type, &
         feat_all,dfeat_allR,nfeat0m,m_neigh,nfeat_atom)
       implicit none
       integer ntype
@@ -8,7 +8,10 @@ subroutine find_feature_deepMD1(natom,itype_atom,Rc,RC2,Rm,weight_rterm, &
       integer m_neigh
       integer itype_atom(natom)
       real*8 Rc(ntype),Rc2(ntype),Rm(ntype)
+      
       integer M_type(ntype)
+      integer M2_type(ntype)
+
       real*8 weight_rterm(ntype)
       real*8 dR_neigh(3,m_neigh,ntype,natom)
       real*8 dR_neigh_alltype(3,m_neigh,natom)
@@ -36,7 +39,7 @@ subroutine find_feature_deepMD1(natom,itype_atom,Rc,RC2,Rm,weight_rterm, &
       real*8 dfeat_all(nfeat0m,natom,m_neigh,3)
       integer nfeat_atom(natom)
 
-      integer M1,ii1,ii2
+      integer M1,M2,ii1,ii2
       real*8 dx(3),df2,f2,y,s,sum
       real*8 poly(100),dpoly(100)
       real*8 ww(0:3)
@@ -75,7 +78,8 @@ subroutine find_feature_deepMD1(natom,itype_atom,Rc,RC2,Rm,weight_rterm, &
 
     do iat=1,natom    
         itype0=itype_atom(iat)
-        M1=M_type(itype0)
+        M1 = M_type(itype0)
+        M2 = M2_type(itype0)
 
         nneigh=num_neigh_alltype(iat)
 
@@ -158,9 +162,9 @@ subroutine find_feature_deepMD1(natom,itype_atom,Rc,RC2,Rm,weight_rterm, &
         
         do ii1=1,M1*ntype
             ! only use the lower triangle 
-            do ii2=1,ii1
-            ! wlj altered for benchmark
-            ! do ii2=1,4*ntype
+            ! do ii2=1,ii1
+            ! wlj altered. Support custom M2
+            do ii2=1,M2*ntype
                 
                 ii=ii+1
                 sum=0.d0
@@ -186,9 +190,9 @@ subroutine find_feature_deepMD1(natom,itype_atom,Rc,RC2,Rm,weight_rterm, &
         deallocate(dtensor)
         deallocate(dsum)
 
-        nfeat_atom(iat)=M1*ntype*(M1*ntype+1)/2
-        ! wlj altered. Matching with DP-torch
-        !nfeat_atom(iat)=M1*ntype*(4*ntype)
+        !nfeat_atom(iat)=M1*ntype*(M1*ntype+1)/2
+        ! wlj altered. Support custom M2
+        nfeat_atom(iat)=M1*ntype*(M2*ntype)
         !write (*,*) "dbg info:",  nfeat_atom(iat)
         
     enddo

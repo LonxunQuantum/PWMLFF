@@ -926,7 +926,9 @@ class nn_network:
             Force_label = Variable(sample_batches['output_force'][:,:,:].float().to(self.device))   #[40,108,3]
             Egroup_label = Variable(sample_batches['input_egroup'].float().to(self.device))
             input_data = Variable(sample_batches['input_feat'].float().to(self.device), requires_grad=True)
+
             dfeat = Variable(sample_batches['input_dfeat'].float().to(self.device))  #[40,108,100,42,3]
+
             egroup_weight = Variable(sample_batches['input_egroup_weight'].float().to(self.device))
             divider = Variable(sample_batches['input_divider'].float().to(self.device))
 
@@ -934,10 +936,10 @@ class nn_network:
             #error("train(): unsupported opt_dtype %s" %self.opts.opt_dtype)
             raise RuntimeError("train(): unsupported opt_dtype %s" %self.opts.opt_dtype)
 
-        atom_number = Ei_label.shape[1]
+        #atom_number = Ei_label.shape[1]
         Etot_label = torch.sum(Ei_label, dim=1)
         neighbor = Variable(sample_batches['input_nblist'].int().to(self.device))  # [40,108,100]
-        ind_img = Variable(sample_batches['ind_image'].int().to(self.device))
+        #ind_img = Variable(sample_batches['ind_image'].int().to(self.device))
         natoms_img = Variable(sample_batches['natoms_img'].int().to(self.device))
         
         kalman_inputs = [input_data, dfeat, neighbor, natoms_img, egroup_weight, divider]
@@ -991,6 +993,17 @@ class nn_network:
         
         print("RMSE_Etot = %.12f, RMSE_Ei = %.12f, RMSE_Force = %.12f, RMSE_Egroup = %.12f" %(loss_Etot ** 0.5, loss_Ei ** 0.5, loss_F ** 0.5, loss_egroup**0.5))
         
+        del Ei_label
+        del Force_label
+        del Egroup_label
+        del input_data
+        del dfeat
+        del egroup_weight
+        del divider
+        del Etot_label
+        del neighbor
+        del natoms_img
+
         return loss, loss_Etot, loss_Ei, loss_F, loss_egroup
 
     def valid_img(self,sample_batches, model, criterion):
@@ -1026,7 +1039,6 @@ class nn_network:
         # model.train()
         self.model.eval()
 
-        
         Etot_predict, Ei_predict, Force_predict = model(input_data, dfeat, neighbor, natoms_img, egroup_weight, divider)
         
         Egroup_predict = torch.zeros_like(Ei_predict)
@@ -1063,6 +1075,16 @@ class nn_network:
 
         error = float(loss_F.item()) + float(loss_Etot.item()) + float(loss_Ei.item()) + float(loss_egroup.item())
 
+        del Ei_label
+        del Force_label
+        del Egroup_label
+        del input_data
+        del dfeat
+        del egroup_weight
+        del divider
+        del neighbor
+        del natoms_img  
+        
         return error, loss_Etot, loss_Ei, loss_F, loss_egroup
 
     """ 

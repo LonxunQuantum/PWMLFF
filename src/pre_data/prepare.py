@@ -325,7 +325,10 @@ def writeGenFeatInput():
                                        str(pm.Ftype7_para['Rm'][i])  +
                                        '                                  ! Rc, Rc2, Rm \n')
                     GenFeatInput.write(str(pm.Ftype7_para['M'][i]) + '  ' + str(pm.Ftype7_para['weight_r'][i]) +
-                                        '                                    ! M, weight_r    \n')
+                                        '                                    ! M1, weight_r\n')
+                    # write M2  
+                    GenFeatInput.write(str(pm.Ftype7_para['M2'][i]) + '  ' + str(pm.Ftype7_para['weight_r'][i]) + '                       ! M2, weight_r\n')
+                    
                 GenFeatInput.write(str(pm.E_tolerance)+'    ! E_tolerance  \n')
 
         if ftype == 8: # deepMD2
