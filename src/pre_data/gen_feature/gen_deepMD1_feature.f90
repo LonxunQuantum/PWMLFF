@@ -110,15 +110,17 @@ PROGRAM gen_deepMD1_feature
     !cccccccccccccccccccccccccccccccccccccccccccccccc
 
     nfeat0m=0
-     do itype=1,ntype
+    
+    do itype=1,ntype
         M1=M_type(itype)*ntype
         ! wlj altered 
-        !nfeat0(itype) = M1*M1
+        !nfeat0(itype) = M1*4
         nfeat0(itype)=M1*(M1+1)/2
         
         if(nfeat0(itype).gt.nfeat0m) nfeat0m=nfeat0(itype)
-     enddo
-     write(6,*) "itype,nfeat0=",(nfeat0(itype),itype=1,ntype)
+    enddo
+
+    write(6,*) "itype,nfeat0=",(nfeat0(itype),itype=1,ntype)
 
 !cccccccccccccccccccccccccccccccccccccccccccccccccccc
 !cccccccccccccccccccccccccccccccccccccccccccccccccccc

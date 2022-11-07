@@ -114,7 +114,10 @@ class dp_network:
                     
                     # smooth function calculation 
                     Rmin = None,
-                    Rmax = None
+                    Rmax = None,
+                    
+                    #  
+                    M2 = None
                     ):
         
         # parsing command line args 
@@ -199,6 +202,11 @@ class dp_network:
         else:
             self.opts.error("Training: unsupported dtype: %s" %self.opts.opt_dtype)
             raise RuntimeError("Training: unsupported dtype: %s" %self.opts.opt_dtype)
+
+        # setting M2 of the intermediate matrix D 
+        
+        if M2 is not None:
+            self.set_M2(M2)
 
         # setting device
         self.device = None
@@ -324,12 +332,15 @@ class dp_network:
         else:
             return False
 
+    def set_M2(self,val):
+        pm.dp_M2 = val 
+
     def set_epoch_num(self, input_num):
         self.n_epoch = input_num    
     
     def set_batch_size(self,val):
         self.batch_size = val
-
+    
     def set_device(self,val):
         
         if val == "cpu":
@@ -675,7 +686,6 @@ class dp_network:
 
         return loss, loss_Etot, loss_Ei, loss_F
 
-
     def train_kalman_img(self,sample_batches, model, kalman, criterion, last_epoch, real_lr):
         if (self.opts.opt_dtype == 'float64'):
             Ei_label = Variable(sample_batches['output_energy'][:,:,:].double().to(self.device))
@@ -684,7 +694,6 @@ class dp_network:
             dR_neigh_list = Variable(sample_batches['input_dR_neigh_list'].to(self.device))
             Ri = Variable(sample_batches['input_Ri'].double().to(self.device), requires_grad=True)
             Ri_d = Variable(sample_batches['input_Ri_d'].to(self.device))
-    
 
         elif (self.opts.opt_dtype == 'float32'):
             Ei_label = Variable(sample_batches['output_energy'][:,:,:].float().to(self.device))
@@ -693,14 +702,14 @@ class dp_network:
             dR_neigh_list = Variable(sample_batches['input_dR_neigh_list'].to(self.device))
             Ri = Variable(sample_batches['input_Ri'].double().to(self.device), requires_grad=True)
             Ri_d = Variable(sample_batches['input_Ri_d'].to(self.device))
-           
+            
         else:
             
             raise RuntimeError("train(): unsupported opt_dtype %s" %self.opts.opt_dtype)
 
         Etot_label = torch.sum(Ei_label, dim=1)
         
-        natoms_img = Variable(sample_batches['natoms_img'].int().to(self.device))
+        natoms_img = Variable(sample_batches['natoms_img'].int().to(self.device))   
 
         kalman_inputs = [Ri, Ri_d, dR_neigh_list, natoms_img, None, None]
 
@@ -723,6 +732,16 @@ class dp_network:
         loss = loss_F + loss_Etot
         
         print("RMSE_Etot = %.10f, RMSE_Ei = %.10f, RMSE_Force = %.10f, RMSE_Egroup = %.10f" %(loss_Etot ** 0.5, loss_Ei ** 0.5, loss_F ** 0.5, loss_Egroup**0.5))
+        
+        """
+            It is critical to remove the tensors
+        """
+        del Ei_label
+        del Force_label
+        del dR_neigh_list
+        del Ri
+        del Ri_d 
+        del natoms_img  
 
         return loss, loss_Etot, loss_Ei, loss_F, loss_Egroup
 
@@ -749,7 +768,7 @@ class dp_network:
         natoms_img = Variable(sample_batches['natoms_img'].int().to(self.device))  # [40,108,100]
 
         error=0.0
-
+    
         Etot_label = torch.sum(Ei_label, dim=1)
         
         # model.train()
@@ -764,9 +783,7 @@ class dp_network:
         print("Force of 31st Cu atom by inference:\n" , Force_predict[0][30])
         print("********************************************************")
         print("********************************************************\n")
-        """ 
-        
-        
+        """     
         # Egroup_predict = model.get_egroup(Ei_predict, egroup_weight, divider)
         loss_F = criterion(Force_predict, Force_label)
         loss_Etot = criterion(Etot_predict, Etot_label)
@@ -775,6 +792,13 @@ class dp_network:
 
         error = float(loss_F.item()) + float(loss_Etot.item())
         
+        del Ei_label
+        del Force_label
+        del dR_neigh_list
+        del Ri
+        del Ri_d 
+        del natoms_img  
+
         return error, loss_Etot, loss_Ei, loss_F, loss_Egroup
         
     def train(self):
@@ -835,7 +859,7 @@ class dp_network:
                     fid_err_log = open(f_err_log, 'w')
                     fid_err_log.write('iter\t loss\t RMSE_Etot\t RMSE_Ei\t RMSE_F\t RMSE_Eg\n')
                     fid_err_log.close() 
-
+                
                 fid_err_log = open(f_err_log, 'a')
                 fid_err_log.write('%d %e %e %e %e %e \n'%(iter, batch_loss, math.sqrt(batch_loss_Etot)/natoms_sum, math.sqrt(batch_loss_Ei), math.sqrt(batch_loss_F), math.sqrt(batch_loss_Egroup)))
                 fid_err_log.close() 
@@ -848,6 +872,12 @@ class dp_network:
                 loss_Egroup += batch_loss_Egroup.item() * nr_batch_sample 
 
                 nr_total_sample += nr_batch_sample
+
+                #print ("reserved mem at ",i_batch) 
+                #torch.cuda.memory_reserved()
+                # wlj debuggin 
+                #if i_batch % 10 ==0:
+                #    print(torch.cuda.memory_snapshot())
                 
             loss /= nr_total_sample
             loss_Etot /= nr_total_sample
@@ -895,7 +925,7 @@ class dp_network:
                     pass
                 else:
                     self.scheduler.step()
-
+                
             """
                 ========== validation starts ==========
             """
@@ -906,7 +936,7 @@ class dp_network:
             valid_loss_Ei = 0.
             valid_loss_F = 0.
             valid_loss_Egroup = 0.0
-
+    
             for i_batch, sample_batches in enumerate(self.loader_valid):    
                 
                 iter_valid +=1 
@@ -919,10 +949,10 @@ class dp_network:
                 # n_iter = (epoch - 1) * len(loader_valid) + i_batch + 1
                 valid_loss += valid_error_iter * nr_batch_sample
 
-                valid_loss_Etot += batch_loss_Etot * nr_batch_sample
-                valid_loss_Ei += batch_loss_Ei * nr_batch_sample
-                valid_loss_F += batch_loss_F * nr_batch_sample
-                valid_loss_Egroup += batch_loss_Egroup * nr_batch_sample
+                valid_loss_Etot += batch_loss_Etot.item() * nr_batch_sample
+                valid_loss_Ei += batch_loss_Ei.item() * nr_batch_sample
+                valid_loss_F += batch_loss_F.item() * nr_batch_sample
+                valid_loss_Egroup += batch_loss_Egroup.item() * nr_batch_sample
 
                 nr_total_sample += nr_batch_sample
 
@@ -937,6 +967,12 @@ class dp_network:
                 fid_err_log = open(f_err_log, 'a')
                 fid_err_log.write('%d %e %e %e %e %e \n'%(iter, batch_loss, math.sqrt(batch_loss_Etot)/natoms_sum, math.sqrt(batch_loss_Ei), math.sqrt(batch_loss_F), real_lr))
                 fid_err_log.close() 
+                
+                #print ("reserved mem at ",i_batch) 
+                #torch.cuda.memory_reserved()
+                # wlj debuggin 
+                #if i_batch % 10 ==0:
+                #    print(torch.cuda.memory_snapshot())
 
             #end for
 

@@ -629,7 +629,7 @@ class nn_network:
             
             """
                 ========== training starts ==========
-            """
+            """ 
             
             nr_total_sample = 0
             loss = 0.
