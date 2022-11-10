@@ -13,9 +13,6 @@ ln -s ../pre_data/mlff.py .
 ln -s ../pre_data/seper.py .
 ln -s ../pre_data/gen_data.py .
 ln -s ../pre_data/data_loader_2type.py .
-ln -s ../train.py .
-ln -s ../test.py .
-ln -s ../predict.py . 
 ln -s ../../utils/read_torch_wij.py . 
 ln -s ../../utils/plot_nn_test.py . 
 ln -s ../../utils/plot_mlff_inference.py .

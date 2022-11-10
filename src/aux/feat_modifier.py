@@ -127,6 +127,9 @@ class feat_modifier:
     def set_feat7_M(self,val):
         pm.Ftype7_para["M"] = val 
     
+    def set_feat7_M2(self,val):
+        pm.Ftype7_para["M2"] = val 
+    
     def set_feat7_weight_r(self,val):
         pm.Ftype7_para["weight_r"] = val 
 

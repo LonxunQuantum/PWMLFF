@@ -443,7 +443,7 @@ class nn_network:
         # scaler saved to self.scaler
         if pm.is_scale:
             self.scale(torch_train_data, torch_valid_data)
-
+        
         assert self.scaler != None, "scaler is not correctly saved"
 
         self.loader_train = Data.DataLoader(torch_train_data, batch_size=self.batch_size, shuffle = False)

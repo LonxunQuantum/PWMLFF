@@ -143,7 +143,7 @@ IFLAGS         = -I../include
 
 F90         = ifort
 F90FLAGS       = $(FFLAGS) -nomodule -fpp $(IFLAGS) 
-FFLAGS         = -O2 -assume byterecl -g -traceback 
+FFLAGS         = -O2 -assume byterecl 
 
 # ar command and flags - for most architectures: AR = ar, ARFLAGS = ruv
 

@@ -269,7 +269,7 @@ class dp_network:
         #self.dfeat_valid = None
         #
         self.scaler = None
-
+        
         """   
             models 
         """
@@ -292,8 +292,6 @@ class dp_network:
         
         print ("device:",self.device)
         
-        
-
     """
         ============================================================
         =================data preparation functions=================
