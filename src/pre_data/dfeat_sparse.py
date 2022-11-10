@@ -270,7 +270,7 @@ class dfeat_raw:
             two global arrays for transformaiton 
         """
 
-        # setting path for 
+        # setting path 
         for featureIdx in self.use_Ftype:
             # train
             values = pd.read_csv(self.dfeat_record_path_train+str(featureIdx), header=None, encoding= 'unicode_escape').values
@@ -279,10 +279,26 @@ class dfeat_raw:
             self.image_nums_global_train[featureIdx] = values[:, 1].astype(int)
             
             # valid
+            # filter out dfeat files that didn't show up in train
             values = pd.read_csv(self.dfeat_record_path_valid+str(featureIdx), header=None, encoding= 'unicode_escape').values
-     
+            
             self.dfeat_names_global_valid[featureIdx] = values[:, 0]
             self.image_nums_global_valid[featureIdx] = values[:, 1].astype(int)
+            """
+            values_filtered = [] 
+            
+            for item in values[:,0]:
+                if item in self.dfeat_names_global_train[featureIdx]:
+                    values_filtered.append(item)
+                
+            #self.dfeat_names_global_valid[featureIdx] = values[:, 0]
+            self.dfeat_names_global_valid[featureIdx] = np.asarray(values_filtered)
+            self.image_nums_global_valid[featureIdx] = values[:, 1].astype(int)
+            """
+            #print ("dbg starts")
+            #print (type(self.dfeat_names_global_valid[featureIdx]))
+            #print ("dbg ends")
+        
 
     def transform(self, batchIdx, target = "train" ):
         """
@@ -310,18 +326,19 @@ class dfeat_raw:
 
         else:
             raise Exception("target type must be either train or valid")
-
-
-
+        
         imageIdx_start = self.batch_size * batchIdx 
         imageIdx_end = min(imageIdx_start + self.batch_size, self.total_img_num) # watch out the boundary
-
+        
         #print ("imageIdx_start",imageIdx_start)
         #print ("imageIdx_end",imageIdx_end)
         #print ("self.total_img_num", self.total_img_num)
 
-        dfeat = [] 
+        if target == "valid" and self.dfeat_names_global[self.use_Ftype[0]][imageIdx_start] not in self.dfeat_tmp_all:
+            return "aborted"
 
+        dfeat = [] 
+                
         for imageIndex in range(imageIdx_start, imageIdx_end):
         
             dfeat_name = {} 
@@ -336,7 +353,7 @@ class dfeat_raw:
                 image_num[feature] = self.image_nums_global[feature][imageIndex]
 
             featureIdx = 0 
-
+            
             for feature in self.use_Ftype:
 
                 # feature value array 

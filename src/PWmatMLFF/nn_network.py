@@ -4,6 +4,7 @@
     L. Wang, 2022.8
 """
 import os,sys
+from re import I
 import pathlib
 
 codepath = str(pathlib.Path(__file__).parent.resolve())
@@ -80,7 +81,7 @@ class nn_network:
         
         Using default_para is purely a legacy problem
 
-    """ 
+    """        
 
     def __init__(   self,
                     # some must-haves
@@ -139,7 +140,7 @@ class nn_network:
         self.opts.opt_recover_mode = recover
 
         pm.maxNeighborNum = max_neigh_num 
-
+        
         # setting NN network configuration 
         if nn_layer_config == None: 
             #node of each layer
@@ -156,7 +157,7 @@ class nn_network:
         pm.ntypes = len(pm.atomType)
         
         #number of layer
-        pm.nLayer = len(nn_layer_config)    
+        pm.nLayer = len(pm.nodeDim)    
         # passing working_dir to opts.session_name 
         self.set_session_dir(session_dir)
 
@@ -380,12 +381,12 @@ class nn_network:
     def get_movement_weight(self, imgIdx):
 
         mvt_name = None 
-
+    
         for pair in self.movement_idx:
             if img < pair[0][1] and img >= pair[0][1]:
                 mvt_name = pair[1] 
                 break 
-        
+                
         return self.movement_weights[mvt_name]  
 
     def scale(self,train_data,valid_data):
@@ -616,7 +617,7 @@ class nn_network:
         iter_valid = 0 
 
         for epoch in range(self.start_epoch, self.n_epoch + 1):
-
+            
             timeEpochStart = time.time()
 
             if (epoch == self.n_epoch):
@@ -628,8 +629,8 @@ class nn_network:
             
             """
                 ========== training starts ==========
-            """
-
+            """ 
+            
             nr_total_sample = 0
             loss = 0.
             loss_Etot = 0.
@@ -638,6 +639,7 @@ class nn_network:
             loss_Egroup = 0.0   
 
             for i_batch, sample_batches in enumerate(self.loader_train):
+
                 nr_batch_sample = sample_batches['input_feat'].shape[0]
 
                 global_step = (epoch - 1) * len(self.loader_train) + i_batch * nr_batch_sample
@@ -736,15 +738,15 @@ class nn_network:
 
             """
                 ========== validation starts ==========
-            """
-
+            """ 
+            
             nr_total_sample = 0
             valid_loss = 0.
             valid_loss_Etot = 0.
             valid_loss_Ei = 0.
             valid_loss_F = 0.
             valid_loss_Egroup = 0.0
-
+            
             for i_batch, sample_batches in enumerate(self.loader_valid):
                 
                 iter_valid +=1 
@@ -755,6 +757,9 @@ class nn_network:
                 if pm.is_dfeat_sparse == True:
                     sample_batches['input_dfeat']  = self.dfeat.transform(i_batch,"valid")
 
+                if sample_batches['input_dfeat'] == "aborted":
+                    continue 
+
                 valid_error_iter, batch_loss_Etot, batch_loss_Ei, batch_loss_F, batch_loss_Egroup = self.valid_img(sample_batches, self.model, nn.MSELoss())
 
                 # n_iter = (epoch - 1) * len(loader_valid) + i_batch + 1
@@ -764,7 +769,7 @@ class nn_network:
                 valid_loss_Ei += batch_loss_Ei * nr_batch_sample
                 valid_loss_F += batch_loss_F * nr_batch_sample
                 valid_loss_Egroup += batch_loss_Egroup * nr_batch_sample
-
+                
                 nr_total_sample += nr_batch_sample
 
                 f_err_log = self.opts.opt_session_dir+'iter_loss_valid.dat'
@@ -773,8 +778,7 @@ class nn_network:
                     fid_err_log = open(f_err_log, 'w')
                     fid_err_log.write('iter\t loss\t RMSE_Etot\t RMSE_Ei\t RMSE_F\t lr\n')
                     fid_err_log.close() 
-                
-                                
+
                 fid_err_log = open(f_err_log, 'a')
                 fid_err_log.write('%d %e %e %e %e %e \n'%(iter, batch_loss, math.sqrt(batch_loss_Etot)/natoms_sum, math.sqrt(batch_loss_Ei), math.sqrt(batch_loss_F), real_lr))
                 fid_err_log.close() 
@@ -860,7 +864,7 @@ class nn_network:
             # Ep_label = Variable(sample_batches['output_ep'][:,:,:].float().to(device))
 
         else:
-            error("train(): unsupported opt_dtype %s" %self.opts.opt_dtype)
+            #error("train(): unsupported opt_dtype %s" %self.opts.opt_dtype)
             raise RuntimeError("train(): unsupported opt_dtype %s" %self.opts.opt_dtype)  
 
 
@@ -922,18 +926,20 @@ class nn_network:
             Force_label = Variable(sample_batches['output_force'][:,:,:].float().to(self.device))   #[40,108,3]
             Egroup_label = Variable(sample_batches['input_egroup'].float().to(self.device))
             input_data = Variable(sample_batches['input_feat'].float().to(self.device), requires_grad=True)
+
             dfeat = Variable(sample_batches['input_dfeat'].float().to(self.device))  #[40,108,100,42,3]
+
             egroup_weight = Variable(sample_batches['input_egroup_weight'].float().to(self.device))
             divider = Variable(sample_batches['input_divider'].float().to(self.device))
 
         else:
-            error("train(): unsupported opt_dtype %s" %self.opts.opt_dtype)
+            #error("train(): unsupported opt_dtype %s" %self.opts.opt_dtype)
             raise RuntimeError("train(): unsupported opt_dtype %s" %self.opts.opt_dtype)
 
-        atom_number = Ei_label.shape[1]
+        #atom_number = Ei_label.shape[1]
         Etot_label = torch.sum(Ei_label, dim=1)
         neighbor = Variable(sample_batches['input_nblist'].int().to(self.device))  # [40,108,100]
-        ind_img = Variable(sample_batches['ind_image'].int().to(self.device))
+        #ind_img = Variable(sample_batches['ind_image'].int().to(self.device))
         natoms_img = Variable(sample_batches['natoms_img'].int().to(self.device))
         
         kalman_inputs = [input_data, dfeat, neighbor, natoms_img, egroup_weight, divider]
@@ -987,9 +993,19 @@ class nn_network:
         
         print("RMSE_Etot = %.12f, RMSE_Ei = %.12f, RMSE_Force = %.12f, RMSE_Egroup = %.12f" %(loss_Etot ** 0.5, loss_Ei ** 0.5, loss_F ** 0.5, loss_egroup**0.5))
         
+        del Ei_label
+        del Force_label
+        del Egroup_label
+        del input_data
+        del dfeat
+        del egroup_weight
+        del divider
+        del Etot_label
+        del neighbor
+        del natoms_img
+
         return loss, loss_Etot, loss_Ei, loss_F, loss_egroup
 
-    
     def valid_img(self,sample_batches, model, criterion):
         if (self.opts.opt_dtype == 'float64'):
             Ei_label = Variable(sample_batches['output_energy'][:,:,:].double().to(self.device))
@@ -1023,7 +1039,6 @@ class nn_network:
         # model.train()
         self.model.eval()
 
-        
         Etot_predict, Ei_predict, Force_predict = model(input_data, dfeat, neighbor, natoms_img, egroup_weight, divider)
         
         Egroup_predict = torch.zeros_like(Ei_predict)
@@ -1060,6 +1075,16 @@ class nn_network:
 
         error = float(loss_F.item()) + float(loss_Etot.item()) + float(loss_Ei.item()) + float(loss_egroup.item())
 
+        del Ei_label
+        del Force_label
+        del Egroup_label
+        del input_data
+        del dfeat
+        del egroup_weight
+        del divider
+        del neighbor
+        del natoms_img  
+        
         return error, loss_Etot, loss_Ei, loss_F, loss_egroup
 
     """ 

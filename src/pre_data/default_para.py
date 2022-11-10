@@ -71,7 +71,10 @@ pbc = True
 
 dRneigh_path = trainSetDir + r'/dRneigh.dat'
 dp_predict = False
+
 #************** DP network parameters ********************
+
+dp_M2 = 4 
 
 DP_cfg = {
     'embeding_net': {
@@ -257,17 +260,18 @@ Ftype7_para={
     'Rc':[5.4  for tmp in range(10)],     # number of elements in Rc = num atom type
     'Rc2':[3.0  for tmp in range(10)],
     'Rm':[1.0  for tmp in range(10)],
-    'M': [16  for tmp in range(10)],
+    'M': [50  for tmp in range(10)],
+    'M2': [16  for tmp in range(10)],
     'weight_r': [1.0  for tmp in range(10)],
     }
-
+    
 Ftype8_para={   
     'Rc':[5.4  for tmp in range(10)],     # number of elements in Rc = num atom type
     'M':[8  for tmp in range(10)],
     'weight_r':[1.0  for tmp in range(10)],
     'w':[1.0, 1.5, 2.0, 2.5 ],
     }
-
+    
 # for dp S function 
 Rc = 5.4
 Rm = 3.0

@@ -129,7 +129,7 @@ class GKalmanFilter(nn.Module):
             i += 1
         self.__update(H, errore, weights)
         time_end = time.time()
-        print("Global KF update Energy time:", time_end - time_start, "s")
+        #print("Global KF update Energy time:", time_end - time_start, "s")
 
     def update_force(self, inputs, Force_label, update_prefactor=1):
         time_start = time.time()
@@ -814,7 +814,7 @@ class L1KalmanFilter(nn.Module):
         self.__update(H, errore, weights)
         torch.cuda.synchronize()
         time_end = time.time()
-        print("SPLITTING1: Layerwised KF update Energy time:", time_end - time_start, "s")
+        #print("SPLITTING1: Layerwised KF update Energy time:", time_end - time_start, "s")
 
     def update_force(self, inputs, Force_label,update_prefactor = 1.0):
         torch.cuda.synchronize()
@@ -890,12 +890,12 @@ class L1KalmanFilter(nn.Module):
         torch.cuda.synchronize()
         time_end = time.time()
 
-        print("SPLITTING1: Layerwised KF update Force time:", time_end - time_start, "s")
+        #print("SPLITTING1: Layerwised KF update Force time:", time_end - time_start, "s")
 
 
 
 # This splitting schedule bonding weights with bias
-class L2KalmanFilter(nn.Module):
+class L2KalmanFilter(nn.Module):    
     def __init__(self, model, kalman_lambda, kalman_nue, device, nselect, groupsize, blocksize, fprefactor):
         super(L2KalmanFilter, self).__init__()
         self.kalman_lambda = kalman_lambda

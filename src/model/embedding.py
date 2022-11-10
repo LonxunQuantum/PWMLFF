@@ -6,6 +6,7 @@ from torch.nn.init import normal_ as normal
 import numpy as np
 
 # logging and our extension
+"""
 import logging
 logging_level_DUMP = 5
 logging_level_SUMMARY = 15
@@ -25,6 +26,8 @@ def warning(msg, *args, **kwargs):
     logger.warning(msg, *args, **kwargs)
 def error(msg, *args, **kwargs):
     logger.error(msg, *args, **kwargs, exc_info=True)
+
+"""
 
 class EmbedingNet(nn.Module):
     def __init__(self, cfg, magic=False):

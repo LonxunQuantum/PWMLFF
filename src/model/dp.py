@@ -73,12 +73,15 @@ class DP(nn.Module):
         
         self.embeding_net = nn.ModuleList()
         self.fitting_net = nn.ModuleList()
+
+        self.M2 = pm.dp_M2 
+        
         # self.embeding_net = EmbedingNet(self.net_cfg['embeding_net'], magic)
         for i in range(self.ntypes):
             for j in range(self.ntypes):
                 self.embeding_net.append(EmbedingNet(self.net_cfg['embeding_net'], magic))
             fitting_net_input_dim = self.net_cfg['embeding_net']['network_size'][-1]
-            self.fitting_net.append(FittingNet(self.net_cfg['fitting_net'], 16 * fitting_net_input_dim, self.stat[2][i], magic))
+            self.fitting_net.append(FittingNet(self.net_cfg['fitting_net'], self.M2 * fitting_net_input_dim, self.stat[2][i], magic))
 
 
     def get_egroup(self, Egroup_weight, divider):
@@ -132,7 +135,7 @@ class DP(nn.Module):
                     xyz_scater_a = xyz_scater_a + tmp_b
 
             xyz_scater_a = xyz_scater_a * 4.0 / (pm.maxNeighborNum * self.ntypes * 4)
-            xyz_scater_b = xyz_scater_a[:, :, :, :16]
+            xyz_scater_b = xyz_scater_a[:, :, :, :self.M2]
             
             DR_ntype = torch.matmul(xyz_scater_a.transpose(-2, -1), xyz_scater_b)
             DR_ntype = DR_ntype.reshape(pm.batch_size, natoms[ntype], -1)
@@ -162,13 +165,13 @@ class DP(nn.Module):
         # print("fitting time:", start_autograd - start_fitting, 's')
 
         mask = torch.ones_like(Ei)
-        
+        # get direvatives to calculate force
         dE = torch.autograd.grad(Ei, Ri, grad_outputs=mask, retain_graph=True, create_graph=True)
         dE = torch.stack(list(dE), dim=0).squeeze(0)  #[:,:,:,:-1] #[2,108,100,4]-->[2,108,100,3]
 
         Ri_d = Ri_d.reshape(pm.batch_size, natoms_sum, -1, 3)
         dE = dE.reshape(pm.batch_size, natoms_sum, 1, -1)
-
+        
         # start_force = time.time()
         # print("autograd time:", start_force - start_autograd, 's')
         F = torch.matmul(dE, Ri_d).squeeze(-2) # batch natom 3
