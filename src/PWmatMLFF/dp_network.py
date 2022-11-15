@@ -159,16 +159,23 @@ class dp_network:
         if kalman_type is None:
             self.network_config = pm.DP_cfg_dp 
         else:
-            self.network_config = pm.DP_cfg_dp_kf               
-
+            self.network_config = pm.DP_cfg_dp_kf                   
+        
         # passed-in configs 
+        # the whole config is required 
         if embedding_net_config is not None:
-            print("overwritting embedding network config ",self.network_config['embeding_net']["network_size"], " with ", embedding_net_config) 
-            self.network_config['embeding_net']["network_size"] = embedding_net_config
+            #print("overwritting embedding network config ",self.network_config['embeding_net']["network_size"], " with ", embedding_net_config) 
+            print("overwritting embedding network config ",self.network_config['embeding_net'], " with ", embedding_net_config) 
+            
+            #self.network_config['embeding_net']["network_size"] = embedding_net_config
+            self.network_config['embeding_net'] = embedding_net_config
 
         if fitting_net_config is not None: 
-            print("overwritting fitting network config ",self.network_config['fitting_net']["network_size"], " with ", fitting_net_config) 
-            self.network_config['fitting_net']["network_size"] = fitting_net_config
+            #print("overwritting fitting network config ",self.network_config['fitting_net']["network_size"], " with ", fitting_net_config) 
+            print("overwritting fitting network config ",self.network_config['fitting_net'], " with ", fitting_net_config) 
+            
+            #self.network_config['fitting_net']["network_size"] = fitting_net_config
+            self.network_config['fitting_net'] = fitting_net_config
 
         print ("network config used for training:")
         print (self.network_config)
@@ -297,7 +304,7 @@ class dp_network:
         =================data preparation functions=================
         ============================================================ 
     """
-
+    
     def generate_data(self):
         
         """
@@ -415,16 +422,13 @@ class dp_network:
     def set_Rmax(self,val):
         pm.Rc = val
     
-
     def print_feat_para(self):
         # print feature parameter 
         for feat_idx in pm.use_Ftype:    
             name  = "Ftype"+str(feat_idx)+"_para"   
             print(name,":")
             print(getattr(pm,name)) 
-    
-    
-    
+
     """
         ============================================================
         =================training related functions=================
@@ -438,6 +442,7 @@ class dp_network:
         train_data_path = pm.train_data_path
         torch_train_data = get_torch_data(train_data_path)
         
+        # davg dstd 
         davg, dstd, ener_shift = torch_train_data.get_stat(image_num=image_num_stat)
         self.stat = [davg, dstd, ener_shift]
         
@@ -459,7 +464,7 @@ class dp_network:
         
         print("data loaded")
 
-    def set_model(self,start_epoch = 1, model_name = None):
+    def set_model(self,model_name = None):
         """
             specify network_name for loading model 
         """
@@ -467,19 +472,9 @@ class dp_network:
         
         self.model.to(self.device)
 
-
-
-        # load previous model if needed 
-        if (self.opts.opt_recover_mode == True): 
-            
-            if (self.opts.opt_session_name == ''):
-                raise RuntimeError("session not specified for the recover mode. Use set_session_dir")
-
-            if model_name is None:
+        if model_name is not None:
                 # use lattest.pt as default 
-                load_model_path = self.opts.opt_model_dir+'latest.pt' 
-            else:
-                load_model_path = self.opts.opt_model_dir + model_name
+            load_model_path = self.opts.opt_model_dir + model_name
 
             print ("load network from:",load_model_path)
             
@@ -773,15 +768,14 @@ class dp_network:
         model.eval()
         
         Etot_predict, Ei_predict, Force_predict = model(Ri, Ri_d, dR_neigh_list, natoms_img, None, None)
-        
         """
         print("********************************************************")
         print("********************************************************\n")
         print("Etot by inference:\n",Etot_predict)
-        print("Force of 31st Cu atom by inference:\n" , Force_predict[0][30])
+        #print("Force of 31st Cu atom by inference:\n" , Force_predict[0][30])
         print("********************************************************")
         print("********************************************************\n")
-        """     
+        """
         # Egroup_predict = model.get_egroup(Ei_predict, egroup_weight, divider)
         loss_F = criterion(Force_predict, Force_label)
         loss_Etot = criterion(Etot_predict, Etot_label)
@@ -807,7 +801,7 @@ class dp_network:
         iter_valid = 0 
 
         for epoch in range(self.start_epoch, self.n_epoch + 1):
-
+            
             timeEpochStart = time.time()
 
             if (epoch == self.n_epoch):
@@ -876,6 +870,7 @@ class dp_network:
                 # wlj debuggin 
                 #if i_batch % 10 ==0:
                 #    print(torch.cuda.memory_snapshot())
+                torch.cuda.empty_cache()
                 
             loss /= nr_total_sample
             loss_Etot /= nr_total_sample
@@ -971,6 +966,7 @@ class dp_network:
                 # wlj debuggin 
                 #if i_batch % 10 ==0:
                 #    print(torch.cuda.memory_snapshot())
+                torch.cuda.empty_cache()
 
             #end for
 
@@ -1079,9 +1075,7 @@ class dp_network:
         else:
             self.extract_model_name = model_name
         
-
         print ("extracting network parameters from:",self.extract_model_name )
-        
         
         kfdp = True if self.kalman_type is not None else False
         
@@ -1310,6 +1304,7 @@ class dp_network:
 
         f_out.write(str(pm.Rc) + ' ') 
         f_out.write(str(pm.maxNeighborNum)+"\n")
+        f_out.write(str(pm.dp_M2)+"\n")
         f_out.write(str(dstd_size)+"\n")
         
         for i,atom in enumerate(orderedAtomList):
@@ -1334,13 +1329,12 @@ class dp_network:
         """
             varying cordinate in the first image of MOVEMENT
         """
-        self.generate_data()
+        #self.generate_data()
         
         self.load_data()
         
-        self.set_model(load_network = True) 
-
-
+        self.set_model(model_name = "latest.pt")   
+        
         nr_total_sample = 0
 
         test_loss = 0.

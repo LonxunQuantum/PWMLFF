@@ -20,6 +20,7 @@ parse_input.parse_input()
 '''
 
 import default_para as pm
+import os
 
 #f_npfile='data_scaler.npy'
 
@@ -46,7 +47,11 @@ def read_wij(src_name):
 
     wij_all = [ [ np.zeros((info_net[ilayer]),dtype=float) for ilayer in range(nlayers) ] for itype in range(pm.ntypes)]
     bij_all = [ [ np.zeros((info_net[ilayer]),dtype=float) for ilayer in range(nlayers) ] for itype in range(pm.ntypes)]
-
+    
+    # for dir different from trianing
+    if not os.path.exists(pm.fitModelDir):
+        os.mkdir(pm.fitModelDir)
+    
     with open(os.path.join(pm.fitModelDir,'Wij.txt'),'w') as f:
         f.write('test ' + str(pt_file) + '  \n')
         f.write('shape '+str(nlayers*2*pm.ntypes)+'\n')

@@ -42,23 +42,29 @@ module calc_deepMD1_feature
         m_neigh7 = m_neigh
         read(10,*) ntype
         do i=1,ntype
-        read(10,*) iat_type(i)
-        read(10,*) Rc_type(i),Rc2_type(i),Rm_type(i)
-        read(10,*) M_type(i),weight_rterm(i)
-         if(Rc_type(i).gt.Rc_M) then
-          write(6,*) "Rc_type must be smaller than Rc_M, gen_3b_feature.in",i,Rc_type(i),Rc_M
-          stop
-         endif
+            read(10,*) iat_type(i)
+            read(10,*) Rc_type(i),Rc2_type(i),Rm_type(i)
+            read(10,*) M_type(i),weight_rterm(i)
+
+            if(Rc_type(i).gt.Rc_M) then
+                write(6,*) "Rc_type must be smaller than Rc_M, gen_3b_feature.in",i,Rc_type(i),Rc_M
+                stop
+            endif
         enddo
         read(10,*) E_tolerance
         close(10)
 
+        ! wlj alter 
+        ! M1 M2 both controls feature num 
         nfeat0m=0
+        
         do itype=1,ntype
-        M1=M_type(itype)*ntype
-        nfeat0(itype)=M1*(M1+1)/2
-        if(nfeat0(itype).gt.nfeat0m) nfeat0m=nfeat0(itype)
+            M1=M_type(itype)*ntype
+            
+            nfeat0(itype)=M1*(M1+1)/2
+            if(nfeat0(itype).gt.nfeat0m) nfeat0m=nfeat0(itype)
         enddo
+
         write(6,*) "itype,nfeat0=",(nfeat0(itype),itype=1,ntype)
     !cccccccccccccccccccccccccccccccccccccccc
     

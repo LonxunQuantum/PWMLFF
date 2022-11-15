@@ -328,6 +328,7 @@ f_out = open("gen_dp.in","w")
 
 f_out.write(str(pm.Rc_M) + ' ') 
 f_out.write(str(pm.maxNeighborNum)+"\n")
+f_out.write(str(pm.dp_M2)+"\n")
 f_out.write(str(dstd_size)+"\n")
 
 for i,atom in enumerate(orderedAtomList):

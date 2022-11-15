@@ -12,11 +12,11 @@ module calc_deepMD_f
     integer num_step0,num_step1,natom0,max_neigh
 
 
-!ccccccccccccccccccccc  The variables to be used in global feature type
+    !ccccccccccccccccccccc  The variables to be used in global feature type
     integer,allocatable,dimension (:,:) :: list_neigh_alltypeM1
     integer,allocatable,dimension (:,:,:) :: list_neigh
     integer,allocatable,dimension (:) :: num_neigh_alltypeM1
-!ccccccccccccccccccccc  The variables to be used in global feature type
+    !ccccccccccccccccccccc  The variables to be used in global feature type
     integer m_neigh,num,itype1,itype2,itype
     integer iat1,max_neigh_M,num_M
 
@@ -32,6 +32,8 @@ module calc_deepMD_f
     integer,allocatable,dimension (:,:) :: num_neigh
     real*8 ave_shift(4,100),ave_norm(4,100)
 
+    integer M2                      ! M2 in dp network. 
+
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
 contains
@@ -41,8 +43,8 @@ subroutine load_model_deepMD_f()
      open(10,file="gen_dp.in",status="old",action="read")
         rewind(10)
         read(10,*) Rc_M,m_neigh
+        read(10,*) M2 
         read(10,*) ntype
-
         do i=1,ntype
             read(10,*) iat_type(i)
             read(10,*) Rc_type(i),R_cs(i)
@@ -57,9 +59,8 @@ subroutine load_model_deepMD_f()
         enddo
 
         close(10)
-
+        
        !write(6,*) "TEST load_model_deepMD_f",ntype
-
     !cccccccccccccccccccccccccccccccccccccccc
 end subroutine load_model_deepMD_f
 
@@ -68,7 +69,6 @@ subroutine set_image_info_deepMD_f(atom_type_list,is_reset,natom_tmp)
     integer(4),dimension(:),intent(in) :: atom_type_list(natom_tmp)
     logical,intent(in) :: is_reset
     integer,intent(in) :: natom_tmp
-
 
     natom = natom_tmp
     
@@ -89,7 +89,7 @@ subroutine set_image_info_deepMD_f(atom_type_list,is_reset,natom_tmp)
     if(.not.allocated(ds_neigh)) then 
         allocate(ds_neigh(3,m_neigh,ntype,natom))
     endif
-    
+
     if(.not.allocated(dR_neigh)) then
         allocate(dR_neigh(3,m_neigh,ntype,natom))
     endif
@@ -101,14 +101,13 @@ subroutine set_image_info_deepMD_f(atom_type_list,is_reset,natom_tmp)
     if(.not.allocated(dxyz_dx_neigh)) then 
         allocate(dxyz_dx_neigh(3,4,m_neigh,ntype,natom))
     endif 
-
+    
     if(.not.allocated(num_neigh)) then
         allocate(num_neigh(ntype,natom))
     endif 
-
+    
 end subroutine set_image_info_deepMD_f
 
-   
 subroutine gen_deepMD_feature(AL,xatom)
 
     integer(4)  :: itype,i,j
@@ -136,7 +135,7 @@ subroutine gen_deepMD_feature(AL,xatom)
     real*8 s,rr,r,pi,x,yy,dyy
     real*8 dr(3),ds(3)
     integer m,m2
-
+    
     !cccccccccccccccccccccccccccccccccccccccccccccccccccc
     ! the dimension of these array, should be changed to natom_n
     ! instead of natom. Each process only needs to know its own natom_n
@@ -159,13 +158,15 @@ subroutine gen_deepMD_feature(AL,xatom)
     
     !ccccccccccccccccccccccccccccccccccccccccccc
     itype_atom=0
-
+    
     do i=1,natom
+        
         do j=1,ntype
             if(iatom(i).eq.iat_type(j)) then
                 itype_atom(i)=j
             endif
         enddo
+
         if(itype_atom(i).eq.0) then
             write(6,*) "this atom type didn't found", itype_atom(i)
             stop
@@ -177,10 +178,14 @@ subroutine gen_deepMD_feature(AL,xatom)
     !  write(*,*) "before find_neighbor neighbor list:", list_neigh(1:3, 1, 1)
     !  write(*,*) "before find_neighbor dR_neigh:", dR_neigh(1:3, 1, 1, 1)
     !endif
+    
+    ! wlj altered
+    !call find_neighbore(iatom,natom,xatom,AL,Rc_type,num_neigh,list_neigh, &
+    !    dR_neigh,iat_neigh,ntype,iat_type,m_neigh,Rc_M,map2neigh_M,list_neigh_M, &
+    !    num_neigh_M,iat_neigh_M,inode,nnodes)
     call find_neighbore(iatom,natom,xatom,AL,Rc_type,num_neigh,list_neigh, &
         dR_neigh,iat_neigh,ntype,iat_type,m_neigh,Rc_M,map2neigh_M,list_neigh_M, &
-        num_neigh_M,iat_neigh_M,inode,nnodes)
-        
+        num_neigh_M,iat_neigh_M)
     !if(inode .eq. 1) then
     !  write(*,*) "after find_neighbor neighborM:", num_neigh_M(1, 1)
     !  write(*,*) "after find_neighbor neighbor list:", list_neigh(1:3, 1, 1)
@@ -200,17 +205,25 @@ subroutine gen_deepMD_feature(AL,xatom)
     
     !write(*,*) "printing num_neigh cu-cu network"
     !write(*,*) num_neigh(1,1) 
+    
+    ! in find_neighbor.f90, dR_neigh is a rank-4 tensor with indices
+    ! dR_neigh(3,idx of neigh, idx of type, idx of atom)
+    
+    !write(*,*) "dbg: ntype", ntype
+    !write(*,*) "dbg: natom", natom
+    !write(*,*) "dbg info"
+    !write(*,*) dR_neigh(1,:,1,2)
 
-    do iat=1,natom
-
+    do iat=1,natom  
+        
         itype1=itype_atom(iat)  ! center atom type
         !write(*,*) itype1 
         do itype=1,ntype
-
+            
             do j=1,num_neigh(itype,iat)
 
                 rr=dR_neigh(1,j,itype,iat)**2+dR_neigh(2,j,itype,iat)**2+dR_neigh(3,j,itype,iat)**2
-                r=dsqrt(rr)
+                r=dsqrt(rr) 
 
                 ! don't forgot, there is also a derivative with respective to the center i atom
                 dr(1)=dR_neigh(1,j,itype,iat)/r
@@ -223,7 +236,7 @@ subroutine gen_deepMD_feature(AL,xatom)
                     ds(:)=-dr(:)/r**2
 
                 elseif(r.ge.R_cs(itype1).and.r.le.Rc_type(itype1)) then
-                !cs=1/r*(cos(pi*(r-R_cs(itype))/(Rc_type(itype)-R_cs(itype)))+1)*0.5
+                    !cs=1/r*(cos(pi*(r-R_cs(itype))/(Rc_type(itype)-R_cs(itype)))+1)*0.5
                     x=(r-R_cs(itype))/(Rc_type(itype1)-R_cs(itype1))
                     yy=x**3*(-6*x**2+15*x-10)+1
                     dyy=3*x**2*(-6*x**2+15*x-10)+x**3*(-12*x+15)
@@ -240,19 +253,23 @@ subroutine gen_deepMD_feature(AL,xatom)
                 dxyz_neigh(3,j,itype,iat)=(dR_neigh(2,j,itype,iat)*s/r-ave_shift(3,itype1))/ave_norm(3,itype1)
                 dxyz_neigh(4,j,itype,iat)=(dR_neigh(3,j,itype,iat)*s/r-ave_shift(4,itype1))/ave_norm(4,itype1)
                 
-                s_neigh(j,itype,iat)=dxyz_neigh(1,j,itype,iat)
+                !dxyz_neigh(1,j,itype,iat)=s 
+                !dxyz_neigh(2,j,itype,iat)=dR_neigh(1,j,itype,iat)*s/r
+                !dxyz_neigh(3,j,itype,iat)=dR_neigh(2,j,itype,iat)*s/r
+                !dxyz_neigh(4,j,itype,iat)=dR_neigh(3,j,itype,iat)*s/r
 
+                s_neigh(j,itype,iat)=dxyz_neigh(1,j,itype,iat)
+                
                 if(j.eq.num_neigh(itype,iat).and.j.lt.m_neigh) then  ! this is to keep with the DP bug
+
                     dxyz_neigh(1,j+1,itype,iat)=(0.d0-ave_shift(1,itype1))/ave_norm(1,itype1)
                     dxyz_neigh(2,j+1,itype,iat)=(0.d0-ave_shift(2,itype1))/ave_norm(2,itype1)
                     dxyz_neigh(3,j+1,itype,iat)=(0.d0-ave_shift(3,itype1))/ave_norm(3,itype1)
                     dxyz_neigh(4,j+1,itype,iat)=(0.d0-ave_shift(4,itype1))/ave_norm(4,itype1)
-
-                    ! wlj altered
-                    s_neigh(j+1,itype,iat)=dxyz_neigh(1,j+1,itype,iat)
-                    !s_neigh(j+1:m_neigh,itype,iat)=dxyz_neigh(1,j+1,itype,iat)
-                endif
                     
+                    s_neigh(j+1,itype,iat)=dxyz_neigh(1,j+1,itype,iat)
+                
+                endif
                 
                 do m2=2,4
                     dxyz_dx_neigh(m2-1,m2,j,itype,iat)=s/r/ave_norm(m2,itype1)
@@ -263,33 +280,45 @@ subroutine gen_deepMD_feature(AL,xatom)
                         ds(m)/ave_norm(1,itype1)
 
                     ds_neigh(m,j,itype,iat)=dxyz_dx_neigh(m,1,j,itype,iat)
-
+                    
                     do m2=2,4
                         dxyz_dx_neigh(m,m2,j,itype,iat)=dxyz_dx_neigh(m,m2,j,itype,iat)+ &
                         dR_neigh(m2-1,j,itype,iat)*(ds(m)/r-s/r**2*dr(m))/ave_norm(m2,itype1)
                     enddo
+                    
                 enddo
                 
             enddo
         enddo
+        ! wlj dbg
+        !allocate(dxyz_neigh(4,m_neigh,ntype,natom)) 
+        
+        !if (iat.eq.1) then
+        !   write(*,*) dxyz_neigh(:,1,1,1) 
+        !    
+        !   write(*,*) "**********************************************"
+        !endif 
     enddo
-
-    !write(*,*) "m_neigh", m_neigh
-
-    ! dxyz_neigh(4,m_neigh,ntype,natom)
-    ! 4, max neighbor num , types of atom, number of atom   
-
-    ! write(*,*) "printing debugging info"
     
-    !do j=1,num_neigh(itype,iat)
+    !write(*,*) dxyz_neigh(:,2,1,1) 
+    ! 4, max neighbor num , types of atom, number of atom    
+    
+    !write(*,*) "printing dbg info: R_i"
 
+    !do i=1,5
+    !    write(*,'(F16.12 F16.12 F16.12 F16.12)',advance='no') dxyz_neigh(:,i,1,1) 
+    !    write(*,*) " "
+    !enddo 
+    
+    !write(*,*) "m_neigh", m_neigh
+    ! dxyz_neigh(4,m_neigh,ntype,natom)
+    !do j=1,num_neigh(itype,iat)
     !do j=1,num_neigh(2,1)+1
     !do j=1,m_neigh
-        ! (itype_atom(j).eq.1) then
-    
+    !   
     !    write(*,'(F16.12 F16.12 F16.12 F16.12)',advance='no') dxyz_neigh(:,j,2,1) 
     !    write(*,*) " "
-    
+    !
     !enddo
     !deallocate(list_neigh)
     deallocate(map2neigh_M)

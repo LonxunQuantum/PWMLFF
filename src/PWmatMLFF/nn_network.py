@@ -1381,7 +1381,14 @@ class nn_network:
             evaluate a model w.r.t AIMD
             put a MOVEMENT in /MD and run MD100 
         """
+        # features input for main_MD.x
         
+        if not os.path.exists("input"):
+            os.mkdir("input")
+            
+        import prepare as pp
+        pp.writeGenFeatInput()
+
         os.system('rm -f MOVEMENT')
 
         if not os.path.exists("MD/MOVEMENT"):

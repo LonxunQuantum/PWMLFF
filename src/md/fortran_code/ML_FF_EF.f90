@@ -378,16 +378,16 @@ subroutine ML_FF_EF(Etot,fatom,xatom,AL,natom_tmp,e_stress)
                     endif
 
                     if (ifeat_type(kk)  .eq. 7) then
-                    do jj=1,m_neigh
-                    do iat=1,natom_n
-                    do ii=1,nfeat0M7
-                    dfeat(ii+count,iat,jj,1)=dfeat_M7(ii,iat,jj,1)
-                    dfeat(ii+count,iat,jj,2)=dfeat_M7(ii,iat,jj,2)
-                    dfeat(ii+count,iat,jj,3)=dfeat_M7(ii,iat,jj,3)
-                    enddo
-                    enddo
-                    enddo
-                    count=count+nfeat0M7
+                        do jj=1,m_neigh
+                            do iat=1,natom_n
+                                do ii=1,nfeat0M7
+                                    dfeat(ii+count,iat,jj,1)=dfeat_M7(ii,iat,jj,1)
+                                    dfeat(ii+count,iat,jj,2)=dfeat_M7(ii,iat,jj,2)
+                                    dfeat(ii+count,iat,jj,3)=dfeat_M7(ii,iat,jj,3)
+                                enddo
+                            enddo
+                        enddo
+                        count=count+nfeat0M7
                     endif
 
                     if (ifeat_type(kk)  .eq. 8) then
