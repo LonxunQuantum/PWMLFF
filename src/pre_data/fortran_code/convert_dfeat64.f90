@@ -1,26 +1,10 @@
 module convert_dfeat
-    !implicit double precision (a-h, o-z)
+    ! implicit double precision (a-h, o-z)
+    ! feature derivative module with double precision
     implicit none
-  
-  !!!!!!!!!!!!!          以下为  module variables     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-    ! integer(4) :: m_neigh                                  !模型所使用的最大近邻数(考虑这个数是否可以不用)
-    ! integer(4) :: nfeat0m                                  !不同种原子的原始feature数目中最大者(目前似无意义)
- 
-    
-    ! integer(4) :: natom                                    !image的原子个数  
-
-    ! real*8,allocatable,dimension(:,:) :: force       !每个原子的受力
     real*8,allocatable,dimension(:,:,:,:) :: dfeat
     real*8,allocatable,dimension(:,:,:,:) :: dfeat_scaled
-    ! real*8,allocatable,dimension(:,:) :: force       !每个原子的受力
-    ! real*8,allocatable,dimension(:,:) :: feat    
-    ! real*8, allocatable,dimension(:) :: energy        !每个原子的能量
-    ! integer(4),allocatable,dimension(:,:) :: list_neigh
-    ! integer(4),allocatable,dimension(:) :: iatom
-
-
-  !!!!!!!!!!!!!          以上为  module variables     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   
     contains
 
@@ -53,7 +37,6 @@ module convert_dfeat
         enddo
 
     end subroutine conv_dfeat
-
 
     ! Below are subroutine for single image reading and converting. 
     ! L.Wang 2022.7 

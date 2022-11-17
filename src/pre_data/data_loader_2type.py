@@ -96,7 +96,7 @@ class MovementDataset(Dataset):
 
         nr = torch.zeros_like(dR2)
         inr = torch.zeros_like(dR2)
-
+        
         dR2_copy = dR2.unsqueeze(-1).repeat(1, 1, 1, 3)
         Ri_xyz = torch.zeros_like(dR2_copy)
 

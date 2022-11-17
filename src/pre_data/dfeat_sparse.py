@@ -16,14 +16,15 @@ import prepare
 
 #codepath=os.path.abspath(sys.path[0])
 
-
-
 #sys.path.append(codepath+'/../lib')            # for debug 
 
 #sys.path.append(codepath+'/lib')                # location of read_all.o as seen by train.py 
 
 from read_all import read_allnn 
 
+"""
+    determine the module to be loaded 
+"""
 if (pm.feature_dtype == 'float64'):
     from convert_dfeat64 import convert_dfeat 
 elif (pm.feature_dtype == 'float32'):
@@ -37,7 +38,7 @@ class dfeat_raw:
         dfeat_tmp_all is the sparse array from fortran
         
     """
-
+    
     """
         input_dfeat_record_path = pm.f_train_dfeat or pm.f_test_dfeat, in fread_dfeat  
         input_feat_path = pm.f_train_feat or pm.f_test_feat 
@@ -111,9 +112,7 @@ class dfeat_raw:
 
         self.dfeat_names_global_valid = {}
         self.image_nums_global_valid = {} 
-
-
-
+        
         # for traning set 
         self.dfeat_record_path_train = input_dfeat_record_path_train
         self.feat_path_train = input_feat_path_train

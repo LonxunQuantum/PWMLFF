@@ -1,37 +1,22 @@
-  !// forquill v1.01 beta www.fcode.cn
 module convert_dfeat
-    !implicit double precision (a-h, o-z)
-    implicit none
   
-  !!!!!!!!!!!!!          以下为  module variables     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    ! implicit double precision (a-h, o-z)
+    ! feature derivative module with single precision
+    implicit none
 
-    ! integer(4) :: m_neigh                                  !模型所使用的最大近邻数(考虑这个数是否可以不用)
-    ! integer(4) :: nfeat0m                                  !不同种原子的原始feature数目中最大者(目前似无意义)
- 
-    
-    ! integer(4) :: natom                                    !image的原子个数  
-
-    ! real*8,allocatable,dimension(:,:) :: force       !每个原子的受力
     real,allocatable,dimension(:,:,:,:) :: dfeat
     real,allocatable,dimension(:,:,:,:) :: dfeat_scaled
-    ! real*8,allocatable,dimension(:,:) :: force       !每个原子的受力
-    ! real*8,allocatable,dimension(:,:) :: feat    
-    ! real*8, allocatable,dimension(:) :: energy        !每个原子的能量
-    ! integer(4),allocatable,dimension(:,:) :: list_neigh
-    ! integer(4),allocatable,dimension(:) :: iatom
 
-
-  !!!!!!!!!!!!!          以上为  module variables     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  
     contains
 
     subroutine deallo()
 
-        deallocate(dfeat)
+      deallocate(dfeat)
 
     end subroutine deallo
 
     subroutine allo(nfeat0m,natom,m_neigh)
+        
         integer(4), intent(in) :: nfeat0m,natom,m_neigh
         allocate(dfeat(nfeat0m,natom,m_neigh,3)) 
         dfeat(:,:,:,:)=0.0
@@ -39,20 +24,12 @@ module convert_dfeat
     end subroutine allo
 
     subroutine conv_dfeat(image_Num,ipos,natom_p,num_tmp,dfeat_tmp,jneigh_tmp,ifeat_tmp,iat_tmp)
-        ! ipos : 
 
         integer(4)  :: jj,ii,i_p,i,j
         integer(4), intent(in) :: image_Num,num_tmp,ipos,natom_p
 
         real,  dimension (:,:),intent(in) :: dfeat_tmp
         integer(4),dimension (:),intent(in) :: iat_tmp,jneigh_tmp,ifeat_tmp
-        ! integer(4),dimension(3) :: feat_shape,list_shape
-
-        ! write(*,*) '000'
-        ! write(*,*) "hahaha"
-
-        ! index of dfeat: 
-        ! feature index, absolute atom index, neighbor index, spatial dimension 
         
         do jj=1,num_tmp
             dfeat(ifeat_tmp(jj)+ipos,iat_tmp(jj)+natom_p,jneigh_tmp(jj),1)=dfeat_tmp(1,jj)
@@ -61,6 +38,50 @@ module convert_dfeat
         enddo
 
     end subroutine conv_dfeat
+
+    ! Below are subroutine for single image reading and converting. 
+    ! L.Wang 2022.7 
+
+    ! pytorch input format:
+    ! atom index within this image, neighbor index, feature index, spatial dimension   
+
+    subroutine allo_singleimg(atom_num,m_neigh,total_feat_num)
+        
+        ! atom_num = atom number in this image 
+
+        integer(4), intent(in) :: total_feat_num,atom_num,m_neigh
+
+        allocate(dfeat(atom_num, m_neigh,total_feat_num,3))
+
+        dfeat(:,:,:,:)=0.0
+
+    end subroutine allo_singleimg
+
+    subroutine conv_dfeat_singleimg(ipos,natom_p,num_tmp,dfeat_tmp,jneigh_tmp,ifeat_tmp,iat_tmp)
+        
+        ! this subroutine converts a single image and returns a tensor whose format matches the requirement of pytorch 
+        
+        integer(4)  :: jj
+        integer(4), intent(in) :: num_tmp,ipos,natom_p
+
+        real ,  dimension (:,:),intent(in) :: dfeat_tmp
+        integer(4),dimension (:),intent(in) :: iat_tmp,jneigh_tmp,ifeat_tmp
+
+        
+        do jj=1,num_tmp
+            
+            ! non-continuous memory layout can significantly slow things down  
+                        
+            dfeat(iat_tmp(jj) , jneigh_tmp(jj) , ifeat_tmp(jj)+ipos, 1) = dfeat_tmp(1,jj)
+            dfeat(iat_tmp(jj) , jneigh_tmp(jj) , ifeat_tmp(jj)+ipos, 2) = dfeat_tmp(2,jj)
+            dfeat(iat_tmp(jj) , jneigh_tmp(jj) , ifeat_tmp(jj)+ipos, 3) = dfeat_tmp(3,jj)
+
+            !dfeat(ifeat_tmp(jj)+ipos,iat_tmp(jj)+natom_p,jneigh_tmp(jj),1)=dfeat_tmp(1,jj)
+            !dfeat(ifeat_tmp(jj)+ipos,iat_tmp(jj)+natom_p,jneigh_tmp(jj),2)=dfeat_tmp(2,jj)
+            !dfeat(ifeat_tmp(jj)+ipos,iat_tmp(jj)+natom_p,jneigh_tmp(jj),3)=dfeat_tmp(3,jj)
+        enddo
+
+    end subroutine conv_dfeat_singleimg
 
     ! subroutine scale(list_neigh,num_neigh,iatom,feat_scale,itype_atom)
     !     integer(4)  :: nfeat0m,natom,m_neigh,ntype,iitype,itype,i,j,jj
@@ -105,7 +126,7 @@ module convert_dfeat
 
     !     enddo
     !     enddo
-
+    ! 
     !     deallocate(iatom_type)
     !     call cpu_time(t2)
     !     write(*,*) 'time',t2-t1
@@ -233,7 +254,6 @@ module convert_dfeat
 
 
     ! end subroutine conv_dfeat
-  
 end module convert_dfeat
   
   

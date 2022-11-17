@@ -117,14 +117,13 @@ class DP(nn.Module):
                 embedding_index = ntype * self.ntypes + ntype_1
 
                 G = self.embeding_net[embedding_index](S_Rij)
-
+                
                 # dbg starts 
                 #if ntype == 0 and ntype_1 == 0:
                 #    !print ("printing dgb info")
                 #    print (G[0].shape)
                 #    print (G[0,0,0:4,:])
                 # dbg ends  
-
                 tmp_a = Ri[:, atom_sum:atom_sum+natoms[ntype], ntype_1*pm.maxNeighborNum:(ntype_1+1)*pm.maxNeighborNum].transpose(-2, -1)
                 tmp_b = torch.matmul(tmp_a, G)
                 
@@ -176,6 +175,8 @@ class DP(nn.Module):
         # print("autograd time:", start_force - start_autograd, 's')
         F = torch.matmul(dE, Ri_d).squeeze(-2) # batch natom 3
         F = F * (-1)
+
+        #print (list_neigh)
         
         list_neigh = (list_neigh - 1).type(torch.int)
         F = CalculateForce.apply(list_neigh, dE, Ri_d, F)

@@ -123,7 +123,6 @@ module convert_dfeat
         ! integer(4),dimension(3) :: feat_shape,list_shape
 
         ! write(*,*) 'num_tmp', num_tmp
-
         allocate(dfeat(nfeat0m,natom,m_neigh,3))
         ! write(*,*) 'allo', shape(dfeat)
 
@@ -136,7 +135,7 @@ module convert_dfeat
                 ! write(*,*) jneigh_tmp(jj)
 
 
-            dfeat(ifeat_tmp(jj),iat_tmp(jj),jneigh_tmp(jj),:)=dfeat_tmp(:,jj)
+              dfeat(ifeat_tmp(jj),iat_tmp(jj),jneigh_tmp(jj),:)=dfeat_tmp(:,jj)
             enddo
 
 

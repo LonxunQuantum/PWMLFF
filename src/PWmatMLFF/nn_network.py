@@ -97,7 +97,7 @@ class nn_network:
                     # optimizer related arguments 
 
                     max_neigh_num = 100, 
-                    
+                    precision = "float64", 
                     kalman_type = "global",      # or: "global", "layerwise", "selected"  
                     session_dir = "record",  # directory that saves the model
                     # training label related arguments
@@ -105,7 +105,7 @@ class nn_network:
                     is_trainEi = False,
                     is_trainEgroup = False,
                     is_trainEtot = True,
-                    
+                    batch_size = 1, 
                     is_movement_weighted = False,
                     is_dfeat_sparse = True,
 
@@ -211,21 +211,27 @@ class nn_network:
         self.use_GKalman = pm.use_GKalman
         self.use_LKalman = pm.use_LKalman
         self.use_SKalman = pm.use_SKalman
-        """
-
+        """ 
         # parameters for KF
         self.kalman_lambda = 0.98                    
         self.kalman_nue =  0.99870
 
-        # set training precision
-        if (self.opts.opt_dtype == 'float64'):
-            #print("Training: set default dtype to float64")
+        self.precision = precision
+        
+        # set feature precision 
+        pm.feature_dtype = self.precision
+        
+        # set training precision. Overarching 
+        if (self.precision == 'float64'):
+            print("Training: set default dtype to double")
             torch.set_default_dtype(torch.float64)
-        elif (self.opts.opt_dtype == 'float32'):
-            #print("Training: set default dtype to float32")
+
+        elif (self.precision == 'float32'):
+            print("Training: set default dtype to single")
             torch.set_default_dtype(torch.float32)
+
         else:
-            self.opts.error("Training: unsupported dtype: %s" %self.opts.opt_dtype)
+            #self.opts.error("Training: unsupported dtype: %s" %self.opts.opt_dtype)
             raise RuntimeError("Training: unsupported dtype: %s" %self.opts.opt_dtype)  
 
         # set training device
@@ -245,8 +251,7 @@ class nn_network:
         # set print precision
         torch.set_printoptions(precision = 12)
         
-        self.patience = 100000
-
+        self.patience = 100000 
         # movement-wise weight in training
         self.is_movement_weighted = is_movement_weighted 
         self.movement_weights = None
@@ -263,8 +268,8 @@ class nn_network:
         else:
             self.n_epoch = n_epoch
         
-        self.batch_size = self.opts.opt_batch_size 
-
+        self.batch_size = batch_size
+        
         self.min_loss = np.inf
         self.epoch_print = 1 
         self.iter_print = 1 
@@ -327,8 +332,8 @@ class nn_network:
         # seperate 
         import seper 
         seper.main()
-
-        import gen_data 
+        
+        import gen_data     
         gen_data.main()
         # convert 
         
@@ -469,7 +474,6 @@ class nn_network:
 
 
     def set_model(self, start_epoch = 1, model_name = None):
-
         """
             set the model 
         """ 
@@ -512,11 +516,10 @@ class nn_network:
 
         """
             initialize optimzer 
-        """     
-        
+        """
+
         #if self.use_GKalman or self.use_LKalman or self.use_SKalman:
         if self.kalman_type is not None: 
-            
             """     
                 use Kalman filter 
             """
@@ -608,11 +611,9 @@ class nn_network:
             raise RuntimeError("unsupported scheduler: %s" %opt_scheduler)
 
     def train(self):
-
         """    
             trianing method for the class 
-        """
-
+        """ 
         iter = 0 
         iter_valid = 0 
 
@@ -842,7 +843,7 @@ class nn_network:
 
         """
 
-        if (self.opts.opt_dtype == 'float64'):
+        if (self.precision == 'float64'):
             Ei_label = Variable(sample_batches['output_energy'][:,:,:].double().to(self.device))
             Force_label = Variable(sample_batches['output_force'][:,:,:].double().to(self.device))   #[40,108,3]
             Egroup_label = Variable(sample_batches['input_egroup'].double().to(self.device))
@@ -851,9 +852,8 @@ class nn_network:
             egroup_weight = Variable(sample_batches['input_egroup_weight'].double().to(self.device))
             divider = Variable(sample_batches['input_divider'].double().to(self.device))
             # Ep_label = Variable(sample_batches['output_ep'][:,:,:].double().to(device))
-
-
-        elif (self.opts.opt_dtype == 'float32'):
+            
+        elif (self.precision == 'float32'):
             Ei_label = Variable(sample_batches['output_energy'][:,:,:].float().to(self.device))
             Force_label = Variable(sample_batches['output_force'][:,:,:].float().to(self.device))   #[40,108,3]
             Egroup_label = Variable(sample_batches['input_egroup'].float().to(self.device))
@@ -865,7 +865,7 @@ class nn_network:
 
         else:
             #error("train(): unsupported opt_dtype %s" %self.opts.opt_dtype)
-            raise RuntimeError("train(): unsupported opt_dtype %s" %self.opts.opt_dtype)  
+            raise RuntimeError("train(): unsupported opt_dtype %s" %self.precision)  
 
 
         atom_number = Ei_label.shape[1]
@@ -908,40 +908,32 @@ class nn_network:
         return loss, loss_Etot, loss_Ei, loss_F
 
     def train_kalman_img(self,sample_batches, model, kalman, criterion, last_epoch, real_lr):
+        """
+            why setting precision again? 
+        """
+        """
+            **********************************************************************
+        """
+        Ei_label = Variable(sample_batches['output_energy'][:,:,:].to(self.device))
+        Force_label = Variable(sample_batches['output_force'][:,:,:].to(self.device))   #[40,108,3]
+        Egroup_label = Variable(sample_batches['input_egroup'].to(self.device))
+        input_data = Variable(sample_batches['input_feat'].to(self.device), requires_grad=True)
 
-        if (self.opts.opt_dtype == 'float64'):
-            Ei_label = Variable(sample_batches['output_energy'][:,:,:].double().to(self.device))
-            Force_label = Variable(sample_batches['output_force'][:,:,:].double().to(self.device))   #[40,108,3]
-            Egroup_label = Variable(sample_batches['input_egroup'].double().to(self.device))
-            input_data = Variable(sample_batches['input_feat'].double().to(self.device), requires_grad=True)
-
-            dfeat = Variable(sample_batches['input_dfeat'].double().to(self.device))  #[40,108,100,42,3]
-
-            egroup_weight = Variable(sample_batches['input_egroup_weight'].double().to(self.device))
-            divider = Variable(sample_batches['input_divider'].double().to(self.device))
-            # Ep_label = Variable(sample_batches['output_ep'][:,:,:].double().to(device))
-
-        elif (self.opts.opt_dtype == 'float32'):
-            Ei_label = Variable(sample_batches['output_energy'][:,:,:].float().to(self.device))
-            Force_label = Variable(sample_batches['output_force'][:,:,:].float().to(self.device))   #[40,108,3]
-            Egroup_label = Variable(sample_batches['input_egroup'].float().to(self.device))
-            input_data = Variable(sample_batches['input_feat'].float().to(self.device), requires_grad=True)
-
-            dfeat = Variable(sample_batches['input_dfeat'].float().to(self.device))  #[40,108,100,42,3]
-
-            egroup_weight = Variable(sample_batches['input_egroup_weight'].float().to(self.device))
-            divider = Variable(sample_batches['input_divider'].float().to(self.device))
-
-        else:
-            #error("train(): unsupported opt_dtype %s" %self.opts.opt_dtype)
-            raise RuntimeError("train(): unsupported opt_dtype %s" %self.opts.opt_dtype)
+        dfeat = Variable(sample_batches['input_dfeat'].to(self.device))  #[40,108,100,42,3]
+        
+        egroup_weight = Variable(sample_batches['input_egroup_weight'].to(self.device))
+        divider = Variable(sample_batches['input_divider'].to(self.device))
 
         #atom_number = Ei_label.shape[1]
         Etot_label = torch.sum(Ei_label, dim=1)
         neighbor = Variable(sample_batches['input_nblist'].int().to(self.device))  # [40,108,100]
         #ind_img = Variable(sample_batches['ind_image'].int().to(self.device))
         natoms_img = Variable(sample_batches['natoms_img'].int().to(self.device))
-        
+
+        """
+            **********************************************************************
+        """
+
         kalman_inputs = [input_data, dfeat, neighbor, natoms_img, egroup_weight, divider]
 
         # choosing what data are used for W update. Defualt are Etot and Force
@@ -1007,35 +999,27 @@ class nn_network:
         return loss, loss_Etot, loss_Ei, loss_F, loss_egroup
 
     def valid_img(self,sample_batches, model, criterion):
-        if (self.opts.opt_dtype == 'float64'):
-            Ei_label = Variable(sample_batches['output_energy'][:,:,:].double().to(self.device))
-            Force_label = Variable(sample_batches['output_force'][:,:,:].double().to(self.device))   #[40,108,3]
-            Egroup_label = Variable(sample_batches['input_egroup'].double().to(self.device))
-            input_data = Variable(sample_batches['input_feat'].double().to(self.device), requires_grad=True)
-            dfeat = Variable(sample_batches['input_dfeat'].double().to(self.device))  #[40,108,100,42,3]
-            egroup_weight = Variable(sample_batches['input_egroup_weight'].double().to(self.device))
-            divider = Variable(sample_batches['input_divider'].double().to(self.device))
-
-        elif (self.opts.opt_dtype == 'float32'):
-            Ei_label = Variable(sample_batches['output_energy'][:,:,:].float().to(self.device))
-            Force_label = Variable(sample_batches['output_force'][:,:,:].float().to(self.device))   #[40,108,3]
-            Egroup_label = Variable(sample_batches['input_egroup'].float().to(self.device))
-            input_data = Variable(sample_batches['input_feat'].float().to(self.device), requires_grad=True)
-            dfeat = Variable(sample_batches['input_dfeat'].float().to(self.device))  #[40,108,100,42,3]
-            egroup_weight = Variable(sample_batches['input_egroup_weight'].float().to(self.device))
-            divider = Variable(sample_batches['input_divider'].float().to(self.device))
-
-        else:
-            error("train(): unsupported opt_dtype %s" %opt_dtype)
-            raise RuntimeError("train(): unsupported opt_dtype %s" %opt_dtype)
-
+        """
+            ******************* load *********************
+        """
+        Ei_label = Variable(sample_batches['output_energy'][:,:,:].to(self.device))
+        Force_label = Variable(sample_batches['output_force'][:,:,:].to(self.device))   #[40,108,3]
+        Egroup_label = Variable(sample_batches['input_egroup'].to(self.device))
+        input_data = Variable(sample_batches['input_feat'].to(self.device), requires_grad=True)
+        dfeat = Variable(sample_batches['input_dfeat'].to(self.device))  #[40,108,100,42,3]
+        egroup_weight = Variable(sample_batches['input_egroup_weight'].to(self.device))
+        divider = Variable(sample_batches['input_divider'].to(self.device))
+        
         neighbor = Variable(sample_batches['input_nblist'].int().to(self.device))  # [40,108,100]
         natoms_img = Variable(sample_batches['natoms_img'].int().to(self.device))  # [40,108,100]
 
+        """
+            ******************* load *********************
+        """
         error=0
         atom_number = Ei_label.shape[1]
         Etot_label = torch.sum(Ei_label, dim=1)
-
+        
         # model.train()
         self.model.eval()
 
@@ -1054,12 +1038,12 @@ class nn_network:
         loss_Etot = criterion(Etot_predict, Etot_label)
         loss_Ei = criterion(Ei_predict, Ei_label)
         """
-
+        
         loss_Etot = torch.zeros([1,1],device=self.device)
         loss_Ei = torch.zeros([1,1],device=self.device)
         loss_F = torch.zeros([1,1],device = self.device)
         loss_egroup = torch.zeros([1,1],device = self.device)
-
+        
         # update loss with repsect to the data used
         if self.is_trainEi:
             loss_Ei = criterion(Ei_predict, Ei_label)

@@ -33,8 +33,8 @@ class MovementDataset(Dataset):
         self.ind_img = np.load(ind_img_path)
         self.itype = np.load(itype_path)
 
-        self.Rc = pm.Rc  # default 6.0
-        self.Rm = pm.Rm  # default 5.8
+        self.Rc = pm.Rc  # default 5.4
+        self.Rm = pm.Rm  # default 3.0
 
         if pm.dR_neigh == False:
             self.feat = np.load(feat_path)
@@ -48,14 +48,14 @@ class MovementDataset(Dataset):
         if dR_neigh_path:
             self.use_dR_neigh = True
             tmp = np.load(dR_neigh_path)
+            #print ("path of dR",dR_neigh_path)
+            #print ("shape of fortran dR", tmp.shape)
+             
             self.dR = tmp[:, :, :, :3]
             self.dR_neigh_list = np.squeeze(tmp[:, :, :, 3:], axis=-1).astype(int)
             self.force = -1 * self.force
 
-            # if (not os.path.exists(Ri_path)) or (not os.path.exists(Ri_d_path)):
-            #     self.get_stat()
-            #     self.prepare(Ri_path, Ri_d_path)
-            # if True:
+            # generate Ri
             self.get_stat()
             if (not os.path.exists(Ri_path)) or (not os.path.exists(Ri_d_path)):
                 self.prepare(Ri_path, Ri_d_path)
@@ -78,9 +78,12 @@ class MovementDataset(Dataset):
             self.Ri_d_all = np.load(Ri_d_path)  
 
     def prepare(self, Ri_path, Ri_d_path):
+        # this part appears to be incompatible with fortran
+        
+
         image_dR = self.dR
         list_neigh = self.dR_neigh_list
-
+        
         natoms_sum = self.natoms_img[0, 0]
         natoms_per_type = self.natoms_img[0, 1:]
 

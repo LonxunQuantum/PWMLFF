@@ -32,7 +32,7 @@ module calc_deepMD_f
     integer,allocatable,dimension (:,:) :: num_neigh
     real*8 ave_shift(4,100),ave_norm(4,100)
 
-    integer M2                      ! M2 in dp network. 
+    integer dp_M2                      ! M2 in dp network. 
 
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
@@ -43,7 +43,7 @@ subroutine load_model_deepMD_f()
      open(10,file="gen_dp.in",status="old",action="read")
         rewind(10)
         read(10,*) Rc_M,m_neigh
-        read(10,*) M2 
+        read(10,*) dp_M2 
         read(10,*) ntype
         do i=1,ntype
             read(10,*) iat_type(i)
@@ -186,12 +186,12 @@ subroutine gen_deepMD_feature(AL,xatom)
     call find_neighbore(iatom,natom,xatom,AL,Rc_type,num_neigh,list_neigh, &
         dR_neigh,iat_neigh,ntype,iat_type,m_neigh,Rc_M,map2neigh_M,list_neigh_M, &
         num_neigh_M,iat_neigh_M)
+    
     !if(inode .eq. 1) then
     !  write(*,*) "after find_neighbor neighborM:", num_neigh_M(1, 1)
     !  write(*,*) "after find_neighbor neighbor list:", list_neigh(1:3, 1, 1)
     !  write(*,*) "after find_neighbor dR_neigh:", dR_neigh(1:3, 1, 1, 1)
-    !endif
-
+    !endif  
     !    call cpu_time(timefinish)
     !    write(*,*) 'find_nei time: ', timefinish-timestart
     !ccccccccccccccccccccccccccccccccc
@@ -229,7 +229,7 @@ subroutine gen_deepMD_feature(AL,xatom)
                 dr(1)=dR_neigh(1,j,itype,iat)/r
                 dr(2)=dR_neigh(2,j,itype,iat)/r
                 dr(3)=dR_neigh(3,j,itype,iat)/r
-
+                
                 if(r.lt.R_cs(itype1)) then
                     
                     s=1/r
@@ -298,17 +298,16 @@ subroutine gen_deepMD_feature(AL,xatom)
         !    
         !   write(*,*) "**********************************************"
         !endif 
-    enddo
-    
-    !write(*,*) dxyz_neigh(:,2,1,1) 
+    enddo 
+    ! write(*,*) dxyz_neigh(:,2,1,1) 
+    ! Ri matrix in DP model, input for the embedding net 
     ! 4, max neighbor num , types of atom, number of atom    
-    
-    !write(*,*) "printing dbg info: R_i"
+    write(*,*) "printing dbg info: R_i"
 
-    !do i=1,5
-    !    write(*,'(F16.12 F16.12 F16.12 F16.12)',advance='no') dxyz_neigh(:,i,1,1) 
-    !    write(*,*) " "
-    !enddo 
+    do i=1,100
+        write(*,'(F16.12 F16.12 F16.12 F16.12)',advance='no') dxyz_neigh(:,i,1,1) 
+        write(*,*) " "
+    enddo 
     
     !write(*,*) "m_neigh", m_neigh
     ! dxyz_neigh(4,m_neigh,ntype,natom)

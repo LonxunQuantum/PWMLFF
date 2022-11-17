@@ -40,9 +40,14 @@ __global__ void force_calc(
     const int nloc,
     const int nnei)
 {  
-    const unsigned int atom_id = blockIdx.x;
-    const unsigned int batch_id = blockIdx.y;
-    const unsigned int neigh_index = threadIdx.x;
+    //const unsigned int atom_id = blockIdx.x;
+    //const unsigned int batch_id = blockIdx.y;
+    //const unsigned int neigh_index = threadIdx.x;
+    const unsigned int block_id = blockIdx.x;
+    const unsigned int atom_id = blockIdx.y;
+    const unsigned int batch_id = blockIdx.z;
+    const unsigned int neigh_index = threadIdx.x + block_id * blockDim.x;
+
     const unsigned int xyz_index = threadIdx.y;
     const int ndescrpt = nnei * 4;
 
@@ -97,10 +102,12 @@ void launch_calculate_force(
 
 #if 1
     const int LEN = 256;
-    if (neigh_num > 256) {
-        std::cout << "Error, neigh num > 256, not supported!" << std::endl;
-    }
-    dim3 block_grid(natoms, batch_size);
+    //if (neigh_num > 256) {
+    //    std::cout << "Error, neigh num > 256, not supported!" << std::endl;
+    //}
+    //dim3 block_grid(natoms, batch_size);
+    const int nblock = (neigh_num + LEN - 1) / LEN;
+    dim3 block_grid(nblock, natoms, batch_size);
     dim3 thread_grid(LEN, 3);
     force_calc<<<block_grid, thread_grid>>>(force, dE, Ri_d, nblist, natoms, neigh_num);
 #endif
@@ -121,3 +128,4 @@ template void launch_calculate_force(const int * nblist,
     const int natoms,
     const int neigh_num,
     double * force);
+

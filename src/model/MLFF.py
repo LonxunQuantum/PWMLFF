@@ -18,6 +18,7 @@ sys.path.append(codepath+'/../pre_data')
 import default_para as pm    
 import time
 
+"""
 if pm.torch_dtype == 'float32':
     torch_dtype = torch.float32
     #print('info: torch.dtype = torch.float32 in Pytorch training.')
@@ -25,6 +26,7 @@ else:
     torch_dtype = torch.float64
     torch.set_default_dtype(torch.float64)
     #print('info: torch.dtype = torch.float64 in Pytorch training. (it may be slower)')
+"""
 
 torch.manual_seed(2021)
 torch.cuda.manual_seed(2021)

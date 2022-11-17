@@ -742,7 +742,6 @@ class dp_network:
         if (self.opts.opt_dtype == 'float64'):
             Ei_label = Variable(sample_batches['output_energy'][:,:,:].double().to(self.device))
             Force_label = Variable(sample_batches['output_force'][:,:,:].double().to(self.device))   #[40,108,3]
-
             dR_neigh_list = Variable(sample_batches['input_dR_neigh_list'].to(self.device))
             Ri = Variable(sample_batches['input_Ri'].double().to(self.device), requires_grad=True)
             Ri_d = Variable(sample_batches['input_Ri_d'].to(self.device))
@@ -753,10 +752,12 @@ class dp_network:
             dR_neigh_list = Variable(sample_batches['input_dR_neigh_list'].to(self.device))
             Ri = Variable(sample_batches['input_Ri'].double().to(self.device), requires_grad=True)
             Ri_d = Variable(sample_batches['input_Ri_d'].to(self.device))
-
-
+            
         else:
             raise RuntimeError("train(): unsupported opt_dtype %s" %self.opts.opt_dtype)
+        
+        print ("Ri shape:", Ri.shape)
+        print (Ri[0,0,:50,:])
 
         natoms_img = Variable(sample_batches['natoms_img'].int().to(self.device))  # [40,108,100]
 
@@ -768,20 +769,20 @@ class dp_network:
         model.eval()
         
         Etot_predict, Ei_predict, Force_predict = model(Ri, Ri_d, dR_neigh_list, natoms_img, None, None)
-        """
+        
         print("********************************************************")
         print("********************************************************\n")
         print("Etot by inference:\n",Etot_predict)
         #print("Force of 31st Cu atom by inference:\n" , Force_predict[0][30])
         print("********************************************************")
         print("********************************************************\n")
-        """
+        
         # Egroup_predict = model.get_egroup(Ei_predict, egroup_weight, divider)
         loss_F = criterion(Force_predict, Force_label)
         loss_Etot = criterion(Etot_predict, Etot_label)
         loss_Ei = criterion(Ei_predict, Ei_label)
         loss_Egroup = torch.zeros([1,1], device = self.device)
-
+        
         error = float(loss_F.item()) + float(loss_Etot.item())
         
         del Ei_label
@@ -1351,7 +1352,7 @@ class dp_network:
             print ("testing image:",i_batch)
             natoms_sum = sample_batches['natoms_img'][0, 0].item()
             nr_batch_sample = sample_batches['output_energy'].shape[0]
-            
+
             valid_error_iter, batch_loss_Etot, batch_loss_Ei, batch_loss_F, batch_loss_Egroup = self.valid_img(sample_batches, self.model, nn.MSELoss())
 
             test_loss_Etot += batch_loss_Etot.item() * nr_batch_sample
@@ -1361,7 +1362,7 @@ class dp_network:
             nr_total_sample += nr_batch_sample 
             #print(valid_error_iter, batch_loss_Etot, batch_loss_Ei, batch_loss_F, batch_loss_Egroup)
 
-            break
+            break 
         
         
         test_loss /= nr_total_sample

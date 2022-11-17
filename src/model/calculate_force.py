@@ -6,10 +6,14 @@ import op, op_grad
 class CalculateForce(Function):
     @staticmethod
     def forward(ctx, list_neigh, dE, Ri_d, F):
+        
         dims = list_neigh.shape
+        #print ("dim:",dims)
         batch_size = dims[0]
         natoms = dims[1]
         neigh_num = dims[2] * dims[3]
+
+        #print ("num of neighbor:",neigh_num)
         ctx.save_for_backward(list_neigh, dE, Ri_d)
         op.calculate_force(list_neigh, dE, Ri_d, batch_size, natoms, neigh_num, F)
         return F

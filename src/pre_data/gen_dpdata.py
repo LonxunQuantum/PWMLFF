@@ -55,7 +55,6 @@ def process_data(f_train_feat, f_train_dfeat, f_train_dR_neigh,
     itypes, feat, engy = prepare.r_feat_csv(f_train_feat)
     natoms_img = np.zeros((nImg, pm.ntypes + 1), dtype=np.int32)
 
-    
     for i in range(nImg):
         natoms_img[i][0] = indImg[i+1] - indImg[i]
         tmp = itypes[indImg[i]:indImg[i+1]]

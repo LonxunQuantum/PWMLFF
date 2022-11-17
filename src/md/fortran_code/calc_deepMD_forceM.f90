@@ -5,7 +5,7 @@ module calc_deepMD
     ! It is controlled by iflag_ghost_neigh
     ! if iflag_ghost_neigh=1, the result depends on m_neigh
     use mod_mpi
-    use calc_deepmd_f,only:num_neigh,s_neigh,ds_neigh,dR_neigh,dxyz_neigh,dxyz_dx_neigh,list_neigh,gen_deepMD_feature,M2
+    use calc_deepmd_f,only:num_neigh,s_neigh,ds_neigh,dR_neigh,dxyz_neigh,dxyz_dx_neigh,list_neigh,gen_deepMD_feature,dp_M2
     !implicit double precision (a-h, o-z)
     implicit none
 
@@ -740,8 +740,8 @@ module calc_deepMD
 
             do i=1,natom_n_type(itype1)
                 do k1=1,nn1
-                    do k2=1,M2   ! fixed, first index
-                        kk=(k1-1)*M2+k2   ! NN feature index
+                    do k2=1,dp_M2   ! fixed, first index
+                        kk=(k1-1)*dp_M2+k2   ! NN feature index
                         sum=0.d0
 
                         do m=1,4
@@ -919,8 +919,8 @@ module calc_deepMD
          do m2=1,3
          d_sum2=0.d0
          do k1=1,nn1
-         do k2=1,M2   ! fixed, first index
-         kk=(k1-1)*M2+k2   ! NN feature index
+         do k2=1,dp_M2   ! fixed, first index
+         kk=(k1-1)*dp_M2+k2   ! NN feature index
 !         d_sum=0.d0
 !         do m=1,4
 !         d_sum=d_sum+d_ss(m,m2,k1,j,itype2,i)*ss(m,k2,i)+ss(m,k1,i)*d_ss(m,m2,k2,j,itype2,i)
@@ -959,8 +959,8 @@ module calc_deepMD
 
          d_sum2=0.d0
          do k1=1,nn1
-         do k2=1,M2   ! fixed, first index
-         kk=(k1-1)*M2+k2   ! NN feature index
+         do k2=1,dp_M2   ! fixed, first index
+         kk=(k1-1)*dp_M2+k2   ! NN feature index
          d_sum=0.d0
          do m=1,4
          d_sum=d_sum+d_ss_fout(m,k1,j,itype2,i)*ss(m,k2,i)
