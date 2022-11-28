@@ -52,6 +52,7 @@ from sklearn.preprocessing import MinMaxScaler
 from joblib import dump, load
 from sklearn.feature_selection import VarianceThreshold
 
+
 # src/aux 
 from opts import opt_values 
 from feat_modifier import feat_modifier
@@ -106,7 +107,6 @@ class dp_network:
                     is_movement_weighted = False,
                     
                     # inital values for network config
-                    
                     embedding_net_config = None,
                     fitting_net_config = None, 
 
@@ -117,7 +117,8 @@ class dp_network:
                     Rmax = None,
                     
                     #  
-                    M2 = None
+                    M2 = None,
+                    reconnect = True
                     ):
         
         # parsing command line args 
@@ -215,6 +216,9 @@ class dp_network:
         if M2 is not None:
             self.set_M2(M2)
 
+        # set global reconnect switch 
+        self.is_reconnect = reconnect
+        
         # setting device
         self.device = None
         if device == "cpu":
@@ -468,7 +472,7 @@ class dp_network:
         """
             specify network_name for loading model 
         """
-        self.model = DP(self.network_config, self.opts.opt_act, self.device, self.stat, self.opts.opt_magic)
+        self.model = DP(self.network_config, self.opts.opt_act, self.device, self.stat, self.opts.opt_magic, is_reconnect = self.is_reconnect)
         
         self.model.to(self.device)
 
@@ -727,7 +731,7 @@ class dp_network:
         print("RMSE_Etot = %.10f, RMSE_Ei = %.10f, RMSE_Force = %.10f, RMSE_Egroup = %.10f" %(loss_Etot ** 0.5, loss_Ei ** 0.5, loss_F ** 0.5, loss_Egroup**0.5))
         
         """
-            It is critical to remove the tensors
+            It is critical to remove these tensors
         """
         del Ei_label
         del Force_label
@@ -770,12 +774,12 @@ class dp_network:
         
         Etot_predict, Ei_predict, Force_predict = model(Ri, Ri_d, dR_neigh_list, natoms_img, None, None)
         
-        print("********************************************************")
-        print("********************************************************\n")
-        print("Etot by inference:\n",Etot_predict)
+        #print("********************************************************")
+        #print("********************************************************\n")
+        #print("Etot by inference:\n",Etot_predict)
         #print("Force of 31st Cu atom by inference:\n" , Force_predict[0][30])
-        print("********************************************************")
-        print("********************************************************\n")
+        #print("********************************************************")
+        #print("********************************************************\n")
         
         # Egroup_predict = model.get_egroup(Ei_predict, egroup_weight, divider)
         loss_F = criterion(Force_predict, Force_label)
@@ -809,7 +813,7 @@ class dp_network:
                 last_epoch = True
             else:
                 last_epoch = False
-
+            
             print("<----------------------------  epoch %d  ---------------------------->" %(epoch))
             
             """
@@ -1328,10 +1332,11 @@ class dp_network:
     def test_dbg(self):
 
         """
-            varying cordinate in the first image of MOVEMENT
+            varying coordinate in the first image of MOVEMENT
         """
         #self.generate_data()
         
+
         self.load_data()
         
         self.set_model(model_name = "latest.pt")   

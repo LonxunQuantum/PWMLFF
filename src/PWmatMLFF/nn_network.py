@@ -100,6 +100,14 @@ class nn_network:
                     precision = "float64", 
                     kalman_type = "global",      # or: "global", "layerwise", "selected"  
                     session_dir = "record",  # directory that saves the model
+                    
+                    # for force update
+                    nselect = 24, 
+                    group_size = 6,
+                    
+                    # for LKF
+                    block_size = 2560, 
+
                     # training label related arguments
                     is_trainForce = True, 
                     is_trainEi = False,
@@ -244,6 +252,8 @@ class nn_network:
         else:
             raise Exception("device type not supported")
         
+        print ("device used",self.device)
+
         # set random seed
         torch.manual_seed(self.opts.opt_rseed)
         torch.cuda.manual_seed(self.opts.opt_rseed)
@@ -315,6 +325,11 @@ class nn_network:
 
         # path for loading previous model 
         self.load_model_path = self.opts.opt_model_dir+'latest.pt' 
+
+        self.nselect = nselect 
+        self.group_size = group_size
+        
+        self.block_size = block_size 
 
     """
         ============================================================
@@ -535,9 +550,9 @@ class nn_network:
                                                 kalman_lambda = self.kalman_lambda, 
                                                 kalman_nue = self.kalman_nue, 
                                                 device = self.device, 
-                                                nselect = self.opts.opt_nselect, 
-                                                groupsize = self.opts.opt_groupsize, 
-                                                blocksize = self.opts.opt_blocksize, 
+                                                nselect = self.nselect, 
+                                                groupsize = self.group_size, 
+                                                blocksize = self.block_size, 
                                                 fprefactor = self.opts.opt_fprefactor)
             
             elif self.kalman_type == "selected": 
@@ -589,7 +604,7 @@ class nn_network:
 
             # set scheduler
             self.set_scheduler() 
-                
+        
     def set_scheduler(self):
 
         # user specific LambdaLR lambda function
@@ -609,7 +624,7 @@ class nn_network:
             pass
         else:   
             raise RuntimeError("unsupported scheduler: %s" %opt_scheduler)
-
+        
     def train(self):
         """    
             trianing method for the class 
@@ -840,9 +855,7 @@ class nn_network:
     def train_img(self, sample_batches, model, optimizer, criterion, last_epoch, real_lr):
         """   
             single image traing for non-Kalman 
-
         """
-
         if (self.precision == 'float64'):
             Ei_label = Variable(sample_batches['output_energy'][:,:,:].double().to(self.device))
             Force_label = Variable(sample_batches['output_force'][:,:,:].double().to(self.device))   #[40,108,3]
@@ -878,9 +891,9 @@ class nn_network:
         
         optimizer.zero_grad()
 
-        loss_Etot = torch.zeros([1,1],device = device)
-        loss_Ei = torch.zeros([1,1],device = device)
-        loss_F = torch.zeros([1,1],device = device)
+        loss_Etot = torch.zeros([1,1],device = self.device)
+        loss_Ei = torch.zeros([1,1],device = self.device)
+        loss_F = torch.zeros([1,1],device = self.device)
         loss_Egroup = 0
 
         # update loss with repsect to the data used
@@ -892,7 +905,7 @@ class nn_network:
             loss_F = criterion(Force_predict, Force_label)
 
         start_lr = self.opts.opt_lr
-
+        
         w_f = 1 if self.is_trainForce == True else 0
         w_e = 1 if self.is_trainEtot == True else 0
         w_ei = 1 if self.is_trainEi == True else 0

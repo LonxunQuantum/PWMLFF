@@ -28,7 +28,7 @@ subroutine ML_FF_EF(Etot,fatom,xatom,AL,natom_tmp,e_stress)
         !  Note: num_neigh)alltypeM1,2; list_neigh_altypeM1,2 should be the same for 1 & 2
         use calc_lin, only : cal_energy_force_lin,Etot_pred_lin,force_pred_lin,nfeat_type_l,ifeat_type_l,energy_pred_lin
         use calc_VV, only : cal_energy_force_VV,Etot_pred_VV,force_pred_VV,nfeat_type_v,ifeat_type_v, energy_pred_vv
-        use calc_NN, only : cal_energy_force_NN,Etot_pred_NN,force_pred_NN,nfeat_type_n,ifeat_type_n, energy_pred_nn
+        use calc_NN, only : cal_energy_force_NN,cal_energy_NN, Etot_pred_NN,force_pred_NN,nfeat_type_n,ifeat_type_n, energy_pred_nn
         use calc_deepMD, only : cal_energy_force_deepMD 
         implicit none
 
@@ -45,8 +45,9 @@ subroutine ML_FF_EF(Etot,fatom,xatom,AL,natom_tmp,e_stress)
 
         ! used to accomadate the slightly streched lattice 
         real*8 AL_prime(3,3)
-        real*8 strain_ratio 
+        real*8 stress_ratio 
         real*8 sigma 
+        real*8 dAL
 
         real*8,allocatable,dimension (:,:) :: feat
         real*8,allocatable,dimension (:,:,:,:) :: dfeat
@@ -62,7 +63,7 @@ subroutine ML_FF_EF(Etot,fatom,xatom,AL,natom_tmp,e_stress)
         character(200) :: cmd_name, flag, etot_name, ei_name, fi_name
         integer(2):: s
 
-        strain_ratio = 0.0002
+        stress_ratio = 0.0002
         sigma = 0.d0
 
         ! nothing should be done for dp which is model #4 
@@ -229,23 +230,23 @@ subroutine ML_FF_EF(Etot,fatom,xatom,AL,natom_tmp,e_stress)
                     count=count+nfeat0M1
                 endif
 
-                    if (ifeat_type(kk)  .eq. 2) then
+                if (ifeat_type(kk)  .eq. 2) then
                     do iat=1,natom_n
-                    do ii=1,nfeat0M2
-                    feat(ii+count,iat)=feat_M2(ii,iat)
-                    enddo
+                        do ii=1,nfeat0M2
+                            feat(ii+count,iat)=feat_M2(ii,iat)
+                        enddo
                     enddo
                     count=count+nfeat0M2
-                    endif
+                endif
 
-                    if (ifeat_type(kk)  .eq. 3) then
+                if (ifeat_type(kk)  .eq. 3) then
                     do iat=1,natom_n
-                    do ii=1,nfeat0M3
-                    feat(ii+count,iat)=feat_M3(ii,iat)
-                    enddo
+                        do ii=1,nfeat0M3
+                            feat(ii+count,iat)=feat_M3(ii,iat)
+                        enddo
                     enddo
                     count=count+nfeat0M3
-                    endif
+                endif
 
                     if (ifeat_type(kk)  .eq. 4) then
                     do iat=1,natom_n
@@ -298,18 +299,17 @@ subroutine ML_FF_EF(Etot,fatom,xatom,AL,natom_tmp,e_stress)
             count=0
             do kk = 1, nfeat_type
             
-
                     if (ifeat_type(kk)  .eq. 1) then
-                    do jj=1,m_neigh
-                    do iat=1,natom_n
-                    do ii=1,nfeat0M1
-                    dfeat(ii+count,iat,jj,1)=dfeat_M1(ii,iat,jj,1)
-                    dfeat(ii+count,iat,jj,2)=dfeat_M1(ii,iat,jj,2)
-                    dfeat(ii+count,iat,jj,3)=dfeat_M1(ii,iat,jj,3)
-                    enddo
-                    enddo
-                    enddo
-                    count=count+nfeat0M1
+                        do jj=1,m_neigh
+                        do iat=1,natom_n
+                        do ii=1,nfeat0M1
+                        dfeat(ii+count,iat,jj,1)=dfeat_M1(ii,iat,jj,1)
+                        dfeat(ii+count,iat,jj,2)=dfeat_M1(ii,iat,jj,2)
+                        dfeat(ii+count,iat,jj,3)=dfeat_M1(ii,iat,jj,3)
+                        enddo
+                        enddo
+                        enddo
+                        count=count+nfeat0M1
                     endif
 
                     if (ifeat_type(kk)  .eq. 2) then
@@ -408,8 +408,8 @@ subroutine ML_FF_EF(Etot,fatom,xatom,AL,natom_tmp,e_stress)
         endif 
         
         ! branches for imodel 
-        ! assume the lattice is symmetric in 3 axis 
-        ! 
+        ! assume the lattice is symmetric in 3 axis
+
         if(iflag_model.eq.1) then
             call cal_energy_force_lin(feat,dfeat,num_neigh_alltypeM_use,  &
              list_neigh_alltypeM_use,AL,xatom,natom,nfeat0,m_neigh)
@@ -418,17 +418,17 @@ subroutine ML_FF_EF(Etot,fatom,xatom,AL,natom_tmp,e_stress)
             
             e_atom(1:natom_tmp)=energy_pred_lin(1:natom_tmp)
             fatom(:,1:natom_tmp)=force_pred_lin(:,1:natom_tmp)   ! unit, and - sign?
-
+            
             ! update the diagonal element of the stress tensor 
-            !if ((MCTRL_iMD.eq.4).or.(MCTRL_iMD.eq.5).or.(MCTRL_iMD.eq.7)) then
+            ! if ((MCTRL_iMD.eq.4).or.(MCTRL_iMD.eq.5).or.(MCTRL_iMD.eq.7)) then
             if (1.eq.0) then
                 ! this part is not yet tested 
-                ! only for NPT ensemble 
-                 
-                ! +Delta
+                ! only for NPT ensembles
+                ! plus delta in x direction 
                 AL_prime = AL
-                AL_prime(1,1) = AL_prime(1,1)*(1.0 + strain_ratio )
+                AL_prime(1,1) = AL_prime(1,1)*(1.0 + stress_ratio )
                 
+                ! calculate Etot'
                 call cal_energy_force_lin(feat,dfeat,num_neigh_alltypeM_use,  &
                         list_neigh_alltypeM_use,AL_prime,xatom,natom,nfeat0,m_neigh)
 
@@ -436,9 +436,9 @@ subroutine ML_FF_EF(Etot,fatom,xatom,AL,natom_tmp,e_stress)
 
                 sigma = sigma + Etot_prime - Etot 
                 
-                !- Delta
+                ! minus delta
                 AL_prime = AL
-                AL_prime(1,1) = AL_prime(1,1)*(1.0 - strain_ratio )
+                AL_prime(1,1) = AL_prime(1,1)*(1.0 - stress_ratio )
                 
                 call cal_energy_force_lin(feat,dfeat,num_neigh_alltypeM_use,  &
                         list_neigh_alltypeM_use,AL_prime,xatom,natom,nfeat0,m_neigh)
@@ -469,9 +469,81 @@ subroutine ML_FF_EF(Etot,fatom,xatom,AL,natom_tmp,e_stress)
              list_neigh_alltypeM_use,AL,xatom,natom,nfeat0,m_neigh)
             
             Etot=Etot_pred_NN    ! unit?
+
             e_atom(1:natom_tmp)=energy_pred_nn(1:natom_tmp)
             fatom(:,1:natom_tmp)=force_pred_NN(:,1:natom_tmp)   ! unit, and - sign?
             
+            ! test tensor calculation NPT
+            
+            if ((MCTRL_iMD.eq.4).or.(MCTRL_iMD.eq.5).or.(MCTRL_iMD.eq.7)) then
+                write (*,*) "calculating stress tensor"
+                
+                ! only for NPT ensembles
+                ! x direction
+                AL_prime = AL
+                dAL = AL_prime(1,1) * stress_ratio 
+                AL_prime(1,1) = AL_prime(1,1)*(1.0 + stress_ratio )
+                
+                call cal_energy_NN(feat,dfeat,num_neigh_alltypeM_use,list_neigh_alltypeM_use,AL_prime,xatom,natom,nfeat0,m_neigh)
+                Etot_prime = Etot_pred_NN
+                
+                sigma = (Etot_prime - Etot)/dAL
+                
+                ! minus delta
+                AL_prime = AL
+                AL_prime(1,1) = AL_prime(1,1)*(1.0 - stress_ratio )
+                call cal_energy_NN(feat,dfeat,num_neigh_alltypeM_use,list_neigh_alltypeM_use,AL_prime,xatom,natom,nfeat0,m_neigh)
+                Etot_prime = Etot_pred_NN
+
+                sigma = sigma + (Etot_prime - Etot)/dAL
+
+                sigma = sigma * 0.5
+                e_stress(1,1) = sigma
+                
+                ! y direction 
+                AL_prime = AL
+                dAL = AL_prime(2,2) * stress_ratio 
+                AL_prime(2,2) = AL_prime(2,2)*(1.0 + stress_ratio )
+                
+                call cal_energy_NN(feat,dfeat,num_neigh_alltypeM_use,list_neigh_alltypeM_use,AL_prime,xatom,natom,nfeat0,m_neigh)
+                Etot_prime = Etot_pred_NN
+                
+                sigma = (Etot_prime - Etot)/dAL
+                
+                ! minus delta
+                AL_prime = AL
+                AL_prime(2,2) = AL_prime(2,2)*(1.0 - stress_ratio )
+                call cal_energy_NN(feat,dfeat,num_neigh_alltypeM_use,list_neigh_alltypeM_use,AL_prime,xatom,natom,nfeat0,m_neigh)
+                Etot_prime = Etot_pred_NN
+
+                sigma = sigma + (Etot_prime - Etot)/dAL
+
+                sigma = sigma * 0.5
+                e_stress(2,2) = sigma
+
+                ! z direction 
+                AL_prime = AL
+                dAL = AL_prime(3,3) * stress_ratio 
+                AL_prime(3,3) = AL_prime(3,3)*(1.0 + stress_ratio )
+                
+                call cal_energy_NN(feat,dfeat,num_neigh_alltypeM_use,list_neigh_alltypeM_use,AL_prime,xatom,natom,nfeat0,m_neigh)
+                Etot_prime = Etot_pred_NN
+                
+                sigma = (Etot_prime - Etot)/dAL
+                
+                ! minus delta
+                AL_prime = AL
+                AL_prime(3,3) = AL_prime(3,3)*(1.0 - stress_ratio )
+                call cal_energy_NN(feat,dfeat,num_neigh_alltypeM_use,list_neigh_alltypeM_use,AL_prime,xatom,natom,nfeat0,m_neigh)
+                Etot_prime = Etot_pred_NN
+
+                sigma = sigma + (Etot_prime - Etot)/dAL
+
+                sigma = sigma * 0.5
+                
+                e_stress(3,3) = sigma
+
+            endif 
         endif
         
         ! fortran inference routine for DP

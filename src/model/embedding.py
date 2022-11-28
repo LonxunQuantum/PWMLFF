@@ -5,41 +5,20 @@ import collections
 from torch.nn.init import normal_ as normal
 import numpy as np
 
-# logging and our extension
-"""
-import logging
-logging_level_DUMP = 5
-logging_level_SUMMARY = 15
-
-# setup logging module
-logger = logging.getLogger('train.DeepMD')
-
-def dump(msg, *args, **kwargs):
-    logger.log(logging_level_DUMP, msg, *args, **kwargs)
-def debug(msg, *args, **kwargs):
-    logger.debug(msg, *args, **kwargs)
-def summary(msg, *args, **kwargs):
-    logger.log(logging_level_SUMMARY, msg, *args, **kwargs)
-def info(msg, *args, **kwargs):
-    logger.info(msg, *args, **kwargs)
-def warning(msg, *args, **kwargs):
-    logger.warning(msg, *args, **kwargs)
-def error(msg, *args, **kwargs):
-    logger.error(msg, *args, **kwargs, exc_info=True)
-
-"""
 
 class EmbedingNet(nn.Module):
-    def __init__(self, cfg, magic=False):
+    def __init__(self, cfg, magic, is_reconnect):
         super(EmbedingNet, self).__init__()
         self.cfg = cfg
         self.weights = nn.ParameterDict()
+        
+        self.is_reconnect = is_reconnect
 
         if cfg['bias']:
             self.bias = nn.ParameterDict()
         
         if self.cfg['resnet_dt']:
-                self.resnet_dt = nn.ParameterDict()
+            self.resnet_dt = nn.ParameterDict()
         
         self.network_size = [1] + self.cfg['network_size']
 
@@ -47,7 +26,9 @@ class EmbedingNet(nn.Module):
         for i in range(1, len(self.network_size)):
             wij = torch.Tensor(self.network_size[i-1], self.network_size[i])
             normal(wij, mean=0, std=(1.0 / np.sqrt(self.network_size[i-1] + self.network_size[i])))
+            
             self.weights["weight" + str(i-1)] = nn.Parameter(wij, requires_grad=True) 
+            
             if self.cfg['bias']:
                 bias = torch.Tensor(1, self.network_size[i])
                 normal(bias, mean=0, std=1)
@@ -56,8 +37,7 @@ class EmbedingNet(nn.Module):
                 resnet_dt = torch.Tensor(1, self.network_size[i])
                 normal(resnet_dt, mean=1, std=0.001)
                 self.resnet_dt["resnet_dt" + str(i-1)] = nn.Parameter(resnet_dt, requires_grad=True)
-
-
+    
     def forward(self, x):
         for i in range(1, len(self.network_size)):
             if self.cfg['bias']:
@@ -67,11 +47,19 @@ class EmbedingNet(nn.Module):
             
             hiden = self.cfg['activation'](hiden)
             
+            # global switch for reconnect
+            if self.is_reconnect is False:
+                x = hiden
+                continue
+
             if self.network_size[i] == self.network_size[i-1]:
                 if self.cfg['resnet_dt']:
+                    # weighted reconnect 
                     x = hiden * self.resnet_dt['resnet_dt' + str(i-1)] + x
                 else:
+                    # unweighted reconnect
                     x = hiden + x
+            
             elif self.network_size[i] == 2 * self.network_size[i-1]:
                 if self.cfg['resnet_dt']:
                     x = torch.cat((x, x), dim=-1)  + hiden * self.resnet_dt['resnet_dt' + str(i-1)]
@@ -84,12 +72,16 @@ class EmbedingNet(nn.Module):
 
 class FittingNet(nn.Module):
 
-    def __init__(self, cfg, input_dim, ener_shift, magic=False):
+    def __init__(self, cfg, input_dim, ener_shift, magic, is_reconnect):
         super(FittingNet, self).__init__()
+
+        self.is_reconnect = is_reconnect
         self.cfg = cfg
         self.weights = nn.ParameterDict()
+
+
         if cfg['bias']:
-            self.bias = nn.ParameterDict()
+            self.bias = nn.ParameterDict() 
         if self.cfg['resnet_dt']:
             self.resnet_dt = nn.ParameterDict()
         
@@ -129,6 +121,10 @@ class FittingNet(nn.Module):
                 hiden = torch.matmul(x, self.weights['weight' + str(i-1)])
             
             hiden = self.cfg['activation'](hiden)
+            
+            if self.is_reconnect is False:
+                x = hiden
+                continue
             
             if i > 1:
                 if self.network_size[i] == self.network_size[i-1] and self.cfg['resnet_dt']:

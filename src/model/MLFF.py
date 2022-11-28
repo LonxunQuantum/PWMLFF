@@ -177,9 +177,10 @@ class MLFFNet(nn.Module):
         #print (self.atomType)
         #print (len(self.models))
 
-    def forward(self, image, dfeat, neighbor, natoms_img, Egroup_weight, divider):
+    def forward(self, image, dfeat, neighbor, natoms_img, Egroup_weight, divider, is_calc_f = True):
         """
             single image at a time 
+            add label to avoid force calculation 
         """
         start = time.time()
         
@@ -229,12 +230,11 @@ class MLFFNet(nn.Module):
         input_grad_allatoms = dE
         cal_ei_de = time.time()
         Etot = Ei.sum(dim=1)
-
-        #dE = torch.autograd.grad(res0, in_feature, grad_outputs=mask, create_graph=True, retain_graph=True)
-
+        
+        if is_calc_f==False:
+            return Etot, 0.0, 0.0 
+        
         test = Ei.sum()
-        #test.backward(retain_graph=True)
-        #test_grad=image.grad
         mask = torch.ones_like(test)
         test_grad = torch.autograd.grad(test,image,grad_outputs=mask, create_graph=True,retain_graph=True)
         test_grad = test_grad[0]

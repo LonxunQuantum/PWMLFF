@@ -673,8 +673,6 @@ class L1KalmanFilter(nn.Module):
         # torch.cuda.synchronize()
 
         for i in range(self.weights_num):
-            time1 = time.time()
-            
             # 1. get the Kalman Gain Matrix
             K = torch.matmul(self.P[i], H[i])
             # torch.cuda.synchronize()
@@ -879,21 +877,13 @@ class L1KalmanFilter(nn.Module):
                         param_sum = 0
                         param_index += 1
 
-            # torch.cuda.synchronize()
-            # time_reshape = time.time()
             # print("w and b distribute time:", time_reshape - time2, "s")
             self.__update(H, error, weights)
-            # torch.cuda.synchronize()
-            # time3 = time.time()
-            # print("step(3): force update time:", time3 - time2, "s")
-
+            
         torch.cuda.synchronize()
         time_end = time.time()
 
         #print("SPLITTING1: Layerwised KF update Force time:", time_end - time_start, "s")
-
-
-
 # This splitting schedule bonding weights with bias
 class L2KalmanFilter(nn.Module):    
     def __init__(self, model, kalman_lambda, kalman_nue, device, nselect, groupsize, blocksize, fprefactor):

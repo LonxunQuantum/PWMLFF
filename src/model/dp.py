@@ -26,36 +26,24 @@ import logging
 logging_level_DUMP = 5
 logging_level_SUMMARY = 15
 
-# setup logging module
-logger = logging.getLogger('train.DPFF')
-
-def dump(msg, *args, **kwargs):
-    logger.log(logging_level_DUMP, msg, *args, **kwargs)
-def debug(msg, *args, **kwargs):
-    logger.debug(msg, *args, **kwargs)
-def summary(msg, *args, **kwargs):
-    logger.log(logging_level_SUMMARY, msg, *args, **kwargs)
-def info(msg, *args, **kwargs):
-    logger.info(msg, *args, **kwargs)
-def warning(msg, *args, **kwargs):
-    logger.warning(msg, *args, **kwargs)
-def error(msg, *args, **kwargs):
-    logger.error(msg, *args, **kwargs, exc_info=True)
 
 class DP(nn.Module):
-    def __init__(self, net_cfg, activation_type, device, stat, magic=False):
+    def __init__(self, net_cfg, activation_type, device, stat, magic, is_reconnect):
         super(DP, self).__init__()
         # config parameters
+        self.is_reconnect = is_reconnect
         self.ntypes = pm.ntypes
         self.device = device
         self.stat = stat
+        
+        """
         if pm.training_dtype == "float64":
             self.dtype = torch.double
         elif pm.training_dtype == "float32":
             self.dtype = torch.float32
         else:
             raise RuntimeError("train(): unsupported training_dtype %s" % pm.training_dtype)
-
+        """
         # network   
         """
         if (net_cfg == 'default'):
@@ -75,13 +63,16 @@ class DP(nn.Module):
         self.fitting_net = nn.ModuleList()
 
         self.M2 = pm.dp_M2 
-        
+        # wlj debubg 
+        #  
         # self.embeding_net = EmbedingNet(self.net_cfg['embeding_net'], magic)
         for i in range(self.ntypes):
             for j in range(self.ntypes):
-                self.embeding_net.append(EmbedingNet(self.net_cfg['embeding_net'], magic))
+                #self.embeding_net.append(EmbedingNet(self.net_cfg['embeding_net'], magic, True))
+                self.embeding_net.append(EmbedingNet(self.net_cfg['embeding_net'], magic, self.is_reconnect))
             fitting_net_input_dim = self.net_cfg['embeding_net']['network_size'][-1]
-            self.fitting_net.append(FittingNet(self.net_cfg['fitting_net'], self.M2 * fitting_net_input_dim, self.stat[2][i], magic))
+            #self.fitting_net.append(FittingNet(self.net_cfg['fitting_net'], self.M2 * fitting_net_input_dim, self.stat[2][i], magic, self.is_reconnect))
+            self.fitting_net.append(FittingNet(self.net_cfg['fitting_net'], self.M2 * fitting_net_input_dim, self.stat[2][i], magic, True))
 
 
     def get_egroup(self, Egroup_weight, divider):
@@ -107,7 +98,7 @@ class DP(nn.Module):
         # when batch_size > 1. don't support multi movement file
 
         if pm.batch_size > 1 and torch.unique(natoms_img[:, 0]).shape[0] > 1:
-            raise ValueError("batchsize > 1, use one movement")
+            raise ValueError("batch size must be 1")
         atom_sum = 0
 
         for ntype in range(self.ntypes):
@@ -175,11 +166,9 @@ class DP(nn.Module):
         # print("autograd time:", start_force - start_autograd, 's')
         F = torch.matmul(dE, Ri_d).squeeze(-2) # batch natom 3
         F = F * (-1)
-
-        #print (list_neigh)
         
+        #print (list_neigh)
         list_neigh = (list_neigh - 1).type(torch.int)
         F = CalculateForce.apply(list_neigh, dE, Ri_d, F)
         
         return Etot, Ei, F
-

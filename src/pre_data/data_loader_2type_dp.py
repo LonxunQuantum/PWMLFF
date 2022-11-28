@@ -60,7 +60,7 @@ class MovementDataset(Dataset):
             if (not os.path.exists(Ri_path)) or (not os.path.exists(Ri_d_path)):
                 self.prepare(Ri_path, Ri_d_path)
 
-            if is_train:
+            if (os.path.exists(stat_path+'/davg.npy' == False)) and (os.path.exists(stat_path+'/dstd.npy' == False)):
                 np.save(stat_path+"/davg.npy", self.davg)
                 np.save(stat_path+"/dstd.npy", self.dstd)
                 np.save(stat_path+"/ener_shift", self.ener_shift)
@@ -71,16 +71,13 @@ class MovementDataset(Dataset):
                     self.ener_shift = np.load(stat_path+"/ener_shift.npy")
                 else:
                     raise RuntimeError("davg.npy and dstd.npy not found")
-                    
-                
-
+            
             self.Ri_all = np.load(Ri_path) #(12, 108, 100, 4)
             self.Ri_d_all = np.load(Ri_d_path)  
 
     def prepare(self, Ri_path, Ri_d_path):
         # this part appears to be incompatible with fortran
         
-
         image_dR = self.dR
         list_neigh = self.dR_neigh_list
         

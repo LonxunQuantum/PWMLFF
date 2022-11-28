@@ -496,7 +496,7 @@ module calc_deepMD
         !tt0=mpi_wtime()
         call gen_deepMD_feature(AL,xatom)
         !tt1=mpi_wtime()
-
+        
         istat=0
         error_msg=''
 

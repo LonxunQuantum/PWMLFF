@@ -115,12 +115,7 @@ subroutine gen_deepMD_feature(AL,xatom)
 
     real(8), intent(in) :: AL(3,3)
     real(8), intent(in) :: xatom(3,natom)
-
-!    integer num_neigh(ntype_t,natom_t) 
-!    real*8 s_neigh(m_neigh_t,ntype_t,natom_t)
-!    real*8 dR_neigh(3,m_neigh_t,ntype_t,natom_t)
-!    real*8 dxyz_neigh(4,m_neigh_t,ntype_t,natom_t)
-
+    
     integer,allocatable,dimension (:,:,:) :: iat_neigh,iat_neigh_M
     integer,allocatable,dimension (:,:) :: map2neigh_alltypeM
     integer,allocatable,dimension (:,:) :: list_tmp
@@ -183,10 +178,17 @@ subroutine gen_deepMD_feature(AL,xatom)
     !call find_neighbore(iatom,natom,xatom,AL,Rc_type,num_neigh,list_neigh, &
     !    dR_neigh,iat_neigh,ntype,iat_type,m_neigh,Rc_M,map2neigh_M,list_neigh_M, &
     !    num_neigh_M,iat_neigh_M,inode,nnodes)
+    
     call find_neighbore(iatom,natom,xatom,AL,Rc_type,num_neigh,list_neigh, &
         dR_neigh,iat_neigh,ntype,iat_type,m_neigh,Rc_M,map2neigh_M,list_neigh_M, &
         num_neigh_M,iat_neigh_M)
-    
+        
+    ! dR_neigh(:,neighbor idx, type idx, atom idx)
+    write(*,*) "printing dbg info: dR"
+    do i=1,100
+        write(*,'(F16.12 F16.12 F16.12)',advance='no') dR_neigh(:,i,1,1)    
+        write(*,*) " "
+    enddo 
     !if(inode .eq. 1) then
     !  write(*,*) "after find_neighbor neighborM:", num_neigh_M(1, 1)
     !  write(*,*) "after find_neighbor neighbor list:", list_neigh(1:3, 1, 1)
