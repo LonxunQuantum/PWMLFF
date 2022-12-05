@@ -522,9 +522,10 @@ class GKalmanFilter(nn.Module):
 
 
 class LKalmanFilter(nn.Module):
-
+    
     """
         only energy and force at this moment 
+        Not compatible with LKF in DP 
     """
     def __init__(self, model, kalman_lambda, kalman_nue, device, nselect, groupsize, blocksize, fprefactor):
         super(LKalmanFilter, self).__init__()
@@ -536,13 +537,13 @@ class LKalmanFilter(nn.Module):
         self.Force_group_num = groupsize #6
         self.block_size = blocksize #1024 #5120 4096
         self.f_prefactor = fprefactor
-        self.__init_P()
-
+        self.__init_P() 
+    
     def __init_P(self):
         self.P = []
         for name, param in self.model.named_parameters():
             param_num = param.data.nelement()
-            print(name, param_num)
+            #print(name, param_num)
             if param_num >= self.block_size:
                 block_num = math.ceil(param_num / self.block_size)
                 for i in range(block_num):
@@ -555,7 +556,7 @@ class LKalmanFilter(nn.Module):
             else:
                 self.P.append(torch.eye(param_num).to(self.device))
         self.weights_num = len(self.P)
-
+        
     def __split_weights(self, weight):
         param_num = weight.nelement()
         res = []
@@ -573,7 +574,7 @@ class LKalmanFilter(nn.Module):
     def __update(self, H, error, weights):
         if self.device == torch.device("cuda"):
             torch.cuda.synchronize()
-        time0 = time.time()
+        #time0 = time.time()
         tmp = 0
         for i in range(self.weights_num):
             tmp = tmp + (
@@ -582,8 +583,8 @@ class LKalmanFilter(nn.Module):
 
         A = 1 / tmp
 
-        time_A = time.time()
-        print("A inversion time: ", time_A - time0)
+        #time_A = time.time()
+        #print("A inversion time: ", time_A - time0)
         if self.device == torch.device("cuda"):
             torch.cuda.synchronize()
 
@@ -615,7 +616,7 @@ class LKalmanFilter(nn.Module):
         if self.device == torch.device("cuda"):
             torch.cuda.synchronize()
         time_end = time.time()
-        print("update all weights: ", time_end - time_A, 's')
+        #print("update all weights: ", time_end - time_A, 's')
         
         # 4. update kalman_lambda
         self.kalman_lambda = self.kalman_nue * self.kalman_lambda + 1 - self.kalman_nue
@@ -646,7 +647,7 @@ class LKalmanFilter(nn.Module):
         if self.device == torch.device("cuda"):    
             torch.cuda.synchronize()
         time5 = time.time()
-        print("restore weight: ", time5 - time_end, 's')
+        #print("restore weight: ", time5 - time_end, 's')
 
     def __sample(self, select_num, group_num, natoms):
         if select_num % group_num:
@@ -665,15 +666,11 @@ class LKalmanFilter(nn.Module):
         if self.device == torch.device("cuda"):
             torch.cuda.synchronize()
         time1 = time.time()
-        print("step(1): energy forward time: ", time1 - time_start, "s")
+        #print("step(1): energy forward time: ", time1 - time_start, "s")
         
         errore = Etot_label.item() - Etot_predict.item()
         natoms_sum = inputs[3][0, 0]
         errore = errore / natoms_sum
-        # mask = errore < 0
-        # errore[mask] = -update_prefactor * errore[mask]
-        # Etot_predict[mask] = -update_prefactor * Etot_predict[mask]
-        # Etot_predict.backward()
 
         if errore < 0:
             errore = -update_prefactor * errore
@@ -682,7 +679,7 @@ class LKalmanFilter(nn.Module):
             errore = update_prefactor * errore
             (update_prefactor * Etot_predict).backward()
         time2 = time.time()
-        print("step(2): energy loss backward time: ", time2 - time1, "s")
+        #print("step(2): energy loss backward time: ", time2 - time1, "s")
 
         weights = []
         H = []
@@ -706,7 +703,7 @@ class LKalmanFilter(nn.Module):
             torch.cuda.synchronize()
         
         time_reshape = time.time()
-        print("w and b distribute time:", time_reshape - time2, "s")
+        #print("w and b distribute time:", time_reshape - time2, "s")
 
         self.__update(H, errore, weights)
         
@@ -714,7 +711,9 @@ class LKalmanFilter(nn.Module):
             torch.cuda.synchronize()
         time_end = time.time()
         
-        print("Layerwised KF update Energy time:", time_end - time_start, "s")
+        #print("Layerwised KF update Energy time:", time_end - time_start, "s")
+        
+
 
     def update_force(self, inputs, Force_label, update_prefactor = 1.0):
 
@@ -737,7 +736,7 @@ class LKalmanFilter(nn.Module):
                 torch.cuda.synchronize()
             
             time1 = time.time()
-            print("step(1): force forward time: ", time1 - time0, "s")
+            #print("step(1): force forward time: ", time1 - time0, "s")
             error_tmp = Force_label[:, index[i]] - force_predict[:, index[i]]
             error_tmp = update_prefactor * error_tmp
             mask = error_tmp < 0
@@ -751,7 +750,7 @@ class LKalmanFilter(nn.Module):
             weights = []
             H = []
             time2 = time.time()
-            print("force loss backward time: ", time2 - time1, "s")
+            #print("force loss backward time: ", time2 - time1, "s")
 
             for name, param in self.model.named_parameters():
                 # H.append((param.grad / natoms_sum).T.reshape(param.grad.nelement(), 1))
@@ -775,23 +774,22 @@ class LKalmanFilter(nn.Module):
                 torch.cuda.synchronize()
             
             time_reshape = time.time()
-            print("w and b distribute time:", time_reshape - time2, "s")
+            #print("w and b distribute time:", time_reshape - time2, "s")
             self.__update(H, error, weights)
             
             if self.device == torch.device("cuda"):
                 torch.cuda.synchronize()
             
             time3 = time.time()
-            print("step(3): force update time:", time3 - time2, "s")
+            #print("step(3): force update time:", time3 - time2, "s")
         
         if self.device == torch.device("cuda"):
             torch.cuda.synchronize()
         
         time_end = time.time()
 
-        print("Layerwised KF update Force time:", time_end - time_start, "s")
-
-
+        #print("Layerwised KF update Force time:", time_end - time_start, "s")
+        
 class SKalmanFilter(nn.Module):
     def __init__(self, model, kalman_lambda, kalman_nue, device):
         super(SKalmanFilter, self).__init__()
