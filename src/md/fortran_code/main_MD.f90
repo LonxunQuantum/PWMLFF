@@ -1,5 +1,9 @@
 program main_MD
-
+        !**********************************
+        ! Overall chain
+        ! main_md.f90 -> mod_md.f90->md.f90-> ML_FF_EF.f90 
+        !
+        !**********************************
         use mod_mpi
         use mod_data
         use mod_control
@@ -87,6 +91,7 @@ program main_MD
                 iat1=iat1+1
             endif
         enddo
+        
 
         natom_n=iat1     ! different prorcessor might have different natom_n
 

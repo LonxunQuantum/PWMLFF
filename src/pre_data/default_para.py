@@ -166,7 +166,6 @@ use_GKalman = False
 use_LKalman = False
 use_SKalman = False
 
-
 kalman_prefac_Ei = 1.0
 kalman_prefac_Etot = 1.0
 kalman_prefac_Force = 1.0
@@ -282,7 +281,7 @@ kfnn_trainEi = False
 kfnn_trainForce = True 
 kfnn_trainEgroup = False
 
-E_tolerance=0.3
+E_tolerance=1000
 # iflag_ftype=3        # Seems like, this should be in the Ftype1/2_para        # 2 or 3 or 4 when 4, iflag_grid must be 3
 recalc_grid=1                      # 0:read from file or 1: recalc
 #----------------------------------------------------

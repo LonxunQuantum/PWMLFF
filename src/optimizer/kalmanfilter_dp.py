@@ -658,19 +658,15 @@ class L1KalmanFilter(nn.Module):
         return res
 
     def __update(self, H, error, weights):
-        torch.cuda.synchronize()
-        time0 = time.time()
+        
         tmp = 0
+        
         for i in range(self.weights_num):
             tmp = tmp + (
                 self.kalman_lambda + torch.matmul(torch.matmul(H[i].T, self.P[i]), H[i])
             )
 
         A = 1 / tmp
-
-        # time_A = time.time()
-        # print("A inversion time: ", time_A - time0)
-        # torch.cuda.synchronize()
 
         for i in range(self.weights_num):
             # 1. get the Kalman Gain Matrix
@@ -686,18 +682,13 @@ class L1KalmanFilter(nn.Module):
             # print("update weights time: ", time3 - time2)
             
             # 3. update P
-            self.P[i] = (1 / self.kalman_lambda) * (
+            self.P[i] = (1 / self.kalman_lambda) * ( 
                 self.P[i] - A * torch.matmul(K, K.T))
             # torch.cuda.synchronize()
             # time4 = time.time()
             # print("update P: ", time4 - time3, "size ", self.P[i].shape[0])
             # self.P[i] = (self.P[i] + self.P[i].T) / 2
-            
 
-        # torch.cuda.synchronize()
-        # time_end = time.time()
-        # print("update all weights: ", time_end - time_A, 's')
-        
         # 4. update kalman_lambda
         self.kalman_lambda = self.kalman_nue * self.kalman_lambda + 1 - self.kalman_nue
         # import ipdb; ipdb.set_trace()
@@ -742,9 +733,10 @@ class L1KalmanFilter(nn.Module):
         index = range(natoms)
         res = np.random.choice(index, select_num).reshape(-1, group_num)
         return res
-
+        
     def update_energy(self, inputs, Etot_label, update_prefactor = 1.0):
         torch.cuda.synchronize()
+
         time_start = time.time()
         Etot_predict, Ei_predict, force_predict = self.model(
             inputs[0], inputs[1], inputs[2], inputs[3], inputs[4], inputs[5], is_calc_f=False
@@ -760,7 +752,7 @@ class L1KalmanFilter(nn.Module):
         # errore[mask] = -update_prefactor * errore[mask]
         # Etot_predict[mask] = -update_prefactor * Etot_predict[mask]
         # Etot_predict.backward()
-
+        
         if errore < 0:
             errore = -update_prefactor * errore
             (-update_prefactor * Etot_predict).backward()
@@ -802,10 +794,8 @@ class L1KalmanFilter(nn.Module):
                     H.append(res_grad)
                     weights.append(res)
                     param_sum = 0
-                    param_index += 1
-        # import ipdb; ipdb.set_trace()
-
-        # torch.cuda.synchronize()
+                    param_index += 1    
+        
         # time_reshape = time.time()
         # print("w and b distribute time:", time_reshape - time2, "s")
 
@@ -817,6 +807,7 @@ class L1KalmanFilter(nn.Module):
     def update_force(self, inputs, Force_label,update_prefactor = 1.0):
         torch.cuda.synchronize()
         time_start = time.time()
+        
         natoms_sum = inputs[3][0, 0]
         index = self.__sample(self.n_select, self.Force_group_num, natoms_sum)
 
@@ -912,7 +903,7 @@ class L2KalmanFilter(nn.Module):
             else:
                 param_sum += param_num
         param_nums.append(param_sum)
-
+         
         self.P = []
         param_packed_index = []
         for param_num in param_nums:
@@ -1170,7 +1161,7 @@ class L2KalmanFilter(nn.Module):
                         weights.append(res)
                         param_sum = 0
                         param_index += 1
-
+            
             # torch.cuda.synchronize()
             # time_reshape = time.time()
             # print("w and b distribute time:", time_reshape - time2, "s")

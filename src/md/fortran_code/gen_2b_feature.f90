@@ -171,14 +171,17 @@ contains
             natom1=natom
 
             if(is_reset) then 
-              if(allocated(iatom))then
-              deallocate(iatom)
-              endif
-            allocate(iatom(natom))                   
-            iatom(1:natom)=atom_type_list(1:natom)
-           endif
+                if(allocated(iatom))then
+                    deallocate(iatom)
+                endif
+
+                allocate(iatom(natom))                   
+                
+                iatom(1:natom)=atom_type_list(1:natom)
+            endif
         
     end subroutine set_image_info_type1
+    
     
 
 subroutine gen_feature_type1(AL,xatom)

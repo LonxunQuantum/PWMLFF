@@ -283,7 +283,7 @@ class nn_network:
         self.min_loss = np.inf
         self.epoch_print = 1 
         self.iter_print = 1 
-
+        
         """
             for torch built-in optimizers and schedulers 
         """
@@ -546,7 +546,8 @@ class nn_network:
                                                 device = self.device)
 
             elif self.kalman_type == "layerwise": 
-                self.optimizer = LKalmanFilter( self.model, 
+                self.optimizer = LKalmanFilter( 
+                                                self.model, 
                                                 kalman_lambda = self.kalman_lambda, 
                                                 kalman_nue = self.kalman_nue, 
                                                 device = self.device, 
@@ -1112,13 +1113,15 @@ class nn_network:
         read_scaler(load_scaler_path)
     
     def run_md(self, init_config = "atom.config", md_details = None, num_thread = 1,follow = False):
+        
         import subprocess 
-
+        mass_table = {1:1.007,2:4.002,3:6.941,4:9.012,5:10.811,6:12.011,7:14.007,8:15.999,9:18.998,10:20.18,11:22.99,12:24.305,13:26.982,14:28.086,15:30.974,16:32.065,17:35.453,18:39.948,19:39.098,20:40.078,21:44.956,22:47.867,23:50.942,24:51.996,25:54.938,26:55.845,27:58.933,28:58.693,29:63.546,30:65.38,31:69.723,32:72.64,33:74.922,34:78.96,35:79.904,36:83.798,37:85.468,38:87.62,39:88.906,40:91.224,41:92.906,42:95.96,43:98,44:101.07,45:102.906,46:106.42,47:107.868,48:112.411,49:114.818,50:118.71,51:121.76,52:127.6,53:126.904,54:131.293,55:132.905,56:137.327,57:138.905,58:140.116,59:140.908,60:144.242,61:145,62:150.36,63:151.964,64:157.25,65:158.925,66:162.5,67:164.93,68:167.259,69:168.934,70:173.054,71:174.967,72:178.49,73:180.948,74:183.84,75:186.207,76:190.23,77:192.217,78:195.084,79:196.967,80:200.59,81:204.383,82:207.2,83:208.98,84:210,85:210,86:222,87:223,88:226,89:227,90:232.038,91:231.036,92:238.029,93:237,94:244,95:243,96:247,97:247,98:251,99:252,100:257,101:258,102:259,103:262,104:261,105:262,106:266}
+        
         # remove existing MOVEMENT file for not 
         if follow == False:
             os.system('rm -f MOVEMENT')     
         
-        if md_details is None:
+        if md_details is None:  
             raise Exception("md detail is missing")
         
         md_detail_line = str(md_details)[1:-1]+"\n"
@@ -1136,8 +1139,10 @@ class nn_network:
         f.write('1\n')               # interval for MOVEMENT output
         f.write('%d\n' % len(pm.atomType)) 
         
+        # write mass 
         for i in range(len(pm.atomType)):
-            f.write('%d %d\n' % (pm.atomType[i], 2*pm.atomType[i]))
+            #f.write('%d %f\n' % (pm.atomType[i], 2*pm.atomType[i]))
+            f.write('%d %f\n' % (pm.atomType[i], mass_table[pm.atomType[i]]))
         f.close()    
         
         # creating md.input for main_MD.x 

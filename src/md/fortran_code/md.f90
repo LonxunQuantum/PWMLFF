@@ -25,7 +25,6 @@ subroutine molecular_dynamics_kernel(Etot,fatom,e_stress)
        
         real*8 cpu_rss1, cpu_rss2, cpu_vm1, cpu_vm2
         
-
         !data for interpolation
         real*8,allocatable,dimension(:,:,:) :: r_his
         integer lp,llp,lllp 
@@ -90,7 +89,7 @@ subroutine molecular_dynamics_kernel(Etot,fatom,e_stress)
         AL_tmp=MCTRL_AL*A_AU_1   ! convert to A
 
         e_stress = 0.d0 
-
+        
         if ((iflag_model.eq.1) .or. (iflag_model.eq.2) .or. (iflag_model.eq.3).or. (iflag_model.eq.5)) then 
             call ML_FF_EF(Etot,fatom,MCTRL_xatom,AL_tmp,MCTRL_natom,e_stress)
         end if 
@@ -102,7 +101,7 @@ subroutine molecular_dynamics_kernel(Etot,fatom,e_stress)
             write(*,*) "calling pytorch..."
             s = runqq("predict.py","--dp=True -n DP_cfg_dp --outputname=atom.config > out 2> err")
             write(*,*) "pytorch routine ends"
-
+            
             ! load from file 
             etot_name = "etot.tmp" 
             ei_name = "ei.tmp"

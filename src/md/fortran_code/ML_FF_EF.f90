@@ -6,6 +6,7 @@ subroutine ML_FF_EF(Etot,fatom,xatom,AL,natom_tmp,e_stress)
         use mod_control, only: MCTRL_iMD     ! get the global variables 
 
         use data_ewald
+        
         use calc_ftype1, only : feat_M1,dfeat_M1,nfeat0M1,gen_feature_type1,  &
                  nfeat0M1,num_neigh_alltypeM1,list_neigh_alltypeM1,  &
                  natom1,m_neigh1
@@ -23,7 +24,6 @@ subroutine ML_FF_EF(Etot,fatom,xatom,AL,natom_tmp,e_stress)
                 nfeat0M7,num_neigh_alltypeM7,list_neigh_alltypeM7,natom7,m_neigh7
         use calc_deepMD2_feature, only : feat_M8,dfeat_M8,nfeat0M8,gen_deepMD2_feature,  &
                 nfeat0M8,num_neigh_alltypeM8,list_neigh_alltypeM8,natom8,m_neigh8
-         
 
         !  Note: num_neigh)alltypeM1,2; list_neigh_altypeM1,2 should be the same for 1 & 2
         use calc_lin, only : cal_energy_force_lin,Etot_pred_lin,force_pred_lin,nfeat_type_l,ifeat_type_l,energy_pred_lin
@@ -48,6 +48,7 @@ subroutine ML_FF_EF(Etot,fatom,xatom,AL,natom_tmp,e_stress)
         real*8 stress_ratio 
         real*8 sigma 
         real*8 dAL
+        real*8 dS 
 
         real*8,allocatable,dimension (:,:) :: feat
         real*8,allocatable,dimension (:,:,:,:) :: dfeat
@@ -70,139 +71,168 @@ subroutine ML_FF_EF(Etot,fatom,xatom,AL,natom_tmp,e_stress)
         if ((iflag_model.eq.1) .or. (iflag_model.eq.2) .or. (iflag_model.eq.3)) then 
         
             if(iflag_model.eq.1) then
-
-            nfeat_type=nfeat_type_l
-            ifeat_type=ifeat_type_l
+                nfeat_type=nfeat_type_l
+                ifeat_type=ifeat_type_l
             endif
             
             if(iflag_model.eq.2) then
 
-            nfeat_type=nfeat_type_v
-            ifeat_type=ifeat_type_v
+                nfeat_type=nfeat_type_v
+                ifeat_type=ifeat_type_v
             endif
 
             if(iflag_model.eq.3) then
-            nfeat_type=nfeat_type_n
-            ifeat_type=ifeat_type_n
+                nfeat_type=nfeat_type_n
+                ifeat_type=ifeat_type_n
             endif
             
-
             nfeat0=0
+            
             do kk = 1, nfeat_type
-                    if (ifeat_type(kk)  .eq. 1) then
+                if (ifeat_type(kk)  .eq. 1) then
                     call gen_feature_type1(AL,xatom)
                     nfeat0=nfeat0+nfeat0M1
-                    endif
-                    if (ifeat_type(kk)  .eq. 2) then
+                endif
+                
+                if (ifeat_type(kk)  .eq. 2) then
                     call gen_feature_type2(AL,xatom)
                     nfeat0=nfeat0+nfeat0M2
-                    endif
-                    if (ifeat_type(kk)  .eq. 3) then
+                endif
+                
+                if (ifeat_type(kk)  .eq. 3) then
                     call gen_feature_2bgauss(AL,xatom)
                     nfeat0=nfeat0+nfeat0M3
-                    endif
-                    if (ifeat_type(kk)  .eq. 4) then
+                endif
+                
+                if (ifeat_type(kk)  .eq. 4) then
                     call gen_3bcos_feature(AL,xatom)
                     nfeat0=nfeat0+nfeat0M4
-                    endif
-                    if (ifeat_type(kk)  .eq. 5) then
+                endif
+                
+                if (ifeat_type(kk)  .eq. 5) then
                     call gen_MTP_feature(AL,xatom)
                     nfeat0=nfeat0+nfeat0M5
-                    endif
-                    if (ifeat_type(kk)  .eq. 6) then
+                endif
+                    
+                if (ifeat_type(kk)  .eq. 6) then
                     call gen_SNAP_feature(AL,xatom)
                     nfeat0=nfeat0+nfeat0M6
-                    endif
-                    if (ifeat_type(kk)  .eq. 7) then
+                endif
+                
+                if (ifeat_type(kk)  .eq. 7) then
                     call gen_deepMD1_feature(AL,xatom)
                     nfeat0=nfeat0+nfeat0M7
-                    endif
-                    if (ifeat_type(kk)  .eq. 8) then
+                endif
+                
+                if (ifeat_type(kk)  .eq. 8) then
                     call gen_deepMD2_feature(AL,xatom)
                     nfeat0=nfeat0+nfeat0M8
-                    endif
+                endif
 
             enddo
 
+            !*****************************************
+            !         passing feature params 
+            !*****************************************
             if (ifeat_type(1)  .eq. 1) then 
-                    natom=natom1
-                    m_neigh=m_neigh1
-                    num_neigh_alltypeM_use = num_neigh_alltypeM1
-            if(allocated(list_neigh_alltypeM_use)) then
-                deallocate(list_neigh_alltypeM_use)
+                natom=natom1
+                m_neigh=m_neigh1
+                num_neigh_alltypeM_use = num_neigh_alltypeM1
+                if(allocated(list_neigh_alltypeM_use)) then
+                    deallocate(list_neigh_alltypeM_use)
+                endif
+                allocate(list_neigh_alltypeM_use(m_neigh, natom))
+                list_neigh_alltypeM_use = list_neigh_alltypeM1
             endif
-            allocate(list_neigh_alltypeM_use(m_neigh, natom))
-                    list_neigh_alltypeM_use = list_neigh_alltypeM1
-            endif
+
             if (ifeat_type(1)  .eq. 2) then 
-            natom=natom2   
-            m_neigh=m_neigh2
-                    num_neigh_alltypeM_use = num_neigh_alltypeM2
-            if(allocated(list_neigh_alltypeM_use)) then
-                deallocate(list_neigh_alltypeM_use)
-            endif
-            allocate(list_neigh_alltypeM_use(m_neigh, natom))
-                    list_neigh_alltypeM_use = list_neigh_alltypeM2
-            endif                  
+                natom=natom2   
+                m_neigh=m_neigh2
+                num_neigh_alltypeM_use = num_neigh_alltypeM2
+                if(allocated(list_neigh_alltypeM_use)) then
+                    deallocate(list_neigh_alltypeM_use)
+                endif
+                
+                allocate(list_neigh_alltypeM_use(m_neigh, natom))
+                list_neigh_alltypeM_use = list_neigh_alltypeM2
+            endif    
+                          
             if (ifeat_type(1)  .eq. 3) then 
-            natom=natom3
-            m_neigh=m_neigh3
-                    num_neigh_alltypeM_use = num_neigh_alltypeM3
-            if(allocated(list_neigh_alltypeM_use)) then
-                deallocate(list_neigh_alltypeM_use)
+                natom=natom3
+                m_neigh=m_neigh3
+                num_neigh_alltypeM_use = num_neigh_alltypeM3
+                
+                if(allocated(list_neigh_alltypeM_use)) then
+                    deallocate(list_neigh_alltypeM_use)
+                endif   
+                
+                allocate(list_neigh_alltypeM_use(m_neigh, natom))
+                list_neigh_alltypeM_use = list_neigh_alltypeM3
             endif
-            allocate(list_neigh_alltypeM_use(m_neigh, natom))
-                    list_neigh_alltypeM_use = list_neigh_alltypeM3
-            endif
+            
             if (ifeat_type(1)  .eq. 4) then 
-            natom=natom4 
-            m_neigh=m_neigh4
-                    num_neigh_alltypeM_use = num_neigh_alltypeM4
-            if(allocated(list_neigh_alltypeM_use)) then
-                deallocate(list_neigh_alltypeM_use)
+                natom=natom4 
+                m_neigh=m_neigh4
+                num_neigh_alltypeM_use = num_neigh_alltypeM4
+                
+                if(allocated(list_neigh_alltypeM_use)) then
+                    deallocate(list_neigh_alltypeM_use)
+                endif
+                
+                allocate(list_neigh_alltypeM_use(m_neigh, natom))
+                list_neigh_alltypeM_use = list_neigh_alltypeM4
             endif
-            allocate(list_neigh_alltypeM_use(m_neigh, natom))
-                    list_neigh_alltypeM_use = list_neigh_alltypeM4
-            endif
+
             if (ifeat_type(1)  .eq. 5) then 
-            natom=natom5
-            m_neigh=m_neigh5
-                    num_neigh_alltypeM_use = num_neigh_alltypeM5
-            if(allocated(list_neigh_alltypeM_use)) then
-                deallocate(list_neigh_alltypeM_use)
+                natom=natom5
+                m_neigh=m_neigh5
+                num_neigh_alltypeM_use = num_neigh_alltypeM5
+                if(allocated(list_neigh_alltypeM_use)) then
+                    deallocate(list_neigh_alltypeM_use)
+                endif
+            
+                allocate(list_neigh_alltypeM_use(m_neigh, natom))
+                list_neigh_alltypeM_use = list_neigh_alltypeM5
+
             endif
-            allocate(list_neigh_alltypeM_use(m_neigh, natom))
-                    list_neigh_alltypeM_use = list_neigh_alltypeM5
-            endif
+            
             if (ifeat_type(1)  .eq. 6) then 
-            natom=natom6   
-            m_neigh=m_neigh6
-                    num_neigh_alltypeM_use = num_neigh_alltypeM6
-            if(allocated(list_neigh_alltypeM_use)) then
-                deallocate(list_neigh_alltypeM_use)
-            endif
-            allocate(list_neigh_alltypeM_use(m_neigh, natom))
-                    list_neigh_alltypeM_use = list_neigh_alltypeM6
-            endif                  
+                natom=natom6   
+                m_neigh=m_neigh6
+                num_neigh_alltypeM_use = num_neigh_alltypeM6
+                
+                if(allocated(list_neigh_alltypeM_use)) then
+                    deallocate(list_neigh_alltypeM_use)
+                endif
+                
+                allocate(list_neigh_alltypeM_use(m_neigh, natom))
+                
+                list_neigh_alltypeM_use = list_neigh_alltypeM6
+            endif 
+
             if (ifeat_type(1)  .eq. 7) then 
-            natom=natom7
-            m_neigh=m_neigh7
-                    num_neigh_alltypeM_use = num_neigh_alltypeM7
-            if(allocated(list_neigh_alltypeM_use)) then
-                deallocate(list_neigh_alltypeM_use)
+                natom=natom7
+                m_neigh=m_neigh7
+                num_neigh_alltypeM_use = num_neigh_alltypeM7
+                
+                if(allocated(list_neigh_alltypeM_use)) then
+                    deallocate(list_neigh_alltypeM_use)
+                endif
+                
+                allocate(list_neigh_alltypeM_use(m_neigh, natom))
+                list_neigh_alltypeM_use = list_neigh_alltypeM7
             endif
-            allocate(list_neigh_alltypeM_use(m_neigh, natom))
-                    list_neigh_alltypeM_use = list_neigh_alltypeM7
-            endif
+
             if (ifeat_type(1)  .eq. 8) then 
                 natom=natom8 
                 m_neigh=m_neigh8
                 num_neigh_alltypeM_use = num_neigh_alltypeM8
-            if(allocated(list_neigh_alltypeM_use)) then
-                deallocate(list_neigh_alltypeM_use)
-            endif
-            allocate(list_neigh_alltypeM_use(m_neigh, natom))
-                    list_neigh_alltypeM_use = list_neigh_alltypeM8
+                if(allocated(list_neigh_alltypeM_use)) then
+                    deallocate(list_neigh_alltypeM_use)
+                endif
+                allocate(list_neigh_alltypeM_use(m_neigh, natom))
+                
+                list_neigh_alltypeM_use = list_neigh_alltypeM8
             endif
 
             if(natom_tmp.ne.natom) then
@@ -213,8 +243,12 @@ subroutine ML_FF_EF(Etot,fatom,xatom,AL,natom_tmp,e_stress)
 
             ! nfeat0=nfeat0M1+nfeat0M2
 
-            !cccccccccccccccccccccccccccccccccccccccccccccccccccccc
-            !  Assemble different feature types
+            !*******************************************
+            !    Assemble different feature types
+            !*******************************************
+            
+            ! natom_n is the divided number of atom. Defined in mod_mpi.f90
+            
             allocate(feat(nfeat0,natom_n))
             allocate(dfeat(nfeat0,natom_n,m_neigh,3))
             
@@ -248,51 +282,52 @@ subroutine ML_FF_EF(Etot,fatom,xatom,AL,natom_tmp,e_stress)
                     count=count+nfeat0M3
                 endif
 
-                    if (ifeat_type(kk)  .eq. 4) then
+                if (ifeat_type(kk)  .eq. 4) then
                     do iat=1,natom_n
-                    do ii=1,nfeat0M4
-                    feat(ii+count,iat)=feat_M4(ii,iat)
-                    enddo
+                        do ii=1,nfeat0M4
+                            feat(ii+count,iat)=feat_M4(ii,iat)
+                        enddo
                     enddo
                     count=count+nfeat0M4
-                    endif
+                endif
 
-                    if (ifeat_type(kk)  .eq. 5) then
+                if (ifeat_type(kk)  .eq. 5) then
                     do iat=1,natom_n
-                    do ii=1,nfeat0M5
-                    feat(ii+count,iat)=feat_M5(ii,iat)
-                    enddo
+                        do ii=1,nfeat0M5
+                            feat(ii+count,iat)=feat_M5(ii,iat)
+                        enddo
                     enddo
                     count=count+nfeat0M5
-                    endif
+                endif
 
-                    if (ifeat_type(kk)  .eq. 6) then
+                if (ifeat_type(kk)  .eq. 6) then
                     do iat=1,natom_n
-                    do ii=1,nfeat0M6
-                    feat(ii+count,iat)=feat_M6(ii,iat)
-                    enddo
+                        do ii=1,nfeat0M6
+                            feat(ii+count,iat)=feat_M6(ii,iat)
+                        enddo
                     enddo
                     count=count+nfeat0M6
-                    endif
+                endif
 
-                    if (ifeat_type(kk)  .eq. 7) then
+                if (ifeat_type(kk)  .eq. 7) then
                     do iat=1,natom_n
-                    do ii=1,nfeat0M7
-                    feat(ii+count,iat)=feat_M7(ii,iat)
+                        do ii=1,nfeat0M7
+                            feat(ii+count,iat)=feat_M7(ii,iat)
+                        enddo
                     enddo
-                    enddo
+
                     count=count+nfeat0M7
-                    endif
+                endif
 
-                    if (ifeat_type(kk)  .eq. 8) then
+                if (ifeat_type(kk)  .eq. 8) then
                     do iat=1,natom_n
-                    do ii=1,nfeat0M8
-                    feat(ii+count,iat)=feat_M8(ii,iat)
+                        do ii=1,nfeat0M8
+                            feat(ii+count,iat)=feat_M8(ii,iat)
+                        enddo
                     enddo
-                    enddo
+
                     count=count+nfeat0M8
-                    endif
-               
+                endif
             
             enddo
 
@@ -469,22 +504,27 @@ subroutine ML_FF_EF(Etot,fatom,xatom,AL,natom_tmp,e_stress)
              list_neigh_alltypeM_use,AL,xatom,natom,nfeat0,m_neigh)
             
             Etot=Etot_pred_NN    ! unit?
-
+            
+            !write(*,*) "unperturbed Etot"
+            !write(*,*) Etot
+            
             e_atom(1:natom_tmp)=energy_pred_nn(1:natom_tmp)
             fatom(:,1:natom_tmp)=force_pred_NN(:,1:natom_tmp)   ! unit, and - sign?
             
             ! test tensor calculation NPT
             
             if ((MCTRL_iMD.eq.4).or.(MCTRL_iMD.eq.5).or.(MCTRL_iMD.eq.7)) then
-                write (*,*) "calculating stress tensor"
                 
+                !write (*,*) "calculating stress tensor"
                 ! only for NPT ensembles
+
                 ! x direction
                 AL_prime = AL
                 dAL = AL_prime(1,1) * stress_ratio 
                 AL_prime(1,1) = AL_prime(1,1)*(1.0 + stress_ratio )
                 
-                call cal_energy_NN(feat,dfeat,num_neigh_alltypeM_use,list_neigh_alltypeM_use,AL_prime,xatom,natom,nfeat0,m_neigh)
+                ! need to re-calc the feat 
+                call cal_energy_NN(num_neigh_alltypeM_use,list_neigh_alltypeM_use,AL_prime,xatom,natom,nfeat0,m_neigh)
                 Etot_prime = Etot_pred_NN
                 
                 sigma = (Etot_prime - Etot)/dAL
@@ -492,20 +532,22 @@ subroutine ML_FF_EF(Etot,fatom,xatom,AL,natom_tmp,e_stress)
                 ! minus delta
                 AL_prime = AL
                 AL_prime(1,1) = AL_prime(1,1)*(1.0 - stress_ratio )
-                call cal_energy_NN(feat,dfeat,num_neigh_alltypeM_use,list_neigh_alltypeM_use,AL_prime,xatom,natom,nfeat0,m_neigh)
+                call cal_energy_NN(num_neigh_alltypeM_use,list_neigh_alltypeM_use,AL_prime,xatom,natom,nfeat0,m_neigh)
                 Etot_prime = Etot_pred_NN
 
                 sigma = sigma + (Etot_prime - Etot)/dAL
 
-                sigma = sigma * 0.5
+                dS = AL_prime(2,2)*AL_prime(3,3)
+                sigma = - sigma * 0.5 / dS
                 e_stress(1,1) = sigma
                 
-                ! y direction 
+                ! y direction
+                 
                 AL_prime = AL
                 dAL = AL_prime(2,2) * stress_ratio 
                 AL_prime(2,2) = AL_prime(2,2)*(1.0 + stress_ratio )
                 
-                call cal_energy_NN(feat,dfeat,num_neigh_alltypeM_use,list_neigh_alltypeM_use,AL_prime,xatom,natom,nfeat0,m_neigh)
+                call cal_energy_NN(num_neigh_alltypeM_use,list_neigh_alltypeM_use,AL_prime,xatom,natom,nfeat0,m_neigh)
                 Etot_prime = Etot_pred_NN
                 
                 sigma = (Etot_prime - Etot)/dAL
@@ -513,35 +555,49 @@ subroutine ML_FF_EF(Etot,fatom,xatom,AL,natom_tmp,e_stress)
                 ! minus delta
                 AL_prime = AL
                 AL_prime(2,2) = AL_prime(2,2)*(1.0 - stress_ratio )
-                call cal_energy_NN(feat,dfeat,num_neigh_alltypeM_use,list_neigh_alltypeM_use,AL_prime,xatom,natom,nfeat0,m_neigh)
+                call cal_energy_NN(num_neigh_alltypeM_use,list_neigh_alltypeM_use,AL_prime,xatom,natom,nfeat0,m_neigh)
                 Etot_prime = Etot_pred_NN
 
                 sigma = sigma + (Etot_prime - Etot)/dAL
 
-                sigma = sigma * 0.5
+                dS = AL_prime(1,1)*AL_prime(3,3)
+                sigma = - sigma * 0.5 / dS
                 e_stress(2,2) = sigma
 
                 ! z direction 
+
                 AL_prime = AL
                 dAL = AL_prime(3,3) * stress_ratio 
                 AL_prime(3,3) = AL_prime(3,3)*(1.0 + stress_ratio )
                 
-                call cal_energy_NN(feat,dfeat,num_neigh_alltypeM_use,list_neigh_alltypeM_use,AL_prime,xatom,natom,nfeat0,m_neigh)
+                !write(*,*) "AL:"
+                !write(*,*) AL
+
+                !write(*,*) "AL_prime:"
+                !write(*,*) AL_prime
+
+                call cal_energy_NN(num_neigh_alltypeM_use,list_neigh_alltypeM_use,AL_prime,xatom,natom,nfeat0,m_neigh)
                 Etot_prime = Etot_pred_NN
+                
+                !write(*,*) "perturbed Etot z plus"
+                !write(*,*) Etot_prime
                 
                 sigma = (Etot_prime - Etot)/dAL
                 
                 ! minus delta
                 AL_prime = AL
                 AL_prime(3,3) = AL_prime(3,3)*(1.0 - stress_ratio )
-                call cal_energy_NN(feat,dfeat,num_neigh_alltypeM_use,list_neigh_alltypeM_use,AL_prime,xatom,natom,nfeat0,m_neigh)
+                call cal_energy_NN(num_neigh_alltypeM_use,list_neigh_alltypeM_use,AL_prime,xatom,natom,nfeat0,m_neigh)
                 Etot_prime = Etot_pred_NN
 
                 sigma = sigma + (Etot_prime - Etot)/dAL
 
-                sigma = sigma * 0.5
-                
+                dS = AL_prime(2,2)*AL_prime(1,1) 
+                sigma = - sigma * 0.5 / dS
                 e_stress(3,3) = sigma
+
+                !write(*,*) "dbg info: e_stress"
+                !write(*,*) e_stress
 
             endif 
         endif

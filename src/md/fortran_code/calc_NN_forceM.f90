@@ -57,7 +57,8 @@ module calc_NN
     real*8, allocatable,dimension(:,:,:,:) :: Wij_nn
     real*8, allocatable,dimension(:,:,:) :: B_nn
     integer nodeMM,nlayer
-   
+    integer ifeat_type(100)
+    
     contains
     
    
@@ -100,10 +101,13 @@ module calc_NN
         rewind(10)
         read(10,*) iflag_PCA   ! this can be used to turn off degmm part
         read(10,*) nfeat_type_n
+        
         do kkk=1,nfeat_type_n
           read(10,*) ifeat_type_n(kkk)   ! the index (1,2,3) of the feature type
         enddo
+        
         read(10,*) ntype,m_neigh
+
         close(10)
             
         !  m_neight get from gen_feature input file
@@ -162,16 +166,19 @@ module calc_NN
         rewind(10)
         read(10,*) ntype_t,nterm
         if(nterm.gt.2) then
-        write(6,*) "nterm.gt.2,stop"
-        stop
+            write(6,*) "nterm.gt.2,stop"
+            stop
         endif
+
         if(ntype_t.ne.ntype) then
-        write(6,*) "ntype not same in vwd_fitB.ntype,something wrong"
-        stop
+            write(6,*) "ntype not same in vwd_fitB.ntype,something wrong"
+            stop
         endif
-         do itype1=1,ntype
-         read(10,*) itype_t,rad_atom(itype1),E_ave_vdw(itype1),((wp_atom(i,itype1,j1),i=1,ntype),j1=1,nterm)
+
+        do itype1=1,ntype
+            read(10,*) itype_t,rad_atom(itype1),E_ave_vdw(itype1),((wp_atom(i,itype1,j1),i=1,ntype),j1=1,nterm)
         enddo
+        
         close(10)
 
 
@@ -351,7 +358,6 @@ module calc_NN
         integer(4) :: image_size
         integer :: natom_tmp
         
-        
         image_size=natom_tmp
         if (is_reset .or. (.not. allocated(iatom)) .or. image_size/=natom) then
         
@@ -406,19 +412,45 @@ module calc_NN
         
     end subroutine set_image_info_NN
     
-    subroutine cal_energy_NN(feat,dfeat,num_neigh,list_neigh,AL,xatom,natom_tmp,nfeat0_tmp,m_neigh_tmp)
+    subroutine cal_energy_NN(num_neigh,list_neigh,AL,xatom,natom_tmp,nfeat0_tmp,m_neigh_tmp)
         
         !***********************************
-        !   for stress tensor calculation 
+        !   Stress tensor calculation 
+        !   need to re-calculate feat with input AL
+        !   
         !***********************************
+        use mod_data, only : iflag_model
+        use mod_mpi
 
+        use calc_ftype1, only : feat_M1,dfeat_M1,nfeat0M1,gen_feature_type1,  &
+                 nfeat0M1,num_neigh_alltypeM1,list_neigh_alltypeM1,  &
+                 natom1,m_neigh1
+        use calc_ftype2, only : feat_M2,dfeat_M2,nfeat0M2,gen_feature_type2,  &
+                 nfeat0M2,num_neigh_alltypeM2,list_neigh_alltypeM2,natom2,m_neigh2
+        use calc_2bgauss_feature, only : feat_M3,dfeat_M3,nfeat0M3,gen_feature_2bgauss,  &
+                nfeat0M3,num_neigh_alltypeM3,list_neigh_alltypeM3,natom3,m_neigh3
+        use calc_3bcos_feature, only : feat_M4,dfeat_M4,nfeat0M4,gen_3bcos_feature,  &
+                nfeat0M4,num_neigh_alltypeM4,list_neigh_alltypeM4,natom4,m_neigh4
+        use calc_MTP_feature, only : feat_M5,dfeat_M5,nfeat0M5,gen_MTP_feature,  &
+                nfeat0M5,num_neigh_alltypeM5,list_neigh_alltypeM5,natom5,m_neigh5
+        use calc_SNAP_feature, only : feat_M6,dfeat_M6,nfeat0M6,gen_SNAP_feature,  &
+                nfeat0M6,num_neigh_alltypeM6,list_neigh_alltypeM6,natom6,m_neigh6
+        use calc_deepMD1_feature, only : feat_M7,dfeat_M7,nfeat0M7,gen_deepMD1_feature,  &
+                nfeat0M7,num_neigh_alltypeM7,list_neigh_alltypeM7,natom7,m_neigh7
+        use calc_deepMD2_feature, only : feat_M8,dfeat_M8,nfeat0M8,gen_deepMD2_feature,  &
+                nfeat0M8,num_neigh_alltypeM8,list_neigh_alltypeM8,natom8,m_neigh8
+        
         integer(4)  :: itype,ixyz,i,j,jj
         integer natom_tmp,nfeat0_tmp,m_neigh_tmp,kk
+        integer iat
         real(8) :: sum,direct,mean
         !real(8),intent(in) :: feat(nfeat0_tmp,natom_tmp)
         !real*8, intent(in) :: dfeat(nfeat0_tmp,natom_tmp,m_neigh_tmp,3)
-        real(8),intent(in) :: feat(nfeat0_tmp,natom_n)
-        real*8, intent(in) :: dfeat(nfeat0_tmp,natom_n,m_neigh_tmp,3)
+        !real(8),intent(in) :: feat(nfeat0_tmp,natom_n)
+        real(8),allocatable, dimension(:,:) :: feat
+        !real*8, intent(in) :: dfeat(nfeat0_tmp,natom_n,m_neigh_tmp,3)
+        
+
         integer(4),intent(in) :: num_neigh(natom_tmp)
         integer(4),intent(in) :: list_neigh(m_neigh_tmp,natom_tmp)
         real(8), intent(in) :: AL(3,3)
@@ -435,13 +467,21 @@ module calc_NN
         real*8 rad1,rad2,rad,dx1,dx2,dx3,dx,dy,dz,dd,yy,w22,dEdd,d,w22_1,w22_2,w22F_1,w22F_2
         integer iat1,iat2,ierr
         integer ii
+        
+        integer nfeat0, count
+        
+        integer, allocatable, dimension (:,:) :: list_neigh_alltypeM_use
+        integer nfeat_type
         real*8 x
         real*8 sum1,sum2,sum3
+
+        integer num_neigh_alltypeM_use(natom_tmp)
 
         real(8) temp 
 
         pi=4*datan(1.d0)
 
+        
         !write(*,*) "test natom_n=",natom_n
         
         !featType: feature index, atom index, atom type
@@ -454,11 +494,11 @@ module calc_NN
         allocate(energy_type(natom_n,ntype))
         !allocate(dEdf_type(nfeat1m,natom_n,ntype))
 
-        !allocate(dfeat_type(nfeat1m,natom_n*m_neigh*3,ntype))
-
+        ! allocate(dfeat_type(nfeat1m,natom_n*m_neigh*3,ntype))
+        
         istat=0
         error_msg=''
-
+        
         if (nfeat0_tmp/=nfeat1m .or. natom_tmp/=natom .or. m_neigh_tmp/=m_neigh) then
             write(*,*) "Shape of input arrays don't match the model!"
             write(6,*) nfeat0_tmp,natom_tmp,m_neigh_tmp
@@ -466,10 +506,270 @@ module calc_NN
             stop
         end if
 
+
+        ! recalculate features 
+        if ((iflag_model.eq.3)) then 
+        
+            !if(iflag_model.eq.3) then
+            nfeat_type=nfeat_type_n
+            ifeat_type=ifeat_type_n
+            !endif
+            
+            nfeat0=0
+            
+            !*****************************************
+            !         calculate new features 
+            !*****************************************
+
+            do kk = 1, nfeat_type
+                if (ifeat_type(kk)  .eq. 1) then
+                    call gen_feature_type1(AL,xatom)
+                    nfeat0=nfeat0+nfeat0M1
+                endif
+                
+                if (ifeat_type(kk)  .eq. 2) then
+                    call gen_feature_type2(AL,xatom)
+                    nfeat0=nfeat0+nfeat0M2
+                endif
+                
+                if (ifeat_type(kk)  .eq. 3) then
+                    call gen_feature_2bgauss(AL,xatom)
+                    nfeat0=nfeat0+nfeat0M3
+                endif
+                
+                if (ifeat_type(kk)  .eq. 4) then
+                    call gen_3bcos_feature(AL,xatom)
+                    nfeat0=nfeat0+nfeat0M4
+                endif
+                    
+                if (ifeat_type(kk)  .eq. 5) then
+                    call gen_MTP_feature(AL,xatom)
+                    nfeat0=nfeat0+nfeat0M5
+                endif
+                    
+                if (ifeat_type(kk)  .eq. 6) then
+                    call gen_SNAP_feature(AL,xatom)
+                    nfeat0=nfeat0+nfeat0M6
+                endif
+                
+                if (ifeat_type(kk)  .eq. 7) then
+                    call gen_deepMD1_feature(AL,xatom)
+                    nfeat0=nfeat0+nfeat0M7
+                endif
+                
+                if (ifeat_type(kk)  .eq. 8) then
+                    call gen_deepMD2_feature(AL,xatom)
+                    nfeat0=nfeat0+nfeat0M8
+                endif
+
+            enddo
+
+            !*****************************************
+            !         passing feature params 
+            !*****************************************
+
+            if (ifeat_type(1)  .eq. 1) then 
+                natom=natom1
+                m_neigh=m_neigh1
+                num_neigh_alltypeM_use = num_neigh_alltypeM1
+                if(allocated(list_neigh_alltypeM_use)) then
+                    deallocate(list_neigh_alltypeM_use)
+                endif
+                allocate(list_neigh_alltypeM_use(m_neigh, natom))
+                list_neigh_alltypeM_use = list_neigh_alltypeM1
+            endif
+
+            if (ifeat_type(1)  .eq. 2) then 
+                natom=natom2   
+                m_neigh=m_neigh2
+                num_neigh_alltypeM_use = num_neigh_alltypeM2
+                if(allocated(list_neigh_alltypeM_use)) then
+                    deallocate(list_neigh_alltypeM_use)
+                endif
+                
+                allocate(list_neigh_alltypeM_use(m_neigh, natom))
+                list_neigh_alltypeM_use = list_neigh_alltypeM2
+            endif    
+                          
+            if (ifeat_type(1)  .eq. 3) then 
+                natom=natom3
+                m_neigh=m_neigh3
+                num_neigh_alltypeM_use = num_neigh_alltypeM3
+                
+                if(allocated(list_neigh_alltypeM_use)) then
+                    deallocate(list_neigh_alltypeM_use)
+                endif   
+                
+                allocate(list_neigh_alltypeM_use(m_neigh, natom))
+                list_neigh_alltypeM_use = list_neigh_alltypeM3
+            endif
+            
+            if (ifeat_type(1)  .eq. 4) then 
+                natom=natom4 
+                m_neigh=m_neigh4
+                num_neigh_alltypeM_use = num_neigh_alltypeM4
+                
+                if(allocated(list_neigh_alltypeM_use)) then
+                    deallocate(list_neigh_alltypeM_use)
+                endif
+                
+                allocate(list_neigh_alltypeM_use(m_neigh, natom))
+                list_neigh_alltypeM_use = list_neigh_alltypeM4
+            endif
+
+            if (ifeat_type(1)  .eq. 5) then 
+                natom=natom5
+                m_neigh=m_neigh5
+                num_neigh_alltypeM_use = num_neigh_alltypeM5
+                if(allocated(list_neigh_alltypeM_use)) then
+                    deallocate(list_neigh_alltypeM_use)
+                endif
+            
+                allocate(list_neigh_alltypeM_use(m_neigh, natom))
+                list_neigh_alltypeM_use = list_neigh_alltypeM5
+
+            endif
+            
+            if (ifeat_type(1)  .eq. 6) then 
+                natom=natom6   
+                m_neigh=m_neigh6
+                num_neigh_alltypeM_use = num_neigh_alltypeM6
+                
+                if(allocated(list_neigh_alltypeM_use)) then
+                    deallocate(list_neigh_alltypeM_use)
+                endif
+                
+                allocate(list_neigh_alltypeM_use(m_neigh, natom))
+                
+                list_neigh_alltypeM_use = list_neigh_alltypeM6
+            endif 
+
+            if (ifeat_type(1)  .eq. 7) then 
+                natom=natom7
+                m_neigh=m_neigh7
+                num_neigh_alltypeM_use = num_neigh_alltypeM7
+                
+                if(allocated(list_neigh_alltypeM_use)) then
+                    deallocate(list_neigh_alltypeM_use)
+                endif
+                
+                allocate(list_neigh_alltypeM_use(m_neigh, natom))
+                list_neigh_alltypeM_use = list_neigh_alltypeM7
+            endif
+
+            if (ifeat_type(1)  .eq. 8) then 
+                natom=natom8 
+                m_neigh=m_neigh8
+                num_neigh_alltypeM_use = num_neigh_alltypeM8
+                if(allocated(list_neigh_alltypeM_use)) then
+                    deallocate(list_neigh_alltypeM_use)
+                endif
+                allocate(list_neigh_alltypeM_use(m_neigh, natom))
+                
+                list_neigh_alltypeM_use = list_neigh_alltypeM8
+            endif
+
+            if(natom_tmp.ne.natom) then
+                
+                write(6,*) "natom.ne.natom_tmp,stop",natom,natom_tmp
+                stop
+            
+            endif
+
+            ! nfeat0=nfeat0M1+nfeat0M2
+
+            !*******************************************
+            !    Assemble different feature types
+            !*******************************************
+            
+            allocate(feat(nfeat0,natom_n))
+            !allocate(dfeat(nfeat0,natom_n,m_neigh,3))
+            
+            count =0
+            do kk = 1, nfeat_type
+                ! features that are passed into the NN
+                if (ifeat_type(kk)  .eq. 1) then
+                    do iat=1,natom_n
+                        do ii=1,nfeat0M1
+                            feat(ii+count,iat)=feat_M1(ii,iat)
+                        enddo
+                    enddo
+                    count=count+nfeat0M1
+                endif
+
+                if (ifeat_type(kk)  .eq. 2) then
+                    do iat=1,natom_n
+                        do ii=1,nfeat0M2
+                            feat(ii+count,iat)=feat_M2(ii,iat)
+                        enddo
+                    enddo
+                    count=count+nfeat0M2
+                endif
+
+                if (ifeat_type(kk)  .eq. 3) then
+                    do iat=1,natom_n
+                        do ii=1,nfeat0M3
+                            feat(ii+count,iat)=feat_M3(ii,iat)
+                        enddo
+                    enddo
+                    count=count+nfeat0M3
+                endif
+
+                if (ifeat_type(kk)  .eq. 4) then
+                    do iat=1,natom_n
+                        do ii=1,nfeat0M4
+                            feat(ii+count,iat)=feat_M4(ii,iat)
+                        enddo
+                    enddo
+                    count=count+nfeat0M4
+                endif
+
+                if (ifeat_type(kk)  .eq. 5) then
+                    do iat=1,natom_n
+                        do ii=1,nfeat0M5
+                            feat(ii+count,iat)=feat_M5(ii,iat)
+                        enddo
+                    enddo
+                    count=count+nfeat0M5
+                endif
+
+                if (ifeat_type(kk)  .eq. 6) then
+                    do iat=1,natom_n
+                        do ii=1,nfeat0M6
+                            feat(ii+count,iat)=feat_M6(ii,iat)
+                        enddo
+                    enddo
+                    count=count+nfeat0M6
+                endif
+
+                if (ifeat_type(kk)  .eq. 7) then
+                    do iat=1,natom_n
+                        do ii=1,nfeat0M7
+                            feat(ii+count,iat)=feat_M7(ii,iat)
+                        enddo
+                    enddo
+
+                    count=count+nfeat0M7
+                endif
+
+                if (ifeat_type(kk)  .eq. 8) then
+                    do iat=1,natom_n
+                        do ii=1,nfeat0M8
+                            feat(ii+count,iat)=feat_M8(ii,iat)
+                        enddo
+                    enddo
+
+                    count=count+nfeat0M8
+                endif
+            
+            enddo
+
+        endif 
+
         num = 0
-
         iat1=0
-
+        
+        ! MPI workload setting 
         do i = 1, natom
             if(mod(i-1,nnodes).eq.inode-1) then
 
@@ -484,6 +784,12 @@ module calc_NN
             endif
         enddo
 
+        !***********************************
+        !    
+        !    forward propagation starts 
+        !
+        !***********************************
+        
         do itype=1,ntype
 
             do i=1,num(itype)
@@ -519,7 +825,7 @@ module calc_NN
                     do i=1,num(itype)
                         do j=1,nodeNN(ii,itype)
                             f_out(j,i,ii)=f_in(j,i,ii)
-                            f_d(j,i,ii)=1.d0
+                            !f_d(j,i,ii)=1.d0
                         enddo
                     enddo
                 endif
@@ -533,26 +839,26 @@ module calc_NN
                     do j=1,nodeNN(ii+1,itype)
                         f_in(j,i,ii+1)=f_in(j,i,ii+1)+B_nn(j,ii,itype)
                     enddo
-                enddo
-
+                enddo                
             enddo
-            
+
             do i=1,num(itype)
                 energy_type(i,itype)=f_in(1,i,nlayer+1)
             enddo
 
-            !  Now, back propagation for the derivative for energy, in respect to the f_in(j,i,1)      
+            ! Now, back propagation for the derivative for energy, with respect to the f_in(j,i,1)      
         enddo
-       
-        energy_pred_tmp=0.d0
+        
+        energy_pred_tmp = 0.d0
         num = 0
-        iat1=0
+        iat1 = 0
+        
         do i = 1, natom
             if(mod(i-1,nnodes).eq.inode-1) then
                 iat1=iat1+1
                 itype = iatom_type(i)
                 num(itype) = num(itype) + 1
-                energy_pred_tmp(i)=energy_type(num(itype),itype)
+                energy_pred_tmp(i) = energy_type(num(itype),itype)
             endif
         enddo
 
@@ -564,7 +870,11 @@ module calc_NN
         do i = 1, natom
             !etot = etot + energy(i)
             etot_pred_NN = etot_pred_NN + energy_pred_NN(i)
-        end do
+        enddo
+        
+
+        deallocate(feat)
+        deallocate(list_neigh_alltypeM_use)
 
         deallocate(feat_type)
         deallocate(f_in)
@@ -592,14 +902,15 @@ module calc_NN
         real(8),allocatable,dimension(:,:,:) :: f_in,f_out,f_d,f_back
         real(8),allocatable,dimension(:,:) :: energy_type
         real(8),allocatable,dimension(:,:,:) :: dEdf_type
-
+        
         real*8 pi,dE,dFx,dFy,dFz
         real*8 rad1,rad2,rad,dx1,dx2,dx3,dx,dy,dz,dd,yy,w22,dEdd,d,w22_1,w22_2,w22F_1,w22F_2
+        
         integer iat1,iat2,ierr
         integer ii
+
         real*8 x
         real*8 sum1,sum2,sum3
-
         real(8) temp 
 
         pi=4*datan(1.d0)
@@ -676,7 +987,7 @@ module calc_NN
                             endif
                         enddo
                     enddo
-                
+                    
                 elseif(ii.eq.1) then
                     do i=1,num(itype)
                         do j=1,nodeNN(ii,itype)
@@ -711,9 +1022,7 @@ module calc_NN
             enddo
 
             do ii=nlayer,2,-1
-            
-                call dgemm('N', 'N', nodeNN(ii-1,itype),num(itype),nodeNN(ii,itype), 1.d0,  &
-                Wij_nn(1,1,ii-1,itype),nodeMM,f_back(1,1,ii),nodeMM,0.d0,f_back(1,1,ii-1),nodeMM)
+                call dgemm('N', 'N', nodeNN(ii-1,itype),num(itype),nodeNN(ii,itype), 1.d0, Wij_nn(1,1,ii-1,itype),nodeMM,f_back(1,1,ii),nodeMM,0.d0,f_back(1,1,ii-1),nodeMM)
 
                 if(ii-1.ne.1) then
                     do i=1,num(itype)
@@ -721,21 +1030,21 @@ module calc_NN
                             f_back(j,i,ii-1)=f_back(j,i,ii-1)*f_d(j,i,ii-1)
                         enddo
                     enddo
-                endif
-
+                endif  
             enddo
-
-
+            
             do i=1,num(itype)
                 do j=1,nfeat1(itype)
                     dEdf_type(j,i,itype)=f_back(j,i,1)
                 enddo
             enddo
+            
         enddo
         
         energy_pred_tmp=0.d0
         num = 0
         iat1=0
+        
         do i = 1, natom
             if(mod(i-1,nnodes).eq.inode-1) then
                 iat1=iat1+1
@@ -747,20 +1056,24 @@ module calc_NN
 
         !***********energy inference ends*************
 
-        !***********force inference ******************
+        !***********force inference starts************
 
         force_pred_tmp=0.d0
         num = 0
         iat1=0
+
         do i = 1, natom
             if(mod(i-1,nnodes).eq.inode-1) then
+                
                 iat1=iat1+1
                 itype = iatom_type(i) 
+
                 num(itype) = num(itype) + 1
+                
                 do jj = 1, num_neigh(i)
 
-                    iat2=list_neigh(jj,i)
-
+                    iat2 = list_neigh(jj,i)
+                    
                     sum1=0.d0
                     sum2=0.d0
                     sum3=0.d0
@@ -770,16 +1083,20 @@ module calc_NN
                         sum2=sum2+dEdf_type(j,num(itype),itype)*dfeat(j,iat1,jj,2)*a_scaler(j,itype)
                         sum3=sum3+dEdf_type(j,num(itype),itype)*dfeat(j,iat1,jj,3)*a_scaler(j,itype)
                     enddo
-
+                    
                     force_pred_tmp(1,iat2)=force_pred_tmp(1,iat2)+sum1
-                    force_pred_tmp(2,iat2)=force_pred_tmp(2,iat2)+sum2
+                    force_pred_tmp(2,iat2)=force_pred_tmp(2,iat2)+sum2    
                     force_pred_tmp(3,iat2)=force_pred_tmp(3,iat2)+sum3
+                
                 enddo
             endif
         enddo
-        
+        ! ***********force inference ends**************
+
+
         iat1=0
 
+        ! ***********vdw inference starts**************
         do i=1,natom
 
             if(mod(i-1,nnodes).eq.inode-1) then
@@ -824,7 +1141,7 @@ module calc_NN
                             w22F_2=(wp_atom(iatom_type(j),iatom_type(i),2)+wp_atom(iatom_type(i),iatom_type(j),2))/2     ! take the average for force calc.
 
                             yy=pi*dd/(4*rad)
-                            
+                        
                             dE=dE+0.5*4*(w22_1*(rad/dd)**12*cos(yy)**2+w22_2*(rad/dd)**6*cos(yy)**2)
                             dEdd=4*(w22F_1*(-12*(rad/dd)**12/dd*cos(yy)**2-(pi/(2*rad))*cos(yy)*sin(yy)*(rad/dd)**12)   &
                             +W22F_2*(-6*(rad/dd)**6/dd*cos(yy)**2-(pi/(2*rad))*cos(yy)*sin(yy)*(rad/dd)**6))
@@ -835,7 +1152,7 @@ module calc_NN
                         endif
                     endif
                 enddo
-
+                
                 energy_pred_tmp(i)=energy_pred_tmp(i)+dE
                 force_pred_tmp(1,i)=force_pred_tmp(1,i)+dFx   ! Note, assume force=dE/dx, no minus sign
                 force_pred_tmp(2,i)=force_pred_tmp(2,i)+dFy
@@ -843,7 +1160,8 @@ module calc_NN
             
             endif
         enddo
-        !
+        
+        ! ***********vdw inference ends****************
         
         ! collecting E and force from all nodes 
         call mpi_allreduce(energy_pred_tmp,energy_pred_NN,natom,MPI_REAL8,MPI_SUM,MPI_COMM_WORLD,ierr)
@@ -863,7 +1181,8 @@ module calc_NN
             const_fc(j)=   alpha*direct*(xatom(2,add_force_atom(j))-y1)*AL(2,2)     
             mean=mean+ const_fb(j)
         enddo
-        !ccccccccccccccccccccccccccccccccccccccccccc
+        
+        ! constant force 
         do j=1,add_force_num
                 
             force_pred_NN(1,add_force_atom(j))= force_pred_NN(1,add_force_atom(j))+const_fa(j)   !give a force on x axis
@@ -877,16 +1196,14 @@ module calc_NN
             force_pred_NN(1,const_force_atom(j))= const_fx(j)   !give a force on x axis
             force_pred_NN(2,const_force_atom(j))= const_fy(j)
             force_pred_NN(3,const_force_atom(j))= const_fz(j)
-                
+            
         enddo
-        !ccccccccccccccccccccccccccccccccccccccccccc
-        ! calculating etot
+        
+        ! calculating final etot
         etot_pred_NN = 0.d0
-    
         do i = 1, natom
-            !etot = etot + energy(i)
             etot_pred_NN = etot_pred_NN + energy_pred_NN(i)
-        end do
+        enddo
 
         deallocate(feat_type)
         deallocate(energy_type)

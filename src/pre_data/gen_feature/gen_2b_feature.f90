@@ -84,15 +84,16 @@ PROGRAM gen_2b_feature
     rewind(10)
     read(10,*) Rc_M,m_neigh
     read(10,*) ntype
-    do i=1,ntype
-    read(10,*) iat_type(i)
-    read(10,*) Rc_type(i),Rm_type(i),iflag_grid_type(i),fact_grid_type(i),dR_grid1_type(i)
-    read(10,*) n2b_type(i)
 
-     if(Rc_type(i).gt.Rc_M) then
-      write(6,*) "Rc_type must be smaller than Rc_M, gen_3b_feature.in",i,Rc_type(i),Rc_M
-      stop
-     endif
+    do i=1,ntype
+        read(10,*) iat_type(i)
+        read(10,*) Rc_type(i),Rm_type(i),iflag_grid_type(i),fact_grid_type(i),dR_grid1_type(i)
+        read(10,*) n2b_type(i)
+
+        if(Rc_type(i).gt.Rc_M) then
+            write(6,*) "Rc_type must be smaller than Rc_M, gen_3b_feature.in",i,Rc_type(i),Rc_M
+            stop
+        endif
 
     enddo
     read(10,*) E_tolerance
@@ -101,38 +102,47 @@ PROGRAM gen_2b_feature
     close(10)
 
     open(13,file="input/location")
+    
     rewind(13)
     read(13,*) sys_num  !,trainSetDir
     read(13,'(a200)') trainSetDir
     ! allocate(trainSetFileDir(sys_num))
+
     do i=1,sys_num
-    read(13,'(a200)') trainSetFileDir(i)    
+
+        read(13,'(a200)') trainSetFileDir(i)    
+
     enddo
+    
     close(13)
+    
     trainDataDir=trim(trainSetDir)//"/trainData.txt.Ftype1"
     inquirepos1=trim(trainSetDir)//"/inquirepos1.txt"
-!cccccccccccccccccccccccccccccccccccccccc
+    !cccccccccccccccccccccccccccccccccccccccc
 
     do i=1,ntype
-    if(iflag_ftype.eq.3.and.iflag_grid_type(i).ne.3) then
-    write(6,*) "if iflag_ftype.eq.3, iflag_grid must equal 3, stop"
-    stop
-    endif
+        if(iflag_ftype.eq.3.and.iflag_grid_type(i).ne.3) then
+            write(6,*) "if iflag_ftype.eq.3, iflag_grid must equal 3, stop"
+            stop
+        endif
     enddo
 
-     n2bm=0
-     do i=1,ntype
-     if(n2b_type(i).gt.n2bm) n2bm=n2b_type(i)
-     enddo
+    n2bm=0
 
-!cccccccccccccccccccccccccccccccccccccccccccccccc
-     nfeat0m=ntype*n2bm
-     write(6,*) "max,nfeat0m=",nfeat0m
+    do i=1,ntype
+        if(n2b_type(i).gt.n2bm) n2bm=n2b_type(i)
+    enddo
 
-     do itype=1,ntype
-     nfeat0(itype)=n2b_type(itype)*ntype
-     enddo
-     write(6,*) "itype,nfeat0=",(nfeat0(itype),itype=1,ntype)
+    !cccccccccccccccccccccccccccccccccccccccccccccccc
+    nfeat0m=ntype*n2bm  
+
+    write(6,*) "max,nfeat0m=",nfeat0m
+
+    do itype=1,ntype
+        nfeat0(itype)=n2b_type(itype)*ntype
+    enddo
+    
+    write(6,*) "itype,nfeat0=",(nfeat0(itype),itype=1,ntype)
 
 !cccccccccccccccccccccccccccccccccccccccccccccccccccc
 
@@ -342,7 +352,7 @@ PROGRAM gen_2b_feature
             READ(move_file, *) iatom(j),fatom(1,j),fatom(2,j),fatom(3,j)
         ENDDO
 
-    CALL scan_title (move_file, "ATOMIC-ENERGY",if_find=nextline)
+        CALL scan_title (move_file, "ATOMIC-ENERGY",if_find=nextline)
        if(.not.nextline) then
          write(6,*) "Atomic-energy not found, stop",num_step
          stop
@@ -358,18 +368,18 @@ PROGRAM gen_2b_feature
         write(6,"('num_step',2(i4,1x),2(E15.7,1x),i5)") num_step,natom,Etotp,Etotp-Etotp_ave,max_neigh
 
         if(abs(Etotp-Etotp_ave).gt.E_tolerance) then
-        write(6,*) "escape this step, dE too large"
-        write(333,*) num_step
-        deallocate(iatom,xatom,fatom,Eatom)
-        goto 1000
+            write(6,*) "escape this step, dE too large"
+            write(333,*) num_step
+            deallocate(iatom,xatom,fatom,Eatom)
+            goto 1000
         endif
 
         num_step1=num_step1+1
 
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-! Finished readin the movement file.  
-! fetermined the num_step1
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    ! Finished readin the movement file.  
+    ! fetermined the num_step1
+    !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
 
     allocate(list_neigh(m_neigh,ntype,natom))

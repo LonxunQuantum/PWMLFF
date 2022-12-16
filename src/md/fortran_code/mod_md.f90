@@ -356,7 +356,8 @@ contains
             !
             MCTRL_XATOM_FILE=f_xatom
             !real md calling
-
+            
+            
             !!!!!
             call molecular_dynamics_kernel(Etot,fatom,e_stress)
             !
@@ -516,7 +517,8 @@ contains
                 rewind(88)
                 ! keep this file open
             endif
-             
+        
+        
         contains
             subroutine write_Q()
                 implicit none
@@ -1149,6 +1151,7 @@ contains
                 1111   format(i8,1x,"atoms,Iteration (fs) = ",E19.10,", Etot,Ep,Ek (eV) = ",3(E19.10),", SCF = ",(I5))
                 call write_information(223,mymd)
                 call write_lattice(223,mymd.stress)
+                
                 if(MCTRL_istress_cal.eq.1) then
                     call write_internal_pressure(223,Pinter(mymd))
                 endif

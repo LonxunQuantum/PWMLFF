@@ -125,7 +125,7 @@ def plot():
     plt.savefig('atomic_energy.png', format='png')
         #if len(sys.argv) < 2:
         #    plt.show()
-
+    
     # plot total energy
     #plt.clf()
     #plt.subplot(1,2,1)
