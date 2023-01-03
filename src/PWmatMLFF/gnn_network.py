@@ -799,7 +799,7 @@ class gnn_network:
                 output = context_stack.enter_context(open(args.output, "w"))
             else:
                 output = None
-
+        
             while True:
                 this_batch_test_indexes = test_idcs[
                     batch_i * batch_size : (batch_i + 1) * batch_size

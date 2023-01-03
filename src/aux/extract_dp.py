@@ -274,7 +274,7 @@ if isFittingNetResNet:
 
     #nlayer: 
     f.write(str(nLayerFittingNet) + '\n')
-
+    
     #dim of each layer 
     f.write(str(len(raw[catNameFittingW(0,0)]))+' ')
 

@@ -158,7 +158,12 @@ void PairQCAD::compute(int eflag, int vflag)
     iago = 0;
   }
   iago ++;
+  
+  /*
+    ff core
+  */
   f2c_calc_energy_force(&imodel, &num_atoms, &itype_atom[0], &lattice[0], &x_frac[0][0], &e_atom[0], &f_atom[0][0], &e_tot, &iflag_reneighbor);
+  
   // f_atom(all forces) to atom->f
   //printf("llptest6\n");
   int local_position = accumulated_natomlocals[myrank] - atom->nlocal; 

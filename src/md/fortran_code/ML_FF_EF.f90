@@ -612,7 +612,7 @@ subroutine ML_FF_EF(Etot,fatom,xatom,AL,natom_tmp,e_stress)
             !Etot=Etot_pred_dp
             !e_atom(1:natom_tmp) = energy_pred_dp(1:natom_tmp)
             !fatom(:,1:natom_tmp) = force_pred_dp(:,1:natom_tmp)   ! unit, and - sign?
-                
+              
         endif
         
         ! deprecated 

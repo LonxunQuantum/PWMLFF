@@ -1,5 +1,6 @@
 subroutine f2c_calc_energy_force(i_model_lvn, n_atom, type_atom, lat,&
     x_frac, e_atom_out, f_atom_out, e_tot_out, iflag_reneigh_inout) bind(c,name="f2c_calc_energy_force")
+    
     use iso_c_binding
     use mod_md
     use mod_mpi
@@ -50,7 +51,7 @@ subroutine f2c_calc_energy_force(i_model_lvn, n_atom, type_atom, lat,&
     integer ifeat_type(100)
 
     logical :: scanit, is_reset
-    
+
     integer iMD,MDstep
     real(8) dtMD, Temperature1, Temperature2
     logical right_logical
@@ -67,75 +68,90 @@ subroutine f2c_calc_energy_force(i_model_lvn, n_atom, type_atom, lat,&
     call mpi_comm_rank(MPI_COMM_WORLD,inode,ierr)
     call mpi_comm_size(MPI_COMM_WORLD,nnodes,ierr)
     inode = inode + 1
-    open(unit=inode+4396, file='test'//char(nnodes+inode+48))
-    do i = 1, n_atom
-        write(inode+4396, *) x_frac(1:3,i)
-    enddo
-    close(inode+4396)
+
+    !open(unit=inode+4396, file='test'//char(nnodes+inode+48))
+    
+    !do i = 1, n_atom
+    !    write(inode+4396, *) x_frac(1:3,i)
+    !enddo
+    
+    !close(inode+4396)
     
 
     allocate(f_atom_predict(3,n_atom))
     iflag_model = i_model_lvn
     iflag_reneighbor = iflag_reneigh_inout
     if (iflag_reneigh_inout .eq. 1) iflag_reneigh_inout = 0
+
+
     ! 1  linear fitting
     ! 2  VV
     ! 3  NN
 
-!i_model_lvn, n_atom, type_atom, lat,&
-!  x_frac, e_atom_out, f_atom_out, e_tot_out
+    !i_model_lvn, n_atom, type_atom, lat,&
+    !  x_frac, e_atom_out, f_atom_out, e_tot_out
 
-! we do not read md.input
-!xatom.config
-!100, 1000, 1.0, 600, 600
-!F
-!1
-!1
-!1
-!29 58
-f_xatom = 'xatom.config'
-iMD = 100
-MDstep = 1000
-dtMD = 1.0
-Temperature1 = 300
-Temperature2 = 300
-right_logical = .False.
-MCTRL_output_nstep = 1
-ntype_mass = 1
-itype_mass = 8  ! not use
-mass_type = 16  ! not use
+    ! we do not read md.input
+    !xatom.config
+    !100, 1000, 1.0, 600, 600
+    !F
+    !1
+    !1
+    !1
+    !29 58
 
-!       open(9,file="md.input")
-!       rewind(9)
-!       read(9,*) f_xatom
-!       read(9,*)iMD,MDstep,dtMD,Temperature1,Temperature2
-!       read(9,*) right_logical
-!       read(9,*) iflag_model  ! 1: lineear; 2: VV; 3: NN 
-!       read(9,*) MCTRL_output_nstep
-!       read(9,*) ntype_mass
-!       do i=1,ntype_mass
-!       read(9,*) itype_mass(i),mass_type(i)
-!       enddo
-!       close(9)
-!       nstep_temp_VVMD=100
-!       iscale_temp_VVMD=0
-        
-!        call readf_xatom_new(iMD,ntype_mass,itype_mass,mass_type)
+    f_xatom = 'xatom.config'
+    iMD = 100
+    MDstep = 1000
+    dtMD = 1.0
+    Temperature1 = 300
+    Temperature2 = 300
+    right_logical = .False.
+    MCTRL_output_nstep = 1
+    ntype_mass = 1 
+    itype_mass = 8  ! not use
+    mass_type = 16  ! not use
+    
+    !       open(9,file="md.input")
+    !       rewind(9)
+    !       read(9,*) f_xatom
+    !       read(9,*)iMD,MDstep,dtMD,Temperature1,Temperature2
+    !       read(9,*) right_logical
+    !       read(9,*) iflag_model  ! 1: lineear; 2: VV; 3: NN 
+    !       read(9,*) MCTRL_output_nstep
+    !       read(9,*) ntype_mass
+    !       do i=1,ntype_mass
+    !       read(9,*) itype_mass(i),mass_type(i)
+    !       enddo
+    !       close(9)
+    !       nstep_temp_VVMD=100
+    !       iscale_temp_VVMD=0
+            
+    !        call readf_xatom_new(iMD,ntype_mass,itype_mass,mass_type)
     ! use intent(in) paras to initial the xatom
+
     natom = n_atom ! n_atom in 
     AL = lat
+    
     call get_ALI(AL,ALI)
+
     iatom(1:n_atom) = type_atom(1:n_atom)
     xatom(1:3,1:n_atom) = x_frac(1:3,1:n_atom)
 
-        iat1=0
-        do i=1,natom
+    iat1=0
+
+    !
+    do i=1,natom
         if(mod(i-1,nnodes).eq.inode-1) then
-        iat1=iat1+1
+            iat1=iat1+1
         endif
-        enddo
-        natom_n=iat1     ! different prorcessor might have different natom_n
+    enddo
+
+    natom_n=iat1      
+    
+    ! different prorcessor might have different natom_n
     ! main_MD: initialization
+
     if (iflag_model .eq. 1) then
         
         call set_paths_lin('.')
@@ -172,8 +188,7 @@ mass_type = 16  ! not use
     endif
 
     is_reset = .true.
-
-
+    
     if ((iflag_model.eq.1) .or. (iflag_model.eq.2) .or. (iflag_model.eq.3)) then 
 
         do kk = 1, nfeat_type
@@ -213,33 +228,20 @@ mass_type = 16  ! not use
         end do
     endif 
 
-    !open(4396, file="flag")
-    !write(4396,*) 4
-    !close(4396)
-
-        !write(*,*) "before mlff-ef:"
     f_atom_predict = 0.0
-    e_tot_predict = 0.0
+    e_tot_predict = 0.0 
     
     call ML_FF_EF(e_tot_predict, f_atom_predict, x_frac, AL, n_atom)
-        ! the force calculated by ML_FF_EF is \partial E / \partial x, lacking a minus sign
-        !write(*,*) "after mlff-ef:"
-        !write(*,*) "e_atom_predict, size:", size(e_atom)
-        !write(*,*) e_atom(1:5)
-        !write(*,*) "f_atom_predict:"
-        !write(*,*) f_atom_predict(1:3,1:5)
-        !write(*,*) "e_tot_predict:", e_tot_predict
+    
     e_tot_out = e_tot_predict
-        ! the force calculated by ML_FF_EF is \partial E / \partial x, lacking a minus sign
+ 
     f_atom_out(1:3,1:n_atom) = -f_atom_predict(1:3,1:n_atom)
     e_atom_out(1:n_atom) = e_atom(1:n_atom) ! mod_data::e_atom, calculated by ML_FF_EF
-    goto 8889 ! end
-        ! the following subroutine writes images to MD/md/MOVEMENT, and same format as old mlff movement,but different from PWmat
-        !call write_to_mlff_movement(i_image, E_tot_predict, f_atom_predict, x_atom_predict, AL_predict, n_atom)
 
-8888 continue ! bad ending
-8889 continue ! good ending
-    !write(*,*) " images predicted"
+    ! the following subroutine writes images to MD/md/MOVEMENT, and same format as old mlff movement,but different from PWmat
+    !call write_to_mlff_movement(i_image, E_tot_predict, f_atom_predict, x_atom_predict, AL_predict, n_atom)
+    
     deallocate(f_atom_predict)
-    !call mpi_finalize(ierr)
+    
+    !call mpi_finalize(ierr) 
 end

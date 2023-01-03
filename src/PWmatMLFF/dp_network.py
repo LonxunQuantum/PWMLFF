@@ -2,20 +2,23 @@
     module for Deep Potential Network 
 
     L. Wang, 2022.8
+
+    updated 2022.12
+
 """
 from ast import For, If, NodeTransformer
 import os,sys
 import pathlib
-from xml.sax.handler import feature_external_ges
-
-from pre_data.default_para import Rc
+import argparse
+import random
 
 codepath = str(pathlib.Path(__file__).parent.resolve())
+sys.path.append(codepath)
 
 #for model.mlff 
 sys.path.append(codepath+'/../model')
 
-#for default_para, data_loader_2type dfeat_sparse
+#for default_para, data_loader_2type dfeat_sparse dp_mlff
 sys.path.append(codepath+'/../pre_data')
 
 #for optimizer
@@ -27,8 +30,7 @@ sys.path.append(codepath+'/../..')
 from statistics import mode 
 from turtle import Turtle, update
 import torch
-
-import random
+    
 import time
 import numpy as np
 import torch.autograd as autograd
@@ -36,63 +38,228 @@ import matplotlib.pyplot as plt
 import torch.nn as nn
 import math
 
-import torch.nn.functional as F
-from torch.nn.modules import loss
-import torch.optim as optim
-from torch.nn.parameter import Parameter
-from torch.utils.data import Dataset, DataLoader
-from loss.AutomaticWeightedLoss import AutomaticWeightedLoss
 import torch.utils.data as Data
 from torch.autograd import Variable
+import torch.backends.cudnn as cudnn
+import torch.distributed as dist
+import torch.multiprocessing as mp
+import torch.nn as nn
+import torch.nn.parallel
+import torch.optim as optim
+import torch.utils.data
+import torch.utils.data.distributed
+import signal 
 
 import time
-import getopt
+import warnings
 
-from sklearn.preprocessing import MinMaxScaler
 from joblib import dump, load
-from sklearn.feature_selection import VarianceThreshold
-
 
 # src/aux 
 from opts import opt_values 
 from feat_modifier import feat_modifier
 
-import pickle
-import logging
-
 """
     customized modules 
 """
-from model.dp import DP
-from optimizer.kalmanfilter_dp import GKalmanFilter, LKalmanFilter, SKalmanFilter, L1KalmanFilter, L2KalmanFilter
+from model.dp_dp import DP
+from optimizer.GKF import GKFOptimizer
+from optimizer.LKF import LKFOptimizer
+from dp_data_loader import MovementDataset
+from dp_mods.dp_trainer import *
 
 import default_para as pm
 
-from data_loader_2type_dp import MovementDataset, get_torch_data
-from scalers import DataScalers
-from utils import get_weight_grad
-from dfeat_sparse import dfeat_raw 
+#from data_loader_2type_dp import MovementDataset, get_torch_data
+
+def get_terminal_args():
+    """
+        obtaining args from terminal
+    """
+    parser = argparse.ArgumentParser(description="PyTorch MLFF Training")
+    
+    parser.add_argument(
+        "--datatype",
+        default="float64",
+        type=str,
+        help="Datatype and Modeltype default float64",
+    )
+    parser.add_argument(
+        "-j",
+        "--workers",
+        default=4,
+        type=int,
+        metavar="N",
+        help="number of data loading workers (default: 4)",
+    )
+    parser.add_argument(
+        "--epochs", default=30, type=int, metavar="N", help="number of total epochs to run"
+    )
+    parser.add_argument(
+        "--start-epoch",
+        default=1,
+        type=int,
+        metavar="N",
+        help="manual epoch number (useful on restarts)",
+    )
+    parser.add_argument(
+        "-b",
+        "--batch-size",
+        default=16,
+        type=int,
+        metavar="N",
+        help="mini-batch size (default: 1), this is the total "
+        "batch size of all GPUs on the current node when "
+        "using Data Parallel or Distributed Data Parallel",
+    )
+    parser.add_argument(
+        "--lr",
+        "--learning-rate",
+        default=0.001,
+        type=float,
+        metavar="LR",
+        help="initial learning rate",
+        dest="lr",
+    )
+    parser.add_argument("--momentum", default=0.9, type=float, metavar="M", help="momentum")
+    parser.add_argument(
+        "--wd",
+        "--weight-decay",
+        default=1e-4,
+        type=float,
+        metavar="W",
+        help="weight decay (default: 1e-4)",
+        dest="weight_decay",
+    )
+    parser.add_argument(
+        "-p",
+        "--print-freq",
+        default=10,
+        type=int,
+        metavar="N",
+        help="print frequency (default: 10)",
+    )
+    parser.add_argument(
+        "-r",
+        "--resume",
+        dest="resume",
+        action="store_true",
+        help="resume the latest checkpoint",
+    )
+    parser.add_argument(
+        "-s" "--store-path",
+        default="default",
+        type=str,
+        metavar="STOREPATH",
+        dest="store_path",
+        help="path to store checkpoints (default: 'default')",
+    )
+    parser.add_argument(
+        "-e",
+        "--evaluate",
+        dest="evaluate",
+        action="store_true",
+        help="evaluate model on validation set",
+    )
+    parser.add_argument(
+        "--world-size",
+        default=-1,
+        type=int,
+        help="number of nodes for distributed training",
+    )
+    parser.add_argument(
+        "--rank", default=-1, type=int, help="node rank for distributed training"
+    )
+    parser.add_argument(
+        "--dist-url",
+        default="tcp://localhost:23456",
+        type=str,
+        help="url used to set up distributed training",
+    )
+    parser.add_argument(
+        "--dist-backend", default="nccl", type=str, help="distributed backend"
+    )
+    parser.add_argument(
+        "--seed", default=None, type=int, help="seed for initializing training. "
+    )
+    parser.add_argument("--magic", default=2022, type=int, help="Magic number. ")
+    parser.add_argument("--gpu", default=None, type=int, help="GPU id to use.")
+    parser.add_argument(
+        "--dp", dest="dp", action="store_true", help="Whether to use DP, default False."
+    )
+    parser.add_argument(
+        "--multiprocessing-distributed",
+        action="store_true",
+        help="Use multi-processing distributed training to launch "
+        "N processes per node, which has N GPUs. This is the "
+        "fastest way to use PyTorch for either single node or "
+        "multi node data parallel training",
+    )
+    # parser.add_argument("--dummy", action="store_true", help="use fake data to benchmark")
+    parser.add_argument(
+        "-n", "--net-cfg", default="DeepMD_cfg_dp_kf", type=str, help="Net Arch"
+    )
+    parser.add_argument("--act", default="sigmoid", type=str, help="activation kind")
+    
+    parser.add_argument(
+        "--opt", default="ADAM", type=str, help="optimizer type: LKF, GKF, ADAM, SGD"
+    )
+    parser.add_argument(
+        "--Lambda", default=0.98, type=float, help="KFOptimizer parameter: Lambda."
+    )
+    parser.add_argument(
+        "--nue", default=0.99870, type=float, help="KFOptimizer parameter: Nue."
+    )
+    parser.add_argument(
+        "--blocksize", default=10240, type=int, help="KFOptimizer parameter: Blocksize."
+    )
+    
+    parser.add_argument(
+        "--nselect", default=24, type=int, help="KFOptimizer parameter: Nselect."
+    )
+    
+    parser.add_argument(
+        "--groupsize", default=6, type=int, help="KFOptimizer parameter: Groupsize."
+    )
+    
+    args = parser.parse_args()
+    
+    return args
+
 
 class dp_network:
     
     def __init__(   self,
                     # some must-haves
                     # model related argument
+                    terminal_args = get_terminal_args(), 
                     atom_type = None, 
-                    feature_type = [1], # only 1 can be used. 
-                    # data related arguments    
-                    device = "cpu", 
                     # optimizer related arguments 
                     
                     max_neigh_num = 100, 
                     # "g", "l_0","l_1", "l_2", "s" 
-                    optimizer = None,
-                    kalman_type = "l_1",     # optimal version    
+                    
+                    kalman_type = None,     # optimal version    
                     
                     session_dir = "record",  # directory that saves the model
                     n_epoch = 25, 
-                    batch_size = 4, 
-
+                    start_epoch = 1, 
+                    batch_size = 1, 
+                    learning_rate = 0.001, 
+                    momentum = 0.9, 
+                    weight_decay = 1e-4, 
+                    is_resume = False, 
+                    is_evaluate = False, 
+                    world_size = -1, 
+                    rank = -1, 
+                    dist_url = "tcp://localhost:23456", 
+                    dist_backend = 'nccl', 
+                    seed = None, 
+                    gpu_id = None, 
+                    is_distributed = False, 
+                    optimizer = "ADAM",    # LKF, GKF, ADAM, SGD 
+                    kalman_lambda = 0.98,
+                    kalman_nue = 0.99870, 
                     # paras for l-kalman 
                     select_num = 24,
                     block_size = 5120,
@@ -103,26 +270,50 @@ class dp_network:
                     is_trainEi = False,
                     is_trainEgroup = False,
                     is_trainEtot = True,
-
+                    
+                    precision = "float64", 
+                    train_valid_ratio = 0.8, 
+                    
                     is_movement_weighted = False,
+                    e_tolerance = 999.0, 
                     
                     # inital values for network config
                     embedding_net_config = None,
                     fitting_net_config = None, 
 
+                    embedding_net_size = None, 
+                    embedding_net_bias = None,
+                    embedding_net_res = None, 
+                    embedding_net_act = None, 
+
+                    fitting_net_size = None, 
+                    fitting_net_bias = None,
+                    fitting_net_res = None, 
+                    fitting_net_act = None, 
+
                     recover = False,
+                    dataset_size = 1000, 
                     
+                    workers_dataload = 4, 
+                      
                     # smooth function calculation 
-                    Rmin = None,
-                    Rmax = None,
+                    Rmin = 5.8,
+                    Rmax = 6.0,
                     
-                    #  
-                    M2 = None,
-                    reconnect = True
+                    # paras for DP network
+                    M2 = 16,
+                    reconnect = True  
+                    
                     ):
         
+        # args from terminal 
+        self.terminal_args = terminal_args
+        
+        if atom_type == None:
+            raise Exception("atom types not specifed")         
         # parsing command line args 
-        self.opts = opt_values()  
+        
+        #opt_values()  
         
         # feature para modifier
         self.feat_mod = feat_modifier 
@@ -132,54 +323,22 @@ class dp_network:
 
         if Rmax is not None:
             pm.Rc = Rmax
+        
         # scaling
         # recover training. Need to load both scaler and model 
         pm.use_storage_scaler = recover  
-        self.opts.opt_recover_mode = recover
 
         pm.maxNeighborNum = max_neigh_num 
-        
-        if atom_type == None:
-            raise Exception("atom types not specifed")         
-        
-        pm.atomType = atom_type 
+
+        self.atomType = atom_type 
 
         # these two variables are the same thing. Crazy. 
         pm.atomTypeNum = len(atom_type)
         pm.ntypes = len(atom_type)
 
-        pm.use_Ftype = feature_type 
-        pm.dR_neigh = True
-        
-        # setting network config 
-        self.network_config = None 
-
-        # setting kalman 
-        self.kalman_type = kalman_type
-            
-        if kalman_type is None:
-            self.network_config = pm.DP_cfg_dp 
-        else:
-            self.network_config = pm.DP_cfg_dp_kf                   
         
         # passed-in configs 
         # the whole config is required 
-        if embedding_net_config is not None:
-            #print("overwritting embedding network config ",self.network_config['embeding_net']["network_size"], " with ", embedding_net_config) 
-            print("overwritting embedding network config ",self.network_config['embeding_net'], " with ", embedding_net_config) 
-            
-            #self.network_config['embeding_net']["network_size"] = embedding_net_config
-            self.network_config['embeding_net'] = embedding_net_config
-
-        if fitting_net_config is not None: 
-            #print("overwritting fitting network config ",self.network_config['fitting_net']["network_size"], " with ", fitting_net_config) 
-            print("overwritting fitting network config ",self.network_config['fitting_net'], " with ", fitting_net_config) 
-            
-            #self.network_config['fitting_net']["network_size"] = fitting_net_config
-            self.network_config['fitting_net'] = fitting_net_config
-
-        print ("network config used for training:")
-        print (self.network_config)
         
         # label to be trained 
         self.is_trainForce = is_trainForce
@@ -201,36 +360,25 @@ class dp_network:
         self.block_size = block_size
         self.group_size = group_size
 
-        if (self.opts.opt_dtype == 'float64'):
-            #print("Training: set default dtype to float64")
-            torch.set_default_dtype(torch.float64)
-        elif (self.opts.opt_dtype == 'float32'):
-            #print("Training: set default dtype to float32")
-            torch.set_default_dtype(torch.float32)
-        else:
-            self.opts.error("Training: unsupported dtype: %s" %self.opts.opt_dtype)
-            raise RuntimeError("Training: unsupported dtype: %s" %self.opts.opt_dtype)
-
-        # setting M2 of the intermediate matrix D 
+        self.best_loss = 1e10
         
+        # setting M2 of the intermediate matrix D 
         if M2 is not None:
-            self.set_M2(M2)
-
+            self.set_M2(M2) 
+        
         # set global reconnect switch 
         self.is_reconnect = reconnect
         
         # setting device
         self.device = None
+        """
         if device == "cpu":
             self.device = torch.device('cpu')
         elif device == "cuda":
             self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         else:
             raise Exception("device type not supported")
-
-        # set random seed
-        torch.manual_seed(self.opts.opt_rseed)
-        torch.cuda.manual_seed(self.opts.opt_rseed)
+        """
         
         # set print precision
         torch.set_printoptions(precision = 12)
@@ -245,26 +393,14 @@ class dp_network:
             self.batch_size = 1
         else:
             self.batch_size = batch_size 
-            # optimizer other than ADAM
-            if optimizer is not None:
-                self.opts.opt_optimizer = optimizer 
 
         self.min_loss = np.inf
         self.epoch_print = 1 
         self.iter_print = 1 
-        
+            
         # set session directory 
-        self.set_session_dir(session_dir)
+        # self.set_session_dir(session_dir) 
 
-        """
-            for torch built-in optimizers and schedulers 
-        """
-        self.momentum = self.opts.opt_momentum
-        self.REGULAR_wd = self.opts.opt_regular_wd
-        self.LR_base = self.opts.opt_lr
-        self.LR_gamma = self.opts.opt_gamma
-        self.LR_step = self.opts.opt_step
-        
         """
             training data. 
             Below are placeholders
@@ -292,50 +428,458 @@ class dp_network:
         self.start_epoch = 1
 
         # path for loading previous model 
-        self.load_model_path = self.opts.opt_model_dir+'latest.pt' 
+        self.load_model_path = 'latest.pt' 
+        
+        """
+            finalizing config. 
+            Create a copy 
+        """
+        self.config = { 'Rc_M': Rmax, 
+                        'maxNeighborNum': max_neigh_num,
+                        'atomType': [],
 
-        self.momentum = self.opts.opt_momentum
-        self.REGULAR_wd = self.opts.opt_regular_wd
-        self.n_epoch = self.opts.opt_epochs
-        self.LR_base = self.opts.opt_lr
-        self.LR_gamma = self.opts.opt_gamma
-        self.LR_step = self.opts.opt_step
+                        # no need to change frequently 
+                        'E_tolerance': e_tolerance,
+                        'trainSetDir': './PWdata',
+                        'dRFeatureInputDir': './input',
+                        'dRFeatureOutputDir': './output',
+                        'trainDataPath': './train',
+                        'validDataPath': './valid',
+                        'ratio': train_valid_ratio,
+                        'training_type': precision,
+
+                        'M2': M2, # M2 of G matrix in DP model 
+                        'datasetImageNum': dataset_size,
+                        
+                        'net_cfg': {'embedding_net': {'network_size': [25, 25, 25],
+                        'bias': True,
+                        'resnet_dt': False,
+                        'activation': 'tanh'},
+
+                        'fitting_net': {'network_size': [50, 50, 50, 1],
+                        'bias': True,
+                        'resnet_dt': False,
+                        'activation': 'tanh'}}}
+            
+
+        self.config["atomType"] = [] 
+        for idx in atom_type:
+            single_dict = {'type': idx, 'Rc': Rmax, 'Rm': Rmin, 'iflag_grid': 3, 'fact_base': 0.2, 'dR1': 0.5}
+            self.config["atomType"].append(single_dict.copy())
+
         
-        print ("device:",self.device)
+        is_indiv_en = lambda: embedding_net_size is None and embedding_net_bias is None and embedding_net_res is None and embedding_net_act is None
+        is_indiv_fn = lambda: fitting_net_size is None and fitting_net_bias is None and fitting_net_res is None and fitting_net_act is None
+
+        """ 
+            should provide full config or partial. Otherwise use default 
+            full config overrides parital config
+        """
+        if (embedding_net_config is not None) or (not is_indiv_en()) :
+            
+            if is_indiv_en():
+                # load the whole config
+                self.config["net_cfg"]["embedding_net"] = embedding_net_config
+            else: 
+                # load sperately
+                if embedding_net_size is not None:
+                    self.config["net_cfg"]["embedding_net"]["network_size"] = embedding_net_size
+                    
+                if embedding_net_bias is not None:
+                    self.config["net_cfg"]["embedding_net"]["bias"] = embedding_net_bias
+
+                if embedding_net_res is not None:
+                    self.config["net_cfg"]["embedding_net"]["resnet_dt"] = embedding_net_res
+                
+                if embedding_net_act is not None:
+                    self.config["net_cfg"]["embedding_net"]["activation"] = embedding_net_act
+
+        # fitting net 
+        if (fitting_net_config is not None) or (not is_indiv_fn()) :
+            
+            if is_indiv_fn():
+                # load the whole config
+                self.config["net_cfg"]["fitting_net"] = fitting_net_config
+            else: 
+                # load sperately
+                if fitting_net_size is not None:
+                    self.config["net_cfg"]["fitting_net"]["network_size"] = fitting_net_size
+                    
+                if fitting_net_bias is not None:
+                    self.config["net_cfg"]["fitting_net"]["bias"] = fitting_net_bias
+
+                if fitting_net_res is not None:
+                    self.config["net_cfg"]["fitting_net"]["resnet_dt"] = fitting_net_res
+                
+                if fitting_net_act is not None:
+                    self.config["net_cfg"]["fitting_net"]["activation"] = fitting_net_act
+
+        # finalize terminal args
+        """
+            Load args with instantiation parameters. 
+            The latter overrides. 
+            Leave instantiation parameter blank if using terminal args 
+        """
+        
+        
+        # check if any command line arg is used     
+        # DO NOT USE ARGS AND PARA AT THE SAME TIME
+        if len(sys.argv) < 2:
+            
+            self.terminal_args.datatype = precision
+            self.terminal_args.workers = workers_dataload
+            self.terminal_args.epochs = n_epoch
+            self.terminal_args.start_epoch = start_epoch
+            self.terminal_args.batch_size = batch_size
+            self.terminal_args.lr = learning_rate
+            self.terminal_args.momentum = momentum
+            self.terminal_args.weight_decay = weight_decay
+            self.terminal_args.print_freq = 10 
+            self.terminal_args.resume = is_resume
+            self.terminal_args.store_path = session_dir
+            self.terminal_args.evaluate = is_evaluate
+            self.terminal_args.world_size = world_size
+            self.terminal_args.rank = rank
+            self.terminal_args.dist_url = dist_url
+            #self.terminal_args.dist_backend = dist_backend, 
+            self.terminal_args.seed = seed 
+            self.terminal_args.magic = 2022
+            self.terminal_args.gpu = gpu_id
+            self.terminal_args.multiprocessing_distributed = is_distributed 
+            self.terminal_args.opt = optimizer 
+            self.terminal_args.Lambda = kalman_lambda 
+            self.terminal_args.nue = kalman_nue 
+            self.terminal_args.blocksize = block_size
+            self.terminal_args.nselect = select_num
+            self.terminal_args.groupsize = group_size
+            
+            print("using args from class instantiation")
+            
+        else:
+            print("using args from command line")
+
         
     """
-        ============================================================
-        =================data preparation functions=================
-        ============================================================ 
+        data pre-processing    
     """
-    
     def generate_data(self):
-        
         """
-            Calculate features.
-            ONLY feat #1 for DP 
+            generate dp's pre-feature
         """
-        import calc_feat_dp 
-        import seper  
-        import gen_dpdata
+        import dp_mlff 
         
-        # calc
-        calc_feat_dp.calc_feat() 
+        dp_mlff.gen_train_data(self.config)
+        dp_mlff.sepper_data(self.config)
 
-        # seperate training and validation set
-        seper.main()
+        # Please book in advance!         
         
-        # save to ./train_data  
-        gen_dpdata.main()
+    """
+        load and train. 
+    """
+    def load_and_train(self):
+        """
+            main()
+        """
+        if self.terminal_args.seed is not None:
+            random.seed(self.terminal_args.seed)
+            torch.manual_seed(self.terminal_args.seed)
+            cudnn.deterministic = True
+            cudnn.benchmark = False
+            warnings.warn(
+                "You have chosen to seed training. "
+                "This will turn on the CUDNN deterministic setting, "
+                "which can slow down your training considerably! "
+                "You may see unexpected behavior when restarting "
+                "from checkpoints."
+            )   
         
-        return 
+        if self.terminal_args.gpu is not None:
+            warnings.warn(
+                "You have chosen a specific GPU. This will completely "
+                "disable data parallelism."
+            )
+
+        if self.terminal_args.dist_url == "env://" and self.terminal_args.world_size == -1:
+            self.terminal_args.world_size = int(os.environ["WORLD_SIZE"])
+
+        self.terminal_args.distributed = self.terminal_args.world_size > 1 or self.terminal_args.multiprocessing_distributed
+
+        if not os.path.exists(self.terminal_args.store_path):
+            os.mkdir(self.terminal_args.store_path)
+
+        if torch.cuda.is_available():
+            ngpus_per_node = torch.cuda.device_count()
+        else:
+            ngpus_per_node = 1
+
+        if self.terminal_args.multiprocessing_distributed:
+            # Since we have ngpus_per_node processes per node, the total world_size
+            # needs to be adjusted accordingly
+            self.terminal_args.world_size = ngpus_per_node * self.terminal_args.world_size
+            # Use torch.multiprocessing.spawn to launch distributed processes: the
+            # main_worker process function
+            mp.spawn(self.main_worker, nprocs=ngpus_per_node, args=(ngpus_per_node, self.terminal_args))
+        else:
+            # Simply call main_worker function
+            self.main_worker(self.terminal_args.gpu, ngpus_per_node, self.terminal_args)
         
+
+    def destory_process(self,signum, frame):
+        signame = signal.Signals(signum).name
+        print(
+            f"Signal handler called with signal {signame} ({signum}): destory dist process"
+        )
+        dist.destroy_process_group()
+
+    def main_worker(self,gpu, ngpus_per_node, args):
+
+        args.gpu = gpu
+
+        if args.gpu is not None:
+            print("Use GPU: {} for training".format(args.gpu))
+
+        if args.distributed:
+            if args.dist_url == "env://" and args.rank == -1:
+                args.rank = int(os.environ["RANK"])
+            if args.multiprocessing_distributed:
+                # For multiprocessing distributed training, rank needs to be the
+                # global rank among all the processes
+                args.rank = args.rank * ngpus_per_node + gpu
+            dist.init_process_group(
+                backend=args.dist_backend,
+                init_method=args.dist_url,
+                world_size=args.world_size,
+                rank=args.rank,
+            )
+            signal.signal(signal.SIGINT, self.destory_process)
+
+        if torch.cuda.is_available():
+            if args.gpu:
+                device = torch.device("cuda:{}".format(args.gpu))
+            else:
+                device = torch.device("cuda")
+        elif torch.backends.mps.is_available():
+            device = torch.device("mps")
+        else:
+            device = torch.device("cpu")
+
+
+        if args.datatype == "float32":
+            training_type = torch.float32  # training type is weights type
+        else:
+            training_type = torch.float64
+
+        # Create dataset
+        train_dataset = MovementDataset(self.config, "./train")
+        valid_dataset = MovementDataset(self.config, "./valid")
+
+        # create model
+        davg, dstd, ener_shift = train_dataset.get_stat()
+        stat = [davg, dstd, ener_shift]
+        model = DP(self.config, device, stat, args.magic)
+        model = model.to(training_type)
+
+        if not torch.cuda.is_available() and not torch.backends.mps.is_available():
+            print("using CPU, this will be slow")
+
+        elif args.distributed:
+            # For multiprocessing distributed, DistributedDataParallel constructor
+            # should always set the single device scope, otherwise,
+            # DistributedDataParallel will use all available devices.
+            if torch.cuda.is_available():
+                if args.gpu is not None:
+                    torch.cuda.set_device(args.gpu)
+                    model.cuda(args.gpu)
+                    # When using a single GPU per process and per
+                    # DistributedDataParallel, we need to divide the batch size
+                    # ourselves based on the total number of GPUs of the current node.
+                    args.batch_size = int(args.batch_size / ngpus_per_node)
+                    args.workers = int((args.workers + ngpus_per_node - 1) / ngpus_per_node)
+                    model = torch.nn.parallel.DistributedDataParallel(
+                        model, device_ids=[args.gpu], find_unused_parameters=False
+                    )
+                else:
+                    model.cuda()
+                    # DistributedDataParallel will divide and allocate batch_size to all
+                    # available GPUs if device_ids are not set
+                    model = torch.nn.parallel.DistributedDataParallel(model)
+        elif args.gpu is not None and torch.cuda.is_available():
+            torch.cuda.set_device(args.gpu)
+            model = model.cuda(args.gpu)
+        elif torch.backends.mps.is_available():
+            device = torch.device("mps")
+            model = model.to(device)
+        else:
+            model = model.cuda()
+        
+        # define loss function (criterion), optimizer, and learning rate scheduler
+        criterion = nn.MSELoss().to(device)
+
+        if args.opt == "LKF":
+            optimizer = LKFOptimizer(
+                model.parameters(),
+                args.Lambda,
+                args.nue,
+                args.blocksize,
+            )
+        elif args.opt == "GKF":
+            optimizer = GKFOptimizer(
+                model.parameters(), 
+                args.Lambda, 
+                args.nue, device, 
+                training_type
+            )
+        elif args.opt == "ADAM":
+            optimizer = optim.Adam(model.parameters(), args.lr)
+        elif args.opt == "SGD":
+            optimizer = optim.SGD(
+                model.parameters(),
+                args.lr,
+                momentum=args.momentum,
+                weight_decay=args.weight_decay,
+            )
+        else:
+            print("Unsupported optimizer!")
+        
+        # """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
+        # scheduler = StepLR(optimizer, step_size=30, gamma=0.1)
+
+        # optionally resume from a checkpoint
+        if args.resume:
+            file_name = os.path.join(args.store_path, "best.pth.tar")
+            if os.path.isfile(file_name):
+                print("=> loading checkpoint '{}'".format(file_name))
+                if args.gpu is None:
+                    checkpoint = torch.load(file_name)
+                elif torch.cuda.is_available():
+                    # Map model to be loaded to specified single gpu.
+                    loc = "cuda:{}".format(args.gpu)
+                    checkpoint = torch.load(file_name, map_location=loc)
+
+                args.start_epoch = checkpoint["epoch"]
+                self.best_loss = checkpoint["best_loss"]
+                model.load_state_dict(checkpoint["state_dict"])
+                optimizer.load_state_dict(checkpoint["optimizer"])
+                # scheduler.load_state_dict(checkpoint["scheduler"])
+                print(
+                    "=> loaded checkpoint '{}' (epoch {})".format(
+                        file_name, checkpoint["epoch"]
+                    )
+                )
+            else:
+                print("=> no checkpoint found at '{}'".format(file_name))
+
+        if args.distributed:
+            train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
+            val_sampler = torch.utils.data.distributed.DistributedSampler(
+                valid_dataset, shuffle=False, drop_last=True
+            )
+        else:
+            train_sampler = None
+            val_sampler = None
+        
+
+        train_loader = torch.utils.data.DataLoader(
+            train_dataset,
+            batch_size=args.batch_size,
+            shuffle=(train_sampler is None),
+            num_workers=args.workers,
+            pin_memory=True,
+            sampler=train_sampler,
+        )
+
+        val_loader = torch.utils.data.DataLoader(
+            valid_dataset,
+            batch_size=args.batch_size,
+            shuffle=False,
+            num_workers=args.workers,
+            pin_memory=True,
+            sampler=val_sampler,
+        )
+
+        if args.evaluate:
+            # validate(val_loader, model, criterion, args)
+            valid(val_loader, model, criterion, device, args)
+            return
+
+        if not args.multiprocessing_distributed or (
+            args.multiprocessing_distributed and args.rank % ngpus_per_node == 0
+        ):
+            train_log = os.path.join(args.store_path, "epoch_train.dat")
+
+            f_train_log = open(train_log, "w")
+            f_train_log.write(
+                "epoch\t loss\t RMSE_Etot\t RMSE_Ei\t RMSE_F\t real_lr\t time\n"
+            )
+
+            valid_log = os.path.join(args.store_path, "epoch_valid.dat")
+            f_valid_log = open(valid_log, "w")
+            f_valid_log.write("epoch\t loss\t RMSE_Etot\t RMSE_Ei\t RMSE_F\n")
+
+        for epoch in range(args.start_epoch, args.epochs + 1):
+            if args.distributed:
+                train_sampler.set_epoch(epoch)
+
+            # train for one epoch
+            if args.opt == "LKF" or args.opt == "GKF":
+                real_lr = args.lr
+                loss, loss_Etot, loss_Force, loss_Ei, epoch_time = train_KF(
+                    train_loader, model, criterion, optimizer, epoch, device, args
+                )
+            else:
+                loss, loss_Etot, loss_Force, loss_Ei, epoch_time, real_lr = train(
+                    train_loader, model, criterion, optimizer, epoch, args.lr, device, args
+                )
+            # evaluate on validation set
+            vld_loss, vld_loss_Etot, vld_loss_Force, vld_loss_Ei = valid(
+                val_loader, model, criterion, device, args
+            )
+
+            if not args.multiprocessing_distributed or (
+                args.multiprocessing_distributed and args.rank % ngpus_per_node == 0
+            ):
+                f_train_log = open(train_log, "a")
+                f_train_log.write(
+                    "%d %e %e %e %e %e %s\n"
+                    % (epoch, loss, loss_Etot, loss_Ei, loss_Force, real_lr, epoch_time)
+                )
+                f_valid_log = open(valid_log, "a")
+                f_valid_log.write(
+                    "%d %e %e %e %e\n"
+                    % (epoch, vld_loss, vld_loss_Etot, vld_loss_Ei, vld_loss_Force)
+                )
+
+            # scheduler.step()
+
+            # remember best loss and save checkpoint
+            is_best = vld_loss < self.best_loss
+            self.best_loss = min(loss, self.best_loss)
+
+            if not args.multiprocessing_distributed or (
+                args.multiprocessing_distributed and args.rank % ngpus_per_node == 0
+            ):
+                save_checkpoint(
+                    {
+                        "epoch": epoch,
+                        "state_dict": model.state_dict(),
+                        "best_loss": self.best_loss,
+                        "optimizer": optimizer.state_dict(),
+                        # "scheduler": scheduler.state_dict(),
+                    },
+                    is_best,
+                    "checkpoint.pth.tar",
+                    args.store_path,
+                )
+
+        if args.distributed:
+            dist.destroy_process_group()
     """ 
         ============================================================
         ===================auxiliary functions======================
         ============================================================ 
     """
     def not_KF(self):
+        
         if self.kalman_type is None:
             return True
         else:
@@ -343,7 +887,7 @@ class dp_network:
 
     def set_M2(self,val):
         pm.dp_M2 = val 
-
+        
     def set_epoch_num(self, input_num):
         self.n_epoch = input_num    
     
@@ -359,19 +903,6 @@ class dp_network:
         else:
             raise Exception("unrecognizable device")
         
-    def set_session_dir(self,working_dir):
-        
-        print("models and other information will be saved in:",'/'+working_dir)
-        self.opts.opt_session_name = working_dir
-        self.opts.opt_session_dir = './'+self.opts.opt_session_name+'/'
-        self.opts.opt_logging_file = self.opts.opt_session_dir+'train.log'
-        self.opts.opt_model_dir = self.opts.opt_session_dir+'model/'
-
-        #tensorboard_base_dir = self.opt_session_dir+'tensorboard/'
-        if not os.path.exists(self.opts.opt_session_dir):
-            os.makedirs(self.opts.opt_session_dir) 
-        if not os.path.exists(self.opts.opt_model_dir):
-            os.makedirs(self.opts.opt_model_dir)
 
     # for layerwsie KF 
     def set_select_num(self,val):
@@ -401,19 +932,6 @@ class dp_network:
     
     # set label to be trained 
 
-    """
-    def set_train_force(self,val):
-        self.is_trainForce = val 
-
-    def set_train_Ei(self,val):
-        self.is_trainEi = val
-
-    def set_train_Etot(self,val):
-        self.is_trainEtot = val 
-
-    def set_train_Egroup(self,val):
-        self.is_trainEgroup = val  
-    """
     def set_fitting_net_config(self,val):
         self.network_config['fitting_net']["network_size"] = val
 
@@ -432,46 +950,16 @@ class dp_network:
             name  = "Ftype"+str(feat_idx)+"_para"   
             print(name,":")
             print(getattr(pm,name)) 
-
+    
     """
         ============================================================
         =================training related functions=================
         ============================================================ 
     """ 
-    
-    def load_data(self):
-        
-        image_num_stat = 1
 
-        train_data_path = pm.train_data_path
-        torch_train_data = get_torch_data(train_data_path)
-        
-        # davg dstd 
-        davg, dstd, ener_shift = torch_train_data.get_stat(image_num=image_num_stat)
-        self.stat = [davg, dstd, ener_shift]
-        
-        if os.path.exists("davg.npy") or os.path.exists("dstd.npy"):
-            print("sclaer files already exsit and will be used in the following calculations")
-
-        else:
-            print("creating new scaler files: davg.npy, dstd.npy")
-            np.save("./davg.npy", davg)
-            np.save("./dstd.npy", dstd)
-        
-        valid_data_path = pm.test_data_path
-        torch_valid_data = get_torch_data(valid_data_path, False)
-
-        self.loader_train = Data.DataLoader(torch_train_data, batch_size=self.batch_size, shuffle=False)
-        self.loader_valid = Data.DataLoader(torch_valid_data, batch_size=self.batch_size, shuffle=False)
-        
-        #self.loader_valid = Data.DataLoader(torch_train_data, batch_size=self.batch_size, shuffle=False)
-        
-        print("data loaded")
-
+    """
     def set_model(self,model_name = None):
-        """
-            specify network_name for loading model 
-        """
+
         self.model = DP(self.network_config, self.opts.opt_act, self.device, self.stat, self.opts.opt_magic, is_reconnect = self.is_reconnect)
         
         self.model.to(self.device)
@@ -489,14 +977,11 @@ class dp_network:
             self.start_epoch = checkpoint['epoch'] + 1 
 
         print("network initialized")
-
+    """
+    
+    """
     def set_optimizer(self):
 
-        """
-            initialize optimzer 
-
-            kalman_type = "g", "l_0","l_1", "l_2", "s" 
-        """ 
 
         if self.kalman_type == "g":
             # global KF
@@ -563,27 +1048,9 @@ class dp_network:
             # set scheduler  
             
             self.set_scheduler()
-            
-    def set_scheduler(self):
+    """
 
-        # user specific LambdaLR lambda function
-        lr_lambda = lambda epoch: self.LR_gamma ** epoch
-
-        opt_scheduler = self.opts.opt_scheduler 
-
-        if (opt_scheduler == 'LAMBDA'):
-            self.scheduler = optim.lr_scheduler.LambdaLR(self.optimizer, lr_lambda = lr_lambda)
-        elif (opt_scheduler == 'STEP'):
-            self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size = self.LR_step, gamma = self.LR_gamma)
-        elif (opt_scheduler == 'MSTEP'):
-            self.scheduler = optim.lr_scheduler.MultiStepLR(self.ptimizer, milestones = self.opts.opt_LR_milestones, gamma = self.LR_gamma)
-        elif (opt_scheduler == 'EXP'):
-            self.scheduler = optim.lr_scheduler.ExponentialLR(self.optimizer, gamma= self.LR_gamma)
-        elif (opt_scheduler == 'NONE'):
-            pass
-        else:
-            raise RuntimeError("unsupported scheduler: %s" %opt_scheduler)      
-        
+    """    
     def LinearLR(optimizer, base_lr, target_lr, total_epoch, cur_epoch):
         lr = base_lr - (base_lr - target_lr) * (float(cur_epoch) / float(total_epoch))
         for param_group in optimizer.param_groups:
@@ -626,411 +1093,15 @@ class dp_network:
             l2_loss += pref_ei * loss_Ei
         
         return l2_loss, pref_fi, pref_etot
+    """ 
 
 
-    def train_img(self,sample_batches, model, optimizer, criterion, last_epoch, real_lr):
+    def evaluate(self,num_thread = 1):
         """
-            training on a single image w. built-in optimizer 
-        """
-        if (self.opts.opt_dtype == 'float64'):
-            Ei_label = Variable(sample_batches['output_energy'][:,:,:].double().to(self.device))
-            Force_label = Variable(sample_batches['output_force'][:,:,:].double().to(self.device))   #[40,108,3]
-            dR_neigh_list = Variable(sample_batches['input_dR_neigh_list'].to(self.device))
-            Ri = Variable(sample_batches['input_Ri'].double().to(self.device), requires_grad=True)
-            Ri_d = Variable(sample_batches['input_Ri_d'].to(self.device))
-
-
-        elif (self.opts.opt_dtype == 'float32'):
-            Ei_label = Variable(sample_batches['output_energy'][:,:,:].float().to(self.device))
-            Force_label = Variable(sample_batches['output_force'][:,:,:].float().to(self.device))   #[40,108,3]
-            dR_neigh_list = Variable(sample_batches['input_dR_neigh_list'].to(self.device))
-            Ri = Variable(sample_batches['input_Ri'].double().to(self.device), requires_grad=True)
-            Ri_d = Variable(sample_batches['input_Ri_d'].to(self.device))
-            
-        else:
-            raise RuntimeError("train(): unsupported opt_dtype %s" %self.opts.opt_dtype)
-
-        atom_number = Ei_label.shape[1]
-        Etot_label = torch.sum(Ei_label, dim=1)
-        neighbor = Variable(sample_batches['input_nblist'].int().to(self.device))  # [40,108,100]
-        ind_img = Variable(sample_batches['ind_image'].int().to(self.device))
-        natoms_img = Variable(sample_batches['natoms_img'].int().to(self.device))
-        
-        model.train()
-        
-        Etot_predict, Ei_predict, Force_predict = model(Ri, Ri_d, dR_neigh_list, natoms_img, None, None)
-        
-        optimizer.zero_grad()
-
-        loss_F = criterion(Force_predict, Force_label)
-        loss_Etot = criterion(Etot_predict, Etot_label)
-
-        loss_Ei = 0.0
-        loss_Egroup = 0.0
-        
-        start_lr = self.opts.opt_lr
-        w_f = 1
-        w_e = 1
-        w_eg = 0
-        w_ei = 0
-        
-        loss, pref_f, pref_e = self.get_loss_func(start_lr, real_lr, w_f, loss_F, w_e, loss_Etot, w_eg, loss_Egroup, w_ei, loss_Ei, natoms_img[0, 0].item())
-
-        loss.backward() 
-        optimizer.step()
-
-        print("RMSE_Etot = %.10f, RMSE_Ei = %.10f, RMSE_Force = %.10f, RMSE_Egroup = %.10f" %(loss_Etot ** 0.5, loss_Ei ** 0.5, loss_F ** 0.5, loss_Egroup**0.5))
-
-        return loss, loss_Etot, loss_Ei, loss_F
-
-    def train_kalman_img(self,sample_batches, model, kalman, criterion, last_epoch, real_lr):
-        if (self.opts.opt_dtype == 'float64'):
-            Ei_label = Variable(sample_batches['output_energy'][:,:,:].double().to(self.device))
-            Force_label = Variable(sample_batches['output_force'][:,:,:].double().to(self.device))   #[40,108,3]
-          
-            dR_neigh_list = Variable(sample_batches['input_dR_neigh_list'].to(self.device))
-            Ri = Variable(sample_batches['input_Ri'].double().to(self.device), requires_grad=True)
-            Ri_d = Variable(sample_batches['input_Ri_d'].to(self.device))
-
-        elif (self.opts.opt_dtype == 'float32'):
-            Ei_label = Variable(sample_batches['output_energy'][:,:,:].float().to(self.device))
-            Force_label = Variable(sample_batches['output_force'][:,:,:].float().to(self.device))   #[40,108,3]
-      
-            dR_neigh_list = Variable(sample_batches['input_dR_neigh_list'].to(self.device))
-            Ri = Variable(sample_batches['input_Ri'].double().to(self.device), requires_grad=True)
-            Ri_d = Variable(sample_batches['input_Ri_d'].to(self.device))
-            
-        else:
-            
-            raise RuntimeError("train(): unsupported opt_dtype %s" %self.opts.opt_dtype)
-
-        Etot_label = torch.sum(Ei_label, dim=1)
-        
-        natoms_img = Variable(sample_batches['natoms_img'].int().to(self.device))   
-
-        kalman_inputs = [Ri, Ri_d, dR_neigh_list, natoms_img, None, None]
-
-        if self.is_trainEtot: 
-            kalman.update_energy(kalman_inputs, Etot_label, update_prefactor = self.kf_prefac_Etot)
-
-        if self.is_trainForce:
-            kalman.update_force(kalman_inputs, Force_label, update_prefactor = self.kf_prefac_F)
-        
-        """
-            No Ei and Egroup update at this moment              
-        """
-        
-        Etot_predict, Ei_predict, Force_predict = model(Ri, Ri_d, dR_neigh_list, natoms_img, None, None)
-        
-        loss_F = criterion(Force_predict, Force_label)
-        loss_Etot = criterion(Etot_predict, Etot_label)
-        loss_Ei = torch.zeros([1,1], device = self.device)
-        loss_Egroup = torch.zeros([1,1], device = self.device)
-        loss = loss_F + loss_Etot
-            
-        print("RMSE_Etot = %.10f, RMSE_Ei = %.10f, RMSE_Force = %.10f, RMSE_Egroup = %.10f" %(loss_Etot ** 0.5, loss_Ei ** 0.5, loss_F ** 0.5, loss_Egroup**0.5))
-        
-        """
-            It is critical to remove these tensors
-        """
-        del Ei_label
-        del Force_label
-        del dR_neigh_list
-        del Ri
-        del Ri_d 
-        del natoms_img  
-
-        return loss, loss_Etot, loss_Ei, loss_F, loss_Egroup
-
-    def valid_img(self,sample_batches, model, criterion):
-        if (self.opts.opt_dtype == 'float64'):
-            Ei_label = Variable(sample_batches['output_energy'][:,:,:].double().to(self.device))
-            Force_label = Variable(sample_batches['output_force'][:,:,:].double().to(self.device))   #[40,108,3]
-            dR_neigh_list = Variable(sample_batches['input_dR_neigh_list'].to(self.device))
-            Ri = Variable(sample_batches['input_Ri'].double().to(self.device), requires_grad=True)
-            Ri_d = Variable(sample_batches['input_Ri_d'].to(self.device))
-        
-        elif (self.opts.opt_dtype == 'float32'):
-            Ei_label = Variable(sample_batches['output_energy'][:,:,:].float().to(self.device))
-            Force_label = Variable(sample_batches['output_force'][:,:,:].float().to(self.device))   #[40,108,3]
-            dR_neigh_list = Variable(sample_batches['input_dR_neigh_list'].to(self.device))
-            Ri = Variable(sample_batches['input_Ri'].double().to(self.device), requires_grad=True)
-            Ri_d = Variable(sample_batches['input_Ri_d'].to(self.device))
-            
-        else:
-            raise RuntimeError("train(): unsupported opt_dtype %s" %self.opts.opt_dtype)
-        
-        print ("Ri shape:", Ri.shape)
-        print (Ri[0,0,:50,:])
-
-        natoms_img = Variable(sample_batches['natoms_img'].int().to(self.device))  # [40,108,100]
-
-        error=0.0
-    
-        Etot_label = torch.sum(Ei_label, dim=1)
-        
-        # model.train()
-        model.eval()
-        
-        Etot_predict, Ei_predict, Force_predict = model(Ri, Ri_d, dR_neigh_list, natoms_img, None, None)
-        
-        #print("********************************************************")
-        #print("********************************************************\n")
-        #print("Etot by inference:\n",Etot_predict)
-        #print("Force of 31st Cu atom by inference:\n" , Force_predict[0][30])
-        #print("********************************************************")
-        #print("********************************************************\n")
-        
-        # Egroup_predict = model.get_egroup(Ei_predict, egroup_weight, divider)
-        loss_F = criterion(Force_predict, Force_label)
-        loss_Etot = criterion(Etot_predict, Etot_label)
-        loss_Ei = criterion(Ei_predict, Ei_label)
-        loss_Egroup = torch.zeros([1,1], device = self.device)
-        
-        error = float(loss_F.item()) + float(loss_Etot.item())
-        
-        del Ei_label
-        del Force_label
-        del dR_neigh_list
-        del Ri
-        del Ri_d 
-        del natoms_img  
-
-        return error, loss_Etot, loss_Ei, loss_F, loss_Egroup
-        
-    def train(self):
-        """
-            training of DP network 
-        """ 
-        iter = 0 
-        iter_valid = 0 
-
-        for epoch in range(self.start_epoch, self.n_epoch + 1):
-            
-            timeEpochStart = time.time()
-
-            if (epoch == self.n_epoch):
-                last_epoch = True
-            else:
-                last_epoch = False
-            
-            print("<----------------------------  epoch %d  ---------------------------->" %(epoch))
-            
-            """
-                ========== training starts ==========
-            """
-            nr_total_sample = 0
-            loss = 0.
-            loss_Etot = 0.
-            loss_Ei = 0.
-            loss_F = 0.
-            loss_Egroup = 0.0   
-
-            for i_batch, sample_batches in enumerate(self.loader_train):
-
-                nr_batch_sample = sample_batches['output_energy'].shape[0]
-
-                global_step = (epoch - 1) * len(self.loader_train) + i_batch * nr_batch_sample
-                
-                real_lr = self.adjust_lr(iter_num = global_step)
-
-                if self.not_KF():
-                    for param_group in self.optimizer.param_groups:
-                        param_group['lr'] = real_lr * (self.batch_size ** 0.5)
-                
-                natoms_sum = sample_batches['natoms_img'][0, 0].item()  
-                
-                if self.not_KF():
-                    # non-KF t
-                    batch_loss, batch_loss_Etot, batch_loss_Ei, batch_loss_F = \
-                        self.train_img(sample_batches, self.model, self.optimizer, nn.MSELoss(), last_epoch, real_lr)
-                else:
-                    # KF 
-                    batch_loss, batch_loss_Etot, batch_loss_Ei, batch_loss_F, batch_loss_Egroup = \
-                        self.train_kalman_img(sample_batches, self.model, self.optimizer, nn.MSELoss(), last_epoch, 0.001)
-                
-                iter += 1
-                f_err_log = self.opts.opt_session_dir+'iter_loss.dat'
-                
-                if iter == 1:
-                    fid_err_log = open(f_err_log, 'w')
-                    fid_err_log.write('iter\t loss\t RMSE_Etot\t RMSE_Ei\t RMSE_F\t RMSE_Eg\n')
-                    fid_err_log.close() 
-                
-                fid_err_log = open(f_err_log, 'a')
-                fid_err_log.write('%d %e %e %e %e %e \n'%(iter, batch_loss, math.sqrt(batch_loss_Etot)/natoms_sum, math.sqrt(batch_loss_Ei), math.sqrt(batch_loss_F), math.sqrt(batch_loss_Egroup)))
-                fid_err_log.close() 
-
-                loss += batch_loss.item() * nr_batch_sample
-
-                loss_Etot += batch_loss_Etot.item() * nr_batch_sample
-                loss_Ei += batch_loss_Ei.item() * nr_batch_sample
-                loss_F += batch_loss_F.item() * nr_batch_sample
-                loss_Egroup += batch_loss_Egroup.item() * nr_batch_sample 
-
-                nr_total_sample += nr_batch_sample
-
-                #print ("reserved mem at ",i_batch) 
-                #torch.cuda.memory_reserved()
-                # wlj debuggin 
-                #if i_batch % 10 ==0:
-                #    print(torch.cuda.memory_snapshot())
-                torch.cuda.empty_cache()
-                
-            loss /= nr_total_sample
-            loss_Etot /= nr_total_sample
-            loss_Ei /= nr_total_sample
-            loss_F /= nr_total_sample
-            loss_Egroup /= nr_total_sample  
-
-            RMSE_Etot = loss_Etot ** 0.5
-            RMSE_Ei = loss_Ei ** 0.5
-            RMSE_F = loss_F ** 0.5
-            RMSE_Egroup = loss_Egroup ** 0.5 
-
-            print("epoch_loss = %.10f (RMSE_Etot = %.12f, RMSE_Ei = %.12f, RMSE_F = %.12f, RMSE_Eg = %.12f)" \
-                %(loss, RMSE_Etot, RMSE_Ei, RMSE_F, RMSE_Egroup))
-
-            epoch_err_log = self.opts.opt_session_dir+'epoch_loss.dat'
-
-            if epoch == 1:
-                f_epoch_err_log = open(epoch_err_log, 'w')
-                f_epoch_err_log.write('epoch\t loss\t RMSE_Etot\t RMSE_Ei\t RMSE_F\t RMSE_Eg\n')
-                f_epoch_err_log.close()
-            
-            f_epoch_err_log = open(epoch_err_log, 'a')
-            f_epoch_err_log.write('%d %e %e %e %e %e \n'%(epoch, loss, RMSE_Etot, RMSE_Ei, RMSE_F, RMSE_Egroup))
-            f_epoch_err_log.close() 
-            
-            if self.not_KF():
-                """
-                    for built-in optimizer only 
-                """
-                opt_scheduler = self.opts.opt_scheduler  
-
-                if (opt_scheduler == 'OC'):
-                    pass 
-                elif (opt_scheduler == 'PLAT'):
-                    self.scheduler.step(loss)
-
-                elif (opt_scheduler == 'LR_INC'):
-                    self.LinearLR(optimizer=self.optimizer, base_lr=self.LR_base, target_lr=self.opts.opt_LR_max_lr, total_epoch=self.n_epoch, cur_epoch=epoch)
-
-                elif (opt_scheduler == 'LR_DEC'):
-                    self.LinearLR(optimizer=self.optimizer, base_lr=self.LR_base, target_lr=self.opts.opt_LR_min_lr, total_epoch=self.n_epoch, cur_epoch=epoch)
-
-                elif (opt_scheduler == 'NONE'):
-                    pass
-                else:
-                    self.scheduler.step()
-                
-            """
-                ========== validation starts ==========
-            """
-
-            nr_total_sample = 0
-            valid_loss = 0.
-            valid_loss_Etot = 0.
-            valid_loss_Ei = 0.
-            valid_loss_F = 0.
-            valid_loss_Egroup = 0.0
-    
-            for i_batch, sample_batches in enumerate(self.loader_valid):    
-                
-                iter_valid +=1 
-
-                natoms_sum = sample_batches['natoms_img'][0, 0].item()
-                nr_batch_sample = sample_batches['output_energy'].shape[0]
-
-                valid_error_iter, batch_loss_Etot, batch_loss_Ei, batch_loss_F, batch_loss_Egroup = self.valid_img(sample_batches, self.model, nn.MSELoss())
-
-                # n_iter = (epoch - 1) * len(loader_valid) + i_batch + 1
-                valid_loss += valid_error_iter * nr_batch_sample
-
-                valid_loss_Etot += batch_loss_Etot.item() * nr_batch_sample
-                valid_loss_Ei += batch_loss_Ei.item() * nr_batch_sample
-                valid_loss_F += batch_loss_F.item() * nr_batch_sample
-                valid_loss_Egroup += batch_loss_Egroup.item() * nr_batch_sample
-
-                nr_total_sample += nr_batch_sample
-
-                f_err_log = self.opts.opt_session_dir+'iter_loss_valid.dat'
-
-                if iter_valid == 1:
-                    fid_err_log = open(f_err_log, 'w')
-                    fid_err_log.write('iter\t loss\t RMSE_Etot\t RMSE_Ei\t RMSE_F\t lr\n')
-                    fid_err_log.close() 
-                
-                                
-                fid_err_log = open(f_err_log, 'a')
-                fid_err_log.write('%d %e %e %e %e %e \n'%(iter, batch_loss, math.sqrt(batch_loss_Etot)/natoms_sum, math.sqrt(batch_loss_Ei), math.sqrt(batch_loss_F), real_lr))
-                fid_err_log.close() 
-                
-                #print ("reserved mem at ",i_batch) 
-                #torch.cuda.memory_reserved()
-                # wlj debuggin 
-                #if i_batch % 10 ==0:
-                #    print(torch.cuda.memory_snapshot())
-                torch.cuda.empty_cache()
-
-            #end for
-
-            # epoch loss update
-            valid_loss /= nr_total_sample
-            valid_loss_Etot /= nr_total_sample
-            valid_loss_Ei /= nr_total_sample
-            valid_loss_F /= nr_total_sample
-            valid_loss_Egroup /= nr_total_sample
-
-            valid_RMSE_Etot = valid_loss_Etot ** 0.5
-            valid_RMSE_Ei = valid_loss_Ei ** 0.5
-            valid_RMSE_F = valid_loss_F ** 0.5
-            valid_RMSE_Egroup = valid_loss_Egroup ** 0.5
-
-            print("valid_loss = %.10f (valid_RMSE_Etot = %.12f, valid_RMSE_Ei = %.12f, valid_RMSE_F = %.12f, valid_RMSE_Egroup = %.12f)" \
-                     %(valid_loss, valid_RMSE_Etot, valid_RMSE_Ei, valid_RMSE_F, valid_RMSE_Egroup))
-
-            f_err_log =  self.opts.opt_session_dir + 'epoch_loss_valid.dat'
-            
-            if not os.path.exists(f_err_log):
-                fid_err_log = open(f_err_log, 'w')
-                fid_err_log.write('epoch\t valid_RMSE_Etot\t valid_RMSE_Ei\t valid_RMSE_F\t valid_RMSE_Eg \n')
-                fid_err_log.close() 
-
-            fid_err_log = open(f_err_log, 'a')
-            fid_err_log.write('%d %e %e %e %e\n'%(epoch, valid_RMSE_Etot, valid_RMSE_Ei, valid_RMSE_F, valid_RMSE_Egroup))
-            fid_err_log.close() 
-
-            """  
-                save model 
-            """
-            if self.not_KF():
-                state = {'model': self.model.state_dict(),'optimizer':self.optimizer.state_dict(),'epoch':epoch}
-            else:
-                state = {'model': self.model.state_dict(), 'epoch': epoch}
-            
-            latest_path = self.opts.opt_model_dir + "latest.pt"
-            torch.save(state, latest_path) 
-            
-            # save .pt
-            if self.not_KF():
-                if epoch % 50 == 0: 
-                    current_model_path = self.opts.opt_model_dir + str(epoch) + '.pt'
-                    torch.save(state, current_model_path)
-            else:
-                current_model_path = self.opts.opt_model_dir + str(epoch) + '.pt'
-                torch.save(state, current_model_path)
-
-            timeEpochEnd = time.time()
-
-            print("time of epoch %d: %f s" %(epoch, timeEpochEnd - timeEpochStart))
-
-    def evaluate(self,num_thread = 4):
-        """
-            evaluate a model w.r.t AIMD
+            evaluate a model against AIMD
             put a MOVEMENT in /MD and run MD100 
         """
-
+        
         if not os.path.exists("MD/MOVEMENT"):
             raise Exception("MD/MOVEMENT not found")
         
@@ -1047,23 +1118,24 @@ class dp_network:
 
     """
         parameter extraction related functions
-    """
+        
+    """ 
     
-    def catNameEmbedingW(self,idxNet, idxLayer):
-        return "embeding_net."+str(idxNet)+".weights.weight"+str(idxLayer)
+    def catNameEmbedingW(self,idxNet, idxLayer, has_module=""):
+        return "{}embedding_net.".format(has_module)+str(idxNet)+".weights.weight"+str(idxLayer)
 
-    def catNameEmbedingB(self,idxNet, idxLayer):
-        return "embeding_net."+str(idxNet)+".bias.bias"+str(idxLayer)
+    def catNameEmbedingB(self,idxNet, idxLayer, has_module=""):
+        return "{}embedding_net.".format(has_module)+str(idxNet)+".bias.bias"+str(idxLayer)
 
-    def catNameFittingW(self,idxNet, idxLayer):
-        return "fitting_net."+str(idxNet)+".weights.weight"+str(idxLayer)
+    def catNameFittingW(self,idxNet, idxLayer, has_module=""):
+        return "{}fitting_net.".format(has_module)+str(idxNet)+".weights.weight"+str(idxLayer)
 
-    def catNameFittingB(self,idxNet, idxLayer):
-        return "fitting_net."+str(idxNet)+".bias.bias"+str(idxLayer)
+    def catNameFittingB(self,idxNet, idxLayer, has_module=""):
+        return "{}fitting_net.".format(has_module)+str(idxNet)+".bias.bias"+str(idxLayer)
 
-    def catNameFittingRes(self,idxNet, idxResNet):
-        return "fitting_net."+str(idxNet)+".resnet_dt.resnet_dt"+str(idxResNet)
-
+    def catNameFittingRes(self,idxNet, idxResNet, has_module=""):
+        return "{}fitting_net.".format(has_module)+str(idxNet)+".resnet_dt.resnet_dt"+str(idxResNet)
+        
     def dump(self,item, f):
         raw_str = ''
         for num in item:
@@ -1074,50 +1146,50 @@ class dp_network:
     def extract_model_para(self, model_name = None):
         """
             extract the model parameters of DP network
+
+            NEED TO ADD SESSION DIR NAME
         """
+        
         if model_name is None: 
-            self.extract_model_name = self.opts.opt_session_name + "/model/latest.pt"
+            extract_model_name = self.terminal_args.store_path + "/best.pth.tar"
         else:
-            self.extract_model_name = model_name
+            extract_model_name = model_name
         
-        print ("extracting network parameters from:",self.extract_model_name )
+        print ("extracting network parameters from:",extract_model_name )
         
-        kfdp = True if self.kalman_type is not None else False
-        
-        print ("using KF?",kfdp)
+        netConfig = self.config["net_cfg"]
 
-        netConfig = pm.DP_cfg_dp if kfdp==False else pm.DP_cfg_dp_kf
-
-        isEmbedingNetResNet = netConfig["embeding_net"]["resnet_dt"]
+        isEmbedingNetResNet = netConfig["embedding_net"]["resnet_dt"]
         isFittingNetResNet  = netConfig["fitting_net"]["resnet_dt"]
 
-        embedingNetSizes = netConfig['embeding_net']['network_size']
+        embedingNetSizes = netConfig['embedding_net']['network_size']
         nLayerEmbedingNet = len(embedingNetSizes)   
 
         print("layer number of embeding net:"+str(nLayerEmbedingNet))
-        print("size of each layer"+ str(embedingNetSizes) + '\n')
+        print("size of each layer:"+ str(embedingNetSizes) + '\n')
 
         fittingNetSizes = netConfig['fitting_net']['network_size']
         nLayerFittingNet = len(fittingNetSizes)
 
         print("layer number of fitting net:"+str(nLayerFittingNet))
-        print("size of each layer"+ str(fittingNetSizes) + '\n')
+        print("size of each layer:"+ str(fittingNetSizes) + '\n')
 
         embedingNet_output = 'embeding.net' 
         fittingNet_output = 'fitting.net'
-
-        pt_name = self.extract_model_name
         
-        #r"record/model/better.pt" # modify according to your need 
+        raw = torch.load(extract_model_name,map_location=torch.device("cpu"))['state_dict']
 
-        raw = torch.load(pt_name,map_location=torch.device("cpu"))['model']
-
-        tensor_list = list(raw.keys())
-
+        has_module = "module." if "module" in list(raw.keys())[0] else ""
+        module_sign = True if "module" in list(raw.keys())[0] else False
+        
         #determining # of networks 
-        nEmbedingNet = len(pm.atomType)**2  
-        nFittingNet = len(pm.atomType)
-            
+        nEmbedingNet = len(self.config["atomType"])**2  
+        nFittingNet = len(self.config["atomType"])
+
+        print("number of embedding network:",nEmbedingNet)
+        print("\n")
+        print("number of fitting network:",nFittingNet)
+        
         """
             write embedding network
         """
@@ -1139,30 +1211,32 @@ class dp_network:
 
         #f.writelines([str(i) for i in embedingNetSizes])
             
-        print("******** converting embeding network starts ********")
+        print("******** converting embedding network starts ********")
         for idxNet in range(nEmbedingNet):
-            print ("converting embeding network No."+str(idxNet))
+            
+            print ("converting embedding network No."+str(idxNet))
+
             for idxLayer in range(nLayerEmbedingNet):
                 print ("converting layer "+str(idxLayer) )	
 
                 #write wij
-                label_W = self.catNameEmbedingW(idxNet,idxLayer)
+                label_W = self.catNameEmbedingW(idxNet,idxLayer,has_module)
                 for item in raw[label_W]:
                     self.dump(item,f)
 
                 print("w matrix dim:" +str(len(raw[label_W])) +str('*') +str(len(raw[label_W][0])))
 
                 #write bi
-                label_B = self.catNameEmbedingB(idxNet,idxLayer)
+                label_B = self.catNameEmbedingB(idxNet,idxLayer,has_module)
                 self.dump(raw[label_B][0],f)
                 print ("b dim:" + str(len(raw[label_B][0])))
 
             print ('\n')
-                #break
+
         f.close()
 
-        print("******** converting embeding network ends  *********")
-
+        print("******** converting embedding network ends  *********")
+        print("\n")
         """
             write fitting network
         """
@@ -1191,14 +1265,14 @@ class dp_network:
                 print ("converting layer "+str(idxLayer) )  
 
                 #write wij
-                label_W = self.catNameFittingW(idxNet,idxLayer)
+                label_W = self.catNameFittingW(idxNet,idxLayer,has_module)
                 for item in raw[label_W]:
                     self.dump(item,f)
 
                 print("w matrix dim:" +str(len(raw[label_W])) +str('*') +str(len(raw[label_W][0])))
 
                 #write bi
-                label_B = self.catNameFittingB(idxNet,idxLayer)
+                label_B = self.catNameFittingB(idxNet,idxLayer,has_module)
                 self.dump(raw[label_B][0],f)
                 print ("b dim:" + str(len(raw[label_B][0])))
 
@@ -1207,7 +1281,7 @@ class dp_network:
         f.close()
 
         print("******** converting fitting network ends  *********")
-
+        print("\n")
         """
             writing ResNets
         """
@@ -1246,8 +1320,12 @@ class dp_network:
 
             for keys in list(raw.keys()):
                 tmp = keys.split('.')
-                if tmp[0] == "fitting_net" and tmp[1] == '0' and tmp[2] == 'resnet_dt':
-                    numResNet +=1 
+                if module_sign:
+                    if tmp[1] == "fitting_net" and tmp[2] == '0' and tmp[3] == 'resnet_dt':
+                        numResNet +=1
+                else:
+                    if tmp[0] == "fitting_net" and tmp[1] == '0' and tmp[2] == 'resnet_dt':
+                        numResNet +=1 
 
             print ("number of resnet: " + str(numResNet))
 
@@ -1289,19 +1367,18 @@ class dp_network:
 
         print("******** generating gen_dp.in  *********\n")
         
-        orderedAtomList = [str(atom) for atom in pm.atomType]
-
-        print ("ordered atom list", pm.atomType)
+        orderedAtomList = [str(atom) for atom in self.atomType]
         
-        davg = np.load("davg.npy")
-        dstd = np.load("dstd.npy")
+        # from where 
+        davg = np.load(self.config["trainDataPath"]+"/davg.npy")
+        dstd = np.load(self.config["trainDataPath"]+"/dstd.npy")
 
         davg_size = len(davg)
         dstd_size = len(dstd)
 
         assert(davg_size == dstd_size)
         assert(davg_size == len(orderedAtomList))
-
+        
         f_out = open("gen_dp.in","w")
 
         # in default_para.py, Rc is the max cut, beyond which S(r) = 0 
@@ -1328,6 +1405,8 @@ class dp_network:
         f_out.close() 
 
         print("******** gen_dp.in generation done *********")
+        
+        
 
     def test_dbg(self):
 
@@ -1335,7 +1414,6 @@ class dp_network:
             varying coordinate in the first image of MOVEMENT
         """
         #self.generate_data()
-        
 
         self.load_data()
         
@@ -1368,8 +1446,7 @@ class dp_network:
             #print(valid_error_iter, batch_loss_Etot, batch_loss_Ei, batch_loss_F, batch_loss_Egroup)
 
             break 
-        
-        
+            
         test_loss /= nr_total_sample
         test_loss_Etot /= nr_total_sample
         test_loss_Ei /= nr_total_sample

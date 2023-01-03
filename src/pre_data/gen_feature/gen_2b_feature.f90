@@ -69,16 +69,17 @@ PROGRAM gen_2b_feature
     real*8 Rc_type(100), Rc2_type(100), Rm_type(100),fact_grid_type(100),dR_grid1_type(100),dR_grid2_type(100)
     integer iflag_grid_type(100),n3b1_type(100),n3b2_type(100)
 
-!cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-    INTERFACE
-        SUBROUTINE scan_title (io_file, title, title_line, if_find)
-            CHARACTER(LEN=200), OPTIONAL :: title_line
-            LOGICAL, OPTIONAL :: if_find
-            INTEGER :: io_file
-            CHARACTER(LEN=*) :: title
-        END SUBROUTINE scan_title
-    END INTERFACE
-!cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    interface
+        subroutine scan_title (io_file, title, title_line, if_find)
+            character(len=200), optional :: title_line
+            logical, optional :: if_find
+            integer :: io_file
+            character(len=*) :: title
+        end subroutine scan_title 
+    end interface
+    
+    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
     open(10,file="input/gen_2b_feature.in",status="old",action="read")
     rewind(10)
@@ -86,6 +87,7 @@ PROGRAM gen_2b_feature
     read(10,*) ntype
 
     do i=1,ntype
+        
         read(10,*) iat_type(i)
         read(10,*) Rc_type(i),Rm_type(i),iflag_grid_type(i),fact_grid_type(i),dR_grid1_type(i)
         read(10,*) n2b_type(i)
@@ -96,6 +98,7 @@ PROGRAM gen_2b_feature
         endif
 
     enddo
+
     read(10,*) E_tolerance
     read(10,*) iflag_ftype
     read(10,*) recalc_grid
@@ -214,107 +217,129 @@ PROGRAM gen_2b_feature
 
     enddo     ! kkk=1,ntype
 
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-    
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
-!  FInish the initial grid treatment
+    !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+        
+    !cccccccccccccccccccccccccccccccccccccccccccccccccccc
+    !  Finish the initial grid treatment
 
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
+    !cccccccccccccccccccccccccccccccccccccccccccccccccccc
 
     do 2333 sys=1,sys_num
+
         MOVEMENTDir=trim(trainSetFileDir(sys))//"/MOVEMENT"
         dfeatDir=trim(trainSetFileDir(sys))//"/dfeat.fbin.Ftype1"
-        infoDir=trim(trainSetFileDir(sys))//"/info.txt.Ftype1"
-    
+        infoDir=trim(trainSetFileDir(sys))//"/info.txt.Ftype1"  
+        
+        !******************************************************
+        !             determine basic parameters
+        !******************************************************
+        open (move_file,file=MOVEMENTDir,status="old",action="read") 
+        rewind(move_file)
+        
+        
+        num_step0=0
+        Etotp_ave=0.d0
+        
+        1001 continue
 
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
-    OPEN (move_file,file=MOVEMENTDir,status="old",action="read") 
-    rewind(move_file)
-
-      num_step0=0
-      Etotp_ave=0.d0
-1001 continue
-    call scan_title (move_file,"ITERATION",if_find=nextline)
-      if(.not.nextline) goto 1002
-      num_step0=num_step0+1
-    backspace(move_file)
-    read(move_file,*) natom0
-       if(num_step0.gt.1.and.natom.ne.natom0) then
-       write(6,*) "The natom cannot change within one MOVEMENT FILE", &
-       num_step0,natom0 
-       endif
-    natom=natom0
-
-    CALL scan_title (move_file, "ATOMIC-ENERGY",if_find=nextline)
-       if(.not.nextline) then
-         write(6,*) "Atomic-energy not found, stop",num_step0
-         stop
+        call scan_title (move_file,"ITERATION",if_find=nextline)
+        if(.not.nextline) goto 1002
+        num_step0=num_step0+1
+        backspace(move_file)
+        
+        read(move_file,*) natom0
+        
+        if(num_step0.gt.1.and.natom.ne.natom0) then
+            write(6,*) "The natom cannot change within one MOVEMENT FILE", &
+            num_step0,natom0 
         endif
+        
+        natom=natom0
+            
+        call scan_title (move_file, "ATOMIC-ENERGY",if_find=nextline)
+        if(.not.nextline) then
+            write(6,*) "Atomic-energy not found, stop",num_step0
+            stop
+        endif
+        
+        backspace(move_file)
+        read(move_file,*) char_tmp(1:4),Etotp
+        Etotp_ave=Etotp_ave+Etotp
+        
+        goto 1001
+        1002  continue
+        close(move_file)
 
-     backspace(move_file)
-     read(move_file,*) char_tmp(1:4),Etotp
-     Etotp_ave=Etotp_ave+Etotp
-     goto 1001
-1002  continue
-     close(move_file)
+        Etotp_ave=Etotp_ave/num_step0
+        write(6,*) "num_step,natom,Etotp_ave=",num_step0,natom,Etotp_ave
+        
+        allocate (iatom(natom),xatom(3,natom),fatom(3,natom),Eatom(natom))
+    
+        !******************************************************
+        !             read  information
+        !******************************************************
+        open(move_file,file=MOVEMENTDir,status="old",action="read") 
 
-      Etotp_ave=Etotp_ave/num_step0
-      write(6,*) "num_step,natom,Etotp_ave=",num_step0,natom,Etotp_ave
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
-    ALLOCATE (iatom(natom),xatom(3,natom),fatom(3,natom),Eatom(natom))
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
-    OPEN (move_file,file=MOVEMENTDir,status="old",action="read") 
-    rewind(move_file)
+        rewind(move_file)
 
-      num_step1=0
-1003 continue
-    call scan_title (move_file,"ITERATION",if_find=nextline)
-      if(.not.nextline) goto 1004
+        num_step1=0
+        
+        1003 continue
+        
+        ! No "ITERATION" being found means the end
+        call scan_title (move_file,"ITERATION",if_find=nextline)
+        if(.not.nextline) goto 1004
+            
+        call scan_title(move_file, "POSITION")
+        
+        write (*,*) "Huasdiuakjsda"
+        do j = 1, natom
+            !write (*,*) "dbg info", j
+            read(move_file, *) iatom(j),xatom(1,j),xatom(2,j),xatom(3,j)
+        enddo   
 
-       CALL scan_title (move_file, "POSITION")
-        DO j = 1, natom
-            READ(move_file, *) iatom(j),xatom(1,j),xatom(2,j),xatom(3,j)
-        ENDDO
+        call scan_title(move_file, "ATOMIC-ENERGY",if_find=nextline)
 
-    CALL scan_title (move_file, "ATOMIC-ENERGY",if_find=nextline)
+        backspace(move_file)
+        
+        read(move_file,*) char_tmp(1:4),Etotp
 
-     backspace(move_file)
-     read(move_file,*) char_tmp(1:4),Etotp
+        if(abs(Etotp-Etotp_ave).le.E_tolerance) then
+            num_step1=num_step1+1
+        endif
+        
+        goto 1003
 
-     if(abs(Etotp-Etotp_ave).le.E_tolerance) then
-       num_step1=num_step1+1
-     endif
-     goto 1003
-1004  continue
-     close(move_file)
+        1004  continue
+        
+        close(move_file)
 
-     write(6,*) "nstep0,nstep1(used)",num_step0,num_step1
+        write(6,*) "nstep0,nstep1(used)",num_step0,num_step1
 
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
-     open(333,file=infoDir)
-     rewind(333)
-     write(333,"(i4,2x,i2,3x,10(i4,1x))") nfeat0M,ntype,(nfeat0(ii),ii=1,ntype)
-     write(333,*) natom
-    ! write(333,*) iatom
+        !cccccccccccccccccccccccccccccccccccccccccccccccccccc
+        !cccccccccccccccccccccccccccccccccccccccccccccccccccc
+        open(333,file=infoDir)
+        rewind(333)
+        write(333,"(i4,2x,i2,3x,10(i4,1x))") nfeat0M,ntype,(nfeat0(ii),ii=1,ntype)
+        write(333,*) natom
+        ! write(333,*) iatom
+        
+        num_tot=0
 
+        open(25,file=dfeatDir,form="unformatted",access='stream')
+        rewind(25)
+        write(25) num_step1,natom,nfeat0m,m_neigh
+        write(25) ntype,(nfeat0(ii),ii=1,ntype)
+        write(25) iatom
+        
+        deallocate (iatom,xatom,fatom,Eatom)
+        
+        write(333,*) num_step0
 
-
-      num_tot=0
-
-      open(25,file=dfeatDir,form="unformatted",access='stream')
-      rewind(25)
-      write(25) num_step1,natom,nfeat0m,m_neigh
-      write(25) ntype,(nfeat0(ii),ii=1,ntype)
-      write(25) iatom
-    DEALLOCATE (iatom,xatom,fatom,Eatom)
-     
-     write(333,*) num_step0
-
-!cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc    !
+    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc    !
     OPEN (move_file,file=MOVEMENTDir,status="old",action="read") 
     rewind(move_file)
 
@@ -322,48 +347,58 @@ PROGRAM gen_2b_feature
     num_step=0
     num_step1=0
 1000  continue
-
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    
+    
+    !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
     call scan_title (move_file,"ITERATION",if_find=nextline)
 
     if(.not.nextline) goto 2000
     num_step=num_step+1
 
     backspace(move_file) 
+    
     read(move_file, *) natom
+    
     ALLOCATE (iatom(natom),xatom(3,natom),fatom(3,natom),Eatom(natom))
+        
+        ! move the cursor to the right place
 
-        CALL scan_title (move_file, "LATTICE")
-        DO j = 1, 3
-            READ (move_file,*) AL(1:3,j)
-        ENDDO
+        call scan_title (move_file, "LATTICE")
 
-       CALL scan_title (move_file, "POSITION")
-        DO j = 1, natom
-            READ(move_file, *) iatom(j),xatom(1,j),xatom(2,j),xatom(3,j)
-        ENDDO
+        do j = 1, 3
+            read (move_file,*) AL(1:3,j)
+        enddo
+        
+        call scan_title (move_file, "POSITION")
 
-        CALL scan_title (move_file, "FORCE", if_find=nextline)
+        do j = 1, natom
+            read(move_file, *) iatom(j),xatom(1,j),xatom(2,j),xatom(3,j)
+        enddo
+        
+        call scan_title (move_file, "FORCE", if_find=nextline)
+
         if(.not.nextline) then
-          write(6,*) "force not found, stop", num_step
-          stop
+            write(6,*) "force not found, stop", num_step
+            stop
         endif
-        DO j = 1, natom
-            READ(move_file, *) iatom(j),fatom(1,j),fatom(2,j),fatom(3,j)
-        ENDDO
+            
+        do j = 1, natom
+            read(move_file, *) iatom(j),fatom(1,j),fatom(2,j),fatom(3,j)
+        enddo
 
-        CALL scan_title (move_file, "ATOMIC-ENERGY",if_find=nextline)
-       if(.not.nextline) then
-         write(6,*) "Atomic-energy not found, stop",num_step
-         stop
+        call scan_title (move_file, "ATOMIC-ENERGY",if_find=nextline)
+        
+        if(.not.nextline) then
+            write(6,*) "Atomic-energy not found, stop",num_step
+            stop
         endif
 
         backspace(move_file)
         read(move_file,*) char_tmp(1:4),Etotp
 
-        DO j = 1, natom
-            READ(move_file, *) iatom(j),Eatom(j)
-        ENDDO
+        do j = 1, natom
+            read(move_file, *) iatom(j),Eatom(j)
+        enddo
 
         write(6,"('num_step',2(i4,1x),2(E15.7,1x),i5)") num_step,natom,Etotp,Etotp-Etotp_ave,max_neigh
 
@@ -372,6 +407,7 @@ PROGRAM gen_2b_feature
             write(333,*) num_step
             deallocate(iatom,xatom,fatom,Eatom)
             goto 1000
+            
         endif
 
         num_step1=num_step1+1
@@ -406,16 +442,17 @@ PROGRAM gen_2b_feature
 !ccccccccccccccccccccccccccccccccccccccccccc
     itype_atom=0
     do i=1,natom
-    do j=1,ntype
-     if(iatom(i).eq.iat_type(j)) then
-      itype_atom(i)=j
-     endif
+        do j=1,ntype
+            if(iatom(i).eq.iat_type(j)) then
+                itype_atom(i)=j
+            endif
+        enddo
+
+        if(itype_atom(i).eq.0) then
+            write(6,*) "this atom type is not found", itype_atom(i)
+            stop
+        endif
     enddo
-      if(itype_atom(i).eq.0) then
-      write(6,*) "this atom type didn't found", itype_atom(i)
-      stop
-      endif
-     enddo
 !ccccccccccccccccccccccccccccccccccccccccccc
 
    
@@ -460,11 +497,11 @@ PROGRAM gen_2b_feature
       num=num+1
       list_neigh_alltype(num,iat)=list_neigh(j,itype,iat)
       map2neigh_alltypeM(num,iat)=list_tmp(map2neigh_M(j,itype,iat),itype)
-! map2neigh_M(j,itype,iat), maps the jth neigh in list_neigh(Rc) to jth' neigh in list_neigh_M(Rc_M) 
+    ! map2neigh_M(j,itype,iat), maps the jth neigh in list_neigh(Rc) to jth' neigh in list_neigh_M(Rc_M) 
       enddo
       enddo
 
-!ccccccccccccccccccccccccccccccccccccccc
+    !ccccccccccccccccccccccccccccccccccccccc
 
 
       num_neigh_alltype(iat)=num
@@ -473,35 +510,34 @@ PROGRAM gen_2b_feature
       if(num_M.gt.max_neigh_M) max_neigh_M=num_M
       enddo  ! iat
 
-!cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-! This num_neigh_alltype(iat) include itself !
+    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    ! This num_neigh_alltype(iat) include itself !
     dfeat=0.d0
     feat=0.d0
+
     if(iflag_ftype.eq.1) then
-! iflag_ftype.eq.1, the sin peak span over two grid points
-    call find_feature_2b_type1(natom,itype_atom,Rc_type,n2b_type,num_neigh,  &
-       list_neigh,dR_neigh,iat_neigh,ntype,grid2, &
-       feat,dfeat,nfeat0m,m_neigh,n2bm,nfeat_atom)
-    endif
-    if(iflag_ftype.eq.2) then
-!  iflag_ftype.eq.2, the sin peak span over three grid points
-    call find_feature_2b_type2(natom,itype_atom,Rc_type,n2b_type,num_neigh,  &
-       list_neigh,dR_neigh,iat_neigh,ntype,grid2, &
-       feat,dfeat,nfeat0m,m_neigh,n2bm,nfeat_atom)
-    endif
-    if(iflag_ftype.eq.3) then
-!  iflag_ftype.eq.3, the sin peak span over the two ends specified by grid31_2,grid32_2
-!  So, there could be many overlaps between different sin peaks
-    call find_feature_2b_type3(natom,itype_atom,Rc_type,n2b_type,num_neigh,  &
-       list_neigh,dR_neigh,iat_neigh,ntype,grid2_2, &
-       feat,dfeat,nfeat0m,m_neigh,n2bm,nfeat_atom)
+        ! iflag_ftype.eq.1, the sin peak span over two grid points
+        call find_feature_2b_type1(natom,itype_atom,Rc_type,n2b_type,num_neigh,  &
+        list_neigh,dR_neigh,iat_neigh,ntype,grid2, &
+        feat,dfeat,nfeat0m,m_neigh,n2bm,nfeat_atom)
     endif
 
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
+    if(iflag_ftype.eq.2) then
+        !  iflag_ftype.eq.2, the sin peak span over three grid points
+        call find_feature_2b_type2(natom,itype_atom,Rc_type,n2b_type,num_neigh,  &
+            list_neigh,dR_neigh,iat_neigh,ntype,grid2, &
+            feat,dfeat,nfeat0m,m_neigh,n2bm,nfeat_atom)
+    endif
+    
+    if(iflag_ftype.eq.3) then
+        !  iflag_ftype.eq.3, the sin peak span over the two ends specified by grid31_2,grid32_2
+        !  So, there could be many overlaps between different sin peaks
+        call find_feature_2b_type3(natom,itype_atom,Rc_type,n2b_type,num_neigh,  &
+            list_neigh,dR_neigh,iat_neigh,ntype,grid2_2, &
+            feat,dfeat,nfeat0m,m_neigh,n2bm,nfeat_atom)
+    endif
+
+    !cccccccccccccccccccccccccccccccccccccccccccccccccccc 
 
     num_tot=num_tot+natom
 
@@ -513,15 +549,15 @@ PROGRAM gen_2b_feature
     write(25) Eatom
     write(25) fatom
     write(25) feat
-!   write(25) num_neigh_alltype
-!   write(25) list_neigh_alltype
+    !   write(25) num_neigh_alltype
+    !   write(25) list_neigh_alltype
     write(25) num_neigh_alltypeM    ! the num of neighbor using Rc_M
     write(25) list_neigh_alltypeM   ! The list of neighor using Rc_M
-!   write(25) map2neigh_alltypeM    ! the neighbore atom, from list_neigh_alltype list to list_neigh_alltypeM list
-!   write(25) nfeat_atom  ! The number of feature for this atom 
-
-!cccccccccccccccccccccccccccccccccccccccccccccchhhhhh
-!  Only output the nonzero points for dfeat
+    !   write(25) map2neigh_alltypeM    ! the neighbore atom, from list_neigh_alltype list to list_neigh_alltypeM list
+    !   write(25) nfeat_atom  ! The number of feature for this atom 
+    
+    
+    !  Only output the nonzero points for dfeat
     num_tmp=0
     do jj_tmp=1,m_neigh
         do iat2=1,natom
@@ -623,7 +659,9 @@ PROGRAM gen_2b_feature
       DEALLOCATE (iatom,xatom,fatom,Eatom)
 !--------------------------------------------------------
        goto 1000     
+
 2000   continue    
+
       close(move_file)
     !   write(25) num_step1,num_step0
     !   write(333,*) "num_step1,num_step0",num_step1,num_step0

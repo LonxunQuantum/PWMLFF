@@ -61,7 +61,6 @@ module calc_NN
     
     contains
     
-   
     subroutine set_paths_NN(fit_dir_input)
         character(*),intent(in) :: fit_dir_input
         character(:),allocatable :: fit_dir,fit_dir_simp
@@ -870,7 +869,7 @@ module calc_NN
         do i = 1, natom
             !etot = etot + energy(i)
             etot_pred_NN = etot_pred_NN + energy_pred_NN(i)
-        enddo
+        enddo 
         
 
         deallocate(feat)
@@ -1063,6 +1062,7 @@ module calc_NN
         iat1=0
 
         do i = 1, natom
+            ! take care of the designated segment
             if(mod(i-1,nnodes).eq.inode-1) then
                 
                 iat1=iat1+1

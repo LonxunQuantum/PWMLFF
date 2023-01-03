@@ -184,12 +184,14 @@ module calc_deepMD
         nfeat1m=0   ! the original feature
         do i=1,ntype
            if(nfeat1(i).gt.nfeat1m) nfeat1m=nfeat1(i)
-           enddo
+        enddo
+
         ! **************** read fit_linearMM.input ********************    
         ! ****************** read vdw ************************
         open(10,file=trim(vdw_path))
         rewind(10)
         read(10,*) ntype_t,nterm
+
         if(nterm.gt.2) then
             write(6,*) "nterm.gt.2,stop"
             stop
@@ -199,7 +201,7 @@ module calc_deepMD
             write(6,*) "ntype not same in vwd_fitB.ntype,something wrong"
             stop
         endif
-
+        
         do itype1=1,ntype
             read(10,*) itype_t,rad_atom(itype1),E_ave_vdw(itype1),((wp_atom(i,itype1,j1),i=1,ntype),j1=1,nterm)
         enddo
@@ -217,12 +219,12 @@ module calc_deepMD
             write(6,*) "ntype_pair.ne.ntype**2,stop,deepMD",ntype_pair,ntype
             stop
         endif
-
+        
         nodeMM_em=0
         do itype=1,ntype_pair
-        do ii=1,nlayer_em+1
-        if(node_em(ii).gt.nodeMM_em) nodeMM_em=node_em(ii)
-        enddo
+            do ii=1,nlayer_em+1
+                if(node_em(ii).gt.nodeMM_em) nodeMM_em=node_em(ii)
+            enddo
         enddo
         
         if (.not.allocated(Wij_em)) then
@@ -234,23 +236,24 @@ module calc_deepMD
         endif
         
         do itype1=1,ntype
-        do itype2=1,ntype
-        do ll=1,nlayer_em
-         do j1=1,node_em(ll)
-          read(12,*) (wij_em(j1,j2,ll,itype2,itype1),j2=1,node_em(ll+1))
-            ! wij_em(j1,j2,ll,itype2,itype1):
-            ! itype1: center atom
-            ! itype2: neigboring atom
-            ! j1: the layer ll node
-            ! j2: the layer ll+1 node
+            do itype2=1,ntype
+                do ll=1,nlayer_em
+                    do j1=1,node_em(ll)
+                        read(12,*) (wij_em(j1,j2,ll,itype2,itype1),j2=1,node_em(ll+1))
+                        ! wij_em(j1,j2,ll,itype2,itype1):
+                        ! itype1: center atom
+                        ! itype2: neigboring atom
+                        ! j1: the layer ll node
+                        ! j2: the layer ll+1 node
 
-            ! b_em(j2,ll,itype2,itype1): it is for ll+1 (before the input of ll+1), before
-            ! nonlincear function
-         enddo
-         read(12,*) (b_em(j2,ll,itype2,itype1),j2=1,node_em(ll+1))
+                        ! b_em(j2,ll,itype2,itype1): it is for ll+1 (before the input of ll+1), before
+                        ! nonlincear function
+                    enddo
+                    read(12,*) (b_em(j2,ll,itype2,itype1),j2=1,node_em(ll+1))
+                enddo
+            enddo
         enddo
-        enddo
-        enddo
+
         close(12)
 
 
@@ -686,7 +689,7 @@ module calc_deepMD
                     iat=iat_ind(i,itype1)
                     neigh_add=0
                     if(iflag_ghost_neigh.eq.1.and.num_neigh(itype2,iat).lt.m_neigh) neigh_add=1
-                    
+                     
                     do j=1,num_neigh(itype2,iat)+neigh_add   ! j is sum over
                         jj=jj+1
                         fact1=1
