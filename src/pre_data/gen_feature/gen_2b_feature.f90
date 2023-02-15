@@ -13,11 +13,12 @@ PROGRAM gen_2b_feature
     integer num_step0,num_step1,natom0,max_neigh
     real*8 Etotp_ave,E_tolerance
     character(len=50) char_tmp(20)
-    character(len=200) trainSetFileDir(200)
+    character(len=200) trainSetFileDir(5000)
     character(len=200) trainSetDir
     character(len=200) MOVEMENTDir,dfeatDir,infoDir,trainDataDir,inquirepos1
     integer(8) inp
     integer sys_num,sys,recalc_grid
+    integer(4) alive 
 
     integer,allocatable,dimension (:,:,:) :: list_neigh,iat_neigh,iat_neigh_M
     integer,allocatable,dimension (:,:) :: num_neigh
@@ -117,6 +118,8 @@ PROGRAM gen_2b_feature
 
     enddo
     
+    
+
     close(13)
     
     trainDataDir=trim(trainSetDir)//"/trainData.txt.Ftype1"
@@ -153,8 +156,8 @@ PROGRAM gen_2b_feature
 !cccccccccccccccccccccccccccccccccccccccccccccccccccc
     allocate(grid2(0:n2bm+1,ntype))
     allocate(grid2_2(2,n2bm+1,ntype))
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
-     do kkk=1,ntype    ! center atom
+    !cccccccccccccccccccccccccccccccccccccccccccccccccccc
+    do kkk=1,ntype    ! center atom
      
      Rc=Rc_type(kkk)
      Rm=Rm_type(kkk)
@@ -163,8 +166,7 @@ PROGRAM gen_2b_feature
      dR_grid1=dR_grid1_type(kkk)
      n2b=n2b_type(kkk)
 
-!cccccccccccccccccccccccccccccccccccccccc
-
+    
     if(iflag_grid.eq.1.or.iflag_grid.eq.2) then
 
     if (recalc_grid.eq.1) then
@@ -195,11 +197,11 @@ PROGRAM gen_2b_feature
 
      endif   ! iflag_grid.eq.1,2
 
-!cccccccccccccccccccccccccccccccccccccccccccc
+    !cccccccccccccccccccccccccccccccccccccccccccc
     if(iflag_grid.eq.3) then  
- ! for iflag_grid.eq.3, the graid is just read in. 
- ! Its format is different from above grid31, grid32. 
- ! For each point, it just have two numbers, r1,r2, indicating the region of the sin peak function.
+    ! for iflag_grid.eq.3, the graid is just read in. 
+    ! Its format is different from above grid31, grid32. 
+    ! For each point, it just have two numbers, r1,r2, indicating the region of the sin peak function.
 
     open(13,file="output/grid2b_type3."//char(kkk+48))
     rewind(13)
@@ -218,27 +220,27 @@ PROGRAM gen_2b_feature
     enddo     ! kkk=1,ntype
 
     !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-    !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-    !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-    !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-        
-    !cccccccccccccccccccccccccccccccccccccccccccccccccccc
-    !  Finish the initial grid treatment
-
-    !cccccccccccccccccccccccccccccccccccccccccccccccccccc
 
     do 2333 sys=1,sys_num
-
+        
         MOVEMENTDir=trim(trainSetFileDir(sys))//"/MOVEMENT"
         dfeatDir=trim(trainSetFileDir(sys))//"/dfeat.fbin.Ftype1"
         infoDir=trim(trainSetFileDir(sys))//"/info.txt.Ftype1"  
         
+        write(*,*) "current mvt dir:",MOVEMENTDir
         !******************************************************
         !             determine basic parameters
         !******************************************************
+        inquire(file=MOVEMENTDir,exist=alive)
+
+        if (alive.ne..true.) then 
+            write(*,*) MOVEMENTDir, " not found. Terminate."
+            stop
+        endif 
+
         open (move_file,file=MOVEMENTDir,status="old",action="read") 
         rewind(move_file)
-        
+        write(*,*) "file opened:", MOVEMENTDir
         
         num_step0=0
         Etotp_ave=0.d0
@@ -283,7 +285,7 @@ PROGRAM gen_2b_feature
         !******************************************************
         open(move_file,file=MOVEMENTDir,status="old",action="read") 
 
-        rewind(move_file)
+        rewind(move_file)   
 
         num_step1=0
         
@@ -295,7 +297,7 @@ PROGRAM gen_2b_feature
             
         call scan_title(move_file, "POSITION")
         
-        write (*,*) "Huasdiuakjsda"
+        !write (*,*) "Huasdiuakjsda"
         do j = 1, natom
             !write (*,*) "dbg info", j
             read(move_file, *) iatom(j),xatom(1,j),xatom(2,j),xatom(3,j)
@@ -339,14 +341,14 @@ PROGRAM gen_2b_feature
         
         write(333,*) num_step0
 
-    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc    !
-    OPEN (move_file,file=MOVEMENTDir,status="old",action="read") 
-    rewind(move_file)
+        !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc    !
+        OPEN (move_file,file=MOVEMENTDir,status="old",action="read") 
+        rewind(move_file)
 
-    max_neigh=-1
-    num_step=0
-    num_step1=0
-1000  continue
+        max_neigh=-1
+        num_step=0
+        num_step1=0
+    1000  continue
     
     
     !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -412,10 +414,10 @@ PROGRAM gen_2b_feature
 
         num_step1=num_step1+1
 
-    !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-    ! Finished readin the movement file.  
-    ! fetermined the num_step1
-    !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+        !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+        ! Finished readin the movement file.  
+        ! fetermined the num_step1
+        !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
 
     allocate(list_neigh(m_neigh,ntype,natom))

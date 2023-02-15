@@ -24,14 +24,14 @@ subroutine ML_FF_EF(Etot,fatom,xatom,AL,natom_tmp,e_stress)
                 nfeat0M7,num_neigh_alltypeM7,list_neigh_alltypeM7,natom7,m_neigh7
         use calc_deepMD2_feature, only : feat_M8,dfeat_M8,nfeat0M8,gen_deepMD2_feature,  &
                 nfeat0M8,num_neigh_alltypeM8,list_neigh_alltypeM8,natom8,m_neigh8
-
+        
         !  Note: num_neigh)alltypeM1,2; list_neigh_altypeM1,2 should be the same for 1 & 2
         use calc_lin, only : cal_energy_force_lin,Etot_pred_lin,force_pred_lin,nfeat_type_l,ifeat_type_l,energy_pred_lin
         use calc_VV, only : cal_energy_force_VV,Etot_pred_VV,force_pred_VV,nfeat_type_v,ifeat_type_v, energy_pred_vv
         use calc_NN, only : cal_energy_force_NN,cal_energy_NN, Etot_pred_NN,force_pred_NN,nfeat_type_n,ifeat_type_n, energy_pred_nn
         use calc_deepMD, only : cal_energy_force_deepMD 
         implicit none
-
+        
         integer natom_tmp,natom,m_neigh  ! conflict with the one in calc_lin
         real*8 Etot
         
@@ -240,7 +240,7 @@ subroutine ML_FF_EF(Etot,fatom,xatom,AL,natom_tmp,e_stress)
                     stop
             endif
 
-
+            
             ! nfeat0=nfeat0M1+nfeat0M2
 
             !*******************************************
@@ -424,20 +424,20 @@ subroutine ML_FF_EF(Etot,fatom,xatom,AL,natom_tmp,e_stress)
                         enddo
                         count=count+nfeat0M7
                     endif
-
+                    
                     if (ifeat_type(kk)  .eq. 8) then
-                    do jj=1,m_neigh
-                    do iat=1,natom_n
-                    do ii=1,nfeat0M8
-                    dfeat(ii+count,iat,jj,1)=dfeat_M8(ii,iat,jj,1)
-                    dfeat(ii+count,iat,jj,2)=dfeat_M8(ii,iat,jj,2)
-                    dfeat(ii+count,iat,jj,3)=dfeat_M8(ii,iat,jj,3)
-                    enddo
-                    enddo
-                    enddo
-                    count=count+nfeat0M8
+                        do jj=1,m_neigh
+                            do iat=1,natom_n
+                                do ii=1,nfeat0M8
+                                    dfeat(ii+count,iat,jj,1)=dfeat_M8(ii,iat,jj,1)
+                                    dfeat(ii+count,iat,jj,2)=dfeat_M8(ii,iat,jj,2)
+                                    dfeat(ii+count,iat,jj,3)=dfeat_M8(ii,iat,jj,3)
+                                enddo
+                            enddo
+                        enddo
+                        count=count+nfeat0M8
                     endif
-
+                    
             enddo    
 
         endif 
@@ -655,6 +655,7 @@ subroutine ML_FF_EF(Etot,fatom,xatom,AL,natom_tmp,e_stress)
             deallocate(list_neigh_alltypeM_use)
 
         endif
+        
         if(iflag_born_charge_ewald .eq. 1) then
             !write(*,*) "MLFF predict with ewald"
             allocate(ewald_atom(natom))
@@ -679,6 +680,7 @@ subroutine ML_FF_EF(Etot,fatom,xatom,AL,natom_tmp,e_stress)
         endif
 
         return
+        
 end subroutine ML_FF_EF
         
 

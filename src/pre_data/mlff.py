@@ -84,7 +84,7 @@ if pm.isRunMd:
     mdRunner=MdRunner()
     if pm.mdRunModel=='opt':
         mdRunner.runOPT(fmax=pm.mdOptfmax,steps=pm.mdOptsteps)
-    else:
+    else:   
         for i in range(pm.mdStepNum):
             mdRunner.runStep()
     mdRunner.final()

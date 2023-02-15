@@ -6,13 +6,14 @@ import numpy as np
 import math
 import torch
 from collections import Counter
-
+import subprocess as sp
+import random
 
 def collect_all_sourcefiles(workDir, sourceFileName="MOVEMENT"):
 
     res = []
     if not os.path.exists(workDir):
-        raise FileNotFoundError(workDir + "  is not exist!")
+        raise FileNotFoundError(workDir + "  does not exist")
     for path, dirList, fileList in os.walk(workDir):
         if sourceFileName in fileList:
             res.append(os.path.abspath(path))
@@ -52,13 +53,20 @@ def gen_config_inputfile(config):
 
         GenFeatInput.write(str(config["E_tolerance"]) + "    ! E_tolerance  \n")
 
+    output_path = os.path.join(config["dRFeatureInputDir"], "egroup.in")
+    with open(output_path, "w") as f:
+        f.writelines(str(config["dwidth"]) + "\n")
+        f.writelines(str(len(config["atomType"])) + "\n")
+        for i in range(len(config["atomType"])):
+            f.writelines(str(config["atomType"][i]["b_init"]) + "\n")
+
 
 def gen_train_data(config):
     trainset_dir = config["trainSetDir"]
     dRFeatureInputDir = config["dRFeatureInputDir"]
     dRFeatureOutputDir = config["dRFeatureOutputDir"]
 
-    os.system("./clean_data.sh")
+    os.system("clean_data.sh")
 
     if not os.path.exists(dRFeatureInputDir):
         os.mkdir(dRFeatureInputDir)
@@ -68,7 +76,72 @@ def gen_train_data(config):
 
     gen_config_inputfile(config)
 
+    # directories that contain MOVEMENT 
     movement_files = collect_all_sourcefiles(trainset_dir, "MOVEMENT")
+    
+    # Virial.dat
+    for movement_file in movement_files:
+        with open(os.path.join(movement_file, "MOVEMENT"), "r") as mov:
+            lines = mov.readlines()
+            for idx, line in enumerate(lines):
+                
+                if "Lattice vector" in line and "stress" in lines[idx + 1]:
+                    print (line)
+
+                    tmp_v = []
+                    cell = []
+                    for dd in range(3):
+                        tmp_l = lines[idx + 1 + dd]
+                        cell.append([float(ss) for ss in tmp_l.split()[0:3]])
+                        tmp_v.append([float(stress) for stress in tmp_l.split()[5:8]])
+
+                    tmp_virial = np.zeros([3, 3])
+                    tmp_virial[0][0] = tmp_v[0][0]
+                    tmp_virial[0][1] = tmp_v[0][1]
+                    tmp_virial[0][2] = tmp_v[0][2]
+                    tmp_virial[1][0] = tmp_v[1][0]
+                    tmp_virial[1][1] = tmp_v[1][1]
+                    tmp_virial[1][2] = tmp_v[1][2]
+                    tmp_virial[2][0] = tmp_v[2][0]
+                    tmp_virial[2][1] = tmp_v[2][1]
+                    tmp_virial[2][2] = tmp_v[2][2]
+                    volume = np.linalg.det(np.array(cell))
+                    print(volume)
+                    print("====================================")
+                    # import ipdb;ipdb.set_trace()
+                    # tmp_virial = tmp_virial * 160.2 * 10.0 / volume
+                    with open(
+                        os.path.join(trainset_dir, "Virial.dat"), "a"
+                    ) as virial_file:
+                        virial_file.write(
+                            str(tmp_virial[0, 0])
+                            + " "
+                            + str(tmp_virial[0, 1])
+                            + " "
+                            + str(tmp_virial[0, 2])
+                            + " "
+                            + str(tmp_virial[1, 0])
+                            + " "
+                            + str(tmp_virial[1, 1])
+                            + " "
+                            + str(tmp_virial[1, 2])
+                            + " "
+                            + str(tmp_virial[2, 0])
+                            + " "
+                            + str(tmp_virial[2, 1])
+                            + " "
+                            + str(tmp_virial[2, 2])
+                            + "\n"
+                        )
+
+    # ImgPerMVT 
+     
+    for movement_file in movement_files:
+        tgt = os.path.join(movement_file, "MOVEMENT") 
+        res = sp.check_output(["grep", "Iteration", tgt ,"-c"]) 
+        
+        with open(os.path.join(trainset_dir, "ImgPerMVT.dat"), "a") as ImgPerMVT:
+            ImgPerMVT.write(str(int(res))+"\n")     
 
     location_path = os.path.join(config["dRFeatureInputDir"], "location")
     with open(location_path, "w") as location_writer:
@@ -80,6 +153,9 @@ def gen_train_data(config):
 
     command = "gen_dR.x | tee ./output/out"
     print("==============Start generating data==============")
+    os.system(command)
+    command = "gen_egroup.x | tee ./output/out_write_egroup"
+    print("==============Start generating egroup==============")
     os.system(command)
     print("==============Success==============")
 
@@ -94,12 +170,22 @@ def save_npy_files(data_path, data_set):
     np.save(os.path.join(data_path, "ListNeighbor.npy"), data_set["ListNeighbor"])
     print("    Ei.npy", data_set["Ei"].shape)
     np.save(os.path.join(data_path, "Ei.npy"), data_set["Ei"])
+    """
+    print("    Egroup.npy", data_set["Egroup"].shape)
+    np.save(os.path.join(data_path, "Egroup.npy"), data_set["Egroup"])
+    print("    Divider.npy", data_set["Divider"].shape)
+    np.save(os.path.join(data_path, "Divider.npy"), data_set["Divider"])
+    print("    Egroup_weight.npy", data_set["Egroup_weight"].shape)
+    np.save(os.path.join(data_path, "Egroup_weight.npy"), data_set["Egroup_weight"])
+    """
     print("    Ri.npy", data_set["Ri"].shape)
     np.save(os.path.join(data_path, "Ri.npy"), data_set["Ri"])
     print("    Ri_d.npy", data_set["Ri_d"].shape)
     np.save(os.path.join(data_path, "Ri_d.npy"), data_set["Ri_d"])
     print("    Force.npy", data_set["Force"].shape)
     np.save(os.path.join(data_path, "Force.npy"), data_set["Force"])
+    print("    Virial.npy", data_set["Virial"].shape)
+    np.save(os.path.join(data_path, "Virial.npy"), data_set["Virial"])
     print("    ImageAtomNum.npy", data_set["ImageAtomNum"].shape)
     np.save(os.path.join(data_path, "ImageAtomNum.npy"), data_set["ImageAtomNum"])
 
@@ -463,28 +549,44 @@ def compute_Ri(config, image_dR, list_neigh, natoms_img, ind_img, davg, dstd):
 
 
 def sepper_data(config):
+    """
+        do shuffling here 
+        Shuffle for each MOVEMENT  
+    """
     trainset_dir = config["trainSetDir"]
 
-    train_data_path = config["trainDataPath"]
+    train_data_path = config["trainDataPath"] 
     valid_data_path = config["validDataPath"]
 
     max_neighbor_num = config["maxNeighborNum"]
-    dataset_img_num = config["datasetImageNum"]
     ntypes = len(config["atomType"])
 
+    # image number in each movement 
+    img_per_mvmt = np.loadtxt(os.path.join(trainset_dir, "ImgPerMVT.dat"), dtype=int)
+    
     atom_type = np.loadtxt(os.path.join(trainset_dir, "AtomType.dat"), dtype=int)
     dR_neigh = np.loadtxt(os.path.join(trainset_dir, "dRneigh.dat"))
     image_dR = dR_neigh[:, :3]
     list_neigh = dR_neigh[:, 3]
     Ei = np.loadtxt(os.path.join(trainset_dir, "Ei.dat"))
+
+    """
+    Egroup_file = np.loadtxt(
+        os.path.join(trainset_dir, "Egroup_weight.dat"), delimiter=","
+    )
+    Egroup = Egroup_file[:, 0]
+    divider = Egroup_file[:, 1]
+    Egroup_weight = Egroup_file[:, 2:]
+    """
     Force = np.loadtxt(os.path.join(trainset_dir, "Force.dat"))
+    Virial = np.loadtxt(os.path.join(trainset_dir, "Virial.dat"), delimiter=" ")
     atom_num_per_image = np.loadtxt(
         os.path.join(trainset_dir, "ImageAtomNum.dat"), dtype=int
     )
     image_index = np.insert(
         atom_num_per_image, 0, 0
     ).cumsum()  # array([  0, 108, 216, 324, 432, 540, 648, 756, 864, 972])
-
+    
     image_num = atom_num_per_image.shape[0]
 
     diff_atom_types_num = []
@@ -528,78 +630,122 @@ def sepper_data(config):
     list_neigh = list_neigh.reshape(-1, max_neighbor_num * ntypes)
     image_dR = image_dR.reshape(-1, max_neighbor_num * ntypes, 3)
 
+    width_train = len(str(train_image_num))
+    width_valid = len(str(image_num - train_image_num))
+
     index = 0
-    while index < train_image_num:
-        start_index = index
-        end_index = index + dataset_img_num
 
-        end_index = min(end_index, train_image_num)
+    """
+        Note: the seperation is done linearly. Should not be. 
+    """ 
+    accum_train_num = 0 
+    accum_valid_num = 0 
 
-        train_set = {
-            "AtomType": atom_type[image_index[start_index] : image_index[end_index]],
-            "ImageDR": image_dR[image_index[start_index] : image_index[end_index]],
-            "ListNeighbor": list_neigh[
-                image_index[start_index] : image_index[end_index]
-            ],
-            "Ei": Ei[image_index[start_index] : image_index[end_index]],
-            "Ri": Ri[image_index[start_index] : image_index[end_index]],
-            "Ri_d": Ri_d[image_index[start_index] : image_index[end_index]],
-            "Force": Force[image_index[start_index] : image_index[end_index]],
-            "ImageAtomNum": atom_num_per_image[start_index:end_index],
-        }
+    
+    range_mvmt = [0 for i in range(img_per_mvmt.size)]
+        
+    if img_per_mvmt.size == 1:
+        range_mvmt[0] = img_per_mvmt
+    else:
 
-        save_path = os.path.join(
-            train_data_path, "set_" + str(start_index) + "_" + str(end_index)
-        )
+        for idx in range(img_per_mvmt.size):
+            range_mvmt[idx] = sum(img_per_mvmt[:idx+1])
+    
+    range_mvmt = [0] + range_mvmt
+    
+    
+    for i in range(len(range_mvmt)-1):
+        """
+            (0,100) (100,200) ... 
+        """
+        
+        # shuffled image in a single movement 
+        local_img_idx = [i for i in range(range_mvmt[i],range_mvmt[i+1])]
+        random.shuffle(local_img_idx)
+        
+        local_img_num = range_mvmt[i+1] - range_mvmt[i]
+        local_train_num = math.ceil(local_img_num * config["ratio"])
 
-        if not os.path.exists(save_path):
-            os.mkdir(save_path)
-        save_npy_files(save_path, train_set)
+        local_train_idx = local_img_idx[:local_train_num] 
+        local_valid_idx = local_img_idx[local_train_num:] 
+        
+        #training   
+        #while index < train_image_num:
+        for index in local_train_idx:
+            start_index = index
+            end_index = index + 1
 
-        index = end_index
+            train_set = {
+                "AtomType": atom_type[image_index[start_index] : image_index[end_index]],
+                "ImageDR": image_dR[image_index[start_index] : image_index[end_index]],
+                "ListNeighbor": list_neigh[
+                    image_index[start_index] : image_index[end_index]
+                ],
+                "Ei": Ei[image_index[start_index] : image_index[end_index]],
+                #"Egroup": Egroup[image_index[start_index] : image_index[end_index]],
+                #"Divider": divider[image_index[start_index] : image_index[end_index]],
+                #"Egroup_weight": Egroup_weight[image_index[start_index] : image_index[end_index]],
+                "Ri": Ri[image_index[start_index] : image_index[end_index]],
+                "Ri_d": Ri_d[image_index[start_index] : image_index[end_index]],
+                "Force": Force[image_index[start_index] : image_index[end_index]],
+                "Virial": Virial[start_index:end_index],
+                "ImageAtomNum": atom_num_per_image[start_index:end_index],
+            }
 
-    while index < image_num:
-        start_index = index
-        end_index = index + dataset_img_num
+            save_path = os.path.join(
+                train_data_path, "image_" + str(accum_train_num).zfill(width_train)
+            )
 
-        end_index = min(end_index, image_num)
+            if not os.path.exists(save_path):
+                os.mkdir(save_path)
+            save_npy_files(save_path, train_set)
 
-        valid_set = {
-            "AtomType": atom_type[image_index[start_index] : image_index[end_index]],
-            "ImageDR": image_dR[image_index[start_index] : image_index[end_index]],
-            "ListNeighbor": list_neigh[
-                image_index[start_index] : image_index[end_index]
-            ],
-            "Ei": Ei[image_index[start_index] : image_index[end_index]],
-            "Ri": Ri[image_index[start_index] : image_index[end_index]],
-            "Ri_d": Ri_d[image_index[start_index] : image_index[end_index]],
-            "Force": Force[image_index[start_index] : image_index[end_index]],
-            "ImageAtomNum": atom_num_per_image[start_index:end_index],
-        }
+            accum_train_num += 1 
+            #index = end_index
+        
+        # valid
+        #while index < image_num:
+        for index in local_valid_idx:
 
-        save_path = os.path.join(
-            valid_data_path,
-            "set_"
-            + str(start_index - train_image_num)
-            + "_"
-            + str(end_index - train_image_num),
-        )
+            start_index = index
+            end_index = index + 1
 
-        if not os.path.exists(save_path):
-            os.mkdir(save_path)
-        save_npy_files(save_path, valid_set)
+            valid_set = {
+                "AtomType": atom_type[image_index[start_index] : image_index[end_index]],
+                "ImageDR": image_dR[image_index[start_index] : image_index[end_index]],
+                "ListNeighbor": list_neigh[
+                    image_index[start_index] : image_index[end_index]
+                ],
+                "Ei": Ei[image_index[start_index] : image_index[end_index]],
+                #"Egroup": Egroup[image_index[start_index] : image_index[end_index]],
+                #"Divider": divider[image_index[start_index] : image_index[end_index]],
+                #"Egroup_weight": Egroup_weight[image_index[start_index] : image_index[end_index]],
+                "Ri": Ri[image_index[start_index] : image_index[end_index]],
+                "Ri_d": Ri_d[image_index[start_index] : image_index[end_index]],
+                "Force": Force[image_index[start_index] : image_index[end_index]],
+                "Virial": Virial[start_index:end_index],
+                "ImageAtomNum": atom_num_per_image[start_index:end_index],
+            }
 
-        index = end_index
+            save_path = os.path.join(
+                valid_data_path, "image_" + str(accum_valid_num).zfill(width_valid)
+            )
+
+            if not os.path.exists(save_path):
+                os.mkdir(save_path)
+            save_npy_files(save_path, valid_set)
+
+            accum_valid_num += 1
+            #index = end_index   
 
     print("Saving npy file done")
+
 
 def main():
 
     with open("config.yaml", "r") as yamlfile:
         config = yaml.load(yamlfile, Loader=yaml.FullLoader)
         print("Read Config successful")
-    
-    
 
     gen_train_data(config)
     sepper_data(config)

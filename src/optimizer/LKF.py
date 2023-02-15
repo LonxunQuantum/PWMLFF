@@ -17,7 +17,7 @@ class LKFOptimizer(Optimizer):
             kalman_nue=kalman_nue,
             block_size=block_size,
         )
-        
+
         super(LKFOptimizer, self).__init__(params, defaults)
 
         self._params = self.param_groups[0]["params"]

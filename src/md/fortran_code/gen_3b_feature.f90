@@ -20,14 +20,13 @@ module calc_ftype2
     integer n3b1m,n3b2m,kkk,ii
 
 
-!cccccccccccccccccccc the variable to be used in global feature type
+    !cccccccccccccccccccc the variable to be used in global feature type
     real*8,allocatable,dimension (:,:) :: feat_M2
     real*8,allocatable,dimension (:,:,:,:) :: dfeat_M2
     integer,allocatable,dimension (:,:) :: list_neigh_alltypeM2
     integer,allocatable,dimension (:) :: num_neigh_alltypeM2
     integer nfeat0M2
-!cccccccccccccccccccc the variable to be used in global feature type
-
+    !cccccccccccccccccccc the variable to be used in global feature type
 
     integer,allocatable,dimension (:,:) :: list_neigh_alltype
     integer,allocatable,dimension (:) :: num_neigh_alltype
@@ -36,9 +35,8 @@ module calc_ftype2
     integer,allocatable,dimension (:) :: itype_atom
     integer,allocatable,dimension (:,:,:) :: map2neigh_M
     integer,allocatable,dimension (:,:,:) :: list_neigh_M
-    integer,allocatable,dimension (:,:) :: num_neigh_M
-
-
+    integer,allocatable,dimension (:,:) :: num_neigh_M  
+    
     real*8 sum1,diff
 
     integer m_neigh,num,itype1,itype2,itype
@@ -58,9 +56,10 @@ module calc_ftype2
     integer iflag_grid_type(100),n3b1_type(100),n3b2_type(100)
 
 
-!cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 contains
-    subroutine load_model_type2()
+
+subroutine load_model_type2()
     open(10,file="input/gen_3b_feature.in",status="old",action="read")
     rewind(10)
     read(10,*) Rc_M,m_neigh
@@ -89,7 +88,7 @@ contains
 
     do i=1,ntype
     if(iflag_ftype.eq.3.and.iflag_grid_type(i).ne.3) then
-    write(6,*) "if iflag_ftype.eq.3, iflag_grid must equal 3, stop"
+        write(6,*) "if iflag_ftype.eq.3, iflag_grid must equal 3, stop"
     stop
     endif
     enddo
@@ -101,7 +100,7 @@ contains
      if(n3b2_type(i).gt.n3b2m) n3b2m=n3b2_type(i)
      enddo
 
-!cccccccccccccccccccccccccccccccccccccccccccccccc
+    !cccccccccccccccccccccccccccccccccccccccccccccccc
      num=0
      do itype2=1,ntype
      do itype1=1,itype2
@@ -148,18 +147,18 @@ contains
     !endif
 
 
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
+    !cccccccccccccccccccccccccccccccccccccccccccccccccccc
 
 
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
+    !cccccccccccccccccccccccccccccccccccccccccccccccccccc
     if (.not. allocated(grid31) ) then
-          allocate(grid31(0:n3b1m+1,ntype))
-          allocate(grid32(0:n3b2m+1,ntype))
-          allocate(grid31_2(2,n3b1m,ntype))
-          allocate(grid32_2(2,n3b2m,ntype))
+        allocate(grid31(0:n3b1m+1,ntype))
+        allocate(grid32(0:n3b2m+1,ntype))
+        allocate(grid31_2(2,n3b1m,ntype))
+        allocate(grid32_2(2,n3b2m,ntype))
     end if
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
-     do kkk=1,ntype    ! center atom
+    !cccccccccccccccccccccccccccccccccccccccccccccccccccc
+    do kkk=1,ntype    ! center atom
 
      
      Rc=Rc_type(kkk)

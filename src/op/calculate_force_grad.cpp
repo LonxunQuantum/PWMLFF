@@ -35,13 +35,3 @@ void torch_launch_calculate_force_grad(torch::Tensor &nblist,
         printf("data type error!");
     
 }
-
-PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-    m.def("calculate_force_grad", 
-          &torch_launch_calculate_force_grad,
-          "calculate force grad kernel warpper");
-}
-
-TORCH_LIBRARY(op_grad, m) {
-    m.def("calculate_force_grad", torch_launch_calculate_force_grad);
-}

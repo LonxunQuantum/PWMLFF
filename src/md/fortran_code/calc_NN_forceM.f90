@@ -939,7 +939,6 @@ module calc_NN
         end if
 
         num = 0
-
         iat1=0
 
         do i = 1, natom
@@ -957,12 +956,9 @@ module calc_NN
         enddo
 
         do itype=1,ntype
-
             do i=1,num(itype)
                 do j=1,nodeNN(1,itype)
-
                     f_in(j,i,1)=feat_type(j,i,itype)
-                
                 enddo
             enddo
 
@@ -1060,7 +1056,7 @@ module calc_NN
         force_pred_tmp=0.d0
         num = 0
         iat1=0
-
+        
         do i = 1, natom
             ! take care of the designated segment
             if(mod(i-1,nnodes).eq.inode-1) then

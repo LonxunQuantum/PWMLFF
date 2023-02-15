@@ -24,8 +24,7 @@ sys.path.append(codepath+'/..')
 print (codepath)
 
 import use_para as pm
-import parse_input
-parse_input.parse_input()
+
 
 #import parameters as pm
 import torch

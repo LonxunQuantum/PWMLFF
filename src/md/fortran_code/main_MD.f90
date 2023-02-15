@@ -45,8 +45,8 @@ program main_MD
         call mpi_comm_size(MPI_COMM_WORLD,nnodes,ierr)
         inode=inode+1
 
-        write(6,*) "TEST1 inode=",inode
-        write(6,*) "TEST1.1 nodes=",nnodes
+        !write(6,*) "TEST1 inode=",inode
+        !write(6,*) "TEST1.1 nodes=",nnodes
 
         ! liuliping, is_ewald
         !open(1314, file='input/ewald.input', action='read', iostat=ierr)
@@ -66,7 +66,7 @@ program main_MD
         open(9,file="md.input")
         rewind(9)
         read(9,*) f_xatom
-        read(9,*)iMD,MDstep,dtMD,Temperature1,Temperature2
+        read(9,*) iMD,MDstep,dtMD,Temperature1,Temperature2
         read(9,*) right_logical
         read(9,*) iflag_model  ! 1: lineear; 2: VV; 3: NN 
         read(9,*) MCTRL_output_nstep
@@ -85,25 +85,24 @@ program main_MD
         call get_zatom(natom)
         
         iat1=0
-
+        
+        ! job allocation 
         do i=1,natom
             if(mod(i-1,nnodes).eq.inode-1) then
                 iat1=iat1+1
             endif
         enddo
         
-
         natom_n=iat1     ! different prorcessor might have different natom_n
 
         call get_ALI(AL,ALI)
-
+        
         if(right_logical) then
             call read_mdopt(dtMD,Temperature1,temperature2,imov_at,natom,AL)
         else
             call default_mdopt(dtMD,Temperature1,temperature2,imov_at,natom,AL)
         endif
 
-    !ccccccccccccccccccccccccccccccccccccccc
         if(iMD==4 .or. iMD==44) MCTRL_stress=1
         if(iMD==5 .or. iMD==55) MCTRL_stress=1
         if(iMD==7 .or. iMD==77) MCTRL_stress=1
@@ -114,7 +113,7 @@ program main_MD
         else
             MCTRL_is_MSST=.false.
         endif
-    !ccccccccccccccccccccccccccccccccccccccc
+
         if(iflag_model.eq.1) then
         
             call set_paths_lin('.')
@@ -210,29 +209,11 @@ program main_MD
             enddo
         endif
 
-         !TODO: whether we need to set which one we use
-        !  call load_model_type1()      ! load up the parameter etc
-        !  call set_image_info_type1(iatom,is_reset,natom)
-        !  call load_model_type2()      ! load up the parameter etc
-        !  call set_image_info_type2(iatom,is_reset,natom)
-        !  call load_model_type3()      ! load up the parameter etc
-        !  call set_image_info_type3(iatom,is_reset,natom)
-        !  call load_model_type4()      ! load up the parameter etc
-        !  call set_image_info_type4(iatom,is_reset,natom)
-        !  call load_model_type5()      ! load up the parameter etc
-        !  call set_image_info_type5(iatom,is_reset,natom)
-        !  call load_model_type6()      ! load up the parameter etc
-        !  call set_image_info_type6(iatom,is_reset,natom)
-        !  call load_model_type7()      ! load up the parameter etc
-        !  call set_image_info_type7(iatom,is_reset,natom)
-        !  call load_model_type8()      ! load up the parameter etc
-        !  call set_image_info_type8(iatom,is_reset,natom)
-
-        write(6,*) "TEST2 inode=", inode
+        !write(6,*) "TEST2 inode=", inode
         
         call molecular_dynamics_new(dtMD,iMD,MDstep,xatom,iMDatom,temperature1,temperature2,iscale_temp_VVMD,nstep_temp_VVMD,imov_at,natom,AL,ALI,iatom,f_xatom)
 
-        write(6,*) "TEST3 inode=", inode
+        !write(6,*) "TEST3 inode=", inode
 
         call mpi_finalize(ierr)
 

@@ -77,7 +77,6 @@ subroutine f2c_calc_energy_force(i_model_lvn, n_atom, type_atom, lat,&
     
     !close(inode+4396)
     
-
     allocate(f_atom_predict(3,n_atom))
     iflag_model = i_model_lvn
     iflag_reneighbor = iflag_reneigh_inout
@@ -127,7 +126,7 @@ subroutine f2c_calc_energy_force(i_model_lvn, n_atom, type_atom, lat,&
     !       nstep_temp_VVMD=100
     !       iscale_temp_VVMD=0
             
-    !        call readf_xatom_new(iMD,ntype_mass,itype_mass,mass_type)
+    ! call readf_xatom_new(iMD,ntype_mass,itype_mass,mass_type)
     ! use intent(in) paras to initial the xatom
 
     natom = n_atom ! n_atom in 
@@ -137,10 +136,9 @@ subroutine f2c_calc_energy_force(i_model_lvn, n_atom, type_atom, lat,&
 
     iatom(1:n_atom) = type_atom(1:n_atom)
     xatom(1:3,1:n_atom) = x_frac(1:3,1:n_atom)
-
+    
     iat1=0
 
-    !
     do i=1,natom
         if(mod(i-1,nnodes).eq.inode-1) then
             iat1=iat1+1
@@ -150,8 +148,8 @@ subroutine f2c_calc_energy_force(i_model_lvn, n_atom, type_atom, lat,&
     natom_n=iat1      
     
     ! different prorcessor might have different natom_n
-    ! main_MD: initialization
-
+    ! main_MD: initialization   
+    
     if (iflag_model .eq. 1) then
         
         call set_paths_lin('.')
@@ -168,7 +166,7 @@ subroutine f2c_calc_energy_force(i_model_lvn, n_atom, type_atom, lat,&
         nfeat_type = nfeat_type_v
         ifeat_type = ifeat_type_v
     end if
-
+    
     if (iflag_model .eq. 3) then
         call set_paths_NN('.')
         call load_model_NN()
@@ -177,7 +175,7 @@ subroutine f2c_calc_energy_force(i_model_lvn, n_atom, type_atom, lat,&
         ifeat_type = ifeat_type_n
     end if
 
-
+    
     if(iflag_model.eq.5) then
         call set_paths_deepMD('.')
         call load_model_deepMD()
@@ -239,7 +237,7 @@ subroutine f2c_calc_energy_force(i_model_lvn, n_atom, type_atom, lat,&
     e_atom_out(1:n_atom) = e_atom(1:n_atom) ! mod_data::e_atom, calculated by ML_FF_EF
 
     ! the following subroutine writes images to MD/md/MOVEMENT, and same format as old mlff movement,but different from PWmat
-    !call write_to_mlff_movement(i_image, E_tot_predict, f_atom_predict, x_atom_predict, AL_predict, n_atom)
+    ! call write_to_mlff_movement(i_image, E_tot_predict, f_atom_predict, x_atom_predict, AL_predict, n_atom)
     
     deallocate(f_atom_predict)
     

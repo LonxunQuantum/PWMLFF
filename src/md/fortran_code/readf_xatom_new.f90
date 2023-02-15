@@ -159,8 +159,8 @@ subroutine readf_xatom_new(iMD, ntype_mass, itype_mass, mass_type)
         end do
     end if
 
-!********************************************************
-!********************************************************
+    !********************************************************
+    !********************************************************
     call scan_key_words(10, "Weight_atom", len("Weight_atom"), scanit)
     if (.not. scanit) then
         do i = 1, natom
@@ -171,7 +171,7 @@ subroutine readf_xatom_new(iMD, ntype_mass, itype_mass, mass_type)
             read (10, *) iatom_tmp2(i), weight_atom_tmp(i)
         end do
     end if
-!********************************************************
+    !********************************************************
 
     close (10)
     !ccccccccccccccccccccccccccccccccccccccccccccccccccc

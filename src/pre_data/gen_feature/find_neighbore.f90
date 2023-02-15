@@ -24,7 +24,7 @@ subroutine find_neighbore(iatom,natom,xatom,AL,Rc_type,num_neigh,list_neigh, &
         list_neigh = 0
         dR_neigh = 0
         iflag=0
-
+        
         do i=1,3
             d=dsqrt(AL(1,i)**2+AL(2,i)**2+AL(3,i)**2)
             nperiod(i)=int(Rc_M/d)+1
@@ -58,7 +58,7 @@ subroutine find_neighbore(iatom,natom,xatom,AL,Rc_type,num_neigh,list_neigh, &
             if(iflag.eq.1) then
                 num_type=0
                 num_type_M=0
-
+                
                 do  j=1,natom
                     do i1=-nperiod(1),nperiod(1)
                         do i2=-nperiod(2),nperiod(2)
@@ -95,7 +95,6 @@ subroutine find_neighbore(iatom,natom,xatom,AL,Rc_type,num_neigh,list_neigh, &
                                         dR_neigh(2,num_type(itype),itype,i)=dy
                                         dR_neigh(3,num_type(itype),itype,i)=dz
                                     endif
-                                    
                                 endif
                             enddo
                         enddo
@@ -161,7 +160,7 @@ subroutine find_neighbore(iatom,natom,xatom,AL,Rc_type,num_neigh,list_neigh, &
                 num_neigh_M(:,i)=num_type_M(:)
             endif
         enddo 
-
+        
         !********************
         ! write dRneigh.dat
         !********************

@@ -32,7 +32,7 @@
       integer itype12,ind_f32(2)
       integer ind_all_neigh(m_neigh,ntype,natom),list_neigh_alltype(m_neigh,natom)
 
-!  natom_n is the divided natom_n
+      !  natom_n is the divided natom_n
       real*8 feat_all(nfeat0m,natom_n),dfeat_all(nfeat0m,natom_n,m_neigh,3)
       real*8 feat2(n2bm,ntype,natom_n)
       real*8 dfeat2(n2bm,ntype,natom_n,m_neigh,3)
@@ -44,9 +44,10 @@
       real*8 tt1,tt2,tt0,tt00,tt3
       integer natom_tmp
 
-!  We need to clean us this later, everyone should only jave natom_n
+      !  We need to clean us this later, everyone should only jave natom_n
 
       num_neigh_alltype=0
+      
       do iat=1,natom
       if(mod(iat-1,nnodes).eq.inode-1) then
       num=1
@@ -69,7 +70,7 @@
       endif
       enddo
 
-!ccccccccccccccccccccccccccccccccccccccccc
+      !ccccccccccccccccccccccccccccccccccccccccc
 
       pi=4*datan(1.d0)
       pi2=2*pi
@@ -86,32 +87,31 @@
 
        itype0=itype_atom(iat)
 
-      do 1000 itype=1,ntype
-      do 1000 j=1,num_neigh(itype,iat)
+    do 1000 itype=1,ntype
+        do 1000 j=1,num_neigh(itype,iat)
 
-      jj=ind_all_neigh(j,itype,iat)
+            jj=ind_all_neigh(j,itype,iat)
+            
+            dd=dR_neigh(1,j,itype,iat)**2+dR_neigh(2,j,itype,iat)**2+dR_neigh(3,j,itype,iat)**2
+            d=dsqrt(dd)
 
-      dd=dR_neigh(1,j,itype,iat)**2+dR_neigh(2,j,itype,iat)**2+dR_neigh(3,j,itype,iat)**2
-      d=dsqrt(dd)
+            do k=1,n2b(itype0)
 
+                if(d.ge.grid2_2(1,k,itype0).and.d.lt.grid2_2(2,k,itype0)) then
+            
+                    x=(d-grid2_2(1,k,itype0))/(grid2_2(2,k,itype0)-grid2_2(1,k,itype0))
+                    y=(x-0.5d0)*pi2
+                    f1=0.5d0*(cos(y)+1)
+                    feat2(k,itype,iat1)=feat2(k,itype,iat1)+f1
+                    y2=-pi*sin(y)/(d*(grid2_2(2,k,itype0)-grid2_2(1,k,itype0)))
+                    dfeat2(k,itype,iat1,jj,:)=dfeat2(k,itype,iat1,jj,:)+y2*dR_neigh(:,j,itype,iat)
+                    dfeat2(k,itype,iat1,1,:)=dfeat2(k,itype,iat1,1,:)-y2*dR_neigh(:,j,itype,iat)
+                endif
+            enddo   ! k=1,n2b
 
-      do k=1,n2b(itype0)
-
-      if(d.ge.grid2_2(1,k,itype0).and.d.lt.grid2_2(2,k,itype0)) then
- 
-      x=(d-grid2_2(1,k,itype0))/(grid2_2(2,k,itype0)-grid2_2(1,k,itype0))
-      y=(x-0.5d0)*pi2
-      f1=0.5d0*(cos(y)+1)
-      feat2(k,itype,iat1)=feat2(k,itype,iat1)+f1
-      y2=-pi*sin(y)/(d*(grid2_2(2,k,itype0)-grid2_2(1,k,itype0)))
-      dfeat2(k,itype,iat1,jj,:)=dfeat2(k,itype,iat1,jj,:)+y2*dR_neigh(:,j,itype,iat)
-      dfeat2(k,itype,iat1,1,:)=dfeat2(k,itype,iat1,1,:)-y2*dR_neigh(:,j,itype,iat)
-      endif
-      enddo   ! k=1,n2b
-
-!cccccccccccc So, one Rij will always have two features k, k+1  (1,2)
-!cccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-1000  continue
+            !cccccccccccc So, one Rij will always have two features k, k+1  (1,2)
+            !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    1000  continue
 
       endif   ! big one
 3000  continue

@@ -58,107 +58,105 @@ contains
         rewind(10)
         read(10,*) Rc_M,m_neigh
         read(10,*) ntype
+
         do i=1,ntype
-        read(10,*) iat_type(i)
-        read(10,*) Rc_type(i),Rm_type(i),iflag_grid_type(i),fact_grid_type(i),dR_grid1_type(i)
-        read(10,*) n2b_type(i)
-    
-         if(Rc_type(i).gt.Rc_M) then
-          write(6,*) "Rc_type must be smaller than Rc_M, gen_3b_feature.in",i,Rc_type(i),Rc_M
-          stop
-         endif
-    
+            read(10,*) iat_type(i)
+            read(10,*) Rc_type(i),Rm_type(i),iflag_grid_type(i),fact_grid_type(i),dR_grid1_type(i)
+            read(10,*) n2b_type(i)
+        
+            if(Rc_type(i).gt.Rc_M) then
+                write(6,*) "Rc_type must be smaller than Rc_M, gen_3b_feature.in",i,Rc_type(i),Rc_M
+                stop
+            endif
         enddo
+        
         read(10,*) E_tolerance
         read(10,*) iflag_ftype
         read(10,*) recalc_grid
         close(10)
+
         m_neigh1=m_neigh
-    !cccccccccccccccccccccccccccccccccccccccc
     
         do i=1,ntype
-        if(iflag_ftype.eq.3.and.iflag_grid_type(i).ne.3) then
-        write(6,*) "if iflag_ftype.eq.3, iflag_grid must equal 3, stop"
-        stop
-        endif
+            if(iflag_ftype.eq.3.and.iflag_grid_type(i).ne.3) then
+                write(6,*) "if iflag_ftype.eq.3, iflag_grid must equal 3, stop"
+                stop
+            endif
         enddo
     
-         n2bm=0
-         do i=1,ntype
-         if(n2b_type(i).gt.n2bm) n2bm=n2b_type(i)
-         enddo
+        n2bm=0
+        
+        do i=1,ntype
+            if(n2b_type(i).gt.n2bm) n2bm=n2b_type(i)
+        enddo
     
-    !cccccccccccccccccccccccccccccccccccccccccccccccc
-         nfeat0m=ntype*n2bm
+        nfeat0m=ntype*n2bm
 
-
-    
-         do itype=1,ntype
-         nfeat0(itype)=n2b_type(itype)*ntype
-         enddo
+        do itype=1,ntype
+            nfeat0(itype)=n2b_type(itype)*ntype
+        enddo
 
         !if(inode.eq.1) then
         !write(6,*) "ftype1: max_nfeat0m=",nfeat0m
         !write(6,*) "ftype1: nfeat0(at_type)=",(nfeat0(itype),itype=1,ntype)
         !endif
-    
-    !cccccccccccccccccccccccccccccccccccccccccccccccccccc
-    
-    !cccccccccccccccccccccccccccccccccccccccccccccccccccc
+         
+        !cccccccccccccccccccccccccccccccccccccccccccccccccccc
         !write(*,*) "n2bm, ntype: ", n2bm, ntype
         if (.not. allocated(grid2)) then
             allocate(grid2(0:n2bm+1,ntype))
             allocate(grid2_2(2,n2bm+1,ntype))
         end if
-    !cccccccccccccccccccccccccccccccccccccccccccccccccccc
-         do kkk=1,ntype    ! center atom
+        
+        do kkk=1,ntype    ! center atom
          
-         Rc=Rc_type(kkk)
-         Rm=Rm_type(kkk)
-         iflag_grid=iflag_grid_type(kkk)
-         fact_grid=fact_grid_type(kkk)
-         dR_grid1=dR_grid1_type(kkk)
-         n2b=n2b_type(kkk)
-    
-    !cccccccccccccccccccccccccccccccccccccccc
-    
-        if(iflag_grid.eq.1.or.iflag_grid.eq.2) then
-    
-            open(10,file="output/grid2b_type12."//char(kkk+48))
-            rewind(10)
-            do i=0,n2b+1
-            read(10,*) grid2(i,kkk)
-            read(10,*) grid2(i,kkk)
-            read(10,*) grid2(i,kkk)
-            enddo
-            close(10)
-    
-         endif   ! iflag_grid.eq.1,2
-    
-    !cccccccccccccccccccccccccccccccccccccccccccc
-        if(iflag_grid.eq.3) then  
-     ! for iflag_grid.eq.3, the graid is just read in. 
-     ! Its format is different from above grid31, grid32. 
-     ! For each point, it just have two numbers, r1,r2, indicating the region of the sin peak function.
-    
-        open(13,file="output/grid2b_type3."//char(kkk+48))
-        rewind(13)
-        read(13,*) n2b_t
-        if(n2b_t.ne.n2b) then
-        write(6,*) "n2b_t.ne.n2b,in grid2b_type3", n2b_t,n2b
-        stop
-        endif
-        do i=1,n2b
-        read(13,*) it,grid2_2(1,i,kkk),grid2_2(2,i,kkk)
-        if(grid2_2(2,i,kkk).gt.Rc_type(kkk)) write(6,*) "grid2_2.gt.Rc",grid2_2(2,i,kkk),Rc_type(kkk)
-        enddo
-        close(13)
-        endif
+            Rc=Rc_type(kkk)
+            Rm=Rm_type(kkk)
+            iflag_grid=iflag_grid_type(kkk)
+            fact_grid=fact_grid_type(kkk)
+            dR_grid1=dR_grid1_type(kkk)
+            n2b=n2b_type(kkk)
+                
+            if(iflag_grid.eq.1.or.iflag_grid.eq.2) then
+        
+                open(10,file="output/grid2b_type12."//char(kkk+48))
+                rewind(10)
+                do i=0,n2b+1
+                    read(10,*) grid2(i,kkk)
+                    read(10,*) grid2(i,kkk)
+                    read(10,*) grid2(i,kkk)
+                enddo
+                close(10)
+        
+            endif   ! iflag_grid.eq.1,2
+        
+            !cccccccccccccccccccccccccccccccccccccccccccc
+            if(iflag_grid.eq.3) then  
+                ! for iflag_grid.eq.3, the graid is just read in. 
+                ! Its format is different from above grid31, grid32. 
+                ! For each point, it just have two numbers, r1,r2, indicating the region of the sin peak function.
+            
+                open(13,file="output/grid2b_type3."//char(kkk+48))
+                rewind(13)
+                read(13,*) n2b_t
+
+                if(n2b_t.ne.n2b) then
+                    write(6,*) "n2b_t not equivalent to n2b in grid2b_type3", n2b_t,n2b
+                    stop
+                endif
+
+                do i=1,n2b
+                    read(13,*) it,grid2_2(1,i,kkk),grid2_2(2,i,kkk)
+                    if(grid2_2(2,i,kkk).gt.Rc_type(kkk)) write(6,*) "grid2_2 greater than Rc",grid2_2(2,i,kkk),Rc_type(kkk)
+                enddo
+
+                close(13)
+            endif
     
         enddo     ! kkk=1,ntype
 
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
-!  FInish the initial grid treatment
+        !cccccccccccccccccccccccccccccccccccccccccccccccccccc
+        !  FInish the initial grid treatment
 
     end subroutine load_model_type1
     
@@ -207,7 +205,7 @@ subroutine gen_feature_type1(AL,xatom)
     real*8,allocatable,dimension (:,:) :: feat
     real*8,allocatable,dimension (:,:,:,:) :: dfeat
     real*8 tt2,tt1,tt0,tt3,tt4,tt5,tt6
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
+    !cccccccccccccccccccccccccccccccccccccccccccccccccccc
     if (allocated(feat_M1)) then
         deallocate(feat_M1)
     endif
@@ -221,8 +219,8 @@ subroutine gen_feature_type1(AL,xatom)
         deallocate(num_neigh_alltypeM1)
     endif
 
-! the dimension of these array, should be changed to natom_n
-! instead of natom. Each process only needs to know its own natom_n
+    ! the dimension of these array, should be changed to natom_n
+    ! instead of natom. Each process only needs to know its own natom_n
 
     allocate(list_neigh(m_neigh,ntype,natom))
     allocate(map2neigh_M(m_neigh,ntype,natom)) ! from list_neigh(of this feature) to list_neigh_all (of Rc_M

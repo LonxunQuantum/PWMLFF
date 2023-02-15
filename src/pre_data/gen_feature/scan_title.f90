@@ -11,12 +11,11 @@ subroutine scan_title (io_file, title, title_line, if_find)
     !
     IF (PRESENT(if_find)) if_find = .FALSE.
     !REWIND (io_file)
-    
     DO
         READ (io_file, "(A200)", IOSTAT = stat) tmp_char
         !write(*,*) tmp_char
-
         CALL transform_to_upper (tmp_char, oneline)
+
         IF (present(title_line)) title_line = oneline
         
         if (index(oneline,title) > 0) then

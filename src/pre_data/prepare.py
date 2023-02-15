@@ -109,7 +109,7 @@ def writeGenFeatInput():
         #if ftype == 1:
         #print ("atom type from pp:",pm.atomType)
         # some program will use the gen_2b_feature.in to get some parameters.
-        if True:
+        if ftype==1:
             '''
             gen_2b_feature.in
                 6.0, 200   !  Rc_M, m_neigh
@@ -130,7 +130,7 @@ def writeGenFeatInput():
                 GenFeatInput.write(str(len(pm.atomType))+'               ! ntype \n')
                 for i in range(pm.atomTypeNum):
                     GenFeatInput.write(str(pm.atomType[i])+'              ! iat-type \n')
-                    GenFeatInput.write(str(pm.Ftype1_para['Rc'][i])+','+str(pm.Ftype1_para['Rm'][i])+','+str(pm.Ftype1_para['iflag_grid'][i])+','+str(pm.Ftype1_para['fact_base'][i])+','+\
+                    GenFeatInput.write(str(pm.Rc_M)+','+str(pm.Rc_min)+','+str(pm.Ftype1_para['iflag_grid'][i])+','+str(pm.Ftype1_para['fact_base'][i])+','+\
                         str(pm.Ftype1_para['dR1'][i])+'      !Rc,Rm,iflag_grid,fact_base,dR1 \n')
                     GenFeatInput.write(str(pm.Ftype1_para['numOf2bfeat'][i])+'              ! n2b \n')
                 # GenFeatInput.write(str(pm.maxNeighborNum)+'      ! m_neigh \n')
@@ -158,7 +158,7 @@ def writeGenFeatInput():
                 GenFeatInput.write(str(len(pm.atomType))+'               ! ntype \n')
                 for i in range(pm.atomTypeNum):
                     GenFeatInput.write(str(pm.atomType[i])+'          ! iat-type \n')        
-                    GenFeatInput.write(str(pm.Ftype2_para['Rc'][i])+','+str(pm.Ftype2_para['Rc2'][i])+','+str(pm.Ftype2_para['Rm'][i])+','+str(pm.Ftype2_para['iflag_grid'][i])+','+str(pm.Ftype2_para['fact_base'][i])+','+\
+                    GenFeatInput.write(str(pm.Rc_M)+','+str(pm.Rc_M)+','+str(pm.Rc_min)+','+str(pm.Ftype2_para['iflag_grid'][i])+','+str(pm.Ftype2_para['fact_base'][i])+','+\
                         str(pm.Ftype2_para['dR1'][i])+','+str(pm.Ftype2_para['dR2'][i])+'      !Rc,Rc2,Rm,iflag_grid,fact_base,dR1,dR2 \n')
                     GenFeatInput.write(str(pm.Ftype2_para['numOf3bfeat1'][i])+','+str(pm.Ftype2_para['numOf3bfeat2'][i])+'       ! n3b1, n3b2 \n')
                 # GenFeatInput.write(str(pm.maxNeighborNum)+'      ! m_neigh \n')
@@ -424,43 +424,39 @@ def calFeatGrid():
     h2b={}
     h3b1={}
     h3b2={}
+
     for itype in range(pm.atomTypeNum):
-        mulFactorVectOf2bFeat[itype]=((cp.logspace(cp.log10(1.0),cp.log10(9.0),pm.Ftype1_para['numOf2bfeat'][itype]+2)[1:-1]-5.0)/4.0 +1)*pm.Ftype1_para['Rc'][itype]/2.0
-        mulFactorVectOf3bFeat1[itype]=((cp.logspace(cp.log10(1.0),cp.log10(9.0),pm.Ftype2_para['numOf3bfeat1'][itype]+2)[1:-1]-5.0)/4.0 +1)*pm.Ftype2_para['Rc'][itype]/2.0
-        mulFactorVectOf3bFeat2[itype]=((cp.logspace(cp.log10(1.0),cp.log10(9.0),pm.Ftype2_para['numOf3bfeat2'][itype]+2)[1:-1]-5.0)/4.0 +1)*pm.Ftype2_para['Rc2'][itype]/2.0
-        h2b[itype]=(pm.Ftype1_para['Rc'][itype]-float(mulFactorVectOf2bFeat[itype].max()))
-        h3b1[itype]=(pm.Ftype2_para['Rc'][itype]-float(mulFactorVectOf3bFeat1[itype].max()))
-        h3b2[itype]=(pm.Ftype2_para['Rc2'][itype]-float(mulFactorVectOf3bFeat2[itype].max()))
+        mulFactorVectOf2bFeat[itype]=((cp.logspace(cp.log10(1.0),cp.log10(9.0),pm.Ftype1_para['numOf2bfeat'][itype]+2)[1:-1]-5.0)/4.0 +1)*pm.Rc_M/2.0
+        mulFactorVectOf3bFeat1[itype]=((cp.logspace(cp.log10(1.0),cp.log10(9.0),pm.Ftype2_para['numOf3bfeat1'][itype]+2)[1:-1]-5.0)/4.0 +1)*pm.Rc_M/2.0
+        mulFactorVectOf3bFeat2[itype]=((cp.logspace(cp.log10(1.0),cp.log10(9.0),pm.Ftype2_para['numOf3bfeat2'][itype]+2)[1:-1]-5.0)/4.0 +1)*pm.Rc_M/2.0
+        h2b[itype]=(pm.Rc_M-float(mulFactorVectOf2bFeat[itype].max()))
+        h3b1[itype]=(pm.Rc_M-float(mulFactorVectOf3bFeat1[itype].max()))
+        h3b2[itype]=(pm.Rc_M-float(mulFactorVectOf3bFeat2[itype].max()))
 
         with open(os.path.join(pm.OutputPath,'grid2b_type3.'+str(itype+1)),'w') as f:
+            
             f.write(str(pm.Ftype1_para['numOf2bfeat'][itype])+' \n')
             for i in range(pm.Ftype1_para['numOf2bfeat'][itype]):
                 left=mulFactorVectOf2bFeat[itype][i]-h2b[itype]
                 right=mulFactorVectOf2bFeat[itype][i]+h2b[itype]
                 f.write(str(i)+'  '+str(left)+'  '+str(right)+' \n')
+
         with open(os.path.join(pm.OutputPath,'grid3b_cb12_type3.'+str(itype+1)),'w') as f:
+            
             f.write(str(pm.Ftype2_para['numOf3bfeat1'][itype])+' \n')
             for i in range(pm.Ftype2_para['numOf3bfeat1'][itype]):
                 left=mulFactorVectOf3bFeat1[itype][i]-h3b1[itype]
                 right=mulFactorVectOf3bFeat1[itype][i]+h3b1[itype]
                 f.write(str(i)+'  '+str(left)+'  '+str(right)+' \n')
+
         with open(os.path.join(pm.OutputPath,'grid3b_b1b2_type3.'+str(itype+1)),'w') as f:
+            
             f.write(str(pm.Ftype2_para['numOf3bfeat2'][itype])+' \n')
             for i in range(pm.Ftype2_para['numOf3bfeat2'][itype]):
                 left=mulFactorVectOf3bFeat2[itype][i]-h3b2[itype]
                 right=mulFactorVectOf3bFeat2[itype][i]+h3b2[itype]
                 f.write(str(i)+'  '+str(left)+'  '+str(right)+' \n')
 
-# def r_feat_csv(f_feat):
-#     """ read feature and energy from pandas data
-#     """
-#     df   = pd.read_csv(f_feat,dtype=pm.tf_dtype)
-#     itypes = df['Type'].values.astype(int)
-#     engy = df['dE'].values
-#     feat = df.drop(['Type','index','dE','Num','energy'],axis=1).values 
-#     # feat = df.iloc[:][4:-1].values
-#     engy = engy.reshape([engy.size,1])
-#     return itypes,feat,engy
 def r_feat_csv(f_feat):
     """ read feature and energy from pandas data
     """

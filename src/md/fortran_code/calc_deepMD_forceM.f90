@@ -76,7 +76,6 @@ module calc_deepMD
     integer nodeMM,nlayer ! to be removed
     integer iflag_resNN(100)
     
-
     !!!!!!!!!!!!!          以上为  module variables     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   
     contains
@@ -123,20 +122,25 @@ module calc_deepMD
         open(10,file=trim(feat_info_path))
         
         rewind(10)
-
+        
+        ! NOT USED
         read(10,*) iflag_PCA   ! this can be used to turn off degmm part
+
+        ! NOT USED
         read(10,*) nfeat_type_n
 
+        ! NOT USED 
         do kkk=1,nfeat_type_n
             read(10,*) ifeat_type_n(kkk)   ! the index (1,2,3) of the feature type
         enddo
+        
         
         read(10,*) ntype,m_neigh
         
         close(10)
         
-        !  m_neight get from gen_feature input file
-        !   just to get ntype,m_neight, will read again 
+        ! m_neight get from gen_feature input file
+        ! just to get ntype,m_neight, will read again 
         
         ! **************** read fit_linearMM.input ********************    
         if (allocated(itype_atom)) deallocate(itype_atom)
@@ -144,8 +148,8 @@ module calc_deepMD
         if (allocated(rad_atom)) deallocate(rad_atom)
         if (allocated(wp_atom)) deallocate(wp_atom)
         if (allocated(E_ave_vdw)) deallocate(E_ave_vdw)
-        if (allocated(num)) deallocate(num)                              !image数据,在此处allocate，但在set_image_info中赋值
-        if (allocated(num_atomtype)) deallocate(num_atomtype)                     !image数据,在此处allocate，但在set_image_info中赋值
+        if (allocated(num)) deallocate(num)                                         !image数据,在此处allocate，但在set_image_info中赋值
+        if (allocated(num_atomtype)) deallocate(num_atomtype)                       !image数据,在此处allocate，但在set_image_info中赋值
         if (allocated(bb)) deallocate(bb)
         if (allocated(bb_type)) deallocate(bb_type)
         if (allocated(bb_type0)) deallocate(bb_type0)
@@ -226,7 +230,7 @@ module calc_deepMD
                 if(node_em(ii).gt.nodeMM_em) nodeMM_em=node_em(ii)
             enddo
         enddo
-        
+            
         if (.not.allocated(Wij_em)) then
             allocate(Wij_em(nodeMM_em,nodeMM_em,nlayer_em,ntype,ntype))
         endif 
@@ -419,7 +423,8 @@ module calc_deepMD
                     if (itype_atom(itype)==iatom(i)) then
                         iitype = itype
                     end if
-                end do
+                enddo
+
                 if (iitype==0) then
                     write (6, *) 'this type not found', iatom(i)
                 end if
@@ -435,7 +440,7 @@ module calc_deepMD
         end if
         
     end subroutine set_image_info_deepMD
-  
+    
     subroutine cal_energy_force_deepMD(AL,xatom,Etot,fatom)
         
         use mod_data, only: e_atom
@@ -624,7 +629,7 @@ module calc_deepMD
                 enddo
                 
                 num=jj   ! the same (itype2,itype1), all the neigh, and all the atomi belong to this CPU
-                
+
                 do ll=1,nlayer_em  
 
                     call dgemm('T', 'N', node_em(ll+1),num,node_em(ll), 1.d0,  &
@@ -857,7 +862,7 @@ module calc_deepMD
             enddo
 
             !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-            !   Now, we wil do the back propagation
+            !  Now, we wil do the back propagation
             ! f_back0(j,i,ll)=dE/d_(f_out(j,i,ll))
             ! f_back(j,i,ll)=dE/d_(f_in(j,i,ll))=f_fac0*df(j,i,ll)*W_res
             !  f_out(j,i,ll)=sigma(f_in(j,i,ll))*W_res+f_out(j,i,ll-1)  ! if there are res
@@ -871,50 +876,49 @@ module calc_deepMD
                 enddo
             enddo
 
-         do 200 ll=nlayer_NN,2,-1
+            do ll=nlayer_NN,2,-1
 
-         do i=1,num
-         do j=1,node_NN(ll)
-         f_back(j,i,ll)=f_back0(j,i,ll)*f_d_NN(j,i,ll)
-!  f_back0=dE/d_(f_out(ll))
-!  f_back=dE/d_(f_in(ll))
-         enddo
-         enddo
+                do i=1,num
+                    do j=1,node_NN(ll)
+                        f_back(j,i,ll)=f_back0(j,i,ll)*f_d_NN(j,i,ll)
+                        !  f_back0=dE/d_(f_out(ll))
+                        !  f_back=dE/d_(f_in(ll))
+                    enddo
+                enddo
 
-         if(iflag_resNN(ll).eq.1) then
-         do i=1,num
-         do j=1,node_NN(ll)
-         f_back(j,i,ll)=f_back(j,i,ll)*W_res_NN(j,ll,itype1)
-         enddo
-         enddo
-         endif
+                if(iflag_resNN(ll).eq.1) then
+                    do i=1,num
+                        do j=1,node_NN(ll)
+                            f_back(j,i,ll)=f_back(j,i,ll)*W_res_NN(j,ll,itype1)
+                        enddo
+                    enddo
+                endif
 
-          call dgemm('N', 'N', node_NN(ll-1),num,node_NN(ll),1.d0,  &
-          Wij_NN(1,1,ll-1,itype1),nodeMM_NN,f_back(1,1,ll),nodeMM_NN,0.d0,f_back0(1,1,ll-1),nodeMM_NN)
+                call dgemm('N', 'N', node_NN(ll-1),num,node_NN(ll),1.d0,  &
+                Wij_NN(1,1,ll-1,itype1),nodeMM_NN,f_back(1,1,ll),nodeMM_NN,0.d0,f_back0(1,1,ll-1),nodeMM_NN)
 
-         if(iflag_resNN(ll).eq.1) then
-         do i=1,num
-         do j=1,node_NN(ll-1)
-         f_back0(j,i,ll-1)=f_back0(j,i,ll-1)+f_back0(j,i,ll)
-         enddo
-         enddo
-         endif
+                if(iflag_resNN(ll).eq.1) then
+                    do i=1,num
+                        do j=1,node_NN(ll-1)
+                            f_back0(j,i,ll-1)=f_back0(j,i,ll-1)+f_back0(j,i,ll)
+                        enddo
+                    enddo
+                endif
+            enddo 
 
 
-200      continue
+            !      f_back0(j,i,1)=dE/d_(f_out(j,i,1))=dE/d_(f_in(j,i,1))=dE/df_NN
+            !   j is feature index, i, the itype1 atom index
+            ! Now, there are two terms for the force:
+            !   (dE/df_NN)*(df_NN/d_x)
+            !   (dE/df_NN)*(df_NN/d_fem)*(d_fem/d_s)*(d_s/d_x)
+            !  let't do the first term  
 
-!      f_back0(j,i,1)=dE/d_(f_out(j,i,1))=dE/d_(f_in(j,i,1))=dE/df_NN
-!   j is feature index, i, the itype1 atom index
-! Now, there are two terms for the force:
-!   (dE/df_NN)*(df_NN/d_x)
-!   (dE/df_NN)*(df_NN/d_fem)*(d_fem/d_s)*(d_s/d_x)
-!  let't do the first term  
-
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-! This part is a bit expensive, it will be nice to accelerate it
-         nn1=node_em(nlayer_em+1)
+            !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+            !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+            !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+            ! This part is a bit expensive, it will be nice to accelerate it
+            nn1=node_em(nlayer_em+1)
          do itype2=1,ntype
          do i=1,natom_n_type(itype1)
          iat=iat_ind(i,itype1)
@@ -1128,12 +1132,12 @@ module calc_deepMD
         !  Now, back propagation for the derivative for energy, in respect to the f_in(j,i,1)      
 
 
-!ccccccccccccccccccccccccccccccccccccccccccccc
-!ccccccccccccccccccccccccccccccccccccccccccccc
+        !ccccccccccccccccccccccccccccccccccccccccccccc
+        !ccccccccccccccccccccccccccccccccccccccccccccc
 
-    ! enddo
+            ! enddo
 
-!ccccccccccccccccccccccccccccccccccccccccccc
+        !ccccccccccccccccccccccccccccccccccccccccccc
         
     end subroutine cal_energy_force_deepMD
 

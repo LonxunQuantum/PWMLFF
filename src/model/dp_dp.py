@@ -10,7 +10,7 @@ sys.path.append(os.getcwd())
 # import prepare as pp
 # pp.readFeatnum()
 from model.dp_embedding import EmbeddingNet, FittingNet
-from model.calculate_force import CalculateForce
+from model.calculate_force import CalculateForce, CalculateVirialForce
 # logging and our extension
 import logging
 logging_level_DUMP = 5
@@ -39,6 +39,7 @@ class DP(nn.Module):
         self.ntypes = len(config['atomType'])
         self.device = device
         self.stat = stat
+        self.M2 = config["M2"]
         self.maxNeighborNum = config["maxNeighborNum"]
         if self.config["training_type"] == "float64":
             self.dtype = torch.double
@@ -54,22 +55,21 @@ class DP(nn.Module):
             for j in range(self.ntypes):
                 self.embedding_net.append(EmbeddingNet(self.config["net_cfg"]["embedding_net"], magic))
             fitting_net_input_dim = self.config["net_cfg"]["embedding_net"]["network_size"][-1]
-            #self.fitting_net.append(FittingNet(config["net_cfg"]["fitting_net"], 16 * fitting_net_input_dim, self.stat[2][i], magic))
-            self.fitting_net.append(FittingNet(config["net_cfg"]["fitting_net"], self.config["M2"] * fitting_net_input_dim, self.stat[2][i], magic))
+            self.fitting_net.append(FittingNet(config["net_cfg"]["fitting_net"], self.M2 * fitting_net_input_dim, self.stat[2][i], magic))
 
-    def get_egroup(self, Egroup_weight, divider):
-        batch_size = self.Ei.shape[0]
-        Egroup = torch.zeros_like(self.Ei)
+    def get_egroup(self, Ei, Egroup_weight, divider):
+        batch_size = Ei.shape[0]
+        Egroup = torch.zeros_like(Ei)
         for i in range(batch_size):
-            Etot1 = self.Ei[i]
+            Etot1 = Ei[i]
             weight_inner = Egroup_weight[i]
             E_inner = torch.matmul(weight_inner, Etot1)
             Egroup[i] = E_inner
-        Egroup_out = torch.divide(Egroup, divider)
+        Egroup_out = torch.divide(Egroup.squeeze(-1), divider)
         return Egroup_out
 
 
-    def forward(self, Ri, dfeat, list_neigh, natoms_img, Egroup_weight, divider, is_calc_f=None):
+    def forward(self, ImageDR, Ri, dfeat, list_neigh, natoms_img, Egroup_weight, divider, is_calc_f=None):
 
         torch.autograd.set_detect_anomaly(True)
         
@@ -92,9 +92,7 @@ class DP(nn.Module):
                 else:
                     xyz_scater_a = xyz_scater_a + tmp_b
             xyz_scater_a = xyz_scater_a * 4.0 / (self.maxNeighborNum * self.ntypes * 4)
-            #xyz_scater_b = xyz_scater_a[:, :, :, :16]
-            xyz_scater_b = xyz_scater_a[:, :, :, :self.config["M2"]]
-            
+            xyz_scater_b = xyz_scater_a[:, :, :, :self.M2]
             DR_ntype = torch.matmul(xyz_scater_a.transpose(-2, -1), xyz_scater_b)
             DR_ntype = DR_ntype.reshape(batch_size, natoms[ntype], -1)
             if ntype == 0:
@@ -111,11 +109,13 @@ class DP(nn.Module):
         
         
         Etot = torch.sum(Ei, 1)   
-        # Egroup = self.get_egroup(Ei, Egroup_weight, divider)
+        #Egroup = self.get_egroup(Ei, Egroup_weight, divider)
+        Egroup = 0 
         F = torch.zeros((batch_size, atom_sum, 3), device=self.device)
+        Virial = torch.zeros((batch_size, 9), device=self.device)
         Ei = torch.squeeze(Ei, 2)
         if is_calc_f == False:
-            return Etot, Ei, F
+            return Etot, Ei, F, Egroup, Virial
         # start_autograd = time.time()
         # print("fitting time:", start_autograd - start_fitting, 's')
 
@@ -135,5 +135,12 @@ class DP(nn.Module):
         list_neigh = (list_neigh - 1).type(torch.int)
         F = CalculateForce.apply(list_neigh, dE, Ri_d, F)
 
-        return Etot, Ei, F
+        # virial = CalculateVirialForce.apply(list_neigh, dE, Ri[:,:,:,:3], Ri_d)
+        virial = CalculateVirialForce.apply(list_neigh, dE, ImageDR, Ri_d)
+        virial = virial * (-1)
+        # print(Etot)
+        # print(virial)
+        # print("==============================")
+        # import ipdb; ipdb.set_trace()
 
+        return Etot, Ei, F, Egroup, virial

@@ -13,7 +13,7 @@ PROGRAM gen_3b_feature
     integer num_step0,num_step1,natom0,max_neigh
     real*8 Etotp_ave,E_tolerance
     character(len=50) char_tmp(20)
-    character(len=200) trainSetFileDir(200)
+    character(len=200) trainSetFileDir(5000)
     character(len=200) trainSetDir
     character(len=200) MOVEMENTDir,dfeatDir,infoDir,trainDataDir,inquirepos2
     integer(8) inp
@@ -47,6 +47,7 @@ PROGRAM gen_3b_feature
     integer,allocatable,dimension (:,:,:) :: list_neigh_M
     integer,allocatable,dimension (:,:) :: num_neigh_M
 
+    integer(4) alive
 
     real*8 sum1,diff
 
@@ -88,14 +89,15 @@ PROGRAM gen_3b_feature
     read(10,*) Rc_type(i),Rc2_type(i),Rm_type(i),iflag_grid_type(i),fact_grid_type(i),dR_grid1_type(i),dR_grid2_type(i)
     read(10,*) n3b1_type(i),n3b2_type(i)
 
-     if(Rc_type(i).gt.Rc_M) then
-      write(6,*) "Rc_type must be smaller than Rc_M, gen_3b_feature.in",i,Rc_type(i),Rc_M
-      stop
-     endif
-     if(Rc2_type(i).gt.2*Rc_type(i)) then
-      write(6,*) "Rc2_type must be smaller than 2*Rc_type, gen_3b_feature.in",i,Rc_type(i),Rc2_type(i)
-      stop
-     endif
+    if(Rc_type(i).gt.Rc_M) then
+        write(6,*) "Rc_type must be smaller than Rc_M, gen_3b_feature.in",i,Rc_type(i),Rc_M
+        stop
+    endif
+    
+    if(Rc2_type(i).gt.2*Rc_type(i)) then
+        write(6,*) "Rc2_type must be smaller than 2*Rc_type, gen_3b_feature.in",i,Rc_type(i),Rc2_type(i)
+        stop
+    endif
 
     enddo
     read(10,*) E_tolerance
@@ -109,18 +111,19 @@ PROGRAM gen_3b_feature
     read(13,'(a200)') trainSetDir
     ! allocate(trainSetFileDir(sys_num))
     do i=1,sys_num
-    read(13,'(a200)') trainSetFileDir(i)    
+        read(13,'(a200)') trainSetFileDir(i)    
+        write(*,*) i, trainSetFileDir(i)   
     enddo
     close(13)
     trainDataDir=trim(trainSetDir)//"/trainData.txt.Ftype2"
     inquirepos2=trim(trainSetDir)//"/inquirepos2.txt"
-!cccccccccccccccccccccccccccccccccccccccc
+    !cccccccccccccccccccccccccccccccccccccccc
 
     do i=1,ntype
-    if(iflag_ftype.eq.3.and.iflag_grid_type(i).ne.3) then
-    write(6,*) "if iflag_ftype.eq.3, iflag_grid must equal 3, stop"
-    stop
-    endif
+        if(iflag_ftype.eq.3.and.iflag_grid_type(i).ne.3) then
+            write(6,*) "if iflag_ftype.eq.3, iflag_grid must equal 3, stop"
+            stop
+        endif
     enddo
 
      n3b1m=0
@@ -246,11 +249,11 @@ PROGRAM gen_3b_feature
 
      endif   ! iflag_grid.eq.1,2
 
-!cccccccccccccccccccccccccccccccccccccccccccc
+    !cccccccccccccccccccccccccccccccccccccccccccc
     if(iflag_grid.eq.3) then  
- ! for iflag_grid.eq.3, the graid is just read in. 
- ! Its format is different from above grid31, grid32. 
- ! For each point, it just have two numbers, r1,r2, indicating the region of the sin peak function.
+    ! for iflag_grid.eq.3, the graid is just read in. 
+    ! Its format is different from above grid31, grid32. 
+    ! For each point, it just have two numbers, r1,r2, indicating the region of the sin peak function.
 
     open(13,file="output/grid3b_cb12_type3."//char(kkk+48))
     rewind(13)
@@ -281,60 +284,68 @@ PROGRAM gen_3b_feature
 
     enddo     ! kkk=1,ntype
 
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-    
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
-!  FInish the initial grid treatment
+    !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+        
+    !cccccccccccccccccccccccccccccccccccccccccccccccccccc
+    !  FInish the initial grid treatment 
+    !cccccccccccccccccccccccccccccccccccccccccccccccccccc
 
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
 
     do 2333 sys=1,sys_num
         MOVEMENTDir=trim(trainSetFileDir(sys))//"/MOVEMENT"
         dfeatDir=trim(trainSetFileDir(sys))//"/dfeat.fbin.Ftype2"
         infoDir=trim(trainSetFileDir(sys))//"/info.txt.Ftype2"
-    
+        
+        write(*,*) "current mvt path:",MOVEMENTDir
 
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
-    OPEN (move_file,file=MOVEMENTDir,status="old",action="read") 
-    rewind(move_file)
+        inquire(file=MOVEMENTDir,exist=alive)
+        if (alive.ne..true.) then 
+            write(*,*) MOVEMENTDir, " not found. Terminate."
+            stop
+        endif 
+        
+        
+        open (move_file,file=MOVEMENTDir,status="old",action="read") 
+        write(*,*) "mvt opened:", MOVEMENTDir
+        rewind(move_file)
 
-      num_step0=0
-      Etotp_ave=0.d0
+        num_step0=0
+        Etotp_ave=0.d0
 1001 continue
-    call scan_title (move_file,"ITERATION",if_find=nextline)
-      if(.not.nextline) goto 1002
-      num_step0=num_step0+1
-    backspace(move_file)
-    read(move_file,*) natom0
-       if(num_step0.gt.1.and.natom.ne.natom0) then
-       write(6,*) "The natom cannot change within one MOVEMENT FILE", &
-       num_step0,natom0 
-       endif
-    natom=natom0
+        call scan_title (move_file,"ITERATION",if_find=nextline)
+        if(.not.nextline) goto 1002
+        num_step0=num_step0+1
+        backspace(move_file)
+        read(move_file,*) natom0
+        if(num_step0.gt.1.and.natom.ne.natom0) then
+        write(6,*) "The natom cannot change within one MOVEMENT FILE", &
+        num_step0,natom0 
+        endif
+        natom=natom0
 
-    CALL scan_title (move_file, "ATOMIC-ENERGY",if_find=nextline)
-       if(.not.nextline) then
-         write(6,*) "Atomic-energy not found, stop",num_step0
-         stop
+        CALL scan_title (move_file, "ATOMIC-ENERGY",if_find=nextline)
+        if(.not.nextline) then
+            write(6,*) "Atomic-energy not found, stop",num_step0
+            stop
         endif
 
-     backspace(move_file)
-     read(move_file,*) char_tmp(1:4),Etotp
-     Etotp_ave=Etotp_ave+Etotp
-     goto 1001
+         backspace(move_file)
+        read(move_file,*) char_tmp(1:4),Etotp
+        Etotp_ave=Etotp_ave+Etotp
+        goto 1001
 1002  continue
-     close(move_file)
+        close(move_file)
 
-      Etotp_ave=Etotp_ave/num_step0
-      write(6,*) "num_step,natom,Etotp_ave=",num_step0,natom,Etotp_ave
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
-    ALLOCATE (iatom(natom),xatom(3,natom),fatom(3,natom),Eatom(natom))
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
-    OPEN (move_file,file=MOVEMENTDir,status="old",action="read") 
-    rewind(move_file)
+        Etotp_ave=Etotp_ave/num_step0
+        write(6,*) "num_step,natom,Etotp_ave=",num_step0,natom,Etotp_ave
+        !cccccccccccccccccccccccccccccccccccccccccccccccccccc
+        ALLOCATE (iatom(natom),xatom(3,natom),fatom(3,natom),Eatom(natom))
+        !cccccccccccccccccccccccccccccccccccccccccccccccccccc
+        OPEN (move_file,file=MOVEMENTDir,status="old",action="read") 
+        rewind(move_file)
 
       num_step1=0
 1003 continue
@@ -381,7 +392,7 @@ PROGRAM gen_3b_feature
      
      write(333,*) num_step0
 
-!cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc    !
+    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc    !
     OPEN (move_file,file=MOVEMENTDir,status="old",action="read") 
     rewind(move_file)
 

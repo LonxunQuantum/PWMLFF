@@ -176,7 +176,7 @@ def process_data(f_train_feat, f_train_dfeat, f_train_dR_neigh,
             ifeat_tmp_all[dfeatBinIdx] = np.array(read_allnn.ifeat_tmp_all).astype(int)
             
             read_allnn.deallo()
-
+            
             #print("dfeat from Fort:\n",type(read_allnn.dfeat_tmp_all))
 
         flag = flag+1
