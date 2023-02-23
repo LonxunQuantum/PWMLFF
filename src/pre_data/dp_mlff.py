@@ -19,7 +19,6 @@ def collect_all_sourcefiles(workDir, sourceFileName="MOVEMENT"):
             res.append(os.path.abspath(path))
     return res
 
-
 def gen_config_inputfile(config):
     output_path = os.path.join(config["dRFeatureInputDir"], "gen_dR_feature.in")
     with open(output_path, "w") as GenFeatInput:
@@ -170,14 +169,14 @@ def save_npy_files(data_path, data_set):
     np.save(os.path.join(data_path, "ListNeighbor.npy"), data_set["ListNeighbor"])
     print("    Ei.npy", data_set["Ei"].shape)
     np.save(os.path.join(data_path, "Ei.npy"), data_set["Ei"])
-    """
+    
     print("    Egroup.npy", data_set["Egroup"].shape)
     np.save(os.path.join(data_path, "Egroup.npy"), data_set["Egroup"])
     print("    Divider.npy", data_set["Divider"].shape)
     np.save(os.path.join(data_path, "Divider.npy"), data_set["Divider"])
     print("    Egroup_weight.npy", data_set["Egroup_weight"].shape)
     np.save(os.path.join(data_path, "Egroup_weight.npy"), data_set["Egroup_weight"])
-    """
+    
     print("    Ri.npy", data_set["Ri"].shape)
     np.save(os.path.join(data_path, "Ri.npy"), data_set["Ri"])
     print("    Ri_d.npy", data_set["Ri_d"].shape)
@@ -278,7 +277,6 @@ def calc_stat(config, image_dR, list_neigh, natoms_img):
     davg = np.array(davg).reshape(ntypes, -1)
     dstd = np.array(dstd).reshape(ntypes, -1)
     return davg, dstd
-
 
 def compute_std(sum2, sum, sumn):
     if sumn == 0:
@@ -455,10 +453,11 @@ def compute_Ri(config, image_dR, list_neigh, natoms_img, ind_img, davg, dstd):
     natoms_per_type = natoms_img[0, 1:]
     ntypes = len(natoms_per_type)
 
-    if torch.cuda.is_available():
-        device = torch.device("cuda")
-    else:
-        device = torch.device("cpu")
+    #if torch.cuda.is_available():
+    #    device = torch.device("cuda")
+    #else:
+    
+    device = torch.device("cpu")
 
     davg = torch.tensor(davg, device=device, dtype=torch.float64)
     dstd = torch.tensor(dstd, device=device, dtype=torch.float64)
@@ -546,11 +545,10 @@ def compute_Ri(config, image_dR, list_neigh, natoms_img, ind_img, davg, dstd):
             Ri_d = np.concatenate((Ri_d, Ri_d_i), 0)
 
     return Ri, Ri_d
-
-
+    
 def sepper_data(config):
     """
-        do shuffling here 
+        do shuffling here, since not sure if image structure support PADDING
         Shuffle for each MOVEMENT  
     """
     trainset_dir = config["trainSetDir"]
@@ -568,16 +566,38 @@ def sepper_data(config):
     dR_neigh = np.loadtxt(os.path.join(trainset_dir, "dRneigh.dat"))
     image_dR = dR_neigh[:, :3]
     list_neigh = dR_neigh[:, 3]
+    
     Ei = np.loadtxt(os.path.join(trainset_dir, "Ei.dat"))
 
-    """
-    Egroup_file = np.loadtxt(
-        os.path.join(trainset_dir, "Egroup_weight.dat"), delimiter=","
-    )
-    Egroup = Egroup_file[:, 0]
-    divider = Egroup_file[:, 1]
-    Egroup_weight = Egroup_file[:, 2:]
-    """
+    # note that Egroup comes with different col number! 
+    #Egroup_file = np.loadtxt(
+    #    os.path.join(trainset_dir, "Egroup_weight.dat"), delimiter=",", usecols=0
+    #)   
+    
+    Egroup  = np.loadtxt(
+        os.path.join(trainset_dir, "Egroup_weight.dat"), delimiter=",", usecols=0
+    )   
+    
+    divider = np.loadtxt(
+        os.path.join(trainset_dir, "Egroup_weight.dat"), delimiter=",", usecols=1
+    )   
+
+    # take care of weights
+    #Egroup_weight = Egroup_file[:, 2:]
+
+    fp = open(os.path.join(trainset_dir, "Egroup_weight.dat"),"r")
+    raw_egroup = fp.readlines()
+    fp.close()
+    
+    # form a list to contain 1-d arrays 
+    egroup_single_arr = []
+
+    for line in raw_egroup:
+        
+        tmp  = [float(item) for item in line.split(",")]
+        tmp  = tmp[2:]
+        egroup_single_arr.append(np.array(tmp))
+
     Force = np.loadtxt(os.path.join(trainset_dir, "Force.dat"))
     Virial = np.loadtxt(os.path.join(trainset_dir, "Virial.dat"), delimiter=" ")
     atom_num_per_image = np.loadtxt(
@@ -637,6 +657,8 @@ def sepper_data(config):
 
     """
         Note: the seperation is done linearly. Should not be. 
+        Add a rotation factor? Beta version 
+
     """ 
     accum_train_num = 0 
     accum_valid_num = 0 
@@ -647,18 +669,23 @@ def sepper_data(config):
     if img_per_mvmt.size == 1:
         range_mvmt[0] = img_per_mvmt
     else:
-
         for idx in range(img_per_mvmt.size):
             range_mvmt[idx] = sum(img_per_mvmt[:idx+1])
     
     range_mvmt = [0] + range_mvmt
     
+    # assume all movements are of same size! 
+    rotate_fac = 10
+    mvmt_size = 0 
     
+    local_train_idx_list = []
+    local_valid_idx_list = [] 
+
     for i in range(len(range_mvmt)-1):
         """
             (0,100) (100,200) ... 
         """
-        
+
         # shuffled image in a single movement 
         local_img_idx = [i for i in range(range_mvmt[i],range_mvmt[i+1])]
         random.shuffle(local_img_idx)
@@ -669,77 +696,91 @@ def sepper_data(config):
         local_train_idx = local_img_idx[:local_train_num] 
         local_valid_idx = local_img_idx[local_train_num:] 
         
-        #training   
-        #while index < train_image_num:
-        for index in local_train_idx:
-            start_index = index
-            end_index = index + 1
+        local_train_idx_list.append(local_train_idx)
+        local_valid_idx_list.append(local_valid_idx)   
+            
+        mvmt_size = local_img_num 
+    
+    # switch system every rotate fac steps
+    # training   
+    for j in range(0, mvmt_size, rotate_fac):
+        for i in range(len(range_mvmt)-1):
+            
+            # only rotate_fac steps
+            for index in local_train_idx_list[i][j:j+rotate_fac]:
+                start_index = index
+                end_index = index + 1
+                print (image_index[start_index], image_index[end_index])
+                train_set = {
+                    "AtomType": atom_type[image_index[start_index] : image_index[end_index]],
+                    "ImageDR": image_dR[image_index[start_index] : image_index[end_index]],
+                    "ListNeighbor": list_neigh[
+                        image_index[start_index] : image_index[end_index]
+                    ],
+                    "Ei": Ei[image_index[start_index] : image_index[end_index]],
+                    "Egroup": Egroup[image_index[start_index] : image_index[end_index]],
+                    "Divider": divider[image_index[start_index] : image_index[end_index]],
+                    #"Egroup_weight": Egroup_weight[image_index[start_index] : image_index[end_index]],
+                    "Egroup_weight": np.vstack(tuple(egroup_single_arr[image_index[start_index] : image_index[end_index]])),
+                    "Ri": Ri[image_index[start_index] : image_index[end_index]],
+                    "Ri_d": Ri_d[image_index[start_index] : image_index[end_index]],
+                    "Force": Force[image_index[start_index] : image_index[end_index]],
+                    "Virial": Virial[start_index:end_index],
+                    "ImageAtomNum": atom_num_per_image[start_index:end_index],
+                }
 
-            train_set = {
-                "AtomType": atom_type[image_index[start_index] : image_index[end_index]],
-                "ImageDR": image_dR[image_index[start_index] : image_index[end_index]],
-                "ListNeighbor": list_neigh[
-                    image_index[start_index] : image_index[end_index]
-                ],
-                "Ei": Ei[image_index[start_index] : image_index[end_index]],
-                #"Egroup": Egroup[image_index[start_index] : image_index[end_index]],
-                #"Divider": divider[image_index[start_index] : image_index[end_index]],
-                #"Egroup_weight": Egroup_weight[image_index[start_index] : image_index[end_index]],
-                "Ri": Ri[image_index[start_index] : image_index[end_index]],
-                "Ri_d": Ri_d[image_index[start_index] : image_index[end_index]],
-                "Force": Force[image_index[start_index] : image_index[end_index]],
-                "Virial": Virial[start_index:end_index],
-                "ImageAtomNum": atom_num_per_image[start_index:end_index],
-            }
+                save_path = os.path.join(
+                    train_data_path, "image_" + str(accum_train_num).zfill(width_train)
+                )
 
-            save_path = os.path.join(
-                train_data_path, "image_" + str(accum_train_num).zfill(width_train)
-            )
+                if not os.path.exists(save_path):
+                    os.mkdir(save_path)
+                save_npy_files(save_path, train_set)
 
-            if not os.path.exists(save_path):
-                os.mkdir(save_path)
-            save_npy_files(save_path, train_set)
-
-            accum_train_num += 1 
-            #index = end_index
+                accum_train_num += 1 
+                #index = end_index
         
-        # valid
-        #while index < image_num:
-        for index in local_valid_idx:
+    # switch system every rotate fac steps
+    # valid
+    for j in range(0, local_img_num, rotate_fac):
+        for i in range(len(range_mvmt)-1):
+            
+            #while index < image_num:
+            for index in local_valid_idx_list[i][j:j+rotate_fac]:
 
-            start_index = index
-            end_index = index + 1
+                start_index = index
+                end_index = index + 1
 
-            valid_set = {
-                "AtomType": atom_type[image_index[start_index] : image_index[end_index]],
-                "ImageDR": image_dR[image_index[start_index] : image_index[end_index]],
-                "ListNeighbor": list_neigh[
-                    image_index[start_index] : image_index[end_index]
-                ],
-                "Ei": Ei[image_index[start_index] : image_index[end_index]],
-                #"Egroup": Egroup[image_index[start_index] : image_index[end_index]],
-                #"Divider": divider[image_index[start_index] : image_index[end_index]],
-                #"Egroup_weight": Egroup_weight[image_index[start_index] : image_index[end_index]],
-                "Ri": Ri[image_index[start_index] : image_index[end_index]],
-                "Ri_d": Ri_d[image_index[start_index] : image_index[end_index]],
-                "Force": Force[image_index[start_index] : image_index[end_index]],
-                "Virial": Virial[start_index:end_index],
-                "ImageAtomNum": atom_num_per_image[start_index:end_index],
-            }
+                valid_set = {
+                    "AtomType": atom_type[image_index[start_index] : image_index[end_index]],
+                    "ImageDR": image_dR[image_index[start_index] : image_index[end_index]],
+                    "ListNeighbor": list_neigh[
+                        image_index[start_index] : image_index[end_index]
+                    ],
+                    "Ei": Ei[image_index[start_index] : image_index[end_index]],
+                    "Egroup": Egroup[image_index[start_index] : image_index[end_index]],
+                    "Divider": divider[image_index[start_index] : image_index[end_index]],
+                    #"Egroup_weight": Egroup_weight[image_index[start_index] : image_index[end_index]],
+                    "Egroup_weight": np.vstack(tuple(egroup_single_arr[image_index[start_index] : image_index[end_index]])),
+                    "Ri": Ri[image_index[start_index] : image_index[end_index]],
+                    "Ri_d": Ri_d[image_index[start_index] : image_index[end_index]],
+                    "Force": Force[image_index[start_index] : image_index[end_index]],
+                    "Virial": Virial[start_index:end_index],
+                    "ImageAtomNum": atom_num_per_image[start_index:end_index],
+                }
 
-            save_path = os.path.join(
-                valid_data_path, "image_" + str(accum_valid_num).zfill(width_valid)
-            )
+                save_path = os.path.join(
+                    valid_data_path, "image_" + str(accum_valid_num).zfill(width_valid)
+                )
 
-            if not os.path.exists(save_path):
-                os.mkdir(save_path)
-            save_npy_files(save_path, valid_set)
+                if not os.path.exists(save_path):
+                    os.mkdir(save_path)
+                save_npy_files(save_path, valid_set)
 
-            accum_valid_num += 1
-            #index = end_index   
+                accum_valid_num += 1
+                #index = end_index   
 
     print("Saving npy file done")
-
 
 def main():
 
@@ -747,7 +788,7 @@ def main():
         config = yaml.load(yamlfile, Loader=yaml.FullLoader)
         print("Read Config successful")
 
-    gen_train_data(config)
+    #gen_train_data(config)
     sepper_data(config)
 
 

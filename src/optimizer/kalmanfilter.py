@@ -248,13 +248,12 @@ class GKalmanFilter(nn.Module):
 
         time_end = time.time()
         print("Global KF update Atomic Energy time:", time_end - time_start, "s")
-
+        
         
     def update_ei_and_force(self, inputs, Ei_label, force_label,update_prefactor=1 ):
         """
             1. pick out 20% images 
             2. cut it into a several groups 
-            
         """ 
         time_start = time.time()    
 

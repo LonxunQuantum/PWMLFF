@@ -18,9 +18,9 @@ class MovementDataset(Dataset):
                 self.dirs.append(current_dir)
 
         self.dirs = sorted(self.dirs)
-
+        
         self.__compute_stat_output(10, 1e-3)
-
+    
     def __load_data(self, path):
 
         data = {}
@@ -29,9 +29,9 @@ class MovementDataset(Dataset):
         data["Virial"] = np.load(os.path.join(path, "Virial.npy"))
         data["Ei"] = np.load(os.path.join(path, "Ei.npy"))
 
-        #data["Egroup"] = np.load(os.path.join(path, "Egroup.npy"))
-        #data["Divider"] = np.load(os.path.join(path, "Divider.npy"))
-        #data["Egroup_weight"] = np.load(os.path.join(path, "Egroup_weight.npy"))
+        data["Egroup"] = np.load(os.path.join(path, "Egroup.npy"))
+        data["Divider"] = np.load(os.path.join(path, "Divider.npy"))
+        data["Egroup_weight"] = np.load(os.path.join(path, "Egroup_weight.npy"))
 
         data["ListNeighbor"] = np.load(os.path.join(path, "ListNeighbor.npy"))
         data["ImageDR"] = np.load(os.path.join(path, "ImageDR.npy"))
@@ -40,7 +40,7 @@ class MovementDataset(Dataset):
         data["ImageAtomNum"] = np.load(os.path.join(path, "ImageAtomNum.npy")).reshape(
             -1
         )
-
+        #print(data["ImageAtomNum"])
         return data
 
     def __getitem__(self, index):
@@ -48,8 +48,8 @@ class MovementDataset(Dataset):
         file_path = self.dirs[index]
         data = self.__load_data(file_path)
         return data
-
-    def __len__(self):
+    
+    def __len__(self): 
         return len(self.dirs)
 
     def __compute_stat_output(self, image_num=10, rcond=1e-3):

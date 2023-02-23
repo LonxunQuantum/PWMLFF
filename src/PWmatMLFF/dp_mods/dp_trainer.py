@@ -82,7 +82,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, co
         natoms_img = Variable(sample_batches["ImageAtomNum"].int().to(device))
         natoms_img = torch.squeeze(natoms_img, 1)
         batch_size = Ri.shape[0]
-
+        
         if config.profiling:
             print("=" * 60, "Start profiling model inference", "=" * 60)
             with profile(
@@ -106,13 +106,21 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, co
 
         loss_F_val = criterion(Force_predict, Force_label)
         loss_Etot_val = criterion(Etot_predict, Etot_label)
-        # loss_Ei_val = criterion(Ei_predict, Ei_label)
+        loss_Ei_val = criterion(Ei_predict, Ei_label)
         loss_Ei_val = 0
+
+        #print("Egroup_predict",Egroup_predict)
+
+        #print("Egroup_label",Egroup_label)
         loss_Egroup_val = criterion(Egroup_predict, Egroup_label)
+        
+        
+
         loss_Virial_val = criterion(Virial_predict, Virial_label.squeeze(1))
         loss_val = loss_F_val + loss_Etot_val
 
-        w_f, w_e, w_v, w_eg, w_ei = 1, 1, 0, 0, 0
+        w_f, w_e, w_v, w_eg, w_ei = 1, 1, 1, 0, 0
+
         loss, _, _ = dp_loss(
             0.001,
             real_lr,
@@ -177,25 +185,27 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, config):
     KFOptWrapper = KFOptimizerWrapper(
         model, optimizer, config.nselect, config.groupsize, config.hvd, "hvd"
     )
-
+    
     # switch to train mode
     model.train()
 
     end = time.time()
     for i, sample_batches in enumerate(train_loader):
-        
+        #if i < 960:
+        #    continue
+
         # measure data loading time
         data_time.update(time.time() - end)
 
         if config.datatype == "float64":
             Ei_label = Variable(sample_batches["Ei"].double().to(device))
-            """
+            
             Egroup_label = Variable(sample_batches["Egroup"].double().to(device))
             Divider = Variable(sample_batches["Divider"].double().to(device))
             Egroup_weight = Variable(
                 sample_batches["Egroup_weight"].double().to(device)
             )
-            """
+            
             Force_label = Variable(
                 sample_batches["Force"][:, :, :].double().to(device)
             )  # [40,108,3]
@@ -229,8 +239,8 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, config):
         natoms_img = Variable(sample_batches["ImageAtomNum"].int().to(device))
         natoms_img = torch.squeeze(natoms_img, 1)
 
-        Egroup_weight = [] 
-        Divider = [] 
+        #Egroup_weight = [] 
+        #Divider = [] 
 
         batch_size = Ri.shape[0]
         kalman_inputs = [ImageDR, Ri, Ri_d, dR_neigh_list, natoms_img, Egroup_weight, Divider]
@@ -262,7 +272,6 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, config):
         else:
             # import ipdb;ipdb.set_trace()
             KFOptWrapper.update_energy(kalman_inputs, Etot_label, config.pre_fac_etot)
-            # KFOptWrapper.update_egroup(kalman_inputs, Egroup_label)
             
             Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = KFOptWrapper.update_force(
                 kalman_inputs, Force_label, config.pre_fac_force) 
@@ -270,11 +279,13 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, config):
             if config.is_virial is True:
                 KFOptWrapper.update_virial(kalman_inputs, Virial_label, config.pre_fac_virial)
             
+            if config.is_egroup is True:
+                KFOptWrapper.update_egroup(kalman_inputs, Egroup_label)
 
         loss_F_val = criterion(Force_predict, Force_label)
         loss_Etot_val = criterion(Etot_predict, Etot_label)
         loss_Ei_val = criterion(Ei_predict, Ei_label)
-        #loss_Egroup_val = criterion(Egroup_predict, Egroup_label)
+        loss_Egroup_val = criterion(Egroup_predict, Egroup_label)
         loss_Virial_val = criterion(Virial_predict, Virial_label.squeeze(1))
         loss_val = loss_F_val + loss_Etot_val
 
@@ -282,7 +293,7 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, config):
         losses.update(loss_val.item(), batch_size)
         loss_Etot.update(loss_Etot_val.item(), batch_size)
         loss_Ei.update(loss_Ei_val.item(), batch_size)
-        #loss_Egroup.update(loss_Egroup_val.item(), batch_size)
+        loss_Egroup.update(loss_Egroup_val.item(), batch_size)
         loss_Virial.update(loss_Virial_val.item(), batch_size)
         loss_Force.update(loss_F_val.item(), batch_size)
 
@@ -298,7 +309,7 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, config):
         loss_Etot.all_reduce()
         loss_Force.all_reduce()
         loss_Ei.all_reduce()
-        #loss_Egroup.all_reduce()
+        loss_Egroup.all_reduce()
         loss_Virial.all_reduce()
         batch_time.all_reduce()
 
@@ -313,13 +324,13 @@ def valid(val_loader, model, criterion, device, args):
             i = base_progress + i
             if args.datatype == "float64":
                 Ei_label = Variable(sample_batches["Ei"].double().to(device))
-                """
+                
                 Egroup_label = Variable(sample_batches["Egroup"].double().to(device))
                 Divider = Variable(sample_batches["Divider"].double().to(device))
                 Egroup_weight = Variable(
                     sample_batches["Egroup_weight"].double().to(device)
                 )
-                """
+                
                 Force_label = Variable(
                     sample_batches["Force"][:, :, :].double().to(device)
                 )
@@ -343,11 +354,9 @@ def valid(val_loader, model, criterion, device, args):
                     sample_batches["Egroup_weight"].float().to(device)
                 )
                 """
-                
                 Force_label = Variable(sample_batches["Force"][:, :, :].float().to(device))
                 
                 Virial_label = Variable(sample_batches["Virial"].float().to(device))
-
 
                 ImageDR = Variable(sample_batches["ImageDR"].float().to(device))
                 Ri = Variable(
@@ -363,17 +372,27 @@ def valid(val_loader, model, criterion, device, args):
 
             batch_size = Ri.shape[0]
 
-            Egroup_weight = [] 
-            Divider = [] 
+            #Egroup_weight = [] 
+            #Divider = [] 
 
+            """
+                Dim of Ri [bs, natom, ntype*max_neigh_num, 4] 
+            """
+
+            #print (Ri.size())
+            #print("printing Ri[0,0, :100, : ]")
+            #print (Ri[0, 0, :100, : ])
+            #return 
             Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
                 ImageDR, Ri, Ri_d, dR_neigh_list, natoms_img, Egroup_weight, Divider
             )
-
+            #print ("Etot")
+            #print (Etot_predict)
+            #return 
             loss_F_val = criterion(Force_predict, Force_label)
             loss_Etot_val = criterion(Etot_predict, Etot_label)
             loss_Ei_val = criterion(Ei_predict, Ei_label)
-            #loss_Egroup_val = criterion(Egroup_predict, Egroup_label)
+            loss_Egroup_val = criterion(Egroup_predict, Egroup_label)
             loss_Virial_val = criterion(Virial_predict, Virial_label.squeeze(1))
             loss_val = loss_F_val + loss_Etot_val
 
@@ -381,7 +400,7 @@ def valid(val_loader, model, criterion, device, args):
             losses.update(loss_val.item(), batch_size)
             loss_Etot.update(loss_Etot_val.item(), batch_size)
             loss_Ei.update(loss_Ei_val.item(), batch_size)
-            #loss_Egroup.update(loss_Egroup_val.item(), batch_size)
+            loss_Egroup.update(loss_Egroup_val.item(), batch_size)
             loss_Virial.update(loss_Virial_val.item(), batch_size)
             loss_Force.update(loss_F_val.item(), batch_size)
             # measure elapsed time

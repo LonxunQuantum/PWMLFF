@@ -162,7 +162,7 @@ subroutine find_neighbore(iatom,natom,xatom,AL,Rc_type,num_neigh,list_neigh, &
                 num_neigh_M(:,i)=num_type_M(:)
             endif
         enddo 
-
+        
         !********************
         ! write dRneigh.dat
         !********************

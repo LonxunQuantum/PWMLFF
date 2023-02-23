@@ -58,7 +58,7 @@ class KFOptimizerWrapper:
             elif self.distributed_backend == "torch":
                 dist.all_reduce(error)
                 error /= dist.get_world_size()
-
+        
         Etot_predict = update_prefactor * Etot_predict
         Etot_predict[mask] = -update_prefactor * Etot_predict[mask]
 
@@ -113,7 +113,7 @@ class KFOptimizerWrapper:
     def update_virial(
         self, inputs: list, Virial_label: torch.Tensor, update_prefactor: float = 1
     ) -> None:
-        _, _, _, _, Virial_predict = self.model(
+        Etot_predict, _, _, _, Virial_predict = self.model(
             inputs[0],
             inputs[1],
             inputs[2],
@@ -147,7 +147,9 @@ class KFOptimizerWrapper:
         Virial_predict = update_prefactor * Virial_predict
         Virial_predict[mask] = -update_prefactor * Virial_predict[mask]
 
-        Virial_predict.sum().backward()
+        #Virial_predict.sum().backward()
+        (Virial_predict.sum()+Etot_predict.sum() * 0).backward()
+
         error = error * math.sqrt(bs)
         self.optimizer.step(error)
         return Virial_predict
@@ -157,6 +159,7 @@ class KFOptimizerWrapper:
         self, inputs: list, Force_label: torch.Tensor, update_prefactor: float = 1
     ) -> None:
         natoms_sum = inputs[4][0, 0]
+        #print ("natoms_sum",natoms_sum)
         bs = Force_label.shape[0]
         self.optimizer.set_grad_prefactor(natoms_sum * self.atoms_per_group * 3)
 
@@ -194,13 +197,17 @@ class KFOptimizerWrapper:
     def __sample(
         self, atoms_selected: int, atoms_per_group: int, natoms: int
     ) -> np.ndarray:
+        """
+            natoms can be smaller than n_select !
+            
+        """
         if atoms_selected % atoms_per_group:
             raise Exception("divider")
         index = range(natoms)
         res = np.random.choice(index, atoms_selected).reshape(-1, atoms_per_group)
         return res
+        
 
-
-# with torch.autograd.profiler.profile(enabled=True, use_cuda=True, record_shapes=False) as prof:
-#     the code u wanna profile
-# print(prof.key_averages().table(sort_by="self_cpu_time_total"))
+    # with torch.autograd.profiler.profile(enabled=True, use_cuda=True, record_shapes=False) as prof:
+    #     the code u wanna profile
+    # print(prof.key_averages().table(sort_by="self_cpu_time_total"))

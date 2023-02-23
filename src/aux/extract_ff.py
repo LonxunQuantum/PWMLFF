@@ -120,7 +120,12 @@ def write_feat_grid(outfile,feat_type,num_atom_type,grid_idx):
             for line in raw:
                 outfile.writelines(line)
 
-def extract_ff(name = "myforcefield.ff", model_type = 3, atom_type = None, max_neigh_num = 100):
+def extract_ff( name = "myforcefield.ff",
+                model_type = 3, 
+                atom_type = None, 
+                max_neigh_num = 100, 
+                is_fitting_recon = False, 
+                is_embedding_recon = False):
     """
         We need the following:
         	i. Network params/ 
@@ -131,7 +136,7 @@ def extract_ff(name = "myforcefield.ff", model_type = 3, atom_type = None, max_n
     ff_name = name 
     
     with open(ff_name,"w") as outfile:
-
+        
         if model_type ==3:
             # type of the model
             outfile.writelines(str(model_type)+"\n")
@@ -190,6 +195,12 @@ def extract_ff(name = "myforcefield.ff", model_type = 3, atom_type = None, max_n
             outfile.writelines(str(model_type)+"\n")
             outfile.writelines("\n")
             
+            # write reconnect info 
+            if is_fitting_recon == True:
+                outfile.writelines("1\n")
+            else:
+                outfile.writelines("0\n")
+
             # feat.info
             if atom_type is None:
                 raise Exception("atom type list is required as input")
@@ -224,15 +235,16 @@ def extract_ff(name = "myforcefield.ff", model_type = 3, atom_type = None, max_n
             outfile.writelines("\n")
 
             # fitting net reconnect para
-            recon_name = "fittingNet.resnet"
-            fin = open(recon_name,"r")
-            raw = fin.readlines()
-            fin.close() 
-            
-            for line in raw:
-                outfile.writelines(line)  
+            if is_fitting_recon == True:
+                recon_name = "fittingNet.resnet"
+                fin = open(recon_name,"r")
+                raw = fin.readlines()
+                fin.close() 
+                
+                for line in raw:
+                    outfile.writelines(line)  
 
-            outfile.writelines("\n")
+                outfile.writelines("\n")
 
             # gen_dp.in 
             gen_dp_name  = "gen_dp.in"        

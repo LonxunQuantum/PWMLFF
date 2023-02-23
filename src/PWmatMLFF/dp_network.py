@@ -237,6 +237,10 @@ def get_terminal_args():
     )
 
     parser.add_argument(
+        "--is_egroup", default=True, type=bool, help="train egroup"
+    )
+
+    parser.add_argument(
         "--pre_fac_force", default=2.0, type=float, help="KF force update prefactor"
     )
 
@@ -257,22 +261,32 @@ def get_terminal_args():
     args = parser.parse_args()
     
     return args
+    
+
+def my_collate_func(batch):
+    # dict_keys(['Force', 
+    #           'Virial', 
+    #               'Ei', 
+    #     'ListNeighbor', 
+    #          'ImageDR', 
+    #               'Ri',
+    #             'Ri_d', 
+    #     'ImageAtomNum'])    
+    return 
 
 
 class dp_network:
     
     def __init__(   self,
+                 
                     # some must-haves
                     # model related argument
                     terminal_args = get_terminal_args(), 
                     atom_type = None, 
                     # optimizer related arguments 
-                    
                     max_neigh_num = 100, 
                     # "g", "l_0","l_1", "l_2", "s" 
-                    
-                    kalman_type = None,     # optimal version    
-                    
+                                        
                     session_dir = "record",  # directory that saves the model
                     n_epoch = 25, 
                     start_epoch = 1, 
@@ -299,6 +313,7 @@ class dp_network:
                     group_size = 6,
                     # 
                     is_virial = True,
+                    is_egroup = False, 
                     pre_fac_force = 2.0,
                     pre_fac_etot = 1.0, 
                     pre_fac_virial = 1.0, 
@@ -326,7 +341,7 @@ class dp_network:
 
                     fitting_net_size = None, 
                     fitting_net_bias = None,
-                    fitting_net_res = None, 
+                    fitting_net_res  = None, 
                     fitting_net_act = None, 
 
                     recover = False,
@@ -339,7 +354,9 @@ class dp_network:
                     Rmax = 6.0,
                     
                     # paras for DP network
-                    M2 = 16
+                    M2 = 16, 
+
+                    model_name = None                  
                     
 
                     ):
@@ -400,7 +417,7 @@ class dp_network:
         self.group_size = group_size
 
         self.best_loss = 1e10
-        
+        self.model_name = model_name
         # setting M2 of the intermediate matrix D 
 
         # setting device
@@ -422,12 +439,6 @@ class dp_network:
         # common training parameters
         self.n_epoch = n_epoch
         
-        # batch size = 1 for kalman 
-        if kalman_type is not None:
-            self.batch_size = 1
-        else:
-            self.batch_size = batch_size 
-
         self.min_loss = np.inf
         self.epoch_print = 1 
         self.iter_print = 1 
@@ -586,8 +597,9 @@ class dp_network:
             self.terminal_args.blocksize = block_size
             self.terminal_args.nselect = select_num
             self.terminal_args.groupsize = group_size
-            
+
             self.terminal_args.is_virial = is_virial
+            self.terminal_args.is_egroup = is_egroup
             self.terminal_args.pre_fac_force = pre_fac_force 
             self.terminal_args.pre_fac_etot = pre_fac_etot
             self.terminal_args.pre_fac_virial = pre_fac_virial
@@ -624,7 +636,7 @@ class dp_network:
          
     def dbg(self):
         
-        train_dataset = MovementDataset(self.config, "./train")
+        train_dataset = MovementDataset("./valid")
         #valid_dataset = MovementDataset(self.config, "./valid")
 
         train_loader = torch.utils.data.DataLoader(
@@ -633,36 +645,50 @@ class dp_network:
             shuffle=False,
             num_workers=self.terminal_args.workers,
             pin_memory=True,
-            sampler=None,
+            sampler=None,   
         )
+
+        print("loaded")
+
         """
-            Force   
-            Ei
-            ListNeighbor
+            keys to be padded:
+            Force, 
+            Ei, 
+            ImageDR
+            neighbor list 
             Ri
             Ri_d
-            ImageAtomNum
-        """
 
-        for i, sample_batches in enumerate(train_loader):
-            #print(sample_batches))
-            #for key in sample_batches:
-            #    print(key)
+            forward dependent? 
+            Ri: No
+            Ri_d: 
+             
+        """
         
-            if i >= 631 and i < 640:
-                #print (sample_batches["ImageAtomNum"]) 
-                #print("*********************")
-                #print(torch.squeeze(sample_batches["ImageAtomNum"].int(),1))  
-                tmp = torch.squeeze(sample_batches["ImageAtomNum"].int(),1)
-                print(tmp[0,1:])
+        for i, sample_batches in enumerate(train_loader):
+            
+            if i==0:
+                print(sample_batches.keys())
+            
+            print (i)
+            print ("dim force", sample_batches["Force"].size())
+            print ("dim Ei", sample_batches["Ei"].size())
+            print ("dim ImageDR", sample_batches["ImageDR"].size())
+            print ("dim virial", sample_batches["Virial"].size())
+            print ("dim neighbor list", sample_batches["ListNeighbor"].size())
+            print ("dim Ri", sample_batches["Ri"].size())
+            print ("dim Ri_d", sample_batches["Ri_d"].size())
+            print ("dim atom num,", sample_batches["ImageAtomNum"].size())
+
+            #print ("atom num,", sample_batches["ImageAtomNum"])
+            #if i == 961:
+            #    print (sample_batches["ImageAtomNum"])
+            #    break 
+            #    #print(sample_batches)
+
     """ 
         load and train. 
-    """
-
-    
-
-
-
+    """ 
     def load_and_train(self):
         """
             main()
@@ -762,16 +788,23 @@ class dp_network:
         else:
             print("Unsupported optimizer!")
 
+
         # optionally resume from a checkpoint
         if self.terminal_args.resume:
             if self.terminal_args.evaluate:
-                file_name = os.path.join(self.terminal_args.store_path, "best.pth.tar")
+                if self.model_name is None:
+                    file_name = os.path.join(self.terminal_args.store_path, "best.pth.tar")
+                else:
+                    file_name = self.model_name
             else:
                 file_name = os.path.join(self.terminal_args.store_path, "checkpoint.pth.tar")
 
             if os.path.isfile(file_name):
                 print("=> loading checkpoint '{}'".format(file_name))
-                if self.terminal_args.gpu is None:
+                if not torch.cuda.is_available():
+                    checkpoint = torch.load(file_name,map_location=torch.device('cpu') )
+
+                elif self.terminal_args.gpu is None:
                     checkpoint = torch.load(file_name)
                 elif torch.cuda.is_available():
                     # Map model to be loaded to specified single gpu.
@@ -795,7 +828,6 @@ class dp_network:
             optimizer = hvd.DistributedOptimizer(
                 optimizer, named_parameters=model.named_parameters()
             )
-            
             # Broadcast parameters from rank 0 to all other processes.
             hvd.broadcast_parameters(model.state_dict(), root_rank=0)
 
@@ -812,7 +844,6 @@ class dp_network:
         else:
             train_sampler = None
             val_sampler = None
-
 
         # should add a collate function foe padding
         train_loader = torch.utils.data.DataLoader(
@@ -891,7 +922,7 @@ class dp_network:
                     "%d %e %e %e %e\n"
                     % (epoch, vld_loss, vld_loss_Etot, vld_loss_Ei, vld_loss_Force)
                 )
-
+            
             # scheduler.step()
 
             # remember best loss and save checkpoint
@@ -911,23 +942,16 @@ class dp_network:
                     "checkpoint.pth.tar",
                     self.terminal_args.store_path,
                 )
-        
-
-
-
+                
     """ 
         ============================================================
         ===================auxiliary functions======================
         ============================================================ 
     """
-    
-    def not_KF(self):
-        
-        if self.kalman_type is None:
-            return True
-        else:
-            return False
-                
+    def set_model_name(self,name):
+        self.model_name = name 
+        print("load model from:",name)
+
     def set_epoch_num(self, input_num):
         self.n_epoch = input_num    
     
@@ -1039,8 +1063,7 @@ class dp_network:
             extract the model parameters of DP network
             
             NEED TO ADD SESSION DIR NAME
-        """
-        
+        """ 
         if model_name is None: 
             extract_model_name = self.terminal_args.store_path + "/best.pth.tar"
         else:
@@ -1172,6 +1195,7 @@ class dp_network:
         f.close()
 
         print("******** converting fitting network ends  *********")
+
         print("\n")
         """
             writing ResNets
@@ -1244,7 +1268,6 @@ class dp_network:
                     f.write("0 ")
 
             f.write("\n")
-            
             #f.write(str(numResNet)+"\n")
 
             for fittingNetIdx in range(nFittingNet):
@@ -1254,6 +1277,8 @@ class dp_network:
                     self.dump(raw[label_resNet][0],f)
 
             f.close()
+        else:
+            print ("FITTING IS NOT RECONNECTED.OMIT")
 
         print("******** converting resnet done *********\n")
 
@@ -1276,14 +1301,14 @@ class dp_network:
         # in default_para.py, Rc is the max cut, beyond which S(r) = 0 
         # Rm is the min cut, below which S(r) = 1
 
-        f_out.write(str(pm.Rc) + ' ') 
-        f_out.write(str(pm.maxNeighborNum)+"\n")
-        f_out.write(str(pm.dp_M2)+"\n")
+        f_out.write(str(self.config["Rc_M"]) + ' ') 
+        f_out.write(str(self.config["maxNeighborNum"])+"\n")
+        f_out.write(str(self.config["M2"])+"\n")
         f_out.write(str(dstd_size)+"\n")
         
         for i,atom in enumerate(orderedAtomList):
             f_out.write(atom+"\n")
-            f_out.write(str(pm.Rc)+' '+str(pm.Rm)+'\n')
+            f_out.write(str(self.config["atomType"][0]["Rc"])+' '+str(self.config["atomType"][0]["Rm"])+'\n')
 
             for idx in range(4):
                 f_out.write(str(davg[i][idx])+" ")
@@ -1303,7 +1328,9 @@ class dp_network:
         
         self.extract_model_para()
         import extract_ff 
-        extract_ff.extract_ff(name = name, model_type = 5, atom_type = self.atom_type)
+
+        mk = self.config["net_cfg"]["fitting_net"]["resnet_dt"]
+        extract_ff.extract_ff(name = name, model_type = 5, atom_type = self.atom_type, is_fitting_recon = mk)
         
     def test_dbg(self):
 

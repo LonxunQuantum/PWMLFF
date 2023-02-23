@@ -44,8 +44,8 @@ class EmbeddingNet(nn.Module):
             cfg["activation"] = torch.tanh
         else:
             pass
-
-        # 初始化权重 normalization
+        
+        # initial weight normalization
         for i in range(1, len(self.network_size)):
             wij = torch.Tensor(self.network_size[i-1], self.network_size[i])
             normal(wij, mean=0, std=(1.0 / np.sqrt(self.network_size[i-1] + self.network_size[i])))

@@ -8,6 +8,8 @@ def dp_loss(
     lossFi,
     has_etot,
     loss_Etot,
+    has_virial,
+    loss_Virial,
     has_egroup,
     loss_Egroup,
     has_ei,
@@ -17,12 +19,16 @@ def dp_loss(
     start_pref_egroup, limit_pref_egroup = 0.02, 1.0
     start_pref_F, limit_pref_F = 1000, 1.0
     start_pref_etot, limit_pref_etot = 0.02, 1.0
+    start_pref_virial, limit_pref_virial = 1.0, 400
     start_pref_ei, limit_pref_ei = 0.02, 1.0
     pref_fi = has_fi * (
         limit_pref_F + (start_pref_F - limit_pref_F) * real_lr / start_lr
     )
     pref_etot = has_etot * (
         limit_pref_etot + (start_pref_etot - limit_pref_etot) * real_lr / start_lr
+    )
+    pref_virial = has_virial * (
+        limit_pref_virial + (start_pref_virial - limit_pref_virial) * real_lr / start_lr
     )
     pref_egroup = has_egroup * (
         limit_pref_egroup + (start_pref_egroup - limit_pref_egroup) * real_lr / start_lr
@@ -35,6 +41,9 @@ def dp_loss(
         l2_loss += pref_fi * lossFi
     if has_etot:
         l2_loss += 1.0 / natoms_sum * pref_etot * loss_Etot
+    if has_virial:
+        l2_loss += pref_virial * loss_Virial
+        # import ipdb;ipdb.set_trace()
     if has_egroup:
         l2_loss += pref_egroup * loss_Egroup
     if has_ei:

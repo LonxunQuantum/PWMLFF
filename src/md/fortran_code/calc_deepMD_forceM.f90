@@ -77,7 +77,7 @@ module calc_deepMD
     integer iflag_resNN(100)
     
     !!!!!!!!!!!!!          以上为  module variables     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  
+    
     contains
 
     subroutine set_paths_deepMD(fit_dir_input)
@@ -104,52 +104,23 @@ module calc_deepMD
     
         integer(4) :: nimage,num_refm,num_reftot,nfeat1_tmp,itype,i,k,itmp,j1
         integer(4) :: iflag_PCA,kkk,ntype_tmp,iatom_tmp,ntype_t,nterm,itype_t
-
-        real(8) :: dist0
+        real(8) :: dist0 
         character*20 txt
-        integer i1,i2,j,ii,ntmp,nlayer_tmp,j2 
-
+        integer i1,i2,j,ii,ntmp,nlayer_tmp,j2
         real*8 w_tmp,b_tmp
-        
         integer itype1,itype2,ntype_pair,ll
         integer node_tmp,node_nn_tmp(100),nlayer_nn_tmp
-
-        real*8 sum
-
+        real*8 sum  
         ! integer(4),allocatable,dimension(:,:) :: nfeat,ipos_feat
-        
-        ! **************** read feat.info ********************
-        open(10,file=trim(feat_info_path))
-        
-        rewind(10)
-        
-        ! NOT USED
-        read(10,*) iflag_PCA   ! this can be used to turn off degmm part
 
-        ! NOT USED
-        read(10,*) nfeat_type_n
-
-        ! NOT USED 
-        do kkk=1,nfeat_type_n
-            read(10,*) ifeat_type_n(kkk)   ! the index (1,2,3) of the feature type
-        enddo
-        
-        
-        read(10,*) ntype,m_neigh
-        
-        close(10)
-        
-        ! m_neight get from gen_feature input file
-        ! just to get ntype,m_neight, will read again 
-        
-        ! **************** read fit_linearMM.input ********************    
+        ! **************** this stupid chunk is for main_MD********************    
         if (allocated(itype_atom)) deallocate(itype_atom)
         if (allocated(nfeat1)) deallocate(nfeat1)
         if (allocated(rad_atom)) deallocate(rad_atom)
         if (allocated(wp_atom)) deallocate(wp_atom)
         if (allocated(E_ave_vdw)) deallocate(E_ave_vdw)
-        if (allocated(num)) deallocate(num)                                         !image数据,在此处allocate，但在set_image_info中赋值
-        if (allocated(num_atomtype)) deallocate(num_atomtype)                       !image数据,在此处allocate，但在set_image_info中赋值
+        if (allocated(num)) deallocate(num)                              !image数据,在此处allocate，但在set_image_info中赋值
+        if (allocated(num_atomtype)) deallocate(num_atomtype)                     !image数据,在此处allocate，但在set_image_info中赋值
         if (allocated(bb)) deallocate(bb)
         if (allocated(bb_type)) deallocate(bb_type)
         if (allocated(bb_type0)) deallocate(bb_type0)
@@ -157,230 +128,170 @@ module calc_deepMD
         if (allocated(const_fa)) deallocate(const_fa)
         if (allocated(const_fb)) deallocate(const_fb)
         if (allocated(const_fc)) deallocate(const_fc)
+
+        ! **************** "read" feat.info ********************
+
+        ntype = dp_ff_num_type          ! types
+        m_neigh = dp_ff_max_neigh       ! neighbor buffer size 
         
         allocate (itype_atom(ntype))
         allocate (nfeat1(ntype))
-        
         allocate (num(ntype))                              !image数据,在此处allocate，但在set_image_info中赋值
         allocate (num_atomtype(ntype))                     !image数据,在此处allocate，但在set_image_info中赋值
-        ! allocate (rad_atom(ntype))
-        ! allocate (wp_atom(ntype))
         allocate(rad_atom(ntype))
         allocate(E_ave_vdw(ntype))
         allocate(wp_atom(ntype,ntype,2))
         wp_atom=0.d0
 
-        !ccccccccccccccccccccccccccccccccccccccccc
-        open(10,file=trim(feat_info_path))
-        rewind(10)
-        read(10,*) iflag_PCA   ! this can be used to turn off degmm part
-        read(10,*) nfeat_type_n
-        do kkk=1,nfeat_type_n
-          read(10,*) ifeat_type_n(kkk)   ! the index (1,2,3) of the feature type
+        ! get atom type 
+        do i=1,dp_ff_num_type
+            itype_atom(i) = dp_ff_itype_atom(i)
         enddo
-        read(10,*) ntype,m_neigh
+        !   m_neight get from gen_feature input file
+        !   just to get ntype,m_neight, will read again 
         
-        do i=1,ntype
-        read(10,*) itype_atom(i),nfeat1(i)   ! these nfeat1,nfeat2 include all ftype
-        enddo
-        close(10)
+        ! ****************** read vdw. NOT IN USE************************
+        if (1.eq.0) then 
+            open(10,file=trim(vdw_path))
+            rewind(10)
+            read(10,*) ntype_t,nterm
 
-        nfeat1m=0   ! the original feature
-        do i=1,ntype
-           if(nfeat1(i).gt.nfeat1m) nfeat1m=nfeat1(i)
-        enddo
+            if(nterm.gt.2) then
+                write(6,*) "nterm.gt.2,stop"
+                stop
+            endif
 
-        ! **************** read fit_linearMM.input ********************    
-        ! ****************** read vdw ************************
-        open(10,file=trim(vdw_path))
-        rewind(10)
-        read(10,*) ntype_t,nterm
+            if(ntype_t.ne.ntype) then
+                write(6,*) "ntype not same in vwd_fitB.ntype,something wrong"
+                stop
+            endif
 
-        if(nterm.gt.2) then
-            write(6,*) "nterm.gt.2,stop"
-            stop
-        endif
-
-        if(ntype_t.ne.ntype) then
-            write(6,*) "ntype not same in vwd_fitB.ntype,something wrong"
-            stop
-        endif
-        
-        do itype1=1,ntype
-            read(10,*) itype_t,rad_atom(itype1),E_ave_vdw(itype1),((wp_atom(i,itype1,j1),i=1,ntype),j1=1,nterm)
-        enddo
-        
-        close(10)
-
-        !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-        open (12, file=trim(model_Wij_path1))
-        rewind (12)
-        read(12,*) ntype_pair
-        read(12,*) nlayer_em   ! _em: embedding
-        read(12,*) (node_em(ll),ll=1,nlayer_em+1)
-
-        if(ntype_pair.ne.ntype**2) then
-            write(6,*) "ntype_pair.ne.ntype**2,stop,deepMD",ntype_pair,ntype
-            stop
-        endif
-        
-        nodeMM_em=0
-        do itype=1,ntype_pair
-            do ii=1,nlayer_em+1
-                if(node_em(ii).gt.nodeMM_em) nodeMM_em=node_em(ii)
+            do itype1=1,ntype
+                read(10,*) itype_t,rad_atom(itype1),E_ave_vdw(itype1),((wp_atom(i,itype1,j1),i=1,ntype),j1=1,nterm)
             enddo
-        enddo
             
-        if (.not.allocated(Wij_em)) then
-            allocate(Wij_em(nodeMM_em,nodeMM_em,nlayer_em,ntype,ntype))
+            close(10)
         endif 
-        
-        if (.not. allocated(B_em)) then
-            allocate(B_em(nodeMM_em,nlayer_em,ntype,ntype))
-        endif
-        
-        do itype1=1,ntype
-            do itype2=1,ntype
-                do ll=1,nlayer_em
-                    do j1=1,node_em(ll)
-                        read(12,*) (wij_em(j1,j2,ll,itype2,itype1),j2=1,node_em(ll+1))
-                        ! wij_em(j1,j2,ll,itype2,itype1):
-                        ! itype1: center atom
-                        ! itype2: neigboring atom
-                        ! j1: the layer ll node
-                        ! j2: the layer ll+1 node
 
-                        ! b_em(j2,ll,itype2,itype1): it is for ll+1 (before the input of ll+1), before
-                        ! nonlincear function
-                    enddo
-                    read(12,*) (b_em(j2,ll,itype2,itype1),j2=1,node_em(ll+1))
-                enddo
+        ! ****************** read weights************************
+        ! ****************** embedding net ******************
+        ntype_pair = dp_ff_ntype_pair
+        nlayer_em  = dp_ff_nlayer_em  
+        node_em(1:nlayer_em+1) = dp_ff_node_em(1:nlayer_em+1)
+        
+        nodeMM_em = dp_ff_nodeMM_em 
+        
+        allocate(Wij_em(nodeMM_em,nodeMM_em,nlayer_em,ntype,ntype))
+        allocate(B_em(nodeMM_em,nlayer_em,ntype,ntype))
+        
+        Wij_em = dp_ff_Wij_em
+        B_em = dp_ff_B_em
+
+
+        ! ****************** fitting net ******************
+        nlayer_nn = dp_ff_nlayer_nn
+        node_nn(1:nlayer_nn+1) = dp_ff_node_nn(1:nlayer_nn+1)
+
+        nodeMM_nn = dp_ff_nodeMM_nn
+
+        allocate(Wij_nn(nodeMM_nn,nodeMM_nn,nlayer_nn,ntype))
+        allocate(B_nn(nodeMM_nn,nlayer_nn,ntype))
+
+        Wij_NN = dp_ff_Wij_NN
+        B_NN = dp_ff_B_NN
+        
+        ! ****************** reconnect para ******************
+        allocate(W_res_NN(nodeMM_nn,nlayer_nn+1,ntype))
+
+        !open(12,file="fittingNet.resnet")
+        !read(12,*) ntype_tmp
+        !read(12,*) nlayer_nn_tmp
+        !read(12,*) (node_nn_tmp(ll),ll=1,nlayer_nn_tmp+1)
+
+        !if(ntype_tmp.ne.ntype.or.nlayer_nn_tmp.ne.nlayer_nn) then
+        !    write(6,*) "ntype,nlayer_nn changed,stop",node_nn,  nlayer_nn,node_nn_tmp,nlayer_nn_tmp
+        !    stop
+        !endif
+        
+        !sum=0.d0
+
+        !do ll=1,nlayer_nn
+        !    sum=sum + abs(node_nn(ll)-node_nn_tmp(ll))
+        !enddo
+
+        !if(sum.gt.0.1) then
+        !    write(6,*) "node_nn changed,stop"
+        !    write(6,*) node_nn(1:nlayer_nn)
+        !    write(6,*) node_nn_tmp(1:nlayer_nn)
+        !    stop
+        !endif
+
+        iflag_resNN(1:nlayer_nn+1) = dp_ff_iflag_resNN(1:nlayer_nn+1)
+
+        !read(12,*) (iflag_resNN(ll),ll=1,nlayer_nn+1) 
+        do itype=1,ntype
+            do ll=1,nlayer_nn+1
+                if(iflag_resNN(ll).eq.1) then
+                    !read(12,*) node_tmp
+                    W_res_NN(1:node_nn(ll),ll,itype) = dp_ff_W_res_NN(1:node_nn(ll),ll,itype)
+
+                    !if(node_tmp.ne.node_nn(ll)) then
+                    !    write(6,*) "node_tmp.ne.node_nn(ll),stop",node_tmp,node_nn(ll)
+                    !    stop
+                    !endif
+                    !read(12,*) (W_res_NN(j1,ll,itype),j1=1,node_tmp)
+                endif
             enddo
         enddo
-
-        close(12)
-
-
-
-        open (12, file=trim(model_Wij_path2))
-        rewind (12)
-        read(12,*) ntype
-        read(12,*) nlayer_nn   ! _em: embedding
-        read(12,*) (node_nn(ll),ll=1,nlayer_nn+1)
-
-        nodeMM_nn=0
-        do itype=1,ntype
-        do ii=1,nlayer_nn+1
-        if(node_nn(ii).gt.nodeMM_nn) nodeMM_nn=node_nn(ii)
-        enddo
-        enddo
-
-        if (.not.allocated(Wij_nn)) then
-            allocate(Wij_nn(nodeMM_nn,nodeMM_nn,nlayer_nn,ntype))
-        endif 
-
-        if (.not.allocated(B_nn)) then 
-            allocate(B_nn(nodeMM_nn,nlayer_nn,ntype))
-        endif 
-
-        do itype=1,ntype
-            do ll=1,nlayer_nn
-                do j1=1,node_nn(ll)
-                    read(12,*) (Wij_NN(j1,j2,ll,itype),j2=1,node_nn(ll+1))
-                    ! Wij_NN(j1,j2,itype):
-                    ! itype: center atom
-                    ! j1: the layer ll node
-                    ! j2: the layer ll+1 node
-                enddo
-                read(12,*) (B_NN(j2,ll,itype),j2=1,node_nn(ll+1))
-            enddo
-        enddo
-        close(12)
-
-        if (.not.allocated(W_res_NN)) then
-            allocate(W_res_NN(nodeMM_nn,nlayer_nn+1,ntype))
-        endif
-
-        open(12,file="fittingNet.resnet")
-        read(12,*) ntype_tmp
-        read(12,*) nlayer_nn_tmp
-        read(12,*) (node_nn_tmp(ll),ll=1,nlayer_nn_tmp+1)
-        if(ntype_tmp.ne.ntype.or.nlayer_nn_tmp.ne.nlayer_nn) then
-        write(6,*) "ntype,nlayer_nn changed,stop",node_nn,nlayer_nn,node_nn_tmp,nlayer_nn_tmp
-        stop
-        endif
-        sum=0.d0
-        do ll=1,nlayer_nn
-        sum=sum+abs(node_nn(ll)-node_nn_tmp(ll))
-        enddo
-        if(sum.gt.0.1) then
-        write(6,*) "node_nn changed,stop"
-        write(6,*) node_nn(1:nlayer_nn)
-        write(6,*) node_nn_tmp(1:nlayer_nn)
-        stop
-        endif
-        read(12,*) (iflag_resNN(ll),ll=1,nlayer_nn+1)
-        do itype=1,ntype
-        do ll=1,nlayer_nn+1
-        if(iflag_resNN(ll).eq.1) then
-        read(12,*) node_tmp
-        if(node_tmp.ne.node_nn(ll)) then
-        write(6,*) "node_tmp.ne.node_nn(ll),stop",node_tmp,node_nn(ll)
-        stop
-        endif
-        read(12,*) (W_res_NN(j1,ll,itype),j1=1,node_tmp)
-        endif
-        enddo
-        enddo
-        close(12)
-
 
         !write(6,*) "finished read W_res_NN"
+        if (1.eq.0) then
+            !*****************read force ****************
+            inquire(file='add_force',exist=alive)
 
+            if (alive) then
+                open(10,file="add_force")
+                rewind(10)
+                read(10,*) add_force_num, alpha,y1,z1
+                allocate(add_force_atom(add_force_num))
+                ! allocate(direction(add_force_num))
+                allocate(const_fa(add_force_num))
+                allocate(const_fb(add_force_num))
+                allocate(const_fc(add_force_num))
 
-        !cccccccccccccccccccccccccccccccccccccccccccccccccccc
+                do i=1,add_force_num
+                    read(10,*) add_force_atom(i), const_fa(i), const_fb(i),const_fc(i)
+                enddo
 
-        !********************add_force****************
-        inquire(file='add_force',exist=alive)
-        !   status = access ("add_force",' ')    ! blank mode
-        !   if (status .eq. 0 ) then
-        if (alive) then
-            open(10,file="add_force")
-            rewind(10)
-            read(10,*) add_force_num, alpha,y1,z1
-            allocate(add_force_atom(add_force_num))
-            ! allocate(direction(add_force_num))
-            allocate(const_fa(add_force_num))
-            allocate(const_fb(add_force_num))
-            allocate(const_fc(add_force_num))
-            do i=1,add_force_num
-                read(10,*) add_force_atom(i), const_fa(i), const_fb(i),const_fc(i)
-            enddo
-            close(10)
-        else
-            add_force_num=0
-        endif
-        !********************
-        inquire(file='force_constraint',exist=alive)
-        !     status = access ("add_force",' ')    ! blank mode
-        !   if (status .eq. 0 ) then
-        if (alive) then
-            open(10,file="force_constraint")
-            rewind(10)
-            read(10,*) const_force_num
-            allocate(const_force_atom(const_force_num))
-            ! allocate(direction(add_force_num))
-            allocate(const_fx(const_force_num))
-            allocate(const_fy(const_force_num))
-            allocate(const_fz(const_force_num))
-            do i=1,const_force_num
-                read(10,*) const_force_atom(i), const_fx(i), const_fy(i), const_fz(i)
-            enddo
-            close(10)
-        else
-            const_force_num=0
-        endif
+                close(10)
+            else
+                add_force_num=0
+            endif
 
+            !*****************read force constraint****************
+            inquire(file='force_constraint',exist=alive)
+    
+            if (alive) then
+                open(10,file="force_constraint")
+                rewind(10)
+                read(10,*) const_force_num
+                allocate(const_force_atom(const_force_num))
+                ! allocate(direction(add_force_num))
+                allocate(const_fx(const_force_num))
+                allocate(const_fy(const_force_num))
+                allocate(const_fz(const_force_num))
+
+                do i=1,const_force_num
+                    read(10,*) const_force_atom(i), const_fx(i), const_fy(i), const_fz(i)
+                enddo
+                
+                close(10)
+            else
+                const_force_num=0
+            endif
+        
+        endif 
+        
     end subroutine load_model_deepMD
   
     subroutine set_image_info_deepMD(iatom_tmp,is_reset,natom_tmp)
@@ -501,9 +412,7 @@ module calc_deepMD
 
         pi=4*datan(1.d0)
         
-        !tt0=mpi_wtime()
         call gen_deepMD_feature(AL,xatom)
-        !tt1=mpi_wtime()
         
         istat=0
         error_msg=''
@@ -618,8 +527,7 @@ module calc_deepMD
                         f_out(1,jj,1)=s_neigh(j,itype2,iat)
                         f_d(1,jj,1,itype2)=1.d0
                     enddo   
-                    
-                    
+                                        
                     ! wlj dbg
                     !if (iat.eq.1) then 
                     !    write(*,*) s_neigh(:,1,iat)
@@ -772,6 +680,7 @@ module calc_deepMD
             !    stop
             !endif
             
+            
 
             num=natom_n_type(itype1)
             
@@ -863,8 +772,8 @@ module calc_deepMD
 
             !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
             !  Now, we wil do the back propagation
-            ! f_back0(j,i,ll)=dE/d_(f_out(j,i,ll))
-            ! f_back(j,i,ll)=dE/d_(f_in(j,i,ll))=f_fac0*df(j,i,ll)*W_res
+            !  f_back0(j,i,ll)=dE/d_(f_out(j,i,ll))
+            !  f_back(j,i,ll)=dE/d_(f_in(j,i,ll))=f_fac0*df(j,i,ll)*W_res
             !  f_out(j,i,ll)=sigma(f_in(j,i,ll))*W_res+f_out(j,i,ll-1)  ! if there are res
             !  f_out(j,i,ll)=sigma(f_in(j,i,ll))                        ! if no rest
             !  f_in(j,i,ll+1)=W(j2,i,ll)*f_out(j2,i,ll)+B(j,i,ii)
@@ -905,14 +814,13 @@ module calc_deepMD
                     enddo
                 endif
             enddo 
-
-
-            !      f_back0(j,i,1)=dE/d_(f_out(j,i,1))=dE/d_(f_in(j,i,1))=dE/df_NN
+            
+            !   f_back0(j,i,1)=dE/d_(f_out(j,i,1))=dE/d_(f_in(j,i,1))=dE/df_NN
             !   j is feature index, i, the itype1 atom index
-            ! Now, there are two terms for the force:
+            !   Now, there are two terms for the force:
             !   (dE/df_NN)*(df_NN/d_x)
             !   (dE/df_NN)*(df_NN/d_fem)*(d_fem/d_s)*(d_s/d_x)
-            !  let't do the first term  
+            !   let't do the first term  
 
             !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
             !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc

@@ -51,6 +51,7 @@ class DP(nn.Module):
         self.embedding_net = nn.ModuleList()
         self.fitting_net = nn.ModuleList()
         
+        # initial bias for fitting net? 
         for i in range(self.ntypes):
             for j in range(self.ntypes):
                 self.embedding_net.append(EmbeddingNet(self.config["net_cfg"]["embedding_net"], magic))
@@ -60,14 +61,15 @@ class DP(nn.Module):
     def get_egroup(self, Ei, Egroup_weight, divider):
         batch_size = Ei.shape[0]
         Egroup = torch.zeros_like(Ei)
+
         for i in range(batch_size):
             Etot1 = Ei[i]
             weight_inner = Egroup_weight[i]
             E_inner = torch.matmul(weight_inner, Etot1)
             Egroup[i] = E_inner
         Egroup_out = torch.divide(Egroup.squeeze(-1), divider)
+        
         return Egroup_out
-
 
     def forward(self, ImageDR, Ri, dfeat, list_neigh, natoms_img, Egroup_weight, divider, is_calc_f=None):
 
@@ -82,8 +84,21 @@ class DP(nn.Module):
         for ntype in range(self.ntypes):
             for ntype_1 in range(self.ntypes):
                 S_Rij = Ri[:, atom_sum:atom_sum+natoms[ntype], ntype_1 * self.maxNeighborNum:(ntype_1+1) * self.maxNeighborNum, 0].unsqueeze(-1)
+                
+                # determines which embedding net
                 embedding_index = ntype * self.ntypes + ntype_1
+                
+                # itermeduate output of embedding net 
+                # dim of G: batch size, natom of ntype, max_neigh_num, final layer dim
+                #  
                 G = self.embedding_net[embedding_index](S_Rij) 
+                #if ntype == 0 and ntype_1==0:
+                #print (ntype, ntype_1 )
+                #print ("dim of G")
+                #print (G.size())
+                #if ntype == 0 and ntype_1==0: 
+                #    print(G[0,0,1,:])
+                # symmetry conserving 
                 tmp_a = Ri[:, atom_sum:atom_sum+natoms[ntype], ntype_1 * self.maxNeighborNum:(ntype_1+1) * self.maxNeighborNum].transpose(-2, -1)
                 tmp_b = torch.matmul(tmp_a, G)
                 
@@ -95,25 +110,38 @@ class DP(nn.Module):
             xyz_scater_b = xyz_scater_a[:, :, :, :self.M2]
             DR_ntype = torch.matmul(xyz_scater_a.transpose(-2, -1), xyz_scater_b)
             DR_ntype = DR_ntype.reshape(batch_size, natoms[ntype], -1)
+            
             if ntype == 0:
                 DR = DR_ntype
             else:
                 DR = torch.concat((DR, DR_ntype), dim=1)
+            # dim of DR_ntype: bs, natom in type, 400
+            #print ("input for fitting net of type:",ntype)
+            #print ("DR_ntype[0,:,0]")
+            #print (DR_ntype[0,0,:50])
+            #print(ntype, DR_ntype.size())
+
             Ei_ntype = self.fitting_net[ntype](DR_ntype)
             
+            #print ("type:",ntype)
+            #print (Ei_ntype)
+
             if ntype == 0:
                 Ei = Ei_ntype
             else:
                 Ei = torch.concat((Ei, Ei_ntype), dim=1)
+            
+            
             atom_sum = atom_sum + natoms[ntype]
         
         
         Etot = torch.sum(Ei, 1)   
-        #Egroup = self.get_egroup(Ei, Egroup_weight, divider)
-        Egroup = 0 
+        Egroup = self.get_egroup(Ei, Egroup_weight, divider)
+        #Egroup = 0 
         F = torch.zeros((batch_size, atom_sum, 3), device=self.device)
         Virial = torch.zeros((batch_size, 9), device=self.device)
         Ei = torch.squeeze(Ei, 2)
+
         if is_calc_f == False:
             return Etot, Ei, F, Egroup, Virial
         # start_autograd = time.time()
@@ -135,6 +163,8 @@ class DP(nn.Module):
         list_neigh = (list_neigh - 1).type(torch.int)
         F = CalculateForce.apply(list_neigh, dE, Ri_d, F)
 
+        #print ("Force")
+        #print (F)
         # virial = CalculateVirialForce.apply(list_neigh, dE, Ri[:,:,:,:3], Ri_d)
         virial = CalculateVirialForce.apply(list_neigh, dE, ImageDR, Ri_d)
         virial = virial * (-1)
@@ -142,5 +172,6 @@ class DP(nn.Module):
         # print(virial)
         # print("==============================")
         # import ipdb; ipdb.set_trace()
-
+        
         return Etot, Ei, F, Egroup, virial
+        
