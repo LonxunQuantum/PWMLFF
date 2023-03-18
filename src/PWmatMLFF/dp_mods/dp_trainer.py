@@ -176,6 +176,7 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, config):
     loss_Ei = AverageMeter("Ei", ":.4e", Summary.ROOT)
     loss_Egroup = AverageMeter("Egroup", ":.4e", Summary.ROOT)
     loss_Virial = AverageMeter("Virial", ":.4e", Summary.ROOT)
+    
     progress = ProgressMeter(
         len(train_loader),
         [batch_time, data_time, losses, loss_Etot, loss_Force, loss_Ei, loss_Egroup, loss_Virial],
@@ -212,7 +213,7 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, config):
             Virial_label = Variable(
                 sample_batches["Virial"].double().to(device)
             )
-
+            
             ImageDR = Variable(sample_batches["ImageDR"].double().to(device))
             Ri = Variable(sample_batches["Ri"].double().to(device), requires_grad=True)
             Ri_d = Variable(sample_batches["Ri_d"].to(device))
@@ -280,7 +281,7 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, config):
                 KFOptWrapper.update_virial(kalman_inputs, Virial_label, config.pre_fac_virial)
             
             if config.is_egroup is True:
-                KFOptWrapper.update_egroup(kalman_inputs, Egroup_label)
+                KFOptWrapper.update_egroup(kalman_inputs, Egroup_label, config.pre_fac_virial)
 
         loss_F_val = criterion(Force_predict, Force_label)
         loss_Etot_val = criterion(Etot_predict, Etot_label)
@@ -377,7 +378,7 @@ def valid(val_loader, model, criterion, device, args):
 
             """
                 Dim of Ri [bs, natom, ntype*max_neigh_num, 4] 
-            """
+            """ 
 
             #print (Ri.size())
             #print("printing Ri[0,0, :100, : ]")
@@ -386,8 +387,13 @@ def valid(val_loader, model, criterion, device, args):
             Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
                 ImageDR, Ri, Ri_d, dR_neigh_list, natoms_img, Egroup_weight, Divider
             )
+
             #print ("Etot")
             #print (Etot_predict)
+            
+            #print ("Force")
+            #print (Force_predict)
+            
             #return 
             loss_F_val = criterion(Force_predict, Force_label)
             loss_Etot_val = criterion(Etot_predict, Etot_label)

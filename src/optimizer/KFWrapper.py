@@ -124,7 +124,7 @@ class KFOptimizerWrapper:
         )
         natoms_sum = inputs[4][0, 0]
         self.optimizer.set_grad_prefactor(natoms_sum)
-
+        
         self.optimizer.zero_grad()
         bs = Virial_label.shape[0]
         error = Virial_label.squeeze(1) - Virial_predict
@@ -148,7 +148,7 @@ class KFOptimizerWrapper:
         Virial_predict[mask] = -update_prefactor * Virial_predict[mask]
 
         #Virial_predict.sum().backward()
-        (Virial_predict.sum()+Etot_predict.sum() * 0).backward()
+        (Virial_predict.sum()+ Etot_predict.sum() * 0).backward()
 
         error = error * math.sqrt(bs)
         self.optimizer.step(error)

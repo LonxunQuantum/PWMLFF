@@ -305,6 +305,7 @@ class dp_network:
                     distributed = False, 
                     optimizer = "ADAM",    # LKF, GKF, ADAM, SGD 
 
+
                     kalman_lambda = 0.98,
                     kalman_nue = 0.99870, 
                     # paras for l-kalman 
@@ -312,11 +313,13 @@ class dp_network:
                     block_size = 5120,
                     group_size = 6,
                     # 
+                    dwidth = 3.0,
                     is_virial = True,
                     is_egroup = False, 
                     pre_fac_force = 2.0,
                     pre_fac_etot = 1.0, 
                     pre_fac_virial = 1.0, 
+                    pre_fac_egroup = 1.0, 
 
                     # training label related arguments
                     is_trainForce = True, 
@@ -392,7 +395,6 @@ class dp_network:
         pm.atomTypeNum = len(atom_type)
         pm.ntypes = len(atom_type)
 
-        
         # passed-in configs 
         # the whole config is required 
         
@@ -453,6 +455,7 @@ class dp_network:
         self.loader_train = None
         self.loader_valid = None
         self.stat = None
+        self.dwidth = dwidth
         
         #sparse dfeat from fortran 
         self.dfeat = None 
@@ -491,7 +494,7 @@ class dp_network:
                         'validDataPath': './valid',
                         'ratio': train_valid_ratio,
                         'training_type': precision,
-                        'dwidth':3,
+                        'dwidth':self.dwidth,
                         'M2': M2, # M2 of G matrix in DP model 
                         'datasetImageNum': dataset_size,
                         
@@ -504,7 +507,7 @@ class dp_network:
                         
                         'fitting_net': {'network_size': [50, 50, 50, 1],
                         'bias': True,
-                        'resnet_dt': False,
+                        'resnet_dt': True,
                         'activation': 'tanh'}}}
 
         self.config["atomType"] = [] 
@@ -603,6 +606,8 @@ class dp_network:
             self.terminal_args.pre_fac_force = pre_fac_force 
             self.terminal_args.pre_fac_etot = pre_fac_etot
             self.terminal_args.pre_fac_virial = pre_fac_virial
+            self.terminal_args.pre_fac_egroup = pre_fac_egroup
+
 
             print("WARNING: Using arguments from class instantiation\n")
             
@@ -613,7 +618,7 @@ class dp_network:
 
         for key in self.terminal_args.__dict__:
             print(key,self.terminal_args.__dict__[key])
-
+        
         #print(self.terminal_args)
 
         print("*********************network parameter summary**********************")
@@ -623,14 +628,18 @@ class dp_network:
     """
         data pre-processing    
     """
-    def generate_data(self):
+    def generate_data(self, is_real_Ep = False):
         """
             generate dp's pre-feature
         """
         import dp_mlff 
         
-        dp_mlff.gen_train_data(self.config)
-        dp_mlff.sepper_data(self.config)
+        dp_mlff.gen_train_data(self.config, is_real_Ep)
+        
+        mk = self.terminal_args.resume 
+        if mk is True:
+            print ("using ./davd.npy and ./dstd.npy")
+        dp_mlff.sepper_data(self.config, is_load_stat = mk)
         
         # Please book in advance!   
          
@@ -685,7 +694,7 @@ class dp_network:
             #    print (sample_batches["ImageAtomNum"])
             #    break 
             #    #print(sample_batches)
-
+        
     """ 
         load and train. 
     """ 
@@ -739,7 +748,8 @@ class dp_network:
         train_dataset = MovementDataset("./train")
         valid_dataset = MovementDataset("./valid")
 
-        # create model
+        # create model 
+        # 
         davg, dstd, ener_shift = train_dataset.get_stat()
         stat = [davg, dstd, ener_shift]
         model = DP(self.config, device, stat, self.terminal_args.magic)
@@ -788,17 +798,23 @@ class dp_network:
         else:
             print("Unsupported optimizer!")
 
-
         # optionally resume from a checkpoint
+        if self.model_name is not None:
+            print("attempting to load model from", self.model_name)
+
         if self.terminal_args.resume:
+
             if self.terminal_args.evaluate:
                 if self.model_name is None:
                     file_name = os.path.join(self.terminal_args.store_path, "best.pth.tar")
                 else:
-                    file_name = self.model_name
+                    file_name = os.path.join("./",self.model_name)
             else:
-                file_name = os.path.join(self.terminal_args.store_path, "checkpoint.pth.tar")
-
+                if self.model_name is None:
+                    file_name = os.path.join(self.terminal_args.store_path, "checkpoint.pth.tar")
+                else:
+                    file_name = os.path.join("./",self.model_name)
+            
             if os.path.isfile(file_name):
                 print("=> loading checkpoint '{}'".format(file_name))
                 if not torch.cuda.is_available():
@@ -863,7 +879,7 @@ class dp_network:
             pin_memory=True,
             sampler=val_sampler,
         )
-
+        
         if self.terminal_args.evaluate:
             # validate(val_loader, model, criterion, args)
             valid(val_loader, model, criterion, device, self.terminal_args)
@@ -902,7 +918,7 @@ class dp_network:
             vld_loss, vld_loss_Etot, vld_loss_Force, vld_loss_Ei, val_loss_egroup, val_loss_virial = valid(
                 val_loader, model, criterion, device, self.terminal_args
             )
-
+            
             if not self.terminal_args.hvd or (self.terminal_args.hvd and hvd.rank() == 0):
                 f_train_log = open(train_log, "a")
                 f_train_log.write(
@@ -929,9 +945,11 @@ class dp_network:
             is_best = vld_loss < best_loss
             best_loss = min(loss, best_loss)
 
+            # should include dstd.npy and davg.npy 
+            
             if not self.terminal_args.hvd or (self.terminal_args.hvd and hvd.rank() == 0):
                 save_checkpoint(
-                    {
+                    {  
                         "epoch": epoch,
                         "state_dict": model.state_dict(),
                         "best_loss": best_loss,

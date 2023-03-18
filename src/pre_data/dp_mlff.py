@@ -8,6 +8,7 @@ import torch
 from collections import Counter
 import subprocess as sp
 import random
+import time
 
 def collect_all_sourcefiles(workDir, sourceFileName="MOVEMENT"):
 
@@ -28,7 +29,7 @@ def gen_config_inputfile(config):
             + str(config["maxNeighborNum"])
             + "             !  Rc_M, m_neigh \n"
         )
-
+        
         atomTypeNum = len(config["atomType"])
         GenFeatInput.write(str(atomTypeNum) + "               ! ntype \n")
         for i in range(atomTypeNum):
@@ -60,7 +61,32 @@ def gen_config_inputfile(config):
             f.writelines(str(config["atomType"][i]["b_init"]) + "\n")
 
 
-def gen_train_data(config):
+def get_real_Ep(movement_files,train_set_dir):
+    
+    # make Etot label the real Etot(one with minus sign)
+    for movement_file in movement_files:
+        with open(os.path.join(movement_file, "MOVEMENT"), "r") as mov:
+            lines = mov.readlines()
+            
+            num_atom = 0 
+            Ep = 0.0 
+            
+            #print(os.path.join(movement_file, "MOVEMENT"))
+            for line in lines:
+                if "atoms" in line:
+                    raw = line.split() 
+                    num_atom = int(raw[0]) 
+                    Ep = float(raw[-5])
+                    
+                    print(num_atom, Ep)
+                    # write Ep / natom 
+                    with open(os.path.join(train_set_dir, "Ei.dat"), "a") as Ei_out:
+                        for i in range(num_atom):
+                            Ei_out.write(str(Ep/num_atom)+"\n")
+
+                
+
+def gen_train_data(config, is_real_Ep = True):
     trainset_dir = config["trainSetDir"]
     dRFeatureInputDir = config["dRFeatureInputDir"]
     dRFeatureOutputDir = config["dRFeatureOutputDir"]
@@ -132,8 +158,8 @@ def gen_train_data(config):
                             + str(tmp_virial[2, 2])
                             + "\n"
                         )
-
-    # ImgPerMVT 
+    
+    # ImgPerMVT  
      
     for movement_file in movement_files:
         tgt = os.path.join(movement_file, "MOVEMENT") 
@@ -156,8 +182,16 @@ def gen_train_data(config):
     command = "gen_egroup.x | tee ./output/out_write_egroup"
     print("==============Start generating egroup==============")
     os.system(command)
-    print("==============Success==============")
 
+    # Ei.dat with respect to the real Etot
+    if is_real_Ep is True:
+        # remove fortran generated Ei
+        print ("Removing " + trainset_dir + "Ei.dat")
+        sp.run(["mv", trainset_dir + "/Ei.dat", trainset_dir + "/Ei_plus.dat"])
+        get_real_Ep(movement_files,trainset_dir)
+
+    print("==============Success==============")
+    
 
 def save_npy_files(data_path, data_set):
     print("Saving to ", data_path)
@@ -546,7 +580,7 @@ def compute_Ri(config, image_dR, list_neigh, natoms_img, ind_img, davg, dstd):
 
     return Ri, Ri_d
     
-def sepper_data(config):
+def sepper_data(config, is_load_stat = False, stat_add = "./"):
     """
         do shuffling here, since not sure if image structure support PADDING
         Shuffle for each MOVEMENT  
@@ -589,7 +623,7 @@ def sepper_data(config):
     raw_egroup = fp.readlines()
     fp.close()
     
-    # form a list to contain 1-d arrays 
+    # form a list to contain 1-d np arrays 
     egroup_single_arr = []
 
     for line in raw_egroup:
@@ -621,16 +655,27 @@ def sepper_data(config):
         (atom_num_per_image.reshape(-1, 1), narray_diff_atom_types_num), axis=1
     )
 
-    davg, dstd = calc_stat(
-        config,
-        image_dR[0 : image_index[10] * max_neighbor_num * ntypes],
-        list_neigh[0 : image_index[10] * max_neighbor_num * ntypes],
-        atom_num_per_image[0:10],
-    )
+    # in test, should re-use the stats calced in training 
+    if is_load_stat is False:
+        davg, dstd = calc_stat(
+            config,
+            image_dR[0 : image_index[10] * max_neighbor_num * ntypes],
+            list_neigh[0 : image_index[10] * max_neighbor_num * ntypes],
+            atom_num_per_image[0:10],
+        )
+    else:
+        # load from prescribed path
+        print ("using exsiting stat files:")
 
+        print (stat_add+"davg.npy")
+        davg = np.load(stat_add+"davg.npy")
+
+        print (stat_add+"dstd.npy")
+        dstd = np.load(stat_add+"dstd.npy")
+            
     Ri, Ri_d = compute_Ri(
-        config, image_dR, list_neigh, atom_num_per_image, image_index, davg, dstd
-    )
+            config, image_dR, list_neigh, atom_num_per_image, image_index, davg, dstd
+        )
 
     if not os.path.exists(train_data_path):
         os.makedirs(train_data_path)
@@ -644,7 +689,7 @@ def sepper_data(config):
     np.save(os.path.join(valid_data_path, "davg.npy"), davg)
     np.save(os.path.join(train_data_path, "dstd.npy"), dstd)
     np.save(os.path.join(valid_data_path, "dstd.npy"), dstd)
-
+    
     train_image_num = math.ceil(image_num * config["ratio"])
 
     list_neigh = list_neigh.reshape(-1, max_neighbor_num * ntypes)
@@ -654,16 +699,17 @@ def sepper_data(config):
     width_valid = len(str(image_num - train_image_num))
 
     index = 0
-
+    
     """
-        Note: the seperation is done linearly. Should not be. 
-        Add a rotation factor? Beta version 
-
+        Since image padding is not supported at this moment, 
+        we manipulate the data formation to achieve the desired result
+            
+        10 images form a chunk, chunk by chunk  
+        
     """ 
     accum_train_num = 0 
     accum_valid_num = 0 
 
-    
     range_mvmt = [0 for i in range(img_per_mvmt.size)]
         
     if img_per_mvmt.size == 1:
@@ -685,11 +731,13 @@ def sepper_data(config):
         """
             (0,100) (100,200) ... 
         """
-
         # shuffled image in a single movement 
         local_img_idx = [i for i in range(range_mvmt[i],range_mvmt[i+1])]
+
+        # shoudld add a seed here 
+        random.seed(time.time())
         random.shuffle(local_img_idx)
-        
+
         local_img_num = range_mvmt[i+1] - range_mvmt[i]
         local_train_num = math.ceil(local_img_num * config["ratio"])
 

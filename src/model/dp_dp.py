@@ -134,7 +134,6 @@ class DP(nn.Module):
             
             atom_sum = atom_sum + natoms[ntype]
         
-        
         Etot = torch.sum(Ei, 1)   
         Egroup = self.get_egroup(Ei, Egroup_weight, divider)
         #Egroup = 0 
@@ -146,7 +145,7 @@ class DP(nn.Module):
             return Etot, Ei, F, Egroup, Virial
         # start_autograd = time.time()
         # print("fitting time:", start_autograd - start_fitting, 's')
-
+        
         mask = torch.ones_like(Ei)
         dE = torch.autograd.grad(Ei, Ri, grad_outputs=mask, retain_graph=True, create_graph=True)
         dE = torch.stack(list(dE), dim=0).squeeze(0)  #[:,:,:,:-1] #[2,108,100,4]-->[2,108,100,3]
@@ -162,7 +161,7 @@ class DP(nn.Module):
         list_neigh = torch.unsqueeze(list_neigh,2)
         list_neigh = (list_neigh - 1).type(torch.int)
         F = CalculateForce.apply(list_neigh, dE, Ri_d, F)
-
+        
         #print ("Force")
         #print (F)
         # virial = CalculateVirialForce.apply(list_neigh, dE, Ri[:,:,:,:3], Ri_d)

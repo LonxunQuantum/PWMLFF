@@ -42,7 +42,7 @@ class MovementDataset(Dataset):
         )
         #print(data["ImageAtomNum"])
         return data
-
+        
     def __getitem__(self, index):
 
         file_path = self.dirs[index]
@@ -67,7 +67,7 @@ class MovementDataset(Dataset):
                 energy = tmp
             else:
                 energy = np.concatenate([energy, tmp], axis=0)
-
+        
         energy = np.reshape(energy, (-1, natoms_sum, 1))
         # natoms_sum = 0
         # for ntype in range(self.ntypes):
@@ -79,9 +79,11 @@ class MovementDataset(Dataset):
         #     self.ener_shift.append(ener_shift[0, 0])
         # energy_ntype = energy[:, natoms_sum:natoms_sum+natoms_per_type[ntype]]
         # natoms_sum += natoms_per_type[ntype]
+        
         energy_sum = energy.sum(axis=1)
         energy_avg = np.average(energy_sum)
         # energy_one = np.ones_like(energy_sum) * natoms_per_type[ntype]
+        
         ener_shift, _, _, _ = np.linalg.lstsq(
             [natoms_per_type], [energy_avg], rcond=rcond
         )
@@ -89,7 +91,7 @@ class MovementDataset(Dataset):
 
     def get_stat(self):
         return self.davg, self.dstd, self.ener_shift
-
+    
 
 def main():
 

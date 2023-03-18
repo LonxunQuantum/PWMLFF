@@ -119,9 +119,10 @@ PROGRAM write_Egroup
     do i=1,sys_num
         read(13,'(a200)') trainSetFileDir(i)    
     enddo
+
     close(13)
     trainDataDir=trim(trainSetDir)//"/Egroup_weight.dat"
-    ! inquirepos1=trim(trainSetDir)//"/inquirepos1.txt"
+    
     !cccccccccccccccccccccccccccccccccccccccc
     inquire(file=trainDataDir,exist=alive)
       if (alive) then

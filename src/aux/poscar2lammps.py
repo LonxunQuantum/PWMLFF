@@ -176,12 +176,16 @@ def pBox2l(A):
     
     return [xx,xy,yy,xz,yz,zz]
     
-def p2l(filename = "POSCAR"):
+def p2l(filename = "POSCAR", output_name = "lmp.init"):
     """
         poscar to lammps.data
         
         NOTE: in PWMAT, each ROW represnets a edge vector
     """
+    import os 
+
+    #print("p2l in:",os.getcwd())
+
     natoms = 0
     atype = []
     
@@ -194,8 +198,14 @@ def p2l(filename = "POSCAR"):
     
     infile.close()
     
+    start_mk = 0 
+
     for idx, line in enumerate(raw):
         raw[idx] = line.split() 
+        
+        if raw[idx] == ["DIRECT"]:
+            #print(raw[idx])
+            start_mk=idx+1
     
     # pwmat box
     for i in range(3):
@@ -219,7 +229,7 @@ def p2l(filename = "POSCAR"):
     # x array 
     x = np.zeros([natoms,3],dtype=float)
     
-    for idx,line in enumerate(raw[6:]):
+    for idx,line in enumerate(raw[start_mk:]):
         
         x[idx,0] = float(line[0])
         x[idx,1] = float(line[1])
@@ -248,11 +258,11 @@ def p2l(filename = "POSCAR"):
     A[1,2] = lammps_box[4]
     A[2,2] = lammps_box[5]
     
-    print("converted LAMMPS upper trangualr box:")
+    #print("converted LAMMPS upper trangualr box:")
     
-    print(A)
+    #print(A)
     
-    print("Ref:https://docs.lammps.org/Howto_triclinic.html")
+    #print("Ref:https://docs.lammps.org/Howto_triclinic.html")
     # convert lamda (fraction) coords x to box coords LX
     # A.T x = LX
     # LX = A*x in LAMMPS. see https://docs.lammps.org/Howto_triclinic.html
@@ -273,7 +283,7 @@ def p2l(filename = "POSCAR"):
     #print(AI)
 
     # output LAMMPS data
-    ofile = open('lammps.data', 'w')
+    ofile = open(output_name, 'w')
 
     ofile.write("#converted from POSCAR\n\n")
 
