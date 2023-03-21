@@ -580,7 +580,7 @@ def compute_Ri(config, image_dR, list_neigh, natoms_img, ind_img, davg, dstd):
 
     return Ri, Ri_d
     
-def sepper_data(config, is_load_stat = False, stat_add = "./"):
+def sepper_data(config, chunk_size = 10, is_load_stat = False, stat_add = "./", is_shuffle = True):
     """
         do shuffling here, since not sure if image structure support PADDING
         Shuffle for each MOVEMENT  
@@ -618,7 +618,7 @@ def sepper_data(config, is_load_stat = False, stat_add = "./"):
 
     # take care of weights
     #Egroup_weight = Egroup_file[:, 2:]
-
+    
     fp = open(os.path.join(trainset_dir, "Egroup_weight.dat"),"r")
     raw_egroup = fp.readlines()
     fp.close()
@@ -654,7 +654,7 @@ def sepper_data(config, is_load_stat = False, stat_add = "./"):
     atom_num_per_image = np.concatenate(
         (atom_num_per_image.reshape(-1, 1), narray_diff_atom_types_num), axis=1
     )
-
+    
     # in test, should re-use the stats calced in training 
     if is_load_stat is False:
         davg, dstd = calc_stat(
@@ -690,6 +690,7 @@ def sepper_data(config, is_load_stat = False, stat_add = "./"):
     np.save(os.path.join(train_data_path, "dstd.npy"), dstd)
     np.save(os.path.join(valid_data_path, "dstd.npy"), dstd)
     
+    # num total trian img 
     train_image_num = math.ceil(image_num * config["ratio"])
 
     list_neigh = list_neigh.reshape(-1, max_neighbor_num * ntypes)
@@ -700,13 +701,17 @@ def sepper_data(config, is_load_stat = False, stat_add = "./"):
 
     index = 0
     
+
     """
         Since image padding is not supported at this moment, 
         we manipulate the data formation to achieve the desired result
-            
-        10 images form a chunk, chunk by chunk  
         
+        $chunk_size images form a chunk, chunk by chunk  
     """ 
+    
+    train_chunks = []
+    valid_chunks = []
+    
     accum_train_num = 0 
     accum_valid_num = 0 
 
@@ -721,9 +726,121 @@ def sepper_data(config, is_load_stat = False, stat_add = "./"):
     range_mvmt = [0] + range_mvmt
     
     # assume all movements are of same size! 
-    rotate_fac = 10
-    mvmt_size = 0 
+    #chunk_size = 10 
+    #rotate_fac = 10
+
+    """
+        for each movement, divide by chunck size
+    """
+    for i in range(len(range_mvmt)-1):
+        
+        mvmt_begin = range_mvmt[i]
+        mvmt_end = range_mvmt[i+1]
+        
+        # range of index of current movement 
+        idx_range = [i for i in range(mvmt_begin,mvmt_end)]
+        
+        # shuffle 
+        if is_shuffle is True:
+            random.seed(time.time())
+            random.shuffle(idx_range)
+
+        mvmt_len = mvmt_end - mvmt_begin
+        
+        train_cut = int(mvmt_len*config["ratio"])
+
+        # notice that some images at the end could be discarded 
+        num_chunk_train = int(train_cut/chunk_size)
+        num_chunk_valid = int((mvmt_len - num_chunk_train*chunk_size)/chunk_size)
+        
+        # form chunks of indices
+        for i in range(num_chunk_train):
+            p = i*chunk_size
+            train_chunks.append(idx_range[p:p+chunk_size].copy())
+        
+        for i in range(num_chunk_valid):
+            p = (i+num_chunk_train)*chunk_size
+            valid_chunks.append(idx_range[p:p+chunk_size].copy())
+        
+        print (i)
+        print ("num of image:", mvmt_len)
+        print ("num of image used",(num_chunk_train+num_chunk_valid)*chunk_size)
+
+    # shuffle chunks 
+    random.seed(time.time())
+    random.shuffle(train_chunks)
     
+    # write in /train and /valid 
+    for chunk in train_chunks:
+        for index in chunk:
+            start_index = index
+            end_index = index + 1
+
+            print (image_index[start_index], image_index[end_index])
+            
+            train_set = {
+                    "AtomType": atom_type[image_index[start_index] : image_index[end_index]],
+                    "ImageDR": image_dR[image_index[start_index] : image_index[end_index]],
+                    "ListNeighbor": list_neigh[
+                        image_index[start_index] : image_index[end_index]
+                    ],
+                    "Ei": Ei[image_index[start_index] : image_index[end_index]],
+                    "Egroup": Egroup[image_index[start_index] : image_index[end_index]],
+                    "Divider": divider[image_index[start_index] : image_index[end_index]],
+                    #"Egroup_weight": Egroup_weight[image_index[start_index] : image_index[end_index]],
+                    "Egroup_weight": np.vstack(tuple(egroup_single_arr[image_index[start_index] : image_index[end_index]])),
+                    "Ri": Ri[image_index[start_index] : image_index[end_index]],
+                    "Ri_d": Ri_d[image_index[start_index] : image_index[end_index]],
+                    "Force": Force[image_index[start_index] : image_index[end_index]],
+                    "Virial": Virial[start_index:end_index],
+                    "ImageAtomNum": atom_num_per_image[start_index:end_index],
+                }
+
+            save_path = os.path.join(train_data_path, "image_" + str(accum_train_num).zfill(width_train))
+
+            if not os.path.exists(save_path):
+                os.mkdir(save_path)
+            save_npy_files(save_path, train_set)
+
+            accum_train_num += 1 
+    
+    for chunk in valid_chunks:
+        for index in chunk:
+            start_index = index
+            end_index = index + 1
+
+            valid_set = {
+                    "AtomType": atom_type[image_index[start_index] : image_index[end_index]],
+                    "ImageDR": image_dR[image_index[start_index] : image_index[end_index]],
+                    "ListNeighbor": list_neigh[
+                        image_index[start_index] : image_index[end_index]
+                    ],
+                    "Ei": Ei[image_index[start_index] : image_index[end_index]],
+                    "Egroup": Egroup[image_index[start_index] : image_index[end_index]],
+                    "Divider": divider[image_index[start_index] : image_index[end_index]],
+                    #"Egroup_weight": Egroup_weight[image_index[start_index] : image_index[end_index]],
+                    "Egroup_weight": np.vstack(tuple(egroup_single_arr[image_index[start_index] : image_index[end_index]])),
+                    "Ri": Ri[image_index[start_index] : image_index[end_index]],
+                    "Ri_d": Ri_d[image_index[start_index] : image_index[end_index]],
+                    "Force": Force[image_index[start_index] : image_index[end_index]],
+                    "Virial": Virial[start_index:end_index],
+                    "ImageAtomNum": atom_num_per_image[start_index:end_index],
+                }
+
+            save_path = os.path.join(valid_data_path, "image_" + str(accum_valid_num).zfill(width_valid))
+
+            if not os.path.exists(save_path):
+                os.mkdir(save_path)
+            save_npy_files(save_path, valid_set)
+
+            accum_valid_num += 1
+    
+    print("Saving npy file done")
+    
+    return 
+
+    mvmt_size = 0 
+
     local_train_idx_list = []
     local_valid_idx_list = [] 
 
@@ -751,11 +868,11 @@ def sepper_data(config, is_load_stat = False, stat_add = "./"):
     
     # switch system every rotate fac steps
     # training   
-    for j in range(0, mvmt_size, rotate_fac):
+    for j in range(0, mvmt_size, chunk_size):
         for i in range(len(range_mvmt)-1):
             
             # only rotate_fac steps
-            for index in local_train_idx_list[i][j:j+rotate_fac]:
+            for index in local_train_idx_list[i][j:j+chunk_size]:
                 start_index = index
                 end_index = index + 1
                 print (image_index[start_index], image_index[end_index])
@@ -790,11 +907,11 @@ def sepper_data(config, is_load_stat = False, stat_add = "./"):
         
     # switch system every rotate fac steps
     # valid
-    for j in range(0, local_img_num, rotate_fac):
+    for j in range(0, local_img_num, chunk_size):
         for i in range(len(range_mvmt)-1):
             
             #while index < image_num:
-            for index in local_valid_idx_list[i][j:j+rotate_fac]:
+            for index in local_valid_idx_list[i][j:j+chunk_size]:
 
                 start_index = index
                 end_index = index + 1
@@ -836,7 +953,7 @@ def main():
         config = yaml.load(yamlfile, Loader=yaml.FullLoader)
         print("Read Config successful")
 
-    #gen_train_data(config)
+    gen_train_data(config)
     sepper_data(config)
 
 

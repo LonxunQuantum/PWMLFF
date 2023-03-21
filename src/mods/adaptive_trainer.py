@@ -587,9 +587,7 @@ class adaptive_trainer():
         """
 
         """
-        
         pass 
-        
     
 if __name__ == "__main__":
     
@@ -598,17 +596,19 @@ if __name__ == "__main__":
 
     #temp_range = [500,1000]
     #pressure_range = [100,500]
-    
+
     adpt_trainer = adaptive_trainer(
-                                temp = temp_range,
-                                pressure= pressure_range, 
-                                process_num = 64,           # for lmp traj gen 
-                                model_num = 4,              
-                                kspacing = 0.16, 
-                                ensemble= "npt",
-                                traj_step = 300, 
-                                num_select_per_group = 50,
-                              ) 
+                                    temp = temp_range,
+                                    pressure= pressure_range, 
+                                    process_num = 64,           # for lmp traj gen 
+                                    model_num = 4,              
+                                    kspacing = 0.16, 
+                                    ensemble= "npt",
+                                    traj_step = 300, 
+                                    num_select_per_group = 50,
+                                   ) 
     #trainer.initialize() 
     adpt_trainer.explore() 
+    
+    
     

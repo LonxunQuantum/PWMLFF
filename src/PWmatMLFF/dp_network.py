@@ -319,7 +319,7 @@ class dp_network:
                     pre_fac_force = 2.0,
                     pre_fac_etot = 1.0, 
                     pre_fac_virial = 1.0, 
-                    pre_fac_egroup = 1.0, 
+                    pre_fac_egroup = 0.05, 
 
                     # training label related arguments
                     is_trainForce = True, 
@@ -628,6 +628,7 @@ class dp_network:
     """
         data pre-processing    
     """
+
     def generate_data(self, is_real_Ep = False):
         """
             generate dp's pre-feature
@@ -637,12 +638,13 @@ class dp_network:
         dp_mlff.gen_train_data(self.config, is_real_Ep)
         
         mk = self.terminal_args.resume 
+        
         if mk is True:
             print ("using ./davd.npy and ./dstd.npy")
-        dp_mlff.sepper_data(self.config, is_load_stat = mk)
         
-        # Please book in advance!   
-         
+        dp_mlff.sepper_data(self.config, chunk_size =10, is_load_stat = mk)
+        
+
     def dbg(self):
         
         train_dataset = MovementDataset("./valid")
@@ -1051,7 +1053,6 @@ class dp_network:
 
     """
         parameter extraction related functions
-        
     """ 
     
     def catNameEmbedingW(self,idxNet, idxLayer, has_module=""):
