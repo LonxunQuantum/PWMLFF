@@ -71,7 +71,7 @@ class MovementDataset(Dataset):
                 energy = np.concatenate([energy, tmp], axis=0)
         
         energy = np.reshape(energy, (-1, natoms_sum, 1))
-        print(energy.shape)
+        #print(energy.shape)
         # natoms_sum = 0
         # for ntype in range(self.ntypes):
         #     energy_ntype = energy[:, natoms_sum:natoms_sum+natoms_per_type[ntype]]
@@ -93,7 +93,7 @@ class MovementDataset(Dataset):
         #TODO: Please check for more situation, not so sure with other input, like VASP.
         for index,num in zip(range(len(natoms_per_type)),natoms_per_type):
             if index == 0:
-                print(energy[:,:num].mean().shape)
+                #print(energy[:,:num].mean().shape)
                 energy_per_species.append(energy[:,:num].mean())
             else:
                 num_before = natoms_per_type[index-1]
