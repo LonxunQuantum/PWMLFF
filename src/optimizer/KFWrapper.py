@@ -167,7 +167,7 @@ class KFOptimizerWrapper:
         natoms_sum = inputs[4][0, 0]
         #print ("natoms_sum",natoms_sum)
         bs = Egroup_label.shape[0]
-        self.optimizer.set_grad_prefactor(self.atoms_per_group * 3)
+        self.optimizer.set_grad_prefactor(self.atoms_per_group)
 
         index = self.__sample(self.atoms_selected, self.atoms_per_group, natoms_sum)
 
