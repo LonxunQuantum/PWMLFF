@@ -40,6 +40,7 @@ class MovementDataset(Dataset):
         data["ImageAtomNum"] = np.load(os.path.join(path, "ImageAtomNum.npy")).reshape(
             -1
         )
+        #data["AtomType"] = np.load(os.path.join(path, "AtomType.npy"))
         #print(data["ImageAtomNum"])
         return data
         
@@ -53,6 +54,7 @@ class MovementDataset(Dataset):
         return len(self.dirs)
 
     def __compute_stat_output(self, image_num=10, rcond=1e-3):
+        energy_per_species=[]
 
         data = self.__getitem__(0)
 
@@ -69,6 +71,7 @@ class MovementDataset(Dataset):
                 energy = np.concatenate([energy, tmp], axis=0)
         
         energy = np.reshape(energy, (-1, natoms_sum, 1))
+        print(energy.shape)
         # natoms_sum = 0
         # for ntype in range(self.ntypes):
         #     energy_ntype = energy[:, natoms_sum:natoms_sum+natoms_per_type[ntype]]
@@ -80,14 +83,25 @@ class MovementDataset(Dataset):
         # energy_ntype = energy[:, natoms_sum:natoms_sum+natoms_per_type[ntype]]
         # natoms_sum += natoms_per_type[ntype]
         
-        energy_sum = energy.sum(axis=1)
-        energy_avg = np.average(energy_sum)
+        #energy_sum = energy.sum(axis=1)
+        #energy_avg = np.average(energy_sum)
         # energy_one = np.ones_like(energy_sum) * natoms_per_type[ntype]
+        #ener_shift, _, _, _ = np.linalg.lstsq(
+        #    [natoms_per_type], [energy_avg], rcond=rcond
+        #)
+
+        #TODO: Please check for more situation, not so sure with other input, like VASP.
+        for index,num in zip(range(len(natoms_per_type)),natoms_per_type):
+            if index == 0:
+                print(energy[:,:num].mean().shape)
+                energy_per_species.append(energy[:,:num].mean())
+            else:
+                num_before = natoms_per_type[index-1]
+                energy_per_species.append(energy[:,num_before:num_before+num].mean())
         
-        ener_shift, _, _, _ = np.linalg.lstsq(
-            [natoms_per_type], [energy_avg], rcond=rcond
-        )
-        self.ener_shift = ener_shift.tolist()
+        self.ener_shift = energy_per_species
+        #self.ener_shift = ener_shift.tolist()
+        #self.ener_shift = [19.0, 674.0] #just for test
 
     def get_stat(self):
         return self.davg, self.dstd, self.ener_shift
