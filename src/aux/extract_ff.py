@@ -253,7 +253,7 @@ def extract_ff( name = "myforcefield.ff",
             fin.close() 
             
             for line in raw:
-                outfile.writelines(line)  
+                outfile.writelines(line)
             
             outfile.writelines("\n")
             
@@ -264,3 +264,4 @@ if __name__ =="__main__":
 
     extract_ff(name = "Li-Ta-O.ff", model_type=5)
 
+    

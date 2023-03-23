@@ -163,7 +163,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, co
         loss_Ei.root,
         loss_Egroup.root,
         loss_Virial.root,
-        real_lr,
+        real_lr,    
     )
 
 
@@ -281,10 +281,11 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, config):
                 KFOptWrapper.update_virial(kalman_inputs, Virial_label, config.pre_fac_virial)
             
             if config.is_egroup is True:
-                KFOptWrapper.update_egroup(kalman_inputs, Egroup_label, config.pre_fac_virial)
+                KFOptWrapper.update_egroup(kalman_inputs, Egroup_label, config.pre_fac_egroup)
 
         loss_F_val = criterion(Force_predict, Force_label)
         loss_Etot_val = criterion(Etot_predict, Etot_label)
+        
         loss_Ei_val = criterion(Ei_predict, Ei_label)
         loss_Egroup_val = criterion(Egroup_predict, Egroup_label)
         loss_Virial_val = criterion(Virial_predict, Virial_label.squeeze(1))

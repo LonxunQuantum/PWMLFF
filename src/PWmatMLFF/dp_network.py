@@ -281,12 +281,11 @@ class dp_network:
                  
                     # some must-haves
                     # model related argument
-                    terminal_args = get_terminal_args(), 
+                    
                     atom_type = None, 
                     # optimizer related arguments 
                     max_neigh_num = 100, 
                     # "g", "l_0","l_1", "l_2", "s" 
-                                        
                     session_dir = "record",  # directory that saves the model
                     n_epoch = 25, 
                     start_epoch = 1, 
@@ -304,8 +303,7 @@ class dp_network:
                     gpu_id = None, 
                     distributed = False, 
                     optimizer = "ADAM",    # LKF, GKF, ADAM, SGD 
-
-
+                    
                     kalman_lambda = 0.98,
                     kalman_nue = 0.99870, 
                     # paras for l-kalman 
@@ -361,11 +359,10 @@ class dp_network:
 
                     model_name = None                  
                     
-
                     ):
         
         # args from terminal 
-        self.terminal_args = terminal_args
+        self.terminal_args = get_terminal_args()
         
         if atom_type == None:
             raise Exception("atom types not specifed")         
@@ -607,8 +604,7 @@ class dp_network:
             self.terminal_args.pre_fac_etot = pre_fac_etot
             self.terminal_args.pre_fac_virial = pre_fac_virial
             self.terminal_args.pre_fac_egroup = pre_fac_egroup
-
-
+            
             print("WARNING: Using arguments from class instantiation\n")
             
         else:
@@ -625,11 +621,20 @@ class dp_network:
         
         for key in self.config:
             print(key, self.config[key])
+
+        seed = time.time()
+        torch.manual_seed(int(seed/2))
+
     """
         data pre-processing    
     """
+    def set_session_dir(self,name):
+        self.terminal_args.store_path = name 
+    
+    def set_gpu_id(self,idx):
+        self.terminal_args.gpu = idx
 
-    def generate_data(self, is_real_Ep = False):
+    def generate_data(self, is_real_Ep = False, chunk_size = 10):
         """
             generate dp's pre-feature
         """
@@ -642,7 +647,7 @@ class dp_network:
         if mk is True:
             print ("using ./davd.npy and ./dstd.npy")
         
-        dp_mlff.sepper_data(self.config, chunk_size =10, is_load_stat = mk)
+        dp_mlff.sepper_data(self.config, chunk_size = chunk_size, is_load_stat = mk)
         
 
     def dbg(self):
@@ -690,7 +695,7 @@ class dp_network:
             print ("dim Ri", sample_batches["Ri"].size())
             print ("dim Ri_d", sample_batches["Ri_d"].size())
             print ("dim atom num,", sample_batches["ImageAtomNum"].size())
-
+        
             #print ("atom num,", sample_batches["ImageAtomNum"])
             #if i == 961:
             #    print (sample_batches["ImageAtomNum"])
@@ -829,7 +834,8 @@ class dp_network:
                     loc = "cuda:{}".format(self.terminal_args.gpu)
                     checkpoint = torch.load(file_name, map_location=loc)
 
-                self.terminal_args.start_epoch = checkpoint["epoch"] + 1
+                # start afresh 
+                #self.terminal_args.start_epoch = checkpoint["epoch"] + 1
                 best_loss = checkpoint["best_loss"]
                 model.load_state_dict(checkpoint["state_dict"])
                 optimizer.load_state_dict(checkpoint["optimizer"])
@@ -892,12 +898,12 @@ class dp_network:
 
             f_train_log = open(train_log, "w")
             f_train_log.write(
-                "epoch\t loss\t RMSE_Etot\t RMSE_Ei\t RMSE_F\t real_lr\t time\n"
+                "epoch\t loss\t RMSE_Etot\t RMSE_Egroup\t RMSE_F\t real_lr\t time\n"
             )
 
             valid_log = os.path.join(self.terminal_args.store_path, "epoch_valid.dat")
             f_valid_log = open(valid_log, "w")
-            f_valid_log.write("epoch\t loss\t RMSE_Etot\t RMSE_Ei\t RMSE_F\n")
+            f_valid_log.write("epoch\t loss\t RMSE_Etot\t RMSE_Eroupg\t RMSE_F\n")
 
         for epoch in range(self.terminal_args.start_epoch, self.terminal_args.epochs + 1):
             if self.terminal_args.hvd:
@@ -929,7 +935,7 @@ class dp_network:
                         epoch,
                         loss,
                         loss_Etot,
-                        loss_Ei,
+                        loss_egroup,
                         loss_Force,
                         real_lr,
                         time_end - time_start,
@@ -938,7 +944,7 @@ class dp_network:
                 f_valid_log = open(valid_log, "a")
                 f_valid_log.write(
                     "%d %e %e %e %e\n"
-                    % (epoch, vld_loss, vld_loss_Etot, vld_loss_Ei, vld_loss_Force)
+                    % (epoch, vld_loss, vld_loss_Etot, val_loss_egroup, vld_loss_Force)
                 )
             
             # scheduler.step()
@@ -946,7 +952,7 @@ class dp_network:
             # remember best loss and save checkpoint
             is_best = vld_loss < best_loss
             best_loss = min(loss, best_loss)
-
+            
             # should include dstd.npy and davg.npy 
             
             if not self.terminal_args.hvd or (self.terminal_args.hvd and hvd.rank() == 0):
