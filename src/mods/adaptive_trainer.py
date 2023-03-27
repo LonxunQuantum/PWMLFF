@@ -37,6 +37,7 @@ class adaptive_trainer():
                     num_select_per_group = 200,
                     psp_dir = "/share/psp/NCPP-SG15-PBE", 
                     node_num = 1, 
+                    atom_type = []
                     
                 ):
         """
@@ -100,6 +101,11 @@ class adaptive_trainer():
         
         # stats in each iteration 
         self.stats_list = []
+        # list of trainer instance 
+        self.trainer_list = []
+         
+        self.atom_type = atom_type
+
         self.node_num = node_num
 
     def initialize(self):
@@ -281,16 +287,22 @@ class adaptive_trainer():
     """
     
     def run_lmp_mp(self,tgt_dirs):
+        import time
+
         for dir in tgt_dirs:
             print ("generating trajectory for " + dir)
             os.chdir(dir)
+            
+            begin = time.time()
 
             if self.silent_mode is True:
                 subprocess.run(["lmp_mpi -in lammps.in > /dev/null"], shell=True)   
             else:
-                subprocess.run(["lmp_mpi -in lammps.in"], shell=True)   
+                subprocess.run(["lmp_mpi -in lammps.in"], shell=True)
             
-            print("trajectory generated for "+dir+"\n")
+            end = time.time()
+
+            print("trajectory generated for "+dir+" in", end-begin, "s\n")
             
             
     def run_lmp(self):
@@ -328,6 +340,7 @@ class adaptive_trainer():
             
             if not os.path.exists(os.path.join(dir,"explr.stat")):
                 print("exploration stat not foudn in", dir)
+                print("\n")
                 continue 
             
             f = open(os.path.join(dir,"explr.stat"),"r")
@@ -359,6 +372,68 @@ class adaptive_trainer():
         print ("ratio of failure", float(num_fail)/num_total)
         
         print ("********************************************************\n")
+
+    def lmp_dbg(self):
+        lmp_dirs = [] 
+
+        for a, b, c in os.walk(self.explore_subsys_dir):
+            # exclude those not at the lowest level 
+            if len(b) == 0:
+                lmp_dirs.append(a)
+
+        num_success = 0 
+        num_cand = 0
+        num_fail = 0
+
+        print(len(lmp_dirs))
+
+        print ("*****************SUMMARY OF EXPLORATION*****************")
+
+        for dir in lmp_dirs: 
+            
+            if not os.path.exists(os.path.join(dir,"explr.stat")):
+                print("exploration stat not foudn in", dir)
+                
+                continue 
+            
+            f = open(os.path.join(dir,"explr.stat"),"r")
+            raw = f.readlines()[0].split()  
+            f.close()
+            
+            tmp_success = int(raw[0])
+            tmp_cand = int(raw[1])
+            tmp_fail = int(raw[2])
+            
+            print(dir)
+            print(tmp_success, tmp_cand, tmp_fail)
+            tmp_total = tmp_cand+ tmp_success+ tmp_fail
+            print(tmp_success/tmp_total, tmp_cand/tmp_total, tmp_fail/tmp_total)
+            
+            print("\n")
+
+            num_success = num_success +tmp_success 
+            num_cand = num_cand + tmp_cand
+            num_fail = num_fail + tmp_fail 
+
+            continue
+            tmp_total = tmp_cand+tmp_success+tmp_fail
+
+            print("in",dir)
+            print ("ratio of success:", float(tmp_success)/tmp_total)
+            print ("ratio of candidate:", float(tmp_cand)/tmp_total)
+            print ("ratio of failure", float(tmp_fail)/tmp_total)
+            print("\n")
+
+            num_success += int(raw[0])
+            num_cand += int(raw[1])
+            num_fail += int(raw[2])
+        
+        #num_total = num_success+num_cand+num_fail 
+        
+        print (num_success, num_cand, num_fail)
+
+        print ("********************************************************")
+
 
     """
        ****************************************** 
@@ -569,7 +644,7 @@ class adaptive_trainer():
         
     """
        ****************************************** 
-                        run scf 
+                    exploration core  
        ****************************************** 
     """
     def explore(self):
@@ -583,16 +658,74 @@ class adaptive_trainer():
         # scf for selected configs
         self.run_scf()
 
-    def train(self):
+    """
+       ****************************************** 
+                    training core  
+       ****************************************** 
+    """
+    def train_wrapper(self,idx):
         """
+            foo bar foo bar 
+        """
+        print ("trainer",idx,"starts")
+        self.trainer_list[idx].load_and_train()     
+        
 
+    def train(self):
+        from PWmatMLFF.dp_network import dp_network
+        import time
         """
-        pass 
-    
+            4 trainers in total 
+            each trainer owns its record_x
+            
+        """  
+
+        # enter train dir 
+        os.chdir(self.train_path)
+
+        # create trainer instances
+        for i in range(self.model_num):
+            
+            self.trainer_list.append( dp_network(        
+                                            atom_type = self.atom_type,   
+                                            optimizer = "LKF",       
+                                            gpu_id = i,              
+                                            session_dir = "record_"+str(i),  
+                                            n_epoch = 1,             
+                                            batch_size = 10,          
+                                            Rmax = 5.0,              
+                                            Rmin = 0.5,              
+                                            M2 = 16,                 
+                                            dataset_size = 1000,     
+                                            block_size= 10240,       
+                                            is_virial = False,        
+                                            workers_dataload= 0,                 # ensure single process loading
+                                            pre_fac_force = 1.0,     
+                                            pre_fac_etot = 0.5,      
+                                        ))
+        
+        #self.trainer_list[0].generate_data(is_real_Ep = True) 
+        
+        trainer_pool = mp.Pool(self.model_num)
+        
+        trainer_pool.map(self.train_wrapper,[i for i in range(self.model_num)]) 
+        
+        # !!! should be a barrier here !!!
+        print ("\ntraining done\n")
+        
+        # write force field. Must be done sequentially
+        for idx,trainer in enumerate(self.trainer_list):
+            trainer.extract_force_field(name = str(idx)+".ff")
+        
+        
+        
 if __name__ == "__main__":
-    
-    temp_range = [200*i for i in range(1,9)]
-    pressure_range= [1.0,10,100,1000,5000,10000]   
+    """
+        1. as long as the seed doesn't change, only need to update .ff at every iteration 
+        2. OUT.MLMD should be processed to shift the atomic energies
+    """
+    temp_range = [200,400,600,800]
+    pressure_range= [1.0,10,100,1000]   
 
     #temp_range = [500,1000]
     #pressure_range = [100,500]
@@ -606,9 +739,10 @@ if __name__ == "__main__":
                                     ensemble= "npt",
                                     traj_step = 300, 
                                     num_select_per_group = 50,
+                                    atom_type = [3,14] 
                                    ) 
     #trainer.initialize() 
-    adpt_trainer.explore() 
-    
-    
+    #adpt_trainer.explore() 
+    adpt_trainer.train() 
+    #adpt_trainer.lmp_dbg()
     

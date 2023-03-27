@@ -160,7 +160,7 @@ def gen_train_data(config, is_real_Ep = True):
                         )
     
     # ImgPerMVT  
-     
+    
     for movement_file in movement_files:
         tgt = os.path.join(movement_file, "MOVEMENT") 
         res = sp.check_output(["grep", "Iteration", tgt ,"-c"]) 
@@ -642,7 +642,7 @@ def sepper_data(config, chunk_size = 10, is_load_stat = False, stat_add = "./", 
     ).cumsum()  # array([  0, 108, 216, 324, 432, 540, 648, 756, 864, 972])
     
     image_num = atom_num_per_image.shape[0]
-
+    
     diff_atom_types_num = []
     for i in range(image_num):
         atom_type_per_image = atom_type[image_index[i] : image_index[i + 1]]
@@ -703,8 +703,8 @@ def sepper_data(config, chunk_size = 10, is_load_stat = False, stat_add = "./", 
     
 
     """
-        Since image padding is not supported at this moment, 
-        we manipulate the data formation to achieve the desired result
+        Since image padding is not supported at this moment 
+        we manipulate the data formation to support batch size larger than 1
         
         $chunk_size images form a chunk, chunk by chunk  
     """ 
@@ -834,7 +834,7 @@ def sepper_data(config, chunk_size = 10, is_load_stat = False, stat_add = "./", 
             save_npy_files(save_path, valid_set)
 
             accum_valid_num += 1
-    
+
     print("Saving npy file done")
     
     return 
