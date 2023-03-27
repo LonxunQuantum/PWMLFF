@@ -738,7 +738,7 @@ def sepper_data(config, chunk_size = 10, is_load_stat = False, stat_add = "./", 
         mvmt_end = range_mvmt[i+1]
         
         # range of index of current movement 
-        idx_range = [i for i in range(mvmt_begin,mvmt_end)]
+        idx_range = [j for j in range(mvmt_begin,mvmt_end)]
         
         # shuffle 
         if is_shuffle is True:
@@ -754,15 +754,15 @@ def sepper_data(config, chunk_size = 10, is_load_stat = False, stat_add = "./", 
         num_chunk_valid = int((mvmt_len - num_chunk_train*chunk_size)/chunk_size)
         
         # form chunks of indices
-        for i in range(num_chunk_train):
-            p = i*chunk_size
+        for j in range(num_chunk_train):
+            p = j*chunk_size
             train_chunks.append(idx_range[p:p+chunk_size].copy())
         
-        for i in range(num_chunk_valid):
-            p = (i+num_chunk_train)*chunk_size
+        for j in range(num_chunk_valid):
+            p = (j+num_chunk_train)*chunk_size
             valid_chunks.append(idx_range[p:p+chunk_size].copy())
         
-        print (i)
+        print ("in mvmt",i)
         print ("num of image:", mvmt_len)
         print ("num of image used",(num_chunk_train+num_chunk_valid)*chunk_size)
 
