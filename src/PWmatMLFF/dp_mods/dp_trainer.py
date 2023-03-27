@@ -274,14 +274,16 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, config):
             # import ipdb;ipdb.set_trace()
             KFOptWrapper.update_energy(kalman_inputs, Etot_label, config.pre_fac_etot)
             
+            if config.is_egroup is True:
+                KFOptWrapper.update_egroup(kalman_inputs, Egroup_label, config.pre_fac_egroup)
+                #KFOptWrapper.update_egroup_select(kalman_inputs, Egroup_label, config.pre_fac_egroup)
+
             Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = KFOptWrapper.update_force(
                 kalman_inputs, Force_label, config.pre_fac_force) 
             
             if config.is_virial is True:
                 KFOptWrapper.update_virial(kalman_inputs, Virial_label, config.pre_fac_virial)
             
-            if config.is_egroup is True:
-                KFOptWrapper.update_egroup(kalman_inputs, Egroup_label, config.pre_fac_egroup)
 
         loss_F_val = criterion(Force_predict, Force_label)
         loss_Etot_val = criterion(Etot_predict, Etot_label)
