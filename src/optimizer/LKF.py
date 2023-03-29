@@ -31,7 +31,7 @@ class LKFOptimizer(Optimizer):
         # the first param, because this helps with casting in load_state_dict
         self._state = self.state[self._params[0]]
         self._state.setdefault("kalman_lambda", kalman_lambda)
-
+        
         self.__init_P()
 
     def __init_P(self):

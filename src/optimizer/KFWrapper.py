@@ -135,6 +135,7 @@ class KFOptimizerWrapper:
 
         error = error * update_prefactor
         error[mask] = -1 * error[mask]
+        
         error = error.mean()
 
         if self.is_distributed:
@@ -149,8 +150,8 @@ class KFOptimizerWrapper:
         Virial_predict = update_prefactor * Virial_predict
         Virial_predict[mask] = -1.0 * Virial_predict[mask]
 
-        #Virial_predict.sum().backward()
-        (Virial_predict.sum()+ Etot_predict.sum() * 0).backward()
+        Virial_predict.sum().backward()
+        #(Virial_predict.sum()+ Etot_predict.sum() * 0).backward()
 
         error = error * math.sqrt(bs)
         self.optimizer.step(error)

@@ -47,6 +47,8 @@ PROGRAM gen_deepMD1_feature
     integer,allocatable,dimension (:,:,:) :: list_neigh_M
     integer,allocatable,dimension (:,:) :: num_neigh_M
 
+    real(8) dfeat_threshold 
+    real(8) max_dfeat_val 
 
     real*8 sum1,diff
 
@@ -68,7 +70,7 @@ PROGRAM gen_deepMD1_feature
     real*8 w_dummy
     integer M_type(100),M1,M2_type(100),M2
 
-!cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
     INTERFACE
         SUBROUTINE scan_title (io_file, title, title_line, if_find)
             CHARACTER(LEN=200), OPTIONAL :: title_line
@@ -77,7 +79,7 @@ PROGRAM gen_deepMD1_feature
             CHARACTER(LEN=*) :: title
         END SUBROUTINE scan_title
     END INTERFACE
-!cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
     open(10,file="input/gen_deepMD1_feature.in",status="old",action="read")
     rewind(10)
@@ -92,7 +94,7 @@ PROGRAM gen_deepMD1_feature
         read(10,*) M2_type(i), w_dummy
 
         if(Rc_type(i).gt.Rc_M) then
-            write(6,*) "Rc_type must be smaller than Rc_M, gen_3b_feature.in",i,Rc_type(i),Rc_M
+            write(6,*) "Rc_type must be smaller than Rc_M in gen_deepMD1_feature.in",i,Rc_type(i),Rc_M
             stop
         endif
     enddo
@@ -130,17 +132,11 @@ PROGRAM gen_deepMD1_feature
 
     write(6,*) "itype,nfeat0=",(nfeat0(itype),itype=1,ntype)
 
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-    
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
-!  FInish the initial grid treatment
+    !cccccccccccccccccccccccccccccccccccccccccccccccccccc  
+    !cccccccccccccccccccccccccccccccccccccccccccccccccccc
+    !  FInish the initial grid treatment
 
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
+    !cccccccccccccccccccccccccccccccccccccccccccccccccccc
 
     do 2333 sys=1,sys_num
         MOVEMENTDir=trim(trainSetFileDir(sys))//"/MOVEMENT"
@@ -148,7 +144,7 @@ PROGRAM gen_deepMD1_feature
         infoDir=trim(trainSetFileDir(sys))//"/info.txt.Ftype7"
     
 
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
+    !cccccccccccccccccccccccccccccccccccccccccccccccccccc
     OPEN (move_file,file=MOVEMENTDir,status="old",action="read") 
     rewind(move_file)
 
@@ -294,10 +290,10 @@ PROGRAM gen_deepMD1_feature
 
         num_step1=num_step1+1
 
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-! Finished readin the movement file.  
-! fetermined the num_step1
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+        !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+        ! Finished readin the movement file.  
+        ! fetermined the num_step1
+        !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
 
     allocate(list_neigh(m_neigh,ntype,natom))
@@ -321,28 +317,29 @@ PROGRAM gen_deepMD1_feature
     allocate(feat(nfeat0m,natom))
     allocate(dfeat(nfeat0m,natom,m_neigh,3))
 
-!ccccccccccccccccccccccccccccccccccccccccccc
+    !ccccccccccccccccccccccccccccccccccccccccccc
     itype_atom=0
     do i=1,natom
-    do j=1,ntype
-     if(iatom(i).eq.iat_type(j)) then
-      itype_atom(i)=j
-     endif
+        do j=1,ntype
+            if(iatom(i).eq.iat_type(j)) then
+                itype_atom(i)=j
+            endif
+        enddo
+
+        if(itype_atom(i).eq.0) then
+            write(6,*) "this atom type didn't found", itype_atom(i)
+            stop
+        endif
     enddo
-      if(itype_atom(i).eq.0) then
-      write(6,*) "this atom type didn't found", itype_atom(i)
-      stop
-      endif
-     enddo
-!ccccccccccccccccccccccccccccccccccccccccccc
+        !ccccccccccccccccccccccccccccccccccccccccccc
 
 
     call find_neighbore(iatom,natom,xatom,AL,Rc_type,num_neigh,list_neigh, &
        dR_neigh,iat_neigh,ntype,iat_type,m_neigh,Rc_M,map2neigh_M,list_neigh_M, &
        num_neigh_M,iat_neigh_M)
 
-!ccccccccccccccccccccccccccccccccc
-!ccccccccccccccccccccccccccccccccc
+        !ccccccccccccccccccccccccccccccccc
+        !ccccccccccccccccccccccccccccccccc
 
       max_neigh=-1
       num_neigh_alltype=0
@@ -375,11 +372,11 @@ PROGRAM gen_deepMD1_feature
       num=num+1
       list_neigh_alltype(num,iat)=list_neigh(j,itype,iat)
       map2neigh_alltypeM(num,iat)=list_tmp(map2neigh_M(j,itype,iat),itype)
-! map2neigh_M(j,itype,iat), maps the jth neigh in list_neigh(Rc) to jth' neigh in list_neigh_M(Rc_M) 
+        ! map2neigh_M(j,itype,iat), maps the jth neigh in list_neigh(Rc) to jth' neigh in list_neigh_M(Rc_M) 
       enddo
       enddo
 
-!ccccccccccccccccccccccccccccccccccccccc
+    !ccccccccccccccccccccccccccccccccccccccc
 
 
       num_neigh_alltype(iat)=num
@@ -388,18 +385,14 @@ PROGRAM gen_deepMD1_feature
       if(num_M.gt.max_neigh_M) max_neigh_M=num_M
       enddo  ! iat
 
-!cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-! This num_neigh_alltype(iat) include itself !
+        !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+        ! This num_neigh_alltype(iat) include itself !
     dfeat=0.d0
     feat=0.d0
     call find_feature_deepMD1(natom,itype_atom,Rc_type,Rc2_type,Rm_type,weight_rterm,&
        num_neigh,list_neigh,dR_neigh,iat_neigh,ntype,M_type, M2_type,&
        feat,dfeat,nfeat0m,m_neigh,nfeat_atom)
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
+        !cccccccccccccccccccccccccccccccccccccccccccccccccccc
 
     num_tot=num_tot+natom
 
@@ -420,12 +413,20 @@ PROGRAM gen_deepMD1_feature
 
     !cccccccccccccccccccccccccccccccccccccccccccccchhhhhh
     !  Only output the nonzero points for dfeat
+    
+    ! *********************************************************
+    ! wlj 2023.3: change threshold for the effective d-feature?
+    ! *********************************************************
+
+    dfeat_threshold = 1.e-3
+    max_dfeat_val = 0 
+    
     num_tmp=0
     do jj_tmp=1,m_neigh
         do iat2=1,natom
-            do ii_tmp=1,nfeat0M
+            do ii_tmp=1,nfeat0M 
                 if(abs(dfeat(ii_tmp,iat2,jj_tmp,1))+abs(dfeat(ii_tmp,iat2,jj_tmp,2))+ &
-                    abs(dfeat(ii_tmp,iat2,jj_tmp,3)).gt.1.E-7) then
+                    abs(dfeat(ii_tmp,iat2,jj_tmp,3)).gt.dfeat_threshold) then
 
                     num_tmp=num_tmp+1
                 
@@ -445,17 +446,17 @@ PROGRAM gen_deepMD1_feature
         do iat2=1,natom
             do ii_tmp=1,nfeat0M
                 if(abs(dfeat(ii_tmp,iat2,jj_tmp,1))+abs(dfeat(ii_tmp,iat2,jj_tmp,2))+ &
-                    abs(dfeat(ii_tmp,iat2,jj_tmp,3)).gt.1.E-7) then
+                    abs(dfeat(ii_tmp,iat2,jj_tmp,3)).gt.dfeat_threshold) then
                 
-                num_tmp=num_tmp+1
-                dfeat_tmp(:,num_tmp)=dfeat(ii_tmp,iat2,jj_tmp,:)
-                iat_tmp(num_tmp)=iat2
-                
-                !  jneigh_tmp(num_tmp)=jj_tmp
+                    num_tmp=num_tmp+1
+                    dfeat_tmp(:,num_tmp)=dfeat(ii_tmp,iat2,jj_tmp,:)
+                    iat_tmp(num_tmp)=iat2
+                    
+                    !  jneigh_tmp(num_tmp)=jj_tmp
 
-                jneigh_tmp(num_tmp)=map2neigh_alltypeM(jj_tmp,iat2)
+                    jneigh_tmp(num_tmp)=map2neigh_alltypeM(jj_tmp,iat2)
 
-                ifeat_tmp(num_tmp)=ii_tmp
+                    ifeat_tmp(num_tmp)=ii_tmp
                 endif
             enddo
         enddo

@@ -639,15 +639,18 @@ class dp_network:
             generate dp's pre-feature
         """
         import dp_mlff 
+        import subprocess 
+        
+        # clean old .dat files otherwise will be appended 
+        if os.path.exists("PWdata/AtomType.dat"):
+            print ("cleaning old .dat")
+            subprocess.run(["rm PWdata/*.dat"],shell=True)
         
         dp_mlff.gen_train_data(self.config, is_real_Ep)
-        
-        mk = self.terminal_args.resume 
-        
-        if mk is True:
-            print ("using ./davd.npy and ./dstd.npy")
-        
-        dp_mlff.sepper_data(self.config, chunk_size = chunk_size, is_load_stat = mk)
+        #mk = self.terminal_args.resume 
+        #if mk is True:
+        #    print ("using ./davd.npy and ./dstd.npy")
+        dp_mlff.sepper_data(self.config, chunk_size = chunk_size)
         
 
     def dbg(self):
@@ -903,7 +906,7 @@ class dp_network:
 
             valid_log = os.path.join(self.terminal_args.store_path, "epoch_valid.dat")
             f_valid_log = open(valid_log, "w")
-            f_valid_log.write("epoch\t loss\t RMSE_Etot\t RMSE_Eroupg\t RMSE_F\n")
+            f_valid_log.write("epoch\t loss\t RMSE_Etot\t RMSE_Egroup\t RMSE_F\n")
 
         for epoch in range(self.terminal_args.start_epoch, self.terminal_args.epochs + 1):
             if self.terminal_args.hvd:
@@ -1090,7 +1093,7 @@ class dp_network:
             NEED TO ADD SESSION DIR NAME
         """ 
         if model_name is None: 
-            extract_model_name = self.terminal_args.store_path + "/best.pth.tar"
+            extract_model_name = self.terminal_args.store_path + "/checkpoint.pth.tar"
         else:
             extract_model_name = model_name
         

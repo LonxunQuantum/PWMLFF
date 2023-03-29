@@ -17,7 +17,7 @@ subroutine find_feature_deepMD1(natom,itype_atom,Rc,RC2,Rm,weight_rterm, &
       real*8 dR_neigh_alltype(3,m_neigh,natom)
       integer iat_neigh(m_neigh,ntype,natom),list_neigh(m_neigh,ntype,natom)
       integer num_neigh(ntype,natom)
-      integer num_neigh_alltype(natom)
+      integer num_neigh_alltype(natom)  
       integer nperiod(3)
       integer iflag,i,j,num,iat,itype
       integer i1,i2,i3,itype1,itype2,j1,j2,iat1,iat2

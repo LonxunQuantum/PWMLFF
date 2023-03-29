@@ -301,7 +301,7 @@ def p2l(filename = "POSCAR", output_name = "lmp.init"):
         out_line = str(idx+1)+" "
         out_line += str(mass_table[idx_table[sym]])+"\n"
         #print (out_line)
-        ofile.write(out_line)
+        ofile.write(out_line)   
         
     #ofile.write("1 6.94000000      #Li\n")
     #ofile.write("2 180.94788000    #Ta\n")
@@ -317,4 +317,5 @@ def p2l(filename = "POSCAR", output_name = "lmp.init"):
 
 if __name__ =="__main__":
     
+
     p2l() 

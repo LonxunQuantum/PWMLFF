@@ -100,15 +100,16 @@ PROGRAM write_Egroup
     rewind(10)
     read(10,*) Rc_M,m_neigh
     read(10,*) ntype
+    
     do i=1,ntype
-    read(10,*) iat_type(i)
-    read(10,*) Rc_type(i),Rm_type(i)
-    read(10,*) 
-
-     if(Rc_type(i).gt.Rc_M) then
-      write(6,*) "Rc_type must be smaller than Rc_M, gen_3b_feature.in",i,Rc_type(i),Rc_M
-      stop
-     endif
+        read(10,*) iat_type(i)
+        read(10,*) Rc_type(i),Rm_type(i)
+        read(10,*) 
+    
+        if(Rc_type(i).gt.Rc_M) then
+            write(6,*) "Rc_type must be smaller than Rc_M, gen_3b_feature.in",i,Rc_type(i),Rc_M
+            stop
+        endif
 
     enddo
     read(10,*) E_tolerance

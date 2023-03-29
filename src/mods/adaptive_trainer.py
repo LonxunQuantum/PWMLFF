@@ -37,9 +37,10 @@ class adaptive_trainer():
                     num_select_per_group = 200,
                     psp_dir = "/share/psp/NCPP-SG15-PBE", 
                     node_num = 1, 
-                    atom_type = []
-                    
-                ):
+                    atom_type = [],
+                    success_bar = 0.15,
+                    candidate_bar = 0.35,                     
+                ):  
         """
             DIR: train
                 All the training stuff
@@ -55,13 +56,14 @@ class adaptive_trainer():
                 * results: candidates that will be used for train. 
                 * subsys: all configurations to be explored 
                 *** which contian sys1, sys2, sys3, ...         
-                *** in each of them, generate trajectory, and 
-            
+                *** in each of them, generate trajectory, and  
         """
-        
         self.num_cand_per_cfg = 10                 #  number of candidate per config
         self.silent_mode = silent_mode
         self.process_num = process_num
+
+        self.success_bar = success_bar 
+        self.candidate_bar = candidate_bar
 
         self.num_select_per_group = num_select_per_group
 
@@ -205,13 +207,14 @@ class adaptive_trainer():
                         write_cfg["end_temp"] = temp 
                         write_cfg["init_pres"] = pres
                         write_cfg["end_pres"] = pres
-                            
+
                         self.write_lmp_in(write_cfg)
             
 
     def write_lmp_in(self,write_config):
-
         # write lammps.in 
+        import time 
+
         out_name = "lammps.in"
 
         head  =  ["units           metal\n",
@@ -223,12 +226,17 @@ class adaptive_trainer():
         
         init_config = write_config["init_config"]
 
+        #seed for initial velocity 
+        lmp_seed = int(time.time())%356178 
+
         vline1 = "velocity         all create " 
-        vline2 = " 500000 dist gaussian\n"
+        #vline2 = " 500000 dist gaussian\n"
+        vline2 = " "+str(lmp_seed)+ " dist gaussian\n"
 
         dumpline1 = "dump             1 all custom 1 "
         dumpline2 = " id type x y z  vx vy vz fx fy fz\n"
 
+        # lammps.in 
         f = open(out_name,"w")
  
         for line in head:
@@ -265,7 +273,7 @@ class adaptive_trainer():
             line = line + "tri " +  str(write_config["init_pres"]) + " " + str(write_config["end_pres"])+ " "+ str(write_config["timestep"]*100) + "\n"
             f.writelines(line)
 
-        f.writelines("thermo_style     custom step pe ke etotal temp\n")
+        f.writelines("thermo_style     custom step pe ke etotal temp vol press\n")
         f.writelines("thermo           1\n")
 
         f.writelines(dumpline1+write_config["output_name"]+dumpline2)
@@ -280,12 +288,17 @@ class adaptive_trainer():
 
         f.close()
 
+        # bars for success and candidate
+        f = open("bars","w")
+        f.writelines(str(self.success_bar)+" "+str(self.candidate_bar))
+        f.close()
+        
     """
        ****************************************** 
           running lmp to generate trajectories 
        ****************************************** 
     """
-    
+
     def run_lmp_mp(self,tgt_dirs):
         import time
 
@@ -339,7 +352,7 @@ class adaptive_trainer():
         for dir in lmp_dirs: 
             
             if not os.path.exists(os.path.join(dir,"explr.stat")):
-                print("exploration stat not foudn in", dir)
+                print("exploration stat not found in", dir)
                 print("\n")
                 continue 
             
@@ -372,8 +385,62 @@ class adaptive_trainer():
         print ("ratio of failure", float(num_fail)/num_total)
         
         print ("********************************************************\n")
+    
+    def lmp_get_err(self):
+        lmp_dirs = [] 
 
+        for a, b, c in os.walk(self.explore_subsys_dir):
+            # exclude those not at the lowest level 
+            if len(b) == 0:
+                lmp_dirs.append(a)
+
+        num_success = 0 
+        num_cand = 0
+        num_fail = 0
+
+        err = [] 
+        print(len(lmp_dirs))
+
+        print ("*****************SUMMARY OF EXPLORATION*****************")
+
+        for dir in lmp_dirs: 
+            
+            if not os.path.exists(os.path.join(dir,"explr.error")):
+                print("exploration error not foudn in", dir)
+                
+                continue 
+            
+            f = open(os.path.join(dir,"explr.error"),"r")
+            raw = f.readlines()  
+            f.close()
+
+            for line in raw:
+                tmp = float(line)
+                if tmp < 0.15:
+                    num_success += 1
+                
+                if tmp < 0.35 and tmp > 0.15:
+                    num_cand +=1 
+                
+                if tmp > 0.35:
+                    num_fail +=1 
+
+                err.append(tmp)
+        
+        num_tot = num_success + num_cand + num_fail
+
+        print("ratio of success (err<0.15)", num_success/num_tot)
+        print("ratio of candidate (0.15 < err < 0.35)",num_cand/num_tot)
+
+        np.save("err.npy",err)
+        
+        #print (num_success, num_cand, num_fail)
+
+        print ("********************************************************")
+
+        # save      
     def lmp_dbg(self):
+        
         lmp_dirs = [] 
 
         for a, b, c in os.walk(self.explore_subsys_dir):
@@ -400,9 +467,9 @@ class adaptive_trainer():
             raw = f.readlines()[0].split()  
             f.close()
             
-            tmp_success = int(raw[0])
-            tmp_cand = int(raw[1])
-            tmp_fail = int(raw[2])
+            tmp_success = float(raw[0])
+            tmp_cand = float(raw[1])
+            tmp_fail = float(raw[2])
             
             print(dir)
             print(tmp_success, tmp_cand, tmp_fail)
@@ -411,7 +478,7 @@ class adaptive_trainer():
             
             print("\n")
 
-            num_success = num_success +tmp_success 
+            num_success = num_success + tmp_success 
             num_cand = num_cand + tmp_cand
             num_fail = num_fail + tmp_fail 
 
@@ -434,7 +501,7 @@ class adaptive_trainer():
 
         print ("********************************************************")
 
-
+        # save 
     """
        ****************************************** 
                         run scf 
@@ -445,9 +512,9 @@ class adaptive_trainer():
         """
             use selected structures for SCF. 
         """
-        self.collect_cfgs() 
+        #self.collect_cfgs() 
         
-        self.write_scf_in_and_run() 
+        #self.write_scf_in_and_run() 
         
         self.collect_mvmt()
 
@@ -600,7 +667,7 @@ class adaptive_trainer():
             # result dir 
             tgt = (self.explore_result_dir + "/"+group).replace("subsys","result")
 
-            #print (os.path.exists(tgt))
+            # randomly select self.num_select_per_group
             for idx, cfg in enumerate(cfg_dot_dirs[:self.num_select_per_group]):
                 
                 tgt_sub = tgt+ "/" + str(idx)
@@ -620,12 +687,15 @@ class adaptive_trainer():
         scf_dirs = [] 
         tgt_name = "OUT.MLMD" 
 
+
         for root, dirs, files in os.walk(self.explore_result_dir):
             group_dirs = dirs 
             break
         
         for group in group_dirs:
+            num_img = 0 
             cat_cmd = "cat "
+            
             # walk in this group 
             for root, dirs, files in os.walk(os.path.join(self.explore_result_dir,group)):
                 cand_dirs = dirs 
@@ -634,14 +704,30 @@ class adaptive_trainer():
             for cand in cand_dirs:
                 # check if OUT.MLMD exist 
                 if os.path.exists(os.path.join(self.explore_result_dir,group,cand,tgt_name)):
+                    num_img +=1
                     cat_cmd = cat_cmd + os.path.join(self.explore_result_dir,group,cand,tgt_name) + " " 
                 #print (type(os.path.join(self.explore_result_dir,group,cand,tgt_name))
+            
             if cat_cmd != "cat ":
                 cat_cmd = cat_cmd + " > " + os.path.join(self.explore_result_dir, group, "MOVEMENT")
                 #print(cat_cmd) 
                 subprocess.run([cat_cmd],shell=True)
+                print ("num image:",num_img)
                 print ("MOVEMENT generated in", group)
-        
+
+    """
+       ****************************************** 
+                 training preparations
+       ****************************************** 
+    """
+    def copy_mvmt_to_train(self):
+        """
+            copy movements from /explore/result
+            also clean the old data in /train /valid 
+        """
+
+        return 
+
     """
        ****************************************** 
                     exploration core  
@@ -650,13 +736,13 @@ class adaptive_trainer():
     def explore(self):
         
         # prepare directories
-        #self.select_init_config() 
+        self.select_init_config() 
 
         # generate trajectories and select candidates
-        #self.run_lmp()      
+        self.run_lmp()      
 
         # scf for selected configs
-        self.run_scf()
+        #self.run_scf()
 
     """
        ****************************************** 
@@ -665,31 +751,58 @@ class adaptive_trainer():
     """
     def train_wrapper(self,idx):
         """
-            foo bar foo bar 
+            foo bar foo bar ... 
         """
         print ("trainer",idx,"starts")
-        self.trainer_list[idx].load_and_train()     
         
+        os.chdir(str(idx))
+
+        self.trainer_list[idx].generate_data(is_real_Ep = True) 
+        
+        self.trainer_list[idx].load_and_train() 
+        
+        # lmp inputs start from 1 
+        self.trainer_list[idx].extract_force_field(name = str(idx+1)+".ff")
 
     def train(self):
         from PWmatMLFF.dp_network import dp_network
         import time
         """
-            4 trainers in total 
-            each trainer owns its record_x
-            
+            a self-contained training process
+            automatically determine whether to resume
+            requires that subdirs for each model and data have been in place 
         """  
-
-        # enter train dir 
         os.chdir(self.train_path)
-
+        """
+        for idx in range(self.model_num):
+            if not os.path.exists(str(idx)):
+                os.mkdir(str(idx))
+                os.mkdir(str(idx)+"/PWdata")
+        """
         # create trainer instances
         for i in range(self.model_num):
             
+            mk = False 
+            
+            # check whether to resume training 
+            if os.path.exists(str(i)+"/"+"record_"+str(i)):
+                mk = True 
+                print ("\nFound trained model in ", str(i)+"/"+"record_"+str(i)+". Will resume.",) 
+                print ("cleaning previous data")
+
+                input_dir = str(i)+"/input -r"
+                output_dir = str(i)+"/output -r"
+                pwdata_dir = str(i)+"/PWdata/*.dat"
+
+                subprocess.run(["rm "+input_dir],shell=True)
+                subprocess.run(["rm "+output_dir],shell=True)
+                subprocess.run(["rm "+pwdata_dir],shell=True)
+                
+                #clean previous data
             self.trainer_list.append( dp_network(        
                                             atom_type = self.atom_type,   
                                             optimizer = "LKF",       
-                                            gpu_id = i,              
+                                            gpu_id = i,   
                                             session_dir = "record_"+str(i),  
                                             n_epoch = 1,             
                                             batch_size = 10,          
@@ -699,7 +812,8 @@ class adaptive_trainer():
                                             dataset_size = 1000,     
                                             block_size= 10240,       
                                             is_virial = False,        
-                                            workers_dataload= 0,                 # ensure single process loading
+                                            is_resume = mk, 
+                                            workers_dataload= 0, #ensure single process loading
                                             pre_fac_force = 1.0,     
                                             pre_fac_etot = 0.5,      
                                         ))
@@ -713,22 +827,52 @@ class adaptive_trainer():
         # !!! should be a barrier here !!!
         print ("\ntraining done\n")
         
-        # write force field. Must be done sequentially
-        for idx,trainer in enumerate(self.trainer_list):
-            trainer.extract_force_field(name = str(idx)+".ff")
+
+    def my_dbg(self):
+
+        for root, dirs, files in os.walk(self.explore_subsys_dir, topdown=False):
+            group_dirs = dirs
         
+        for group in group_dirs:
+            # walk in this group 
+            cfg_dot_dirs = [] 
+
+            for root, dirs, files in os.walk(os.path.join(self.explore_subsys_dir,group), topdown=False):
+                """
+                    some lmp run will just die out. 
+                    No config.(x) is generated
+                """
+                for name in files:
+                    tmp = os.path.join(root, name)
+                    if "config." in tmp:
+                        cfg_dot_dirs.append(tmp)
+    
+    
+    def dbg_explore(self):
         
+        # prepare directories
+        self.select_init_config() 
+
+        # generate trajectories and select candidates
+        self.run_lmp()    
         
+        # select 50 configs and move into ./result
+        self.collect_cfgs() 
+        
+        # prepare for scf
+        self.write_scf_in_and_run() 
+
+    
+
+
+
 if __name__ == "__main__":
     """
         1. as long as the seed doesn't change, only need to update .ff at every iteration 
         2. OUT.MLMD should be processed to shift the atomic energies
     """
-    temp_range = [200,400,600,800]
+    temp_range = [400,600,800,1000]
     pressure_range= [1.0,10,100,1000]   
-
-    #temp_range = [500,1000]
-    #pressure_range = [100,500]
 
     adpt_trainer = adaptive_trainer(
                                     temp = temp_range,
@@ -737,12 +881,15 @@ if __name__ == "__main__":
                                     model_num = 4,              
                                     kspacing = 0.16, 
                                     ensemble= "npt",
-                                    traj_step = 300, 
+                                    traj_step = 3000, 
                                     num_select_per_group = 50,
-                                    atom_type = [3,14] 
-                                   ) 
-    #trainer.initialize() 
-    #adpt_trainer.explore() 
-    adpt_trainer.train() 
-    #adpt_trainer.lmp_dbg()
+                                    atom_type = [3,14],
+                                    success_bar = 0.15,
+                                    candidate_bar = 0.35,       
+                                   )
+    adpt_trainer.initialize() 
     
+    adpt_trainer.dbg_explore()  
+
+    #adpt_trainer.train() 
+    #adpt_trainer.lmp_get_err()

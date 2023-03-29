@@ -15,7 +15,9 @@ def collect_all_sourcefiles(workDir, sourceFileName="MOVEMENT"):
     res = []
     if not os.path.exists(workDir):
         raise FileNotFoundError(workDir + "  does not exist")
-    for path, dirList, fileList in os.walk(workDir):
+    
+    # added followlinks = True to support softlinks
+    for path, dirList, fileList in os.walk(workDir, followlinks=True):
         if sourceFileName in fileList:
             res.append(os.path.abspath(path))
     return res
@@ -91,7 +93,7 @@ def gen_train_data(config, is_real_Ep = True):
     dRFeatureInputDir = config["dRFeatureInputDir"]
     dRFeatureOutputDir = config["dRFeatureOutputDir"]
 
-    os.system("clean_data.sh")
+    #os.system("clean_data.sh")
 
     if not os.path.exists(dRFeatureInputDir):
         os.mkdir(dRFeatureInputDir)
@@ -299,7 +301,7 @@ def calc_stat(config, image_dR, list_neigh, natoms_img):
             compute_std(sum_Ri2_a, sum_Ri_a, sum_n),
             compute_std(sum_Ri2_a, sum_Ri_a, sum_n),
         ]
-
+        
         davg.append(
             np.tile(davg_unit, config["maxNeighborNum"] * ntypes).reshape(-1, 4)
         )
