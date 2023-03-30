@@ -70,6 +70,7 @@ from dp_mods.dp_trainer import *
 
 import default_para as pm
 
+
 #from data_loader_2type_dp import MovementDataset, get_torch_data
 
 def get_terminal_args():
@@ -619,11 +620,12 @@ class dp_network:
 
         print("*********************network parameter summary**********************")
         
+        
         for key in self.config:
             print(key, self.config[key])
 
-        seed = time.time()
-        torch.manual_seed(int(seed/2))
+        #from random import randint
+        #torch.manual_seed(randint(0,100000))
 
     """
         data pre-processing    
@@ -715,10 +717,12 @@ class dp_network:
         best_loss = 1e10
 
         if self.terminal_args.seed is not None:
-            random.seed(self.terminal_arg.seed)
-            torch.manual_seed(self.terminal_arg.seed)
-            cudnn.deterministic = True
-            cudnn.benchmark = False
+            random.seed(self.terminal_args.seed)
+            torch.manual_seed(self.terminal_args.seed)
+            
+            #cudnn.deterministic = True
+            #cudnn.benchmark = False
+            """
             warnings.warn(
                 "You have chosen to seed training. "
                 "This will turn on the CUDNN deterministic setting, "
@@ -726,6 +730,7 @@ class dp_network:
                 "You may see unexpected behavior when restarting "
                 "from checkpoints."
             )
+            """
 
         if not os.path.exists(self.terminal_args.store_path):
             os.mkdir(self.terminal_args.store_path)

@@ -512,11 +512,11 @@ class adaptive_trainer():
         """
             use selected structures for SCF. 
         """
-        #self.collect_cfgs() 
+        self.collect_cfgs() 
         
-        #self.write_scf_in_and_run() 
+        self.write_scf_in_and_run() 
         
-        self.collect_mvmt()
+        #self.collect_mvmt()
 
     def write_etot_input(self, dir, num_atom, norm_b_list):
         """
@@ -736,13 +736,13 @@ class adaptive_trainer():
     def explore(self):
         
         # prepare directories
-        self.select_init_config() 
+        #self.select_init_config() 
 
         # generate trajectories and select candidates
-        self.run_lmp()      
+        #self.run_lmp()      
 
         # scf for selected configs
-        #self.run_scf()
+        self.run_scf()
 
     """
        ****************************************** 
@@ -862,7 +862,7 @@ class adaptive_trainer():
         # prepare for scf
         self.write_scf_in_and_run() 
 
-    
+
 
 
 
@@ -887,9 +887,9 @@ if __name__ == "__main__":
                                     success_bar = 0.15,
                                     candidate_bar = 0.35,       
                                    )
-    adpt_trainer.initialize() 
-    
-    adpt_trainer.dbg_explore()  
-
+    #adpt_trainer.initialize() 
+    adpt_trainer.explore()
+    #adpt_trainer.dbg_explore()  
+    #adpt_trainer.run_scf()
     #adpt_trainer.train() 
     #adpt_trainer.lmp_get_err()
