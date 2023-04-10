@@ -1,7 +1,5 @@
 """
     module for linear regressor 
-
-    L. Wang, 2022.8
 """
 import os,sys
 import pathlib

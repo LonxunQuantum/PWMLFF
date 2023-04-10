@@ -1,7 +1,6 @@
 """
     module for Deep Neural Network 
-
-    L. Wang, 2022.8
+    2022.8
 """
 import os,sys
 from re import I
@@ -123,7 +122,13 @@ class nn_network:
 
                     n_epoch = None, 
                     
-                    recover = False):
+                    recover = False,
+                    
+                    kf_prefac_etot = 2.0,
+                    kf_prefac_force = 1.0,
+                    
+                    custom_feat_7 = None, 
+                ):
             
         """
             Global parameters of the class.  
@@ -179,7 +184,7 @@ class nn_network:
 
         # network for each type of element
         tmp = []
-            
+        
         for layer in range(pm.nLayer):
             tmp_layer = [pm.nodeDim[layer] for atom in pm.atomType]
             tmp.append(tmp_layer.copy()) 
@@ -190,7 +195,7 @@ class nn_network:
         # feature set feature type 
         pm.use_Ftype = sorted(feature_type)
         
-        self.feat_mod = feat_modifier() 
+        self.feat_mod = feat_modifier()     
         
         """
             usage:
@@ -209,9 +214,9 @@ class nn_network:
         self.is_trainEtot = is_trainEtot
 
         #prefactors in kfnn
-        self.kf_prefac_Etot = 1.0  
+        self.kf_prefac_Etot = kf_prefac_etot
         self.kf_prefac_Ei = 1.0
-        self.kf_prefac_F  = 1.0
+        self.kf_prefac_F  = kf_prefac_force
         self.kf_prefac_Egroup  = 1.0
         
         # decay rate of kf prefactor
@@ -219,11 +224,7 @@ class nn_network:
 
         # set the kind of KF
         self.kalman_type = kalman_type 
-        """
-        self.use_GKalman = pm.use_GKalman
-        self.use_LKalman = pm.use_LKalman
-        self.use_SKalman = pm.use_SKalman
-        """ 
+
         # parameters for KF
         self.kalman_lambda = 0.98                    
         self.kalman_nue =  0.99870
@@ -338,12 +339,17 @@ class nn_network:
         # R cut for feature 
         pm.Rc_M = Rmax
         pm.Rc_min = Rmin
-        
+
+        # load custom feature 
+        if custom_feat_7 is not None:
+            pm.Ftype7_para = custom_feat_7.copy()
+
+
     """
         ============================================================
         =================data preparation functions=================
         ============================================================ 
-    """
+    """ 
 
     def generate_data(self):
         
@@ -474,6 +480,10 @@ class nn_network:
         
         assert self.scaler != None, "scaler is not correctly saved"
 
+        """
+            Note! When using sparse dfeat, shuffle must be False. 
+            sparse dfeat class only works under the batch order before calling Data.DataLoader
+        """
         self.loader_train = Data.DataLoader(torch_train_data, batch_size=self.batch_size, shuffle = False)
         self.loader_valid = Data.DataLoader(torch_valid_data, batch_size=self.batch_size, shuffle = False)
 
@@ -515,7 +525,7 @@ class nn_network:
             
             if (self.opts.opt_session_name == ''):
                 raise RuntimeError("session not specified for the recover mode. Use     _dir")
-
+            
             if model_name is None:
                 # use lattest.pt as default 
                 load_model_path = self.opts.opt_model_dir+'latest.pt' 
@@ -1242,11 +1252,8 @@ class nn_network:
     def set_b_init(self):
 
         """
-            get mean atomic energy for each type automatically. 
-
-            For multiple system case, might not work. 
+            get mean atomic energy for each type automatically
         """
-        
         type_dict = {} 
         result = []
 
@@ -1269,9 +1276,7 @@ class nn_network:
 
         print ("initial bias for atoms:", result)
 
-        return result.copy() 
-        
-        
+        return result.copy()         
         
     def set_session_dir(self,session_dir):
 

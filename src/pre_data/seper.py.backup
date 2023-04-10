@@ -107,14 +107,17 @@ def write_natoms_dfeat():
                 for mm in pm.use_Ftype:
                     f_test_dfeat[mm].writelines(str(os.path.join(system, 'dfeat.fbin.Ftype'+str(
                         mm)))+', '+str(i+1)+', '+str(dfeat_names[mm][int(Imgcount+i), 1])+'\n')
-                
+            
+            
             feat_train = np.concatenate(
                 (feat_train, feat_all[count:(count+natom*len(trainImg)), :]), axis=0)
+            
             feat_test = np.concatenate(
                 (feat_test, feat_all[(count+natom*len(trainImg)):(count+natom*ImgNum), :]), axis=0)
 
             egroup_train = np.concatenate(
                 (egroup_train, egroup_all[count:(count+natom*len(trainImg)), :]), axis=0)
+            
             egroup_test = np.concatenate((egroup_test, egroup_all[(
                 count+natom*len(trainImg)):(count+natom*ImgNum), :]), axis=0)
 

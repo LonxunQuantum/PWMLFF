@@ -17,7 +17,7 @@ class LKFOptimizer(Optimizer):
             kalman_nue=kalman_nue,
             block_size=block_size,
         )
-
+        
         super(LKFOptimizer, self).__init__(params, defaults)
 
         self._params = self.param_groups[0]["params"]
@@ -51,7 +51,7 @@ class LKFOptimizer(Optimizer):
                     param_sum = param_num
                 else:
                     param_sum += param_num
-
+        
         param_nums.append(param_sum)
 
         P = []
@@ -117,6 +117,7 @@ class LKFOptimizer(Optimizer):
         kalman_nue = self.__get_nue()
 
         tmp = 0
+        
         for i in range(weights_num):
             tmp = tmp + (kalman_lambda + torch.matmul(torch.matmul(H[i].T, P[i]), H[i]))
 
@@ -164,7 +165,7 @@ class LKFOptimizer(Optimizer):
 
     def set_grad_prefactor(self, grad_prefactor):
         self.grad_prefactor = grad_prefactor
-
+    
     def step(self, error):
 
         params_packed_index = self._state.get("params_packed_index")
@@ -173,8 +174,17 @@ class LKFOptimizer(Optimizer):
         H = []
         param_index = 0
         param_sum = 0
+        
+        #print ("\n*************printing params*************\n")
+        for idx, param in enumerate(self._params):
+            
+            #print(param.size())
+            #print(param)
+            
+            #if (True in torch.isnan(param.grad)):
+            #    print("nan found:")
+            #    print(param.grad)
 
-        for param in self._params:
             if param.ndim > 1:
                 tmp = param.data.T.contiguous().reshape(param.data.nelement(), 1)
                 if param.grad is None:
@@ -216,3 +226,98 @@ class LKFOptimizer(Optimizer):
                     param_index += 1
 
         self.__update(H, error, weights)
+    """
+    def step(self, error):
+
+        params_packed_index = self._state.get("params_packed_index")
+
+        weights = []
+        H = []
+        param_index = 0
+        param_sum = 0
+        
+        for param in self._params:
+            if (True in torch.isnan(param)):
+                print("break in param")
+                break
+            if param.ndim > 1:
+                tmp = param.data.T.contiguous().reshape(param.data.nelement(), 1)
+                if (True in torch.isnan(tmp)):
+                    print("break in (if) tmp")
+                    break
+                if param.grad is None:
+                    tmp_grad = torch.zeros_like(tmp)
+                else:
+                    tmp_grad = (
+                        (param.grad / self.grad_prefactor)
+                        .T.contiguous()
+                        .reshape(param.grad.nelement(), 1)
+                    )
+                    
+                    print(param.grad)
+                    if (True in torch.isnan(param.grad)):
+                        print(param.grad)
+                        print("break in (if) param.grad")
+                        break
+                    if (True in torch.isnan(tmp_grad)):
+                        print("break in (if) tmp_grad")
+                        break
+            else:
+                tmp = param.data.reshape(param.data.nelement(), 1)
+                if (True in torch.isnan(tmp)):
+                    print("break in tmp")
+                    break
+                if param.grad is None:
+                    tmp_grad = torch.zeros_like(tmp)
+                else:
+                    tmp_grad = (param.grad / self.grad_prefactor).reshape(
+                        param.grad.nelement(), 1
+                    )
+                    if (True in torch.isnan(param.grad)):
+                        print("break in param.grad")
+                        break
+                    if (True in torch.isnan(tmp_grad)):
+                        print("break in tmp_grad")
+                        break
+
+            tmp = self.__split_weights(tmp)
+            tmp_grad = self.__split_weights(tmp_grad)
+            if (True in torch.isnan(tmp[0])):
+                print("break in tmp after split")
+                break
+            if (True in torch.isnan(tmp_grad[0])):
+                print("break in tmp_grad after split")
+                break
+
+            for split_grad, split_weight in zip(tmp_grad, tmp):
+                nelement = split_grad.nelement()
+                # print("split_weight", split_weight[0])
+                if param_sum == 0:
+                    res_grad = split_grad
+                    res = split_weight
+                    if (True in torch.isnan(res_grad)):
+                        print("break in (if) res_grad")
+                        break
+                    if (True in torch.isnan(res)):
+                        print("break in (if) res")
+                        break
+                else:
+                    res_grad = torch.concat((res_grad, split_grad), dim=0)
+                    res = torch.concat((res, split_weight), dim=0)
+                    if (True in torch.isnan(res_grad)):
+                        print("break in res_grad")
+                        break
+                    if (True in torch.isnan(res)):
+                        print("break in res")
+                        break
+                # print('res_grad', res_grad[0])
+                param_sum += nelement
+
+                if param_sum == params_packed_index[param_index]:
+                    H.append(res_grad)
+                    weights.append(res)
+                    param_sum = 0
+                    param_index += 1
+
+        self.__update(H, error, weights)
+    """

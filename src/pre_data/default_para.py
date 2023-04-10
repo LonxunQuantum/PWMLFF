@@ -255,13 +255,15 @@ Ftype6_para={
     'n_w_line': [2 for tmp in range(10)],
     'w1':[ [0.9, 0.1, 0.8, 0.2, 0.7, 0.3, 0.6, 0.4]  for tmp in range(10)],  # shape(w1) = (ntype, n_w_line)
     'w2':[ [0.1, 0.9, 0.2, 0.8, 0.3, 0.7, 0.4, 0.6]  for tmp in range(10) ],
-    }
+    }  
+
+
 Ftype7_para={
     'Rc':[5.4  for tmp in range(10)],     # number of elements in Rc = num atom type
     'Rc2':[3.0  for tmp in range(10)],
     'Rm':[1.0  for tmp in range(10)],
-    'M': [25  for tmp in range(10)],
-    'M2': [4  for tmp in range(10)],
+    'M': [6  for tmp in range(10)],
+    'M2': [6  for tmp in range(10)],
     'weight_r': [1.0  for tmp in range(10)],
     }
     

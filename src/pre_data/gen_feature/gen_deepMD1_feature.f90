@@ -177,9 +177,9 @@ PROGRAM gen_deepMD1_feature
 
       Etotp_ave=Etotp_ave/num_step0
       write(6,*) "num_step,natom,Etotp_ave=",num_step0,natom,Etotp_ave
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
+    !cccccccccccccccccccccccccccccccccccccccccccccccccccc
     ALLOCATE (iatom(natom),xatom(3,natom),fatom(3,natom),Eatom(natom))
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
+    !cccccccccccccccccccccccccccccccccccccccccccccccccccc
     OPEN (move_file,file=MOVEMENTDir,status="old",action="read") 
     rewind(move_file)
 
@@ -215,7 +215,7 @@ PROGRAM gen_deepMD1_feature
      write(333,*) natom
     ! write(333,*) iatom
 
-
+    
 
       num_tot=0
 
@@ -414,11 +414,7 @@ PROGRAM gen_deepMD1_feature
     !cccccccccccccccccccccccccccccccccccccccccccccchhhhhh
     !  Only output the nonzero points for dfeat
     
-    ! *********************************************************
-    ! wlj 2023.3: change threshold for the effective d-feature?
-    ! *********************************************************
-
-    dfeat_threshold = 1.e-3
+    dfeat_threshold = 1.e-7
     max_dfeat_val = 0 
     
     num_tmp=0
@@ -434,7 +430,7 @@ PROGRAM gen_deepMD1_feature
             enddo
         enddo
     enddo
-
+    
     allocate(dfeat_tmp(3,num_tmp))
     allocate(iat_tmp(num_tmp))
     allocate(jneigh_tmp(num_tmp))

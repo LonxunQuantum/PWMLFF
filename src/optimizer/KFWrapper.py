@@ -64,6 +64,7 @@ class KFOptimizerWrapper:
 
         Etot_predict.sum().backward()
         error = error * math.sqrt(bs)
+        #print("Etot steping")
         self.optimizer.step(error)
         return Etot_predict
 
@@ -124,11 +125,25 @@ class KFOptimizerWrapper:
             inputs[5],
             inputs[6]
         )
+
         natoms_sum = inputs[4][0, 0]
         self.optimizer.set_grad_prefactor(natoms_sum)
         
         self.optimizer.zero_grad()
-        bs = Virial_label.shape[0]
+
+        bs = Virial_label.shape[0]  
+        
+        """
+        print("dbg info starts")
+
+        print("label")
+        print(Virial_label.squeeze(1)) 
+
+        print("predict")
+        print(Virial_predict)
+
+        print("dbg info ends")
+        """
         error = Virial_label.squeeze(1) - Virial_predict
         error = error / natoms_sum
         mask = error < 0
@@ -149,11 +164,13 @@ class KFOptimizerWrapper:
 
         Virial_predict = update_prefactor * Virial_predict
         Virial_predict[mask] = -1.0 * Virial_predict[mask]
-
+        
         Virial_predict.sum().backward()
         #(Virial_predict.sum()+ Etot_predict.sum() * 0).backward()
-
-        error = error * math.sqrt(bs)
+        
+        error = error * math.sqrt(bs) 
+        
+        #print("Virial steping")
         self.optimizer.step(error)
         return Virial_predict
 
@@ -236,6 +253,7 @@ class KFOptimizerWrapper:
             # In order to solve a pytorch bug, reference: https://github.com/pytorch/pytorch/issues/43259
             (tmp_force_predict.sum() + Etot_predict.sum() * 0).backward()
             error = error * math.sqrt(bs)
+            #print("force steping")
             self.optimizer.step(error)
         return Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict
 
@@ -246,11 +264,15 @@ class KFOptimizerWrapper:
             natoms can be smaller than n_select !
             
         """
+        # dbg : fix chosen atoms 
+        #np.random.seed(0)
+
         if atoms_selected % atoms_per_group:
             raise Exception("divider")
         index = range(natoms)
         res = np.random.choice(index, atoms_selected).reshape(-1, atoms_per_group)
         return res
+        
         
 
     # with torch.autograd.profiler.profile(enabled=True, use_cuda=True, record_shapes=False) as prof:

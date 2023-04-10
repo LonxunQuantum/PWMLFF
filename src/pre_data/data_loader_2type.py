@@ -10,14 +10,9 @@ import torch
 codepath = os.path.abspath(sys.path[0])
 sys.path.append(codepath+'/../lib')
 sys.path.append(os.getcwd())
+
 import prepare as pp
-#import parameters as pm
 import default_para as pm 
-"""
-import use_para as pm
-import parse_input
-parse_input.parse_input()
-"""
 
 class MovementDataset(Dataset):
 
@@ -26,7 +21,6 @@ class MovementDataset(Dataset):
                  itype_path, nblist_path, weight_all_path,
                  energy_path, force_path, ind_img_path, natoms_img_path,
                  dR_neigh_path=None, Ri_path=None, Ri_d_path=None):  # , natoms_path
-
 
         """
             pm.is_dfeat_sparse is True, self.dfeat will not be generated
@@ -352,8 +346,7 @@ class MovementDataset(Dataset):
         self.davg = np.array(self.davg).reshape(self.ntypes, -1)
         self.dstd = np.array(self.dstd).reshape(self.ntypes, -1)      
         # import ipdb;ipdb.set_trace()  
-
-
+        
     def __compute_stat_output(self, image_num=10,  rcond=1e-3):
         self.ener_shift = []
         natoms_sum = self.natoms_img[0, 0]

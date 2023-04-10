@@ -5,7 +5,7 @@ import collections
 from torch.nn.init import normal_ as normal
 import numpy as np
 
-# logging and our extension
+# logging and o ur extension
 import logging
 logging_level_DUMP = 5
 logging_level_SUMMARY = 15

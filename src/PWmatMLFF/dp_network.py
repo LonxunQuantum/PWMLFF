@@ -1,10 +1,6 @@
 """
     module for Deep Potential Network 
 
-    L. Wang, 2022.8
-
-    updated 2022.12
-
 """
 from ast import For, If, NodeTransformer
 import os,sys
@@ -313,23 +309,16 @@ class dp_network:
                     group_size = 6,
                     # 
                     dwidth = 3.0,
-                    is_virial = True,
+                    is_virial = False,
                     is_egroup = False, 
                     pre_fac_force = 2.0,
                     pre_fac_etot = 1.0, 
                     pre_fac_virial = 1.0, 
                     pre_fac_egroup = 0.05, 
 
-                    # training label related arguments
-                    is_trainForce = True, 
-                    is_trainEi = False,
-                    is_trainEgroup = False,
-                    is_trainEtot = True,
-                    
                     precision = "float64", 
                     train_valid_ratio = 0.8, 
-                    
-                    is_movement_weighted = False,
+
                     e_tolerance = 999.0, 
                     
                     # inital values for network config
@@ -385,22 +374,14 @@ class dp_network:
         # recover training. Need to load both scaler and model 
         pm.use_storage_scaler = recover  
 
-        pm.maxNeighborNum = max_neigh_num 
-
         self.atomType = atom_type 
 
         # these two variables are the same thing. Crazy. 
-        pm.atomTypeNum = len(atom_type)
-        pm.ntypes = len(atom_type)
 
         # passed-in configs 
         # the whole config is required 
         
         # label to be trained 
-        self.is_trainForce = is_trainForce
-        self.is_trainEi = is_trainEi
-        self.is_trainEgroup = is_trainEgroup
-        self.is_trainEtot = is_trainEtot
         
         # prefactor in kf 
         self.kf_prefac_Etot = 1.0  
@@ -620,19 +601,18 @@ class dp_network:
 
         print("*********************network parameter summary**********************")
         
-        
         for key in self.config:
             print(key, self.config[key])
 
         #from random import randint
-        #torch.manual_seed(randint(0,100000))
+        #torch.manual_seed(randint(0,100000))   
 
     """
         data pre-processing    
     """
     def set_session_dir(self,name):
         self.terminal_args.store_path = name 
-    
+        
     def set_gpu_id(self,idx):
         self.terminal_args.gpu = idx
 
@@ -683,9 +663,7 @@ class dp_network:
             forward dependent? 
             Ri: No
             Ri_d: 
-             
         """
-        
         for i, sample_batches in enumerate(train_loader):
             
             if i==0:
@@ -700,13 +678,7 @@ class dp_network:
             print ("dim Ri", sample_batches["Ri"].size())
             print ("dim Ri_d", sample_batches["Ri_d"].size())
             print ("dim atom num,", sample_batches["ImageAtomNum"].size())
-        
-            #print ("atom num,", sample_batches["ImageAtomNum"])
-            #if i == 961:
-            #    print (sample_batches["ImageAtomNum"])
-            #    break 
-            #    #print(sample_batches)
-        
+
     """ 
         load and train. 
     """ 
@@ -714,12 +686,14 @@ class dp_network:
         """
             main()
         """
+
         best_loss = 1e10
 
         if self.terminal_args.seed is not None:
             random.seed(self.terminal_args.seed)
             torch.manual_seed(self.terminal_args.seed)
             
+            #torch.use_deterministic_algorithms(False) 
             #cudnn.deterministic = True
             #cudnn.benchmark = False
             """
@@ -756,7 +730,7 @@ class dp_network:
             training_type = torch.float32  # training type is weights type
         else:
             training_type = torch.float64
-
+        
         #global best_loss
 
         # Create dataset
@@ -764,7 +738,7 @@ class dp_network:
         valid_dataset = MovementDataset("./valid")
 
         # create model 
-        # 
+        # when running evaluation, nothing needs to be done with davg.npy
         davg, dstd, ener_shift = train_dataset.get_stat()
         stat = [davg, dstd, ener_shift]
         model = DP(self.config, device, stat, self.terminal_args.magic)
@@ -781,9 +755,6 @@ class dp_network:
         elif self.terminal_args.gpu is not None and torch.cuda.is_available():
             torch.cuda.set_device(self.terminal_args.gpu)
             model = model.cuda(self.terminal_args.gpu)
-        #elif torch.backends.mps.is_available():
-        #    device = torch.device("mps")
-        #    model = model.to(device)
         else:
             model = model.cuda()
 
@@ -805,7 +776,7 @@ class dp_network:
             optimizer = optim.Adam(model.parameters(), self.terminal_args.lr)
         elif self.terminal_args.opt == "SGD":
             optimizer = optim.SGD(
-                model.parameters(),
+                model.parameters(), 
                 self.terminal_args.lr,
                 momentum=self.terminal_args.momentum,
                 weight_decay=self.terminal_args.weight_decay,
@@ -847,6 +818,7 @@ class dp_network:
                 best_loss = checkpoint["best_loss"]
                 model.load_state_dict(checkpoint["state_dict"])
                 optimizer.load_state_dict(checkpoint["optimizer"])
+                
                 # scheduler.load_state_dict(checkpoint["scheduler"])
                 print(
                     "=> loaded checkpoint '{}' (epoch {})".format(
@@ -905,13 +877,17 @@ class dp_network:
             train_log = os.path.join(self.terminal_args.store_path, "epoch_train.dat")
 
             f_train_log = open(train_log, "w")
-            f_train_log.write(
-                "epoch\t loss\t RMSE_Etot\t RMSE_Egroup\t RMSE_F\t real_lr\t time\n"
-            )
+            #f_train_log.write("epoch\t loss\t RMSE_Etot\t RMSE_Egroup\t RMSE_F\t real_lr\t time\n")
+            f_train_log.write("%5s%18s%18s%18s%18s%18s%18s%18s%10s\n" % (
+                "epoch","loss","RMSE_Etot","RMSE_Egroup", \
+                "RMSE_Ei","RMSE_F","RMSE_virial","real_lr","time"))
 
             valid_log = os.path.join(self.terminal_args.store_path, "epoch_valid.dat")
             f_valid_log = open(valid_log, "w")
-            f_valid_log.write("epoch\t loss\t RMSE_Etot\t RMSE_Egroup\t RMSE_F\n")
+
+            #f_valid_log.write("epoch\t loss\t RMSE_Etot\t RMSE_Egroup\t RMSE_F\n")
+            f_valid_log.write("%5s%18s%18s%18s%18s%18s%18s\n" % ("epoch","loss","RMSE_Etot",\
+                "RMSE_Egroup","RMSE_Ei","RMSE_F","RMSE_virial"))
 
         for epoch in range(self.terminal_args.start_epoch, self.terminal_args.epochs + 1):
             if self.terminal_args.hvd:
@@ -934,7 +910,7 @@ class dp_network:
             vld_loss, vld_loss_Etot, vld_loss_Force, vld_loss_Ei, val_loss_egroup, val_loss_virial = valid(
                 val_loader, model, criterion, device, self.terminal_args
             )
-            
+            """
             if not self.terminal_args.hvd or (self.terminal_args.hvd and hvd.rank() == 0):
                 f_train_log = open(train_log, "a")
                 f_train_log.write(
@@ -954,6 +930,35 @@ class dp_network:
                     "%d %e %e %e %e\n"
                     % (epoch, vld_loss, vld_loss_Etot, val_loss_egroup, vld_loss_Force)
                 )
+            """
+            if not self.terminal_args.hvd or (self.terminal_args.hvd and hvd.rank() == 0):
+                f_train_log = open(train_log, "a")
+                f_train_log.write(
+                    "%5d%18.10e%18.10e%18.10e%18.10e%18.10e%18.10e%18.10e%10.4f\n"
+                    % (
+                        epoch,
+                        loss,
+                        loss_Etot,
+                        loss_egroup,
+                        loss_Ei,
+                        loss_Force,
+                        loss_virial,
+                        real_lr,
+                        time_end - time_start,
+                    )
+                )
+                f_valid_log = open(valid_log, "a")
+                f_valid_log.write(
+                    "%5d%18.10e%18.10e%18.10e%18.10e%18.10e%18.10e\n"
+                    % (epoch, 
+                        vld_loss, 
+                        vld_loss_Etot, 
+                        val_loss_egroup, 
+                        vld_loss_Ei, 
+                        vld_loss_Force,
+                        val_loss_virial,
+                    ) 
+                )
             
             # scheduler.step()
 
@@ -972,11 +977,12 @@ class dp_network:
                         "optimizer": optimizer.state_dict(),
                         # "scheduler": scheduler.state_dict(),
                     },
+                    
                     is_best,
                     "checkpoint.pth.tar",
                     self.terminal_args.store_path,
                 )
-                
+            
     """ 
         ============================================================
         ===================auxiliary functions======================
@@ -1092,7 +1098,7 @@ class dp_network:
         f.write('\n')
     
     def extract_model_para(self, model_name = None):
-        """
+        """ 
             extract the model parameters of DP network
             
             NEED TO ADD SESSION DIR NAME
@@ -1240,8 +1246,6 @@ class dp_network:
             numResNet = 0
 
             """
-
-
             for keys in list(raw.keys()):
                 tmp = keys.split('.')
                 if tmp[0] == "fitting_net" and tmp[1] == '0' and tmp[2] == 'resnet_dt':

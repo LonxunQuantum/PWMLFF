@@ -12,8 +12,6 @@ import pandas as pd
 
 from read_all import read_allnn
 
-import torch
-
 def process_data(f_train_feat, f_train_dfeat, f_train_dR_neigh,
                  f_train_natoms, f_train_egroup, nn_data_path): # f_train_ep):
     
@@ -31,12 +29,6 @@ def process_data(f_train_feat, f_train_dfeat, f_train_dR_neigh,
     if not os.path.exists(nn_data_path):
         os.makedirs(nn_data_path)
     
-    #print("input feat path:",f_train_feat)
-    #print("input dfeat path:",f_train_dfeat)
-
-    """
-        natoms contain all atom num of each image, format: totnatom, type1n, type2 n
-    """
     natoms = np.loadtxt(f_train_natoms, dtype=int)
     natoms = np.atleast_2d(natoms)
     
@@ -48,15 +40,15 @@ def process_data(f_train_feat, f_train_dfeat, f_train_dR_neigh,
     for i in range(nImg):
         indImg[i+1] = indImg[i] + natoms[i, 0]
     
-
     np.set_printoptions(threshold=np.inf)
     # pd.set_option('display.float_format',lambda x : '%.15f' % x)
 
     pd.options.display.float_format = '${:,.15f}'.format
+    
+    # Note: 
     itypes, feat, engy = prepare.r_feat_csv(f_train_feat)
     
     # pm.ntypes is number of atom types 
-
     natoms_img = np.zeros((nImg, pm.ntypes + 1), dtype=np.int32)
 
     for i in range(nImg):
@@ -73,7 +65,7 @@ def process_data(f_train_feat, f_train_dfeat, f_train_dR_neigh,
         for type in mask:
             natoms_img[i][type_id] = np.sum(tmp == type)
             type_id += 1
-
+        
     # 进行scale
     # feat_scaled = scalers.pre_feat(feat, itypes)
     # engy_scaled = scalers.pre_engy(engy, itypes)
@@ -120,8 +112,8 @@ def process_data(f_train_feat, f_train_dfeat, f_train_dR_neigh,
     nfeat = {}
     nfeat[0] = 0
     flag = 0
-
-    """
+    
+    """ 
         In fortran code, dfeat_tmp is the compact storage of dfeats. Only nonzero values are saved. 
     """
 
@@ -143,11 +135,13 @@ def process_data(f_train_feat, f_train_dfeat, f_train_dR_neigh,
             In the fortran code, dfeat_tmp is the sparse array that stores the dfeat values
         """
         
-        # movement file location
+        # movement file location 
+        # f_train_dfeat:  fread_dfeat/NN_output/dfeatname_train.csv
+
         dfeatdirs[m] = np.unique(pd.read_csv(
             f_train_dfeat+str(m), header=None, encoding= 'unicode_escape').values[:, 0])
         """
-            looping over all dfeat binary files in different direcotry
+            looping over all dfeat binary files in different directory
         """
         for dfeatBinIdx in dfeatdirs[m]:
             read_allnn.read_dfeat(dfeatBinIdx, itype_atom, feat_scale_a, nfeat[flag])
@@ -196,9 +190,8 @@ def process_data(f_train_feat, f_train_dfeat, f_train_dR_neigh,
         for i in range(pm.ntypes):
             for m in range(len(pm.use_Ftype)):
                 f.writelines(str(nfeat[m+1])+'  ')
-            f.writelines('\n')
-
-
+            f.writelines('\n')  
+    
     dfeat_names = {}
     image_nums = {} 
     pos_nums = {}
@@ -222,7 +215,7 @@ def process_data(f_train_feat, f_train_dfeat, f_train_dR_neigh,
     fors_scaled = np.concatenate(fors_scaled, axis=0)
     nblist = np.concatenate(nblist, axis=0)
     
-    # ========================================================================+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_+
+    # ========================================================================
     
     """
         indImg : atom index for each image 
@@ -230,7 +223,6 @@ def process_data(f_train_feat, f_train_dfeat, f_train_dR_neigh,
 
         nfeat: 
         feature number 
-
     """
 
     """
@@ -300,7 +292,7 @@ def process_data(f_train_feat, f_train_dfeat, f_train_dR_neigh,
         
         dfeat_scaled = np.array(convert_dfeat.dfeat).transpose(1,2,0,3).astype(pm.feature_dtype)
         
-        convert_dfeat.deallo()    
+        convert_dfeat.deallo()      
 
     print("feat_scaled shape" + str(feat_scaled.shape))
     print("fors_scaled shape" + str(fors_scaled.shape))

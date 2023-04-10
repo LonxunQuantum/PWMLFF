@@ -51,25 +51,26 @@ subroutine find_feature_deepMD1(natom,itype_atom,Rc,RC2,Rm,weight_rterm, &
 
       num_neigh_alltype=0
 
-      do iat=1,natom
-            num=1
-            list_neigh_alltype(1,iat)=iat   ! the first neighbore is itself
-            dR_neigh_alltype(:,1,iat)=0.d0
+    do iat=1,natom
+        num=1
+        list_neigh_alltype(1,iat)=iat   ! the first neighbore is itself
+        dR_neigh_alltype(:,1,iat)=0.d0
 
-            do  itype=1,ntype
-                  do   j=1,num_neigh(itype,iat)
-                        num=num+1
-                        if(num.gt.m_neigh) then
-                              write(6,*) "Error! maxNeighborNum too small",m_neigh
-                              stop
-                        endif
-                        ind_all_neigh(j,itype,iat)=num
-                        list_neigh_alltype(num,iat)=list_neigh(j,itype,iat)
-                        dR_neigh_alltype(:,num,iat)=dR_neigh(:,j,itype,iat)
-                  enddo
+        do  itype=1,ntype
+            do   j=1,num_neigh(itype,iat)
+                num=num+1
+                if(num.gt.m_neigh) then
+                    write(6,*) "Error! maxNeighborNum too small",m_neigh
+                    stop
+                endif
+                ind_all_neigh(j,itype,iat)=num
+                list_neigh_alltype(num,iat)=list_neigh(j,itype,iat)
+                dR_neigh_alltype(:,num,iat)=dR_neigh(:,j,itype,iat)
             enddo
-            num_neigh_alltype(iat)=num
-      enddo
+        enddo
+
+        num_neigh_alltype(iat)=num
+    enddo
       
     !ccccccccccccccccccccccccccccccccccccccccc
 

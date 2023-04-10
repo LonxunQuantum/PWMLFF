@@ -88,7 +88,7 @@ class DP(nn.Module):
                 # determines which embedding net
                 embedding_index = ntype * self.ntypes + ntype_1
                 
-                # itermeduate output of embedding net 
+                # itermediate output of embedding net 
                 # dim of G: batch size, natom of ntype, max_neigh_num, final layer dim
                 #  
                 G = self.embedding_net[embedding_index](S_Rij) 
@@ -166,11 +166,9 @@ class DP(nn.Module):
         #print (F)
         # virial = CalculateVirialForce.apply(list_neigh, dE, Ri[:,:,:,:3], Ri_d)
         virial = CalculateVirialForce.apply(list_neigh, dE, ImageDR, Ri_d)
-        virial = virial * (-1)
-        # print(Etot)
-        # print(virial)
-        # print("==============================")
-        # import ipdb; ipdb.set_trace()
         
+        # no need to switch sign here 
+        #virial = virial * (-1)
+
         return Etot, Ei, F, Egroup, virial
         

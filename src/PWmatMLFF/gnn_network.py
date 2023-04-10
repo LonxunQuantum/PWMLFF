@@ -1,7 +1,6 @@
 """
     module for Graphic Neural Network 
 
-    L. Wang, 2022.9
 """
 
 from cgi import test
@@ -254,7 +253,7 @@ class gnn_network:
         print ("*    DOI: https://doi.org/10.1038/s41467-022-29939-5       *")
         print ("*    GitHub: https://github.com/mir-group/nequip           *")
         print ("************************************************************")
-    
+        
     """
         Auxiliary functions 
     """ 

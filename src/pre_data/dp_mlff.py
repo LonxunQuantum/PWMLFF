@@ -191,7 +191,7 @@ def gen_train_data(config, is_real_Ep = True):
         print ("Removing " + trainset_dir + "Ei.dat")
         sp.run(["mv", trainset_dir + "/Ei.dat", trainset_dir + "/Ei_plus.dat"])
         get_real_Ep(movement_files,trainset_dir)
-
+    
     print("==============Success==============")
     
 

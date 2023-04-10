@@ -29,7 +29,8 @@ def run_write_egroup():
 
 def write_natoms_dfeat():
     """
-        put data into chunks? 
+        this function generate the following files at the end of the day
+    
     """
     max_natom = int(np.loadtxt(os.path.join(pm.OutputPath, 'max_natom')))
     #print (pm.dp_predict)
@@ -43,7 +44,7 @@ def write_natoms_dfeat():
     f_train_dfeat = {}
     f_test_dfeat = {}
     dfeat_names = {}
-
+     
     for i in pm.use_Ftype:
         f_train_dfeat[i] = open(pm.f_train_dfeat+str(i), 'w')
         f_test_dfeat[i] = open(pm.f_test_dfeat+str(i), 'w')
@@ -78,142 +79,36 @@ def write_natoms_dfeat():
     egroup_test = np.empty([0, egroup_all.shape[1]])
     
     #used to randomly seperate training set and test set
-    from numpy.random import choice, shuffle
+    from numpy.random import choice 
 
     system_dir = list(set(pm.sourceFileList))
 
     sys_natom = {}
     sys_imgNum = {}
-    #sys_train_img = {}
-    #sys_test_img = {}
-    img_num_base = {} 
-    line_num_base = {}
-    
-    sys_img_list_train =  [] 
-    sys_img_list_test = [] 
-
-    img_base = 0 
-    line_base = 0
 
     # some system dependent values 
     for system in system_dir:
-        
-        print ("in",system)
-
         infodata = pd.read_csv(os.path.join(system, 'info.txt.Ftype'+str(
             pm.use_Ftype[0])), header=None, delim_whitespace=True).values[:, 0].astype(int)
         
-        natom = int(infodata[1])
-        ImgNum = int(infodata[2]-(len(infodata)-3))
+        natom = infodata[1]
+        ImgNum = infodata[2]-(len(infodata)-3)
         
-        print ("natom", natom)
-        print ("num image", ImgNum) 
-
-        # image
-        img_num_base[system] = img_base 
-        img_base += ImgNum
-
-        # line or atom 
-        line_num_base[system] = line_base
-        line_base += natom*ImgNum
-
         sys_natom[system] = natom
         sys_imgNum[system] = ImgNum
-
-        trainImgNum = int(ImgNum*(1-pm.test_ratio))
-        
-        # shuffle images within a system. Start from 0 
-        #randomIdx = [i for i in range(ImgNum)]
-        randomIdx = choice(ImgNum,ImgNum,replace = False) 
-
-        # (system , index within the system)
-        sys_img_list_train += [(system, i) for i in randomIdx[:trainImgNum]]
-        sys_img_list_test += [(system, i) for i in randomIdx[trainImgNum:]]
-
-    #print (sys_img_list_train)
-    #print (sys_img_list_test)
-    print (img_num_base)
-    print (line_num_base)
-
-    # shuffle the system-idx tuple list
-    shuffle(sys_img_list_train)
-
-    print("training set")
-    for item in sys_img_list_train:
-        print (item)
     
-    print("valid set") 
-    for item in sys_img_list_test:
-        print (item)
 
-    if pm.test_ratio > 0 and pm.test_ratio < 1:
+    for system in system_dir:
         """
-            shuffle the images in all MOVEMENTs
+            Only shuffle the images within a single MOVEMENT. 
             
             after this step 4 groups of data will be generated in fread_dfeat/NN_output
-            1) dfeatname_train&test , path to dfeat binary file
-            2) egroup_train&test, value of egroup 
-            3) feat_train&test, value of feature
-            4) natoms_train&test, number of atoms 
-            
+            1) dfeatname_train/test , path to dfeat binary file
+            2) egroup_train/test, value of egroup 
+            3) feat_train/test, value of feature
+            4) natoms_train/test, number of atoms 
         """
-        
-        # re-arrange data for training set
-        for system, idx_in_sys in sys_img_list_train:
 
-            # global image index within feat_all 
-            Imgcount = img_num_base[system] 
-            count = line_num_base[system] 
-            natom = sys_natom[system]
-
-            # natom
-            f_train_natom.writelines(str(int(natom))+' '+str(int(natom))+'\n')
-            
-            #dfeatname 
-            for mm in pm.use_Ftype:
-                f_train_dfeat[mm].writelines(str(os.path.join(system, 'dfeat.fbin.Ftype'+str(mm)))+', '+str(idx_in_sys+1)+', '+str(dfeat_names[mm][int(Imgcount+idx_in_sys), 1])+'\n')
-        
-            idx_start = count + natom*idx_in_sys
-            idx_end = count + natom*(idx_in_sys+1)
-
-            # feat 
-            # Note: the order of feat_train.csv is not chaned yet
-            feat_train = np.concatenate(
-                (feat_train, feat_all[idx_start:idx_end,:]), axis=0)
-            
-            #egroup
-            egroup_train = np.concatenate(
-                (egroup_train, egroup_all[idx_start:idx_end,:]), axis=0) 
-            
-        # valid set
-        for system, idx_in_sys in sys_img_list_test: 
-            
-            Imgcount = img_num_base[system] 
-            count = line_num_base[system] 
-            natom = sys_natom[system]
-
-            # natom
-            f_test_natom.writelines(str(int(sys_natom[system]))+' '+str(int(sys_natom[system]))+'\n')
-
-            # dfeatname 
-            for mm in pm.use_Ftype:
-                f_test_dfeat[mm].writelines(str(os.path.join(system, 'dfeat.fbin.Ftype'+str(mm)))+', '+str(idx_in_sys+1)+', '+str(dfeat_names[mm][int(Imgcount+idx_in_sys), 1])+'\n')
-
-            idx_start = count + natom*idx_in_sys
-            idx_end = count + natom*(idx_in_sys+1)
-            
-            # feat 
-            feat_test = np.concatenate(
-                (feat_test, feat_all[idx_start:idx_end,:]), axis=0)
-            
-            #egroup
-            egroup_test = np.concatenate(
-                (egroup_test, egroup_all[idx_start:idx_end,:]), axis=0)
-            
-            
-    """
-    for system in system_dir:
-        
         infodata = pd.read_csv(os.path.join(system, 'info.txt.Ftype'+str(
             pm.use_Ftype[0])), header=None, delim_whitespace=True).values[:, 0].astype(int)
         
@@ -230,8 +125,9 @@ def write_natoms_dfeat():
 
             trainImg = randomIdx[:trainImgNum]
             testImg = randomIdx[trainImgNum:]
-
+            
             for i in trainImg:
+                
                 f_train_natom.writelines(str(int(natom))+' '+str(int(natom))+'\n')
                 for mm in pm.use_Ftype:
                     f_train_dfeat[mm].writelines(str(os.path.join(system, 'dfeat.fbin.Ftype'+str(mm)))+', '+str(i+1)+', '+str(dfeat_names[mm][int(Imgcount+i), 1])+'\n')
@@ -239,22 +135,18 @@ def write_natoms_dfeat():
             for i in testImg:
                 f_test_natom.writelines(str(int(natom))+' '+str(int(natom))+'\n')
                 for mm in pm.use_Ftype:
-                    f_test_dfeat[mm].writelines(str(os.path.join(system, 'dfeat.fbin.Ftype'+str(mm)))+', '+str(i+1)+', '+str(dfeat_names[mm][int(Imgcount+i), 1])+'\n')
-
-
-
-            # image-wise? 
+                    f_test_dfeat[mm].writelines(str(os.path.join(system, 'dfeat.fbin.Ftype'+str(
+                        mm)))+', '+str(i+1)+', '+str(dfeat_names[mm][int(Imgcount+i), 1])+'\n')
+                
             feat_train = np.concatenate(
                 (feat_train, feat_all[count:(count+natom*len(trainImg)), :]), axis=0)
-            
-            egroup_train = np.concatenate(
-                (egroup_train, egroup_all[count:(count+natom*len(trainImg)), :]), axis=0)
-
             feat_test = np.concatenate(
                 (feat_test, feat_all[(count+natom*len(trainImg)):(count+natom*ImgNum), :]), axis=0)
 
-            egroup_test = np.concatenate(
-                (egroup_test, egroup_all[(count+natom*len(trainImg)):(count+natom*ImgNum), :]), axis=0)
+            egroup_train = np.concatenate(
+                (egroup_train, egroup_all[count:(count+natom*len(trainImg)), :]), axis=0)
+            egroup_test = np.concatenate((egroup_test, egroup_all[(
+                count+natom*len(trainImg)):(count+natom*ImgNum), :]), axis=0)
 
             count = count+natom*ImgNum
             Imgcount = Imgcount+ImgNum
@@ -270,12 +162,11 @@ def write_natoms_dfeat():
                 (feat_test, feat_all[count:(count+natom*ImgNum), :]), axis=0)
             egroup_test = np.concatenate((egroup_test, egroup_all[(
                 count):(count+natom*ImgNum), :]), axis=0)
-            
-            count = count+natom*ImgNum
-            Imgcount = Imgcount+ImgNum  
-    """   
 
-    # feat_train/test.csv 
+            count = count+natom*ImgNum
+            Imgcount = Imgcount+ImgNum
+
+
     if pm.test_ratio != 1:
         np.savetxt(pm.f_train_feat, feat_train, delimiter=',')
         np.savetxt(pm.f_train_egroup, egroup_train, delimiter=',')
@@ -333,8 +224,6 @@ def write_dR_neigh():
     
 
 def main():
-
-    print("start data seperation")
 
     if not os.path.isdir(pm.dir_work):
         os.system("mkdir " + pm.dir_work)

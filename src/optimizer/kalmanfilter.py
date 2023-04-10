@@ -677,6 +677,7 @@ class LKalmanFilter(nn.Module):
         else:
             errore = update_prefactor * errore
             (update_prefactor * Etot_predict).backward()
+            
         time2 = time.time()
         #print("step(2): energy loss backward time: ", time2 - time1, "s")
 
@@ -711,8 +712,6 @@ class LKalmanFilter(nn.Module):
         time_end = time.time()
         
         #print("Layerwised KF update Energy time:", time_end - time_start, "s")
-        
-
 
     def update_force(self, inputs, Force_label, update_prefactor = 1.0):
 

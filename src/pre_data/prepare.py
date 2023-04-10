@@ -42,7 +42,7 @@ def collectAllSourceFiles(workDir=pm.trainSetDir,sourceFileName='MOVEMENT'):
             #pm.sourceFileList.append(os.path.abspath(path))
             # use relative path
             pm.sourceFileList.append(path)
-
+    
 
 def savePath(featSaveForm='C'):
     '''
@@ -494,7 +494,7 @@ def r_feat_csv(f_feat):
     """
     df   = pd.read_csv(f_feat,header=None,index_col=False,dtype=pm.tf_dtype)
     itypes = df[1].values.astype(int)
-    engy = df[2].values
+    engy = df[2].values 
     feat = df.drop([0,1,2],axis=1).values 
     engy = engy.reshape([engy.size,1])
     return itypes,feat,engy

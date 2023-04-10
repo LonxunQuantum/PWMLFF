@@ -9,6 +9,8 @@ import sys
 import subprocess 
 import multiprocessing as mp 
 import numpy as np 
+import random 
+import time
 
 codepath = str(pathlib.Path(__file__).parent.resolve())
 sys.path.append(codepath)
@@ -20,6 +22,7 @@ sys.path.append(codepath+'/../aux')
 
 from poscar2lammps import p2l 
 from slice import slice
+
 
 class adaptive_trainer():
     
@@ -36,10 +39,16 @@ class adaptive_trainer():
                     silent_mode = True, 
                     num_select_per_group = 200,
                     psp_dir = "/share/psp/NCPP-SG15-PBE", 
-                    node_num = 1, 
+                    node_num = 1,   
                     atom_type = [],
                     success_bar = 0.15,
-                    candidate_bar = 0.35,                     
+                    candidate_bar = 0.35,         
+                    lmp_damp = 25,
+                    is_single_node = True,       
+                    lmp_partition_name = None,
+                    lmp_ntask_per_node = None, 
+                    lmp_wall_time = 7200,          
+                    lmp_custom_lines = [],      
                 ):  
         """
             DIR: train
@@ -66,6 +75,7 @@ class adaptive_trainer():
         self.candidate_bar = candidate_bar
 
         self.num_select_per_group = num_select_per_group
+        self.is_single_node = is_single_node
 
         self.iter_num = iter_num
         # lammps related
@@ -110,6 +120,19 @@ class adaptive_trainer():
 
         self.node_num = node_num
 
+        self.lmp_damp = lmp_damp
+        self.lmp_partition_name = lmp_partition_name
+        self.lmp_wall_time = lmp_wall_time
+        self.lmp_custom_lines = lmp_custom_lines 
+        self.lmp_ntask_per_node = lmp_ntask_per_node
+
+        if self.is_single_node is False:
+            if self.lmp_partition_name is None:
+                raise Exception("lmp_partition_name must be specified under multi-node mode")
+            if self.lmp_ntask_per_node is None:
+                raise Exception("lmp_ntask_per_node must be specified under multi-node mode")
+
+
     def initialize(self):
         # housekeeping. Set up dirs etc. 
 
@@ -146,7 +169,6 @@ class adaptive_trainer():
     """
 
     def select_init_config(self):
-        
         """
             move all data from /seed to /subsys    
             add new data to /seed step by step 
@@ -263,13 +285,13 @@ class adaptive_trainer():
             line = "fix              1 all nvt temp "
             line = line + str(write_config["init_temp"]) + " "
             line = line + str(write_config["end_temp"]) + " "
-            line  = line + str(write_config["timestep"]*100) + "\n"
+            line  = line + str(write_config["timestep"]*self.lmp_damp) + "\n"
             f.writelines(line)
         elif write_config["ensemble"] == "npt":
             line = "fix              1 all npt temp "
             line = line + str(write_config["init_temp"]) + " "
             line = line + str(write_config["end_temp"]) + " "
-            line  = line + str(write_config["timestep"]*100) + " "
+            line  = line + str(write_config["timestep"]*self.lmp_damp) + " "
             line = line + "tri " +  str(write_config["init_pres"]) + " " + str(write_config["end_pres"])+ " "+ str(write_config["timestep"]*100) + "\n"
             f.writelines(line)
 
@@ -298,6 +320,60 @@ class adaptive_trainer():
           running lmp to generate trajectories 
        ****************************************** 
     """
+    def write_lmp_sbatch(self,target_dirs, idx):
+        """
+            example: 
+                
+                #!/bin/sh
+                #SBATCH --partition=cpu
+                #SBATCH --job-name=lmp
+                #SBATCH --output=log
+                #SBATCH --nodes=1
+                #SBATCH --ntasks=2
+                
+                dir_array=("268_T=1200_P=1.0" 
+                           "268_T=1200_P=10" 
+                           "268_T=1200_P=100" 
+                           "268_T=1200_P=1000")
+
+                for dir in ${dir_array[@]};
+                do
+                    cd ${dir}
+                    srun --exclusive -n 1 -c 1 lmp_mpi -in lammps.in &
+                    cd ..
+                done
+                wait
+                echo "done"
+        """
+        file = open(str(idx)+".sh","w")
+        
+        file.writelines("#!/bin/sh\n")
+        file.writelines("#SBATCH --partition="+self.lmp_partition_name+"\n")
+        file.writelines("#SBATCH --job-name=lmp_batch\n")
+        file.writelines("#SBATCH --nodes=1\n")
+        file.writelines("#SBATCH --ntasks="+str(self.lmp_ntask_per_node)+"\n")
+        
+        # user defined lines 
+        for line in self.lmp_custom_lines:
+            file.writelines(line+"\n")
+        
+        # dir array and loop
+        
+        file.writelines("dir_array=(")
+        for dir in target_dirs:
+            file.writelines("\"")
+            file.writelines(dir) 
+            file.writelines("\" ")
+        file.writelines(")\n")
+        
+        file.writelines("for dir in ${dir_array[@]};\n")
+        file.writelines("do\n")
+        file.writelines("cd ${dir}\n")
+        file.writelines("srun --exclusive -n 1 -c 1 lmp_mpi -in lammps.in > /dev/null &\n")
+        file.writelines("done\n")
+        file.writelines("wait\n")
+        
+        file.close()                   
 
     def run_lmp_mp(self,tgt_dirs):
         import time
@@ -321,7 +397,12 @@ class adaptive_trainer():
     def run_lmp(self):
         """
             using LAMMPS to generate trajectories 
+
+            single_node : on one node using pool 
+            multi_node  : use sbatch
         """
+        is_complete = False
+
         lmp_dirs = [] 
         lmp_dir_mp = [[] for i in range(self.process_num)] 
 
@@ -335,16 +416,70 @@ class adaptive_trainer():
 
         print ("number of target dirs:", num_dirs)
 
-        for i in range(num_dirs):
-            lmp_dir_mp[i%self.process_num].append(lmp_dirs[i])
-        
-        # distribute across processes
-        pool = mp.Pool(self.process_num)
-        pool.map(self.run_lmp_mp,lmp_dir_mp) 
+        if self.is_single_node is True:
+            for i in range(num_dirs):
+                lmp_dir_mp[i%self.process_num].append(lmp_dirs[i])
+            
+            # distribute across processes
+            pool = mp.Pool(self.process_num)
+            pool.map(self.run_lmp_mp,lmp_dir_mp) 
+
+        else:
+            """
+                use a single bacth file to submit multiple lmp jobs
+                
+                create sbacth files in explore/subsys
+
+            """
+            idx = 0 
+
+            os.chdir(self.explore_subsys_dir)
+
+            for start in range(0,num_dirs,self.lmp_ntask_per_node):
+                
+                if start + self.lmp_ntask_per_node > num_dirs:
+                    end = num_dirs
+                else:
+                    end = start + self.lmp_ntask_per_node
+                print ("start, end:",start,end-1)
+                self.write_lmp_sbatch(lmp_dirs[start:end],idx)
+                
+                print ("submitting "+str(idx)+".sh")
+                cmd = "sbatch "+str(idx)+".sh"
+                
+                subprocess.run([cmd],shell=True)
+                idx+=1
+
+            # use squeue -l | grep RUNNING -c to monitor progress
+            # also set a wall time of 2 hours
+            start = time.time()     
+
+            # how to determine when to stop? 
+            while True:
+                num_ongoing = int(subprocess.check_output(["squeue -h -t running -r | wc -l"],shell=True))
+                num_pending = int(subprocess.check_output(["squeue -h -t pending -r | wc -l"],shell=True))
+                
+                if num_ongoing == 0 and  num_pending == 0:
+                    is_complete = True
+                    break 
+                                
+                print(num_ongoing, " batches are running")
+                print(num_pending, " batches are waiting")
+
+                if (time.time() - start > self.lmp_wall_time):
+                    print("Wall time for traj gen is reached. Quitting")
+                    break 
+                
+                time.sleep(10)
+            
+            
+        # do not proceed if not completed
+        if is_complete is False:
+            raise Exception("traj gen not accomplished. Will not proceed")
 
         num_success = 0 
         num_fail = 0
-        num_cand = 0
+        num_cand = 0 
         
         # collect stats  
         print ("*****************SUMMARY OF EXPLORATION*****************")
@@ -386,11 +521,14 @@ class adaptive_trainer():
         
         print ("********************************************************\n")
     
-    def lmp_get_err(self):
+    def lmp_get_err(self,tgt_dir = None):
         lmp_dirs = [] 
+        
+        if tgt_dir is None:
+            tgt_dir = self.explore_subsys_dir
 
-        for a, b, c in os.walk(self.explore_subsys_dir):
-            # exclude those not at the lowest level 
+        # obtain leaf dirs
+        for a, b, c in os.walk(tgt_dir):
             if len(b) == 0:
                 lmp_dirs.append(a)
 
@@ -400,14 +538,13 @@ class adaptive_trainer():
 
         err = [] 
         print(len(lmp_dirs))
-
+        print ("in",tgt_dir)
         print ("*****************SUMMARY OF EXPLORATION*****************")
 
         for dir in lmp_dirs: 
             
             if not os.path.exists(os.path.join(dir,"explr.error")):
-                print("exploration error not foudn in", dir)
-                
+                print("exploration error not found in", dir)
                 continue 
             
             f = open(os.path.join(dir,"explr.error"),"r")
@@ -429,10 +566,11 @@ class adaptive_trainer():
         
         num_tot = num_success + num_cand + num_fail
 
-        print("ratio of success (err<0.15)", num_success/num_tot)
+        print("ratio of success (err <0.15)", num_success/num_tot)
         print("ratio of candidate (0.15 < err < 0.35)",num_cand/num_tot)
-
-        np.save("err.npy",err)
+        print("ratio of failure (err > 0.35)", num_fail/num_tot)
+        
+        #np.save("err.npy",err)
         
         #print (num_success, num_cand, num_fail)
 
@@ -496,11 +634,9 @@ class adaptive_trainer():
             num_fail += int(raw[2])
         
         #num_total = num_success+num_cand+num_fail 
-        
         print (num_success, num_cand, num_fail)
-
+        
         print ("********************************************************")
-
         # save 
     """
        ****************************************** 
@@ -624,6 +760,9 @@ class adaptive_trainer():
             #print (norm_b1,norm_b2,norm_b3)
             self.write_etot_input(dir, num_atom, [norm_b1,norm_b2,norm_b3] )
 
+            print("etot.input written in",dir)
+
+            """
             print ("SCF starts in", dir)
             
             os.chdir(dir)
@@ -636,7 +775,7 @@ class adaptive_trainer():
             end = time.time() 
             
             print ("SCF ends successfully in", end-begin, "s")
-    
+            """
             
     def collect_cfgs(self):
         """
@@ -856,15 +995,11 @@ class adaptive_trainer():
         # generate trajectories and select candidates
         self.run_lmp()    
         
-        # select 50 configs and move into ./result
+        # select a certain number of configs and move into ./result
         self.collect_cfgs() 
         
         # prepare for scf
         self.write_scf_in_and_run() 
-
-
-
-
 
 if __name__ == "__main__":
     """
