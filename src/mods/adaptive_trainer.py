@@ -34,15 +34,16 @@ class adaptive_trainer():
                     temp = [], 
                     pressure = [],
                     traj_step = 300, 
+                    md_dt = 0.001, 
                     ensemble = "nvt",  # npt, nvt 
                     kspacing = 0.16, 
                     silent_mode = True, 
-                    num_select_per_group = 200,
+                    num_select_per_group = 20,
                     psp_dir = "/share/psp/NCPP-SG15-PBE", 
                     node_num = 1,   
                     atom_type = [],
-                    success_bar = 0.15,
-                    candidate_bar = 0.35,         
+                    success_bar = 0.10,
+                    candidate_bar = 0.25,         
                     lmp_damp = 25,
                     is_single_node = True,       
                     lmp_partition_name = None,
@@ -83,6 +84,7 @@ class adaptive_trainer():
         self.pressure = pressure
         self.ensemble = ensemble
         self.traj_step = traj_step
+        self.md_dt = md_dt
         # dir for sub systems explore
         # ./subsys/***
         
@@ -106,7 +108,7 @@ class adaptive_trainer():
                                     "init_temp":300,
                                     "end_temp":300,
                                     "ensemble":self.ensemble,
-                                    "timestep":0.001,
+                                    "timestep":self.md_dt,
                                     "output_name":"traj",
                                     "is_traj":True,
                                     "traj_step":self.traj_step}
@@ -268,14 +270,15 @@ class adaptive_trainer():
 
         f.writelines("pair_style  pwmatmlff\n")
         #f.writelines("pair_coeff  * * 5 5 3 14 "+write_config["ff_name"]+"\n")
-        f.writelines("pair_coeff  * * 5 5 "+str(self.model_num)+" 3 14 ")
+        f.writelines("pair_coeff  * * 5 "+str(self.model_num)+" ")
         
         for i in range(1,self.model_num+1):
             write_config["ff_name"] = self.explore_model_dir + "/" + str(i) +  ".ff "
             f.writelines(write_config["ff_name"])
 
+        f.writelines(" 3 14 6.0 6.0 %.2f %.2f" % (self.success_bar,self.candidate_bar))
         f.writelines("\n")
-
+        
         # initial velocity gen
         f.writelines(vline1+str(write_config["init_temp"])+vline2)
         
@@ -311,16 +314,16 @@ class adaptive_trainer():
         f.close()
 
         # bars for success and candidate
-        f = open("bars","w")
-        f.writelines(str(self.success_bar)+" "+str(self.candidate_bar))
-        f.close()
+        #f = open("bars","w")
+        #f.writelines(str(self.success_bar)+" "+str(self.candidate_bar))
+        #f.close()
         
     """
        ****************************************** 
           running lmp to generate trajectories 
        ****************************************** 
     """
-    def write_lmp_sbatch(self,target_dirs, idx):
+    def write_lmp_sbatch(self,target_dirs, idx, lmp_unique_name):
         """
             example: 
                 
@@ -349,7 +352,7 @@ class adaptive_trainer():
         
         file.writelines("#!/bin/sh\n")
         file.writelines("#SBATCH --partition="+self.lmp_partition_name+"\n")
-        file.writelines("#SBATCH --job-name=lmp_batch\n")
+        file.writelines("#SBATCH --job-name="+lmp_unique_name+"\n")
         file.writelines("#SBATCH --nodes=1\n")
         file.writelines("#SBATCH --ntasks="+str(self.lmp_ntask_per_node)+"\n")
         
@@ -420,19 +423,21 @@ class adaptive_trainer():
             for i in range(num_dirs):
                 lmp_dir_mp[i%self.process_num].append(lmp_dirs[i])
             
+            start = time.time()  
             # distribute across processes
             pool = mp.Pool(self.process_num)
             pool.map(self.run_lmp_mp,lmp_dir_mp) 
 
+            is_complete = True
         else:
             """
                 use a single bacth file to submit multiple lmp jobs
-                
                 create sbacth files in explore/subsys
-
             """
             idx = 0 
 
+            lmp_name_unique = "AJUFVC" 
+            
             os.chdir(self.explore_subsys_dir)
 
             for start in range(0,num_dirs,self.lmp_ntask_per_node):
@@ -442,7 +447,7 @@ class adaptive_trainer():
                 else:
                     end = start + self.lmp_ntask_per_node
                 print ("start, end:",start,end-1)
-                self.write_lmp_sbatch(lmp_dirs[start:end],idx)
+                self.write_lmp_sbatch(lmp_dirs[start:end],idx,lmp_name_unique)
                 
                 print ("submitting "+str(idx)+".sh")
                 cmd = "sbatch "+str(idx)+".sh"
@@ -456,25 +461,28 @@ class adaptive_trainer():
 
             # how to determine when to stop? 
             while True:
-                num_ongoing = int(subprocess.check_output(["squeue -h -t running -r | wc -l"],shell=True))
-                num_pending = int(subprocess.check_output(["squeue -h -t pending -r | wc -l"],shell=True))
+                num_ongoing = int(subprocess.check_output(["squeue -n "+lmp_name_unique+" | wc -l"],shell=True))
+                #num_pending = int(subprocess.check_output(["squeue -h -t pending -r | wc -l"],shell=True))
                 
-                if num_ongoing == 0 and  num_pending == 0:
+                if num_ongoing == 1:
                     is_complete = True
                     break 
-                                
-                print(num_ongoing, " batches are running")
-                print(num_pending, " batches are waiting")
-
+                
+                print(num_ongoing-1, " batches are running or pending")
+                #print(num_pending, " batches are waiting")
+                print("**************************************\n")
                 if (time.time() - start > self.lmp_wall_time):
                     print("Wall time for traj gen is reached. Quitting")
                     break 
                 
                 time.sleep(10)
+        
+        if is_complete is True:
             
-            
+            time_elapsed =  time.time() - start 
+            print (num_dirs, " explorations done in ", time_elapsed, "s")
         # do not proceed if not completed
-        if is_complete is False:
+        else:
             raise Exception("traj gen not accomplished. Will not proceed")
 
         num_success = 0 
@@ -492,7 +500,7 @@ class adaptive_trainer():
                 continue 
             
             f = open(os.path.join(dir,"explr.stat"),"r")
-            raw = f.readlines()[0].split()  
+            raw = f.readlines()[-1].split()  
             f.close()
             
             tmp_success = int(raw[0])
@@ -503,7 +511,7 @@ class adaptive_trainer():
             print("in",dir)
             print ("ratio of success:", float(tmp_success)/tmp_total)
             print ("ratio of candidate:", float(tmp_cand)/tmp_total)
-            print ("ratio of failure", float(tmp_fail)/tmp_total)
+            print ("ratio of failure:", float(tmp_fail)/tmp_total)
             print("\n")
 
             num_success += int(raw[0])
@@ -517,7 +525,7 @@ class adaptive_trainer():
         print ("num of all img:", num_success+num_cand+num_fail)
         print ("ratio of success:", float(num_success)/num_total)
         print ("ratio of candidate:", float(num_cand)/num_total)
-        print ("ratio of failure", float(num_fail)/num_total)
+        print ("ratio of failure:", float(num_fail)/num_total)
         
         print ("********************************************************\n")
     
@@ -553,13 +561,13 @@ class adaptive_trainer():
 
             for line in raw:
                 tmp = float(line)
-                if tmp < 0.15:
+                if tmp <= self.success_bar:
                     num_success += 1
                 
-                if tmp < 0.35 and tmp > 0.15:
+                if tmp <= self.candidate_bar and tmp > self.success_bar:
                     num_cand +=1 
                 
-                if tmp > 0.35:
+                if tmp > self.candidate_bar:
                     num_fail +=1 
 
                 err.append(tmp)
@@ -626,7 +634,7 @@ class adaptive_trainer():
             print("in",dir)
             print ("ratio of success:", float(tmp_success)/tmp_total)
             print ("ratio of candidate:", float(tmp_cand)/tmp_total)
-            print ("ratio of failure", float(tmp_fail)/tmp_total)
+            print ("ratio of failure:", float(tmp_fail)/tmp_total)
             print("\n")
 
             num_success += int(raw[0])
@@ -798,7 +806,7 @@ class adaptive_trainer():
                 """
                 for name in files:
                     tmp = os.path.join(root, name)
-                    if "config." in tmp:
+                    if ".config" in tmp:
                         cfg_dot_dirs.append(tmp)
 
             shuffle(cfg_dot_dirs)
