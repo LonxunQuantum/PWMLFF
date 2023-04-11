@@ -606,7 +606,7 @@ class dp_network:
 
         #from random import randint
         #torch.manual_seed(randint(0,100000))   
-
+        
     """
         data pre-processing    
     """
