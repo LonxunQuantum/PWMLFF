@@ -28,7 +28,7 @@ class MovementDataset(Dataset):
         data["Force"] = -1 * np.load(os.path.join(path, "Force.npy"))
         data["Virial"] = np.load(os.path.join(path, "Virial.npy"))
         data["Ei"] = np.load(os.path.join(path, "Ei.npy"))
-
+        data["Etot"] = np.load(os.path.join(path, "Etot.npy"))
         data["Egroup"] = np.load(os.path.join(path, "Egroup.npy"))
         data["Divider"] = np.load(os.path.join(path, "Divider.npy"))
         data["Egroup_weight"] = np.load(os.path.join(path, "Egroup_weight.npy"))
@@ -128,7 +128,7 @@ def main():
         print(sample_batches["Force"].shape)
         print(sample_batches["Virial"].shape)
         print(sample_batches["Ei"].shape)
-
+        print(sample_batches["Etot"].shape)
         #print(sample_batches["Egroup"].shape)
         #print(sample_batches["Divider"].shape)
         #print(sample_batches["Egroup_weight"].shape)

@@ -200,7 +200,7 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, config):
 
         if config.datatype == "float64":
             Ei_label = Variable(sample_batches["Ei"].double().to(device))
-            
+            Etot_label = Variable(sample_batches["Etot"].double().to(device))
             Egroup_label = Variable(sample_batches["Egroup"].double().to(device))
             Divider = Variable(sample_batches["Divider"].double().to(device))
             Egroup_weight = Variable(
@@ -220,6 +220,7 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, config):
 
         elif config.datatype == "float32":
             Ei_label = Variable(sample_batches["Ei"].float().to(device))
+            Etot_label = Variable(sample_batches["Etot"].float().to(device))
             """
             Egroup_label = Variable(sample_batches["Egroup"].float().to(device))
             Divider = Variable(sample_batches["Divider"].float().to(device))
@@ -235,7 +236,7 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, config):
             Ri = Variable(sample_batches["Ri"].float().to(device), requires_grad=True)
             Ri_d = Variable(sample_batches["Ri_d"].float().to(device))
 
-        Etot_label = torch.sum(Ei_label.unsqueeze(2), dim=1)
+        # Etot_label = torch.sum(Ei_label.unsqueeze(2), dim=1)
         dR_neigh_list = Variable(sample_batches["ListNeighbor"].int().to(device))
         natoms_img = Variable(sample_batches["ImageAtomNum"].int().to(device))
         natoms_img = torch.squeeze(natoms_img, 1)
@@ -328,7 +329,7 @@ def valid(val_loader, model, criterion, device, args):
             i = base_progress + i
             if args.datatype == "float64":
                 Ei_label = Variable(sample_batches["Ei"].double().to(device))
-                
+                Etot_label = Variable(sample_batches["Etot"].double().to(device))
                 Egroup_label = Variable(sample_batches["Egroup"].double().to(device))
                 Divider = Variable(sample_batches["Divider"].double().to(device))
                 Egroup_weight = Variable(
@@ -350,6 +351,7 @@ def valid(val_loader, model, criterion, device, args):
 
             elif args.datatype == "float32":
                 Ei_label = Variable(sample_batches["Ei"].float().to(device))
+                Etot_label = Variable(sample_batches["Etot"].float().to(device))
                 """
                 Egroup_label = Variable(sample_batches["Egroup"].float().to(device))
                 Divider = Variable(sample_batches["Divider"].float().to(device))
@@ -369,7 +371,7 @@ def valid(val_loader, model, criterion, device, args):
                 )
                 Ri_d = Variable(sample_batches["Ri_d"].float().to(device))
 
-            Etot_label = torch.sum(torch.unsqueeze(Ei_label, 2), dim=1)
+            # Etot_label = torch.sum(torch.unsqueeze(Ei_label, 2), dim=1)
             dR_neigh_list = Variable(sample_batches["ListNeighbor"].int().to(device))
             natoms_img = Variable(sample_batches["ImageAtomNum"].int().to(device))
             natoms_img = torch.squeeze(natoms_img, 1)
