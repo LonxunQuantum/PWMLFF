@@ -112,6 +112,7 @@ def gen_train_data(config, is_real_Ep = False):
     for movement_file in movement_files:
         with open(os.path.join(movement_file, "MOVEMENT"), "r") as mov:
             lines = mov.readlines()
+            etot_tmp = []
             for idx, line in enumerate(lines):
                 
                 if "Lattice vector" in line and "stress" in lines[idx + 1]:
@@ -162,6 +163,14 @@ def gen_train_data(config, is_real_Ep = False):
                             + str(tmp_virial[2, 2])
                             + "\n"
                         )
+
+                # Etot.dat
+                if "Etot,Ep,Ek" in line:
+                    etot_tmp.append(line.split()[9])
+
+        with open(os.path.join(trainset_dir, "Etot.dat"), "a") as etot_file:
+            for etot in etot_tmp:
+                etot_file.write(etot + "\n")
     
     # ImgPerMVT  
     
@@ -225,6 +234,8 @@ def save_npy_files(data_path, data_set):
     np.save(os.path.join(data_path, "Force.npy"), data_set["Force"])
     print("    Virial.npy", data_set["Virial"].shape)
     np.save(os.path.join(data_path, "Virial.npy"), data_set["Virial"])
+    print("    Etot.npy", data_set["Etot"].shape)
+    np.save(os.path.join(data_path, "Etot.npy"), data_set["Etot"])
     print("    ImageAtomNum.npy", data_set["ImageAtomNum"].shape)
     np.save(os.path.join(data_path, "ImageAtomNum.npy"), data_set["ImageAtomNum"])
 
@@ -639,6 +650,7 @@ def sepper_data(config, chunk_size = 10, is_load_stat = False, stat_add = "./", 
         egroup_single_arr.append(np.array(tmp))
 
     Force = np.loadtxt(os.path.join(trainset_dir, "Force.dat"))
+    Etot = np.loadtxt(os.path.join(trainset_dir, "Etot.dat"))
     Virial = np.loadtxt(os.path.join(trainset_dir, "Virial.dat"), delimiter=" ")
     atom_num_per_image = np.loadtxt(
         os.path.join(trainset_dir, "ImageAtomNum.dat"), dtype=int
@@ -799,6 +811,7 @@ def sepper_data(config, chunk_size = 10, is_load_stat = False, stat_add = "./", 
                     "Ri_d": Ri_d[image_index[start_index] : image_index[end_index]],
                     "Force": Force[image_index[start_index] : image_index[end_index]],
                     "Virial": Virial[start_index:end_index],
+                    "Etot": Etot[start_index:end_index],
                     "ImageAtomNum": atom_num_per_image[start_index:end_index],
                 }
 
@@ -830,6 +843,7 @@ def sepper_data(config, chunk_size = 10, is_load_stat = False, stat_add = "./", 
                     "Ri_d": Ri_d[image_index[start_index] : image_index[end_index]],
                     "Force": Force[image_index[start_index] : image_index[end_index]],
                     "Virial": Virial[start_index:end_index],
+                    "Etot": Etot[start_index:end_index],
                     "ImageAtomNum": atom_num_per_image[start_index:end_index],
                 }
 
