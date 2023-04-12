@@ -73,14 +73,14 @@ class DP(nn.Module):
 
     def forward(self, ImageDR, Ri, dfeat, list_neigh, natoms_img, Egroup_weight, divider, is_calc_f=None):
 
-        torch.autograd.set_detect_anomaly(True)
-        
+        #torch.autograd.set_detect_anomaly(True)
+
         Ri_d = dfeat
         natoms = natoms_img[0, 1:]
         natoms_sum = Ri.shape[1]
         batch_size = Ri.shape[0]
         atom_sum = 0
-
+        
         for ntype in range(self.ntypes):
             for ntype_1 in range(self.ntypes):
                 S_Rij = Ri[:, atom_sum:atom_sum+natoms[ntype], ntype_1 * self.maxNeighborNum:(ntype_1+1) * self.maxNeighborNum, 0].unsqueeze(-1)
@@ -130,7 +130,6 @@ class DP(nn.Module):
                 Ei = Ei_ntype
             else:
                 Ei = torch.concat((Ei, Ei_ntype), dim=1)
-            
             
             atom_sum = atom_sum + natoms[ntype]
         

@@ -63,11 +63,11 @@ class EmbeddingNet(nn.Module):
     def forward(self, x):
         for i in range(1, len(self.network_size)):
             # 
-            if (True in torch.isnan(self.bias['bias' + str(i-1)])):
-                print(torch.isnan(self.bias['bias' + str(i-1)]))
+            #if (True in torch.isnan(self.bias['bias' + str(i-1)])):
+            #    print(torch.isnan(self.bias['bias' + str(i-1)]))
 
-            if (True in torch.isnan(self.weights['weight' + str(i-1)])):
-                print(torch.isnan(self.weights['weight' + str(i-1)]))
+            #if (True in torch.isnan(self.weights['weight' + str(i-1)])):
+            #    print(torch.isnan(self.weights['weight' + str(i-1)]))
 
             if self.cfg['bias']:
                 hiden = torch.matmul(x, self.weights['weight' + str(i-1)]) + self.bias['bias' + str(i-1)]

@@ -178,7 +178,7 @@ PROGRAM gen_dR
         open(1315, file='./PWdata/Force.dat', access='append')
         DO j = 1, natom
             READ(move_file, *) iatom(j),fatom(1,j),fatom(2,j),fatom(3,j)
-            write(1315, "(3(F20.15, 1x))") fatom(1,j),fatom(2,j),fatom(3,j)
+            write(1315, "(3(F24.15, 1x))") fatom(1,j),fatom(2,j),fatom(3,j)
         ENDDO
         close(1315)
 

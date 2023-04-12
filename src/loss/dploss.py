@@ -17,7 +17,7 @@ def dp_loss(
     natoms_sum,
 ):
     start_pref_egroup, limit_pref_egroup = 0.02, 1.0
-    start_pref_F, limit_pref_F = 1000, 1.0
+    start_pref_F, limit_pref_F = 10, 1.0
     start_pref_etot, limit_pref_etot = 0.02, 1.0
     start_pref_virial, limit_pref_virial = 1.0, 400
     start_pref_ei, limit_pref_ei = 0.02, 1.0

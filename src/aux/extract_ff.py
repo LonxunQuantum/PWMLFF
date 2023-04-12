@@ -72,7 +72,6 @@ def write_feat_calc_para(outfile,feat_type):
             outfile.writelines(line.split("!")[0]+"\n")
     
     return grid_type
-        
     
 def write_feat_grid(outfile,feat_type,num_atom_type,grid_idx):
     """
@@ -149,7 +148,7 @@ def extract_ff( name = "myforcefield.ff",
             # feature calculation paras
             grid_idx = write_feat_calc_para(outfile,feature_type)
             outfile.writelines("\n")
-
+            
             # feature grid paras 
             # only for 1 & 2! 
             if 1 in feature_type or 2 in feature_type:
@@ -157,15 +156,14 @@ def extract_ff( name = "myforcefield.ff",
                 outfile.writelines("\n")
             
             # network paramters 
-        
-        
+
             # nn parameters
             name_list = ["fread_dfeat/Wij.txt", "fread_dfeat/data_scaler.txt"] 
 
             for name in name_list:
                 fin = open(name,"r")
                 raw = fin.readlines()
-                fin.close() 
+                fin.close()     
 
                 max_node_num = 0 
                 # max node num. 
@@ -263,5 +261,3 @@ def extract_ff( name = "myforcefield.ff",
 if __name__ =="__main__":
 
     extract_ff(name = "Li-Ta-O.ff", model_type=5)
-
-    

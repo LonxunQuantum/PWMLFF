@@ -13,7 +13,6 @@ import horovod.torch as hvd
 
 from torch.profiler import profile, record_function, ProfilerActivity
 
-
 def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, config):
     batch_time = AverageMeter("Time", ":6.3f")
     data_time = AverageMeter("Data", ":6.3f")
@@ -109,17 +108,41 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, co
         loss_Ei_val = criterion(Ei_predict, Ei_label)
         loss_Ei_val = 0
 
+        #print ("Etot_predict") 
+        #print (Etot_predict)
+        
+        #print ("Force_predict")
+        #print (Force_predict)
+        
+        #print ("Virial_predict")
+        #print (Virial_predict)
+        #Ei_predict, Force_predict, Egroup_predict, Virial_predict)
         #print("Egroup_predict",Egroup_predict)
 
         #print("Egroup_label",Egroup_label)
         loss_Egroup_val = criterion(Egroup_predict, Egroup_label)
         
-        
-
         loss_Virial_val = criterion(Virial_predict, Virial_label.squeeze(1))
-        loss_val = loss_F_val + loss_Etot_val
 
-        w_f, w_e, w_v, w_eg, w_ei = 1, 1, 1, 0, 0
+        loss_val = torch.zeros_like(loss_F_val)
+        
+        w_f, w_e, w_v, w_eg, w_ei = 0, 0, 0, 0, 0
+
+        if config.is_force is True:
+            w_f = 1.0 
+            loss_val += loss_F_val
+        
+        if config.is_etot is True:
+            w_e = 1.0
+            loss_val += loss_Etot_val
+        
+        if config.is_virial is True:
+            w_v = 1.0 
+            loss_val += loss_Virial_val
+        
+        if config.is_egroup is True:
+            w_eg = 1.0 
+            loss_val += loss_Egroup_val
 
         loss, _, _ = dp_loss(
             0.001,
@@ -140,6 +163,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, co
         loss.backward()
         optimizer.step()
 
+        
         # measure accuracy and record loss
         losses.update(loss_val.item(), batch_size)
         loss_Etot.update(loss_Etot_val.item(), batch_size)

@@ -238,6 +238,14 @@ def get_terminal_args():
     )
 
     parser.add_argument(
+        "--is_force", default=True, type=bool, help="train force"
+    )
+
+    parser.add_argument(
+        "--is_etot", default=True, type=bool, help="train etot"
+    )
+
+    parser.add_argument(
         "--pre_fac_force", default=2.0, type=float, help="KF force update prefactor"
     )
 
@@ -311,6 +319,9 @@ class dp_network:
                     dwidth = 3.0,
                     is_virial = False,
                     is_egroup = False, 
+                    is_etot = True,
+                    is_force = True, 
+
                     pre_fac_force = 2.0,
                     pre_fac_etot = 1.0, 
                     pre_fac_virial = 1.0, 
@@ -376,13 +387,6 @@ class dp_network:
 
         self.atomType = atom_type 
 
-        # these two variables are the same thing. Crazy. 
-
-        # passed-in configs 
-        # the whole config is required 
-        
-        # label to be trained 
-        
         # prefactor in kf 
         self.kf_prefac_Etot = 1.0  
         self.kf_prefac_Ei = 1.0
@@ -582,6 +586,8 @@ class dp_network:
 
             self.terminal_args.is_virial = is_virial
             self.terminal_args.is_egroup = is_egroup
+            self.terminal_args.is_force  = is_force
+            self.terminal_args.is_etot   = is_etot
             self.terminal_args.pre_fac_force = pre_fac_force 
             self.terminal_args.pre_fac_etot = pre_fac_etot
             self.terminal_args.pre_fac_virial = pre_fac_virial
@@ -744,6 +750,8 @@ class dp_network:
         model = DP(self.config, device, stat, self.terminal_args.magic)
         model = model.to(training_type)
 
+
+
         if not torch.cuda.is_available():
             print("using CPU, this will be slow")
         elif self.terminal_args.hvd:
@@ -760,6 +768,11 @@ class dp_network:
 
         # define loss function (criterion), optimizer, and learning rate scheduler
         criterion = nn.MSELoss().to(device)
+        
+        for item in model.parameters():
+            print(item)       
+
+        return
 
         if self.terminal_args.opt == "LKF":
             optimizer = LKFOptimizer(
@@ -849,7 +862,7 @@ class dp_network:
             train_sampler = None
             val_sampler = None
 
-        # should add a collate function foe padding
+        # should add a collate function for padding
         train_loader = torch.utils.data.DataLoader(
             train_dataset,
             batch_size=self.terminal_args.batch_size,

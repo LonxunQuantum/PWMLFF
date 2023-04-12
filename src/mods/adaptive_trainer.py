@@ -32,7 +32,7 @@ class adaptive_trainer():
                     process_num = 1,     # num of process for trajectory generation
                     iter_num = 1,        # num of meta iteration 
                     temp = [], 
-                    pressure = [],
+                    pressure = [1],
                     traj_step = 300, 
                     md_dt = 0.001, 
                     ensemble = "nvt",  # npt, nvt 
@@ -506,7 +506,8 @@ class adaptive_trainer():
             tmp_success = int(raw[0])
             tmp_cand = int(raw[1])
             tmp_fail = int(raw[2])
-            tmp_total = tmp_cand+tmp_success+tmp_fail
+            
+            tmp_total = tmp_cand+ tmp_success+ tmp_fail
 
             print("in",dir)
             print ("ratio of success:", float(tmp_success)/tmp_total)
@@ -994,7 +995,7 @@ class adaptive_trainer():
                     if "config." in tmp:
                         cfg_dot_dirs.append(tmp)
     
-    
+        
     def dbg_explore(self):
         
         # prepare directories

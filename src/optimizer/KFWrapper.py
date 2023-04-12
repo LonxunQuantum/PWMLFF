@@ -148,6 +148,7 @@ class KFOptimizerWrapper:
         error = error / natoms_sum
         mask = error < 0
 
+        # essentially a step length for weight update 
         error = error * update_prefactor
         error[mask] = -1 * error[mask]
         
@@ -165,9 +166,16 @@ class KFOptimizerWrapper:
         Virial_predict = update_prefactor * Virial_predict
         Virial_predict[mask] = -1.0 * Virial_predict[mask]
         
-        Virial_predict.sum().backward()
-        #(Virial_predict.sum()+ Etot_predict.sum() * 0).backward()
+        #print("***********************************")
+        #print("before backward")
+        #print(self.model.embedding_net[2].weights['weight0'].grad)
         
+        Virial_predict.sum().backward()
+
+        #print("after backward")
+        #print(self.model.embedding_net[2].weights['weight0'].grad)
+        #print("***********************************\n")
+
         error = error * math.sqrt(bs) 
         
         #print("Virial steping")

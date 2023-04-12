@@ -94,7 +94,9 @@ def gen_train_data(config, is_real_Ep = True):
     dRFeatureOutputDir = config["dRFeatureOutputDir"]
 
     #os.system("clean_data.sh")
-
+    cmd_clear = "rm "+trainset_dir+"/*.dat"
+    sp.run([cmd_clear],shell=True)
+    
     if not os.path.exists(dRFeatureInputDir):
         os.mkdir(dRFeatureInputDir)
 
@@ -594,7 +596,7 @@ def sepper_data(config, chunk_size = 10, is_load_stat = False, stat_add = "./", 
 
     max_neighbor_num = config["maxNeighborNum"]
     ntypes = len(config["atomType"])
-
+    
     # image number in each movement 
     img_per_mvmt = np.loadtxt(os.path.join(trainset_dir, "ImgPerMVT.dat"), dtype=int)
     
@@ -703,7 +705,6 @@ def sepper_data(config, chunk_size = 10, is_load_stat = False, stat_add = "./", 
 
     index = 0
     
-
     """
         Since image padding is not supported at this moment 
         we manipulate the data formation to support batch size larger than 1
@@ -734,6 +735,7 @@ def sepper_data(config, chunk_size = 10, is_load_stat = False, stat_add = "./", 
     """
         for each movement, divide by chunck size
     """
+
     for i in range(len(range_mvmt)-1):
         
         mvmt_begin = range_mvmt[i]

@@ -20,7 +20,7 @@ class LKFOptimizer(Optimizer):
         
         super(LKFOptimizer, self).__init__(params, defaults)
 
-        self._params = self.param_groups[0]["params"]
+        self._params = self.param_groups[0]["params"]   
 
         if len(self.param_groups) != 1 or len(self._params) == 0:
             raise ValueError(
@@ -167,7 +167,7 @@ class LKFOptimizer(Optimizer):
         self.grad_prefactor = grad_prefactor
     
     def step(self, error):
-
+        
         params_packed_index = self._state.get("params_packed_index")
 
         weights = []
@@ -218,7 +218,7 @@ class LKFOptimizer(Optimizer):
                     res = torch.concat((res, split_weight), dim=0)
 
                 param_sum += nelement
-
+                
                 if param_sum == params_packed_index[param_index]:
                     H.append(res_grad)
                     weights.append(res)
