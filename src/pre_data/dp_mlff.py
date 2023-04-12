@@ -88,7 +88,7 @@ def get_real_Ep(movement_files,train_set_dir):
 
                 
 
-def gen_train_data(config, is_real_Ep = True):
+def gen_train_data(config, is_real_Ep = False):
     trainset_dir = config["trainSetDir"]
     dRFeatureInputDir = config["dRFeatureInputDir"]
     dRFeatureOutputDir = config["dRFeatureOutputDir"]
@@ -188,11 +188,13 @@ def gen_train_data(config, is_real_Ep = True):
     os.system(command)
 
     # Ei.dat with respect to the real Etot
+    """
     if is_real_Ep is True:
         # remove fortran generated Ei
         print ("Removing " + trainset_dir + "Ei.dat")
         sp.run(["mv", trainset_dir + "/Ei.dat", trainset_dir + "/Ei_plus.dat"])
         get_real_Ep(movement_files,trainset_dir)
+    """
     
     print("==============Success==============")
     
