@@ -768,11 +768,7 @@ class dp_network:
 
         # define loss function (criterion), optimizer, and learning rate scheduler
         criterion = nn.MSELoss().to(device)
-        
-        for item in model.parameters():
-            print(item)       
 
-        return
 
         if self.terminal_args.opt == "LKF":
             optimizer = LKFOptimizer(
