@@ -26,6 +26,9 @@ __global__ void virial_grad_wrt_neighbors_a(
     const unsigned int atom_id = blockIdx.y;
     const unsigned int batch_id = blockIdx.z;
     const unsigned int neigh_index = threadIdx.x + block_id * blockDim.x;
+    
+    if (neigh_index >= neigh_num)
+        return; 
 
     const unsigned int index_xyzw = threadIdx.y;
     const unsigned int tid = threadIdx.x;
@@ -50,7 +53,7 @@ __global__ void virial_grad_wrt_neighbors_a(
     const int Rij_offset = batch_id * natoms * neigh_num * 3 + atom_id * neigh_num * 3 + neigh_index * 3;
     const int Ri_d_offset = batch_id * natoms * neigh_num * 4 * 3 + atom_id * neigh_num * 4 * 3 + neigh_index * 4 * 3 + index_xyzw * 3;
 
-
+    
     for (int dd0 = 0; dd0 < 3; ++dd0){
         for (int dd1 = 0; dd1 < 3; ++dd1){
             tmp[dd0 * 3 + dd1] = Rij[Rij_offset + dd1] * Ri_d[Ri_d_offset + dd0];
@@ -74,7 +77,7 @@ void launch_calculate_virial_force_grad(
     DType * grad_output
 )
 {
-    /*
+    
     int LEN = 128;
     const int ndesc = neigh_num * 4;
     cudaMemset(grad_output, 0.0, sizeof(DType) * batch_size * natoms * ndesc);
@@ -86,7 +89,6 @@ void launch_calculate_virial_force_grad(
     virial_grad_wrt_neighbors_a<<<block_grid, thread_grid>>>(
         grad_output,
         net_grad, Ri_d, Rij, nblist, natoms, neigh_num);
-    */
 }
 
 template void launch_calculate_virial_force_grad(
