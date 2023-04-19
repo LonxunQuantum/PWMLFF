@@ -899,7 +899,7 @@ class dp_network:
             f_valid_log = open(valid_log, "w")
 
             #f_valid_log.write("epoch\t loss\t RMSE_Etot\t RMSE_Egroup\t RMSE_F\n")
-            f_valid_log.write("%5s%18s%18s%18s%18s%18s%18s\n" % ("epoch","loss",etot_col_name,\
+            f_valid_log.write("%5s%18s%21s%18s%18s%18s%18s\n" % ("epoch","loss",etot_col_name,\
                 "RMSE_Egroup","RMSE_Ei","RMSE_F","RMSE_virial"))
 
         for epoch in range(self.terminal_args.start_epoch, self.terminal_args.epochs + 1):
