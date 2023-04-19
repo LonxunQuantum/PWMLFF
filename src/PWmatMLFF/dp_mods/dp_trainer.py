@@ -82,6 +82,8 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, co
         natoms_img = torch.squeeze(natoms_img, 1)
         batch_size = Ri.shape[0]
         
+        natom = natoms_img[0,0]
+
         if config.profiling:
             print("=" * 60, "Start profiling model inference", "=" * 60)
             with profile(
@@ -264,7 +266,7 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, config):
         dR_neigh_list = Variable(sample_batches["ListNeighbor"].int().to(device))
         natoms_img = Variable(sample_batches["ImageAtomNum"].int().to(device))
         natoms_img = torch.squeeze(natoms_img, 1)
-
+        natom = natoms_img[0,0] 
         #Egroup_weight = [] 
         #Divider = [] 
 
@@ -294,32 +296,37 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, config):
                     )
             print(prof.key_averages().table(sort_by="cuda_time_total"))
             print("=" * 60, "Profiling KF update force end", "=" * 60)
+            
             prof.export_chrome_trace("kf_update_force.json")
         else:
-            # import ipdb;ipdb.set_trace()
-            KFOptWrapper.update_energy(kalman_inputs, Etot_label, config.pre_fac_etot)
+            
+            if config.is_etot is True: 
+                KFOptWrapper.update_energy(kalman_inputs, Etot_label, config.pre_fac_etot)
             
             if config.is_egroup is True:
                 KFOptWrapper.update_egroup(kalman_inputs, Egroup_label, config.pre_fac_egroup)
-                #KFOptWrapper.update_egroup_select(kalman_inputs, Egroup_label, config.pre_fac_egroup)
 
-            Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = KFOptWrapper.update_force(
-                kalman_inputs, Force_label, config.pre_fac_force) 
-            
+            if config.is_force is True:
+                Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = KFOptWrapper.update_force(
+                    kalman_inputs, Force_label, config.pre_fac_force) 
+                
             if config.is_virial is True:
                 KFOptWrapper.update_virial(kalman_inputs, Virial_label, config.pre_fac_virial)
             
 
         loss_F_val = criterion(Force_predict, Force_label)
-        loss_Etot_val = criterion(Etot_predict, Etot_label)
+
+        # divide by natom 
+        loss_Etot_val = criterion(Etot_predict, Etot_label)/natom
         
         loss_Ei_val = criterion(Ei_predict, Ei_label)   
         loss_Egroup_val = criterion(Egroup_predict, Egroup_label)
         loss_Virial_val = criterion(Virial_predict, Virial_label.squeeze(1))
-        loss_val = loss_F_val + loss_Etot_val
+        loss_val = loss_F_val + loss_Etot_val*natom
 
         # measure accuracy and record loss
         losses.update(loss_val.item(), batch_size)
+
         loss_Etot.update(loss_Etot_val.item(), batch_size)
         loss_Ei.update(loss_Ei_val.item(), batch_size)
         loss_Egroup.update(loss_Egroup_val.item(), batch_size)
@@ -345,12 +352,43 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, config):
     progress.display_summary(["Training Set:"])
     return losses.avg, loss_Etot.root, loss_Force.root, loss_Ei.root, loss_Egroup.root, loss_Virial.root
 
+"""
+def get_type_num(q:list):
+    
+    type_num = [] 
+    
+    type_now = q[0]
+    idx_now = 0 
+
+    for type in q:
+        if type == type_now:
+            idx_now += 1
+        else:
+            type_num.append([type_now,idx_now])
+            type_now = type
+            idx_now += 1
+
+    type_num.append([type_now,idx_now]) 
+    
+    return type_num
+
+def get_etot_type(Ei_predict, ): 
+    # return a list of Etot_i
+    return 
+"""
 
 def valid(val_loader, model, criterion, device, args):
     def run_validate(loader, base_progress=0):
         end = time.time()
         for i, sample_batches in enumerate(loader):
+
             i = base_progress + i
+            
+            # list of atom type in the image
+            #atom_type_num = sample_batches["AtomType"] 
+            #print(atom_type_num[0]) 
+            #print(get_type_num(atom_type_num[0].tolist()))
+            
             if args.datatype == "float64":
                 Ei_label = Variable(sample_batches["Ei"].double().to(device))
                 Etot_label = Variable(sample_batches["Etot"].double().to(device))
@@ -398,39 +436,69 @@ def valid(val_loader, model, criterion, device, args):
             # Etot_label = torch.sum(torch.unsqueeze(Ei_label, 2), dim=1)
             dR_neigh_list = Variable(sample_batches["ListNeighbor"].int().to(device))
             natoms_img = Variable(sample_batches["ImageAtomNum"].int().to(device))
+
             natoms_img = torch.squeeze(natoms_img, 1)
-
+            
+            natom = natoms_img[0,0]
+            #print("num atoms")
+            #print (natoms_img[0,0])
+            # for division in RMSE Etot
+            
             batch_size = Ri.shape[0]
-
-            #Egroup_weight = [] 
-            #Divider = [] 
             """
                 Dim of Ri [bs, natom, ntype*max_neigh_num, 4] 
             """ 
-            #print (Ri.size())
-            #print("printing Ri[0,0, :100, : ]")
-            #print (Ri[0, 0, :100, : ])
-            #return 
             Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
                 ImageDR, Ri, Ri_d, dR_neigh_list, natoms_img, Egroup_weight, Divider
             )
+
+            #print("Etot")
+            #print(Etot_predict)
+
+            #print("virial")
+            #print(Virial_predict)
+            
             """
-            print("virial tensor")
+            idx = 2 
+
+            model.embedding_net[0].weights['weight0'][0][idx].data -= 0.001
+            
+            print ("Wij before forward propagation")
+            print (model.embedding_net[0].weights['weight0'][0])
+
+            print ("the chosen Wij")
+            print (model.embedding_net[0].weights['weight0'][0][idx])
+
+            Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
+                ImageDR, Ri, Ri_d, dR_neigh_list, natoms_img, Egroup_weight, Divider
+            )
+            
+            error = Virial_label.squeeze(1) - Virial_predict
+            mask = error < 0
+            Virial_predict[mask] = -1.0 * Virial_predict[mask]
+
+            print("virial")
             print(Virial_predict)
+
+            print("virial sum")
+            print(Virial_predict.sum())
             
-            print ("Etot")
-            print (Etot_predict)
+            Virial_predict.sum().backward()
+
+            print("grad after backward")
+            print(model.embedding_net[0].weights['weight0'].grad)
             
-            print ("Force")
-            print (Force_predict)
+            print("the grad w.r.t chosen Wij")
+            print(model.embedding_net[0].weights['weight0'].grad[0][idx])
+            print("***********************************\n")
             """
             #return 
             loss_F_val = criterion(Force_predict, Force_label)
-            loss_Etot_val = criterion(Etot_predict, Etot_label)
+            loss_Etot_val = criterion(Etot_predict, Etot_label)/natom
             loss_Ei_val = criterion(Ei_predict, Ei_label)
             loss_Egroup_val = criterion(Egroup_predict, Egroup_label)
             loss_Virial_val = criterion(Virial_predict, Virial_label.squeeze(1))
-            loss_val = loss_F_val + loss_Etot_val
+            loss_val = loss_F_val + loss_Etot_val*natom
 
             # measure accuracy and record loss
             losses.update(loss_val.item(), batch_size)
@@ -444,7 +512,8 @@ def valid(val_loader, model, criterion, device, args):
             end = time.time()
 
             if i % args.print_freq == 0:
-                progress.display(i + 1)
+                progress.display(i + 1) 
+            
 
     batch_time = AverageMeter("Time", ":6.3f", Summary.NONE)
     losses = AverageMeter("Loss", ":.4e", Summary.AVERAGE)
@@ -463,10 +532,10 @@ def valid(val_loader, model, criterion, device, args):
         [batch_time, losses, loss_Etot, loss_Force, loss_Ei, loss_Egroup],
         prefix="Test: ",    
     )
-
+    
     # switch to evaluate mode
     model.eval()
-
+    
     run_validate(val_loader)
 
     if args.hvd and (len(val_loader.sampler) * hvd.size() < len(val_loader.dataset)):
@@ -493,14 +562,12 @@ def valid(val_loader, model, criterion, device, args):
 
     return losses.avg, loss_Etot.root, loss_Force.root, loss_Ei.root, loss_Egroup.root, loss_Virial.root
 
-
 def save_checkpoint(state, is_best, filename, prefix):
     filename = os.path.join(prefix, filename)
     torch.save(state, filename)
     if is_best:
         shutil.copyfile(filename, os.path.join(prefix, "best.pth.tar"))
-
-
+    
 class Summary(Enum):
     NONE = 0
     AVERAGE = 1
@@ -524,7 +591,7 @@ class AverageMeter(object):
         self.sum = 0
         self.count = 0
         self.root = 0
-
+    
     def update(self, val, n=1):
         self.val = val
         self.sum += val * n

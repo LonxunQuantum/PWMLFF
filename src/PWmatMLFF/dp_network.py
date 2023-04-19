@@ -638,8 +638,7 @@ class dp_network:
         #mk = self.terminal_args.resume 
         #if mk is True:
         #    print ("using ./davd.npy and ./dstd.npy")
-        dp_mlff.sepper_data(self.config, chunk_size = chunk_size)
-        
+        dp_mlff.sepper_data(self.config, chunk_size = chunk_size)        
 
     def dbg(self):
         
@@ -654,7 +653,7 @@ class dp_network:
             pin_memory=True,
             sampler=None,   
         )
-
+        
         print("loaded")
 
         """
@@ -882,20 +881,25 @@ class dp_network:
             valid(val_loader, model, criterion, device, self.terminal_args)
             return
 
+        if self.terminal_args.opt == "LKF" or self.terminal_args.opt == "GKF":
+            etot_col_name = "RMSE_Etot_per_atom"
+        else:
+            etot_col_name = "RMSE_Etot"
+
         if not self.terminal_args.hvd or (self.terminal_args.hvd and hvd.rank() == 0):
             train_log = os.path.join(self.terminal_args.store_path, "epoch_train.dat")
 
             f_train_log = open(train_log, "w")
             #f_train_log.write("epoch\t loss\t RMSE_Etot\t RMSE_Egroup\t RMSE_F\t real_lr\t time\n")
-            f_train_log.write("%5s%18s%18s%18s%18s%18s%18s%18s%10s\n" % (
-                "epoch","loss","RMSE_Etot","RMSE_Egroup", \
+            f_train_log.write("%5s%18s%21s%18s%18s%18s%18s%18s%10s\n" % (
+                "epoch","loss",etot_col_name,"RMSE_Egroup", \
                 "RMSE_Ei","RMSE_F","RMSE_virial","real_lr","time"))
 
             valid_log = os.path.join(self.terminal_args.store_path, "epoch_valid.dat")
             f_valid_log = open(valid_log, "w")
 
             #f_valid_log.write("epoch\t loss\t RMSE_Etot\t RMSE_Egroup\t RMSE_F\n")
-            f_valid_log.write("%5s%18s%18s%18s%18s%18s%18s\n" % ("epoch","loss","RMSE_Etot",\
+            f_valid_log.write("%5s%18s%18s%18s%18s%18s%18s\n" % ("epoch","loss",etot_col_name,\
                 "RMSE_Egroup","RMSE_Ei","RMSE_F","RMSE_virial"))
 
         for epoch in range(self.terminal_args.start_epoch, self.terminal_args.epochs + 1):
@@ -916,6 +920,7 @@ class dp_network:
             time_end = time.time()
 
             # evaluate on validation set
+            # not 
             vld_loss, vld_loss_Etot, vld_loss_Force, vld_loss_Ei, val_loss_egroup, val_loss_virial = valid(
                 val_loader, model, criterion, device, self.terminal_args
             )
@@ -943,7 +948,7 @@ class dp_network:
             if not self.terminal_args.hvd or (self.terminal_args.hvd and hvd.rank() == 0):
                 f_train_log = open(train_log, "a")
                 f_train_log.write(
-                    "%5d%18.10e%18.10e%18.10e%18.10e%18.10e%18.10e%18.10e%10.4f\n"
+                    "%5d%18.10e%21.10e%18.10e%18.10e%18.10e%18.10e%18.10e%10.4f\n"
                     % (
                         epoch,
                         loss,
@@ -958,7 +963,7 @@ class dp_network:
                 )
                 f_valid_log = open(valid_log, "a")
                 f_valid_log.write(
-                    "%5d%18.10e%18.10e%18.10e%18.10e%18.10e%18.10e\n"
+                    "%5d%18.10e%21.10e%18.10e%18.10e%18.10e%18.10e\n"
                     % (epoch, 
                         vld_loss, 
                         vld_loss_Etot, 
