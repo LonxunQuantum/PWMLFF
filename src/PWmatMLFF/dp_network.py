@@ -975,7 +975,7 @@ class dp_network:
                 )
             
             # scheduler.step()
-
+            
             # remember best loss and save checkpoint
             is_best = vld_loss < best_loss
             best_loss = min(loss, best_loss)
@@ -1115,10 +1115,10 @@ class dp_network:
         """ 
             extract the model parameters of DP network
             
-            NEED TO ADD SESSION DIR NAME
+            NEED TO ADD SESSION DIR NAME 
         """ 
         if model_name is None: 
-            extract_model_name = self.terminal_args.store_path + "/checkpoint.pth.tar"
+            extract_model_name = self.terminal_args.store_path + "/best.pth.tar"
         else:
             extract_model_name = model_name
         
