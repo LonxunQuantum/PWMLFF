@@ -136,56 +136,54 @@ mass_table = {  1:1.007,2:4.002,3:6.941,4:9.012,5:10.811,6:12.011,
                         87:223,88:226,89:227,90:232.038,91:231.036,92:238.029,93:237,94:244,
                         95:243,96:247,97:247,98:251,99:252,100:257,101:258,102:259,103:262,104:261,105:262,106:266}
 
-def pBox2l(A):
-    
-    from numpy.linalg import norm
-    from numpy import dot
-    from numpy import cross
-    """
-        converting PWMAT box to lammps style upper-triangle
-    """
-    xx = 0
-    xy = 0
-    yy = 0
-    zz = 0
-    yz = 0
-    xz = 0    
-    
-    x = A[0]
-    y = A[1]
-    z = A[2]
-    
-    cross_xy = cross(x,y)
 
-    # align with lammps rule 
-    if (dot(cross_xy,z) < 0 ):
-        z = -z 
-    abs_x = norm(x)
-    abs_y = norm(y)
-    abs_z = norm(z)
+def normalize(v):
+  norm = np.linalg.norm(v)
+  if norm == 0:
+    return [0, 0, 0]
+  return v/norm
+
+def pBox2l(lattice):
     
-    # run         
-    xx = abs_x
+  from numpy.linalg import norm
+  from numpy import dot
+  from numpy import cross
+  """
+      converting PWMAT box to lammps style upper-triangle
+  """
+
+  A = lattice[0]
+  B = lattice[1]
+  C = lattice[2]
+
+
+  nA = normalize(A)
+  Al = np.linalg.norm(A)
+  Bl = np.linalg.norm(B)
+  Cl = np.linalg.norm(C)
+
+  ax = np.linalg.norm(A)
+  bx = np.dot(B,nA)
+  by = np.sqrt(Bl*Bl-bx*bx)
+  cx = np.dot(C,nA)
+  cy = (np.dot(B,C)-bx*cx)/by
+  cz = np.sqrt(Cl*Cl - cx*cx - cy*cy)
+
+  xx = ax
+  yy = by
+  zz = cz
+  xy = bx
+  xz = cx
+  yz = cy 
+
+  return [xx,xy,yy,xz,yz,zz]
     
-    xy = dot(x,y)/xx
-    yy = (abs_y**2 - xy**2)**0.5
-    
-    zz = dot(cross_xy/norm(cross_xy), z)
-    yz = dot(z-zz*cross_xy/norm(cross_xy), y / abs_y)
-    xz = dot(z-zz*cross_xy/norm(cross_xy), x / abs_x)
-    
-    return [xx,xy,yy,xz,yz,zz]
-    
-def p2l(filename = "POSCAR", output_name = "lmp.init"):
+def p2l(filename = "POSCAR"):
     """
         poscar to lammps.data
         
         NOTE: in PWMAT, each ROW represnets a edge vector
     """
-    import os 
-
-    #print("p2l in:",os.getcwd())
-
     natoms = 0
     atype = []
     
@@ -198,14 +196,8 @@ def p2l(filename = "POSCAR", output_name = "lmp.init"):
     
     infile.close()
     
-    start_mk = 0 
-
     for idx, line in enumerate(raw):
         raw[idx] = line.split() 
-        
-        if raw[idx] == ["DIRECT"]:
-            #print(raw[idx])
-            start_mk=idx+1
     
     # pwmat box
     for i in range(3):
@@ -229,7 +221,7 @@ def p2l(filename = "POSCAR", output_name = "lmp.init"):
     # x array 
     x = np.zeros([natoms,3],dtype=float)
     
-    for idx,line in enumerate(raw[start_mk:]):
+    for idx,line in enumerate(raw[6:]):
         
         x[idx,0] = float(line[0])
         x[idx,1] = float(line[1])
@@ -258,11 +250,11 @@ def p2l(filename = "POSCAR", output_name = "lmp.init"):
     A[1,2] = lammps_box[4]
     A[2,2] = lammps_box[5]
     
-    #print("converted LAMMPS upper trangualr box:")
+    print("converted LAMMPS upper trangualr box:")
     
-    #print(A)
+    print(A)
     
-    #print("Ref:https://docs.lammps.org/Howto_triclinic.html")
+    print("Ref:https://docs.lammps.org/Howto_triclinic.html")
     # convert lamda (fraction) coords x to box coords LX
     # A.T x = LX
     # LX = A*x in LAMMPS. see https://docs.lammps.org/Howto_triclinic.html
@@ -283,7 +275,7 @@ def p2l(filename = "POSCAR", output_name = "lmp.init"):
     #print(AI)
 
     # output LAMMPS data
-    ofile = open(output_name, 'w')
+    ofile = open('lammps.data', 'w')
 
     ofile.write("#converted from POSCAR\n\n")
 
@@ -301,7 +293,7 @@ def p2l(filename = "POSCAR", output_name = "lmp.init"):
         out_line = str(idx+1)+" "
         out_line += str(mass_table[idx_table[sym]])+"\n"
         #print (out_line)
-        ofile.write(out_line)   
+        ofile.write(out_line)
         
     #ofile.write("1 6.94000000      #Li\n")
     #ofile.write("2 180.94788000    #Ta\n")
@@ -317,5 +309,4 @@ def p2l(filename = "POSCAR", output_name = "lmp.init"):
 
 if __name__ =="__main__":
     
-
     p2l() 

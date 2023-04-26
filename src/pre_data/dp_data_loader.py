@@ -38,7 +38,7 @@ class MovementDataset(Dataset):
         data["Ri"] = np.load(os.path.join(path, "Ri.npy"))
         data["Ri_d"] = np.load(os.path.join(path, "Ri_d.npy"))
         data["ImageAtomNum"] = np.load(os.path.join(path, "ImageAtomNum.npy")).reshape(-1)
-        #data["AtomType"] = np.load(os.path.join(path, "AtomType.npy"))
+        data["AtomType"] = np.load(os.path.join(path, "AtomType.npy"))
         #print(data["ImageAtomNum"])
         return data
         

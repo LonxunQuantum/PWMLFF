@@ -361,7 +361,7 @@ def process_data(f_train_feat, f_train_dfeat, f_train_dR_neigh,
     np.save(nn_data_path + "/natoms_img.npy", natoms_img)
     # np.save(nn_data_path + "/ep.npy", ep)
     
-def main():
+def write_data():
 
     print("")
     print("<================ Start of feature data file generation ================>")
@@ -414,4 +414,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    write_data()

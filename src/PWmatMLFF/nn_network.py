@@ -69,6 +69,7 @@ from scalers import DataScalers
 from utils import get_weight_grad
 from dfeat_sparse import dfeat_raw 
 
+
 class nn_network:
     
     """
@@ -101,7 +102,7 @@ class nn_network:
 
                     max_neigh_num = 100, 
                     precision = "float64", 
-                    kalman_type = "global",      # or: "global", "layerwise", "selected"  
+                    kalman_type = "GKF",      # or: "LKF", "layerwise", "selected"  
                     session_dir = "record",  # directory that saves the model
                     
                     # for force update
@@ -110,7 +111,7 @@ class nn_network:
                     
                     # for LKF
                     block_size = 2560, 
-
+                    
                     # training label related arguments
                     is_trainForce = True, 
                     is_trainEi = False,
@@ -127,7 +128,12 @@ class nn_network:
                     kf_prefac_etot = 2.0,
                     kf_prefac_force = 1.0,
                     
+                    # custom feature parameters
+                    custom_feat_1 = None, 
+                    custom_feat_2 = None, 
                     custom_feat_7 = None, 
+                    
+                    dbg = False, 
                 ):
             
         """
@@ -135,19 +141,20 @@ class nn_network:
             Some member data are only "declared" here, and assignment requires further operations 
             Frequently used control parameter can be reset by class.set_xx() functions
         """
-            
+        
         """
             Frequently-used control parameters that are directly passed in as arguments:        
         """     
 
         # initializing the opt class 
         self.opts = opt_values() 
+        self.dbg = dbg
 
         # passing some input arguments to default_para.py
         # at the end of the day, one no longer needs parameters.py
 
         pm.atomType = atom_type
-
+        
         # scaling options. 
         pm.is_scale = scale 
         pm.storage_scaler = store_scaler
@@ -194,6 +201,9 @@ class nn_network:
         ########################
         # feature set feature type 
         pm.use_Ftype = sorted(feature_type)
+
+        # update nfeat_type 
+        pm.nfeat_type = len(pm.use_Ftype)
         
         self.feat_mod = feat_modifier()     
         
@@ -335,7 +345,7 @@ class nn_network:
         self.group_size = group_size
         
         self.block_size = block_size 
-
+        
         # R cut for feature 
         pm.Rc_M = Rmax
         pm.Rc_min = Rmin
@@ -343,7 +353,15 @@ class nn_network:
         # load custom feature 
         if custom_feat_7 is not None:
             pm.Ftype7_para = custom_feat_7.copy()
-
+        
+        if custom_feat_1 is not None: 
+            pm.Ftype1_para = custom_feat_1.copy()
+        
+        if custom_feat_2 is not None:
+            pm.Ftype2_para = custom_feat_2.copy()
+            
+            
+            
 
     """
         ============================================================
@@ -351,20 +369,25 @@ class nn_network:
         ============================================================ 
     """ 
 
-    def generate_data(self):
-        
-        # calculating feature 
-        pm.isCalcFeat = True 
-        import mlff 
-        pm.isCalcFeat = False 
+    def generate_data(self, chunk_size = 10):
+        """
+            defualt chunk size set to 10 
+        """
+        #pm.isCalcFeat = True 
+        #import mlff 
+        #pm.isCalcFeat = False 
 
-        # seperate 
+        # calculating feature 
+        from mlff import calc_feat
+        calc_feat()
+
+        # seperate training set and valid set
         import seper 
-        seper.main()
+        seper.seperate_data(chunk_size = chunk_size)
         
+        # save as .npy
         import gen_data     
-        gen_data.main()
-        # convert 
+        gen_data.write_data()
         
     """
         ============================================================
@@ -373,7 +396,6 @@ class nn_network:
     """ 
 
     def set_epoch_num(self, input_num):
-
         self.n_epoch = input_num    
 
     def set_movement_weights(self, input_mvt_w): 
@@ -465,7 +487,7 @@ class nn_network:
     def load_data(self):
 
         """
-            In default, training data is not shuffled.  
+            In default, training data is not shuffled, and should not be.
         """
         # load anything other than dfeat
         
@@ -534,7 +556,6 @@ class nn_network:
 
             print ("load model from:",load_model_path)
 
-            
             #self.load_model_path = self.opts.opt_model_dir+'better.pt'
 
             checkpoint = torch.load(load_model_path, map_location = self.device)
@@ -557,13 +578,13 @@ class nn_network:
                 use Kalman filter 
             """
             #if self.use_GKalman == True:
-            if self.kalman_type == "global": 
+            if self.kalman_type == "GKF": 
                 self.optimizer = GKalmanFilter( self.model, 
                                                 kalman_lambda = self.kalman_lambda, 
                                                 kalman_nue = self.kalman_nue, 
                                                 device = self.device)
 
-            elif self.kalman_type == "layerwise": 
+            elif self.kalman_type == "LKF": 
                 self.optimizer = LKalmanFilter( 
                                                 self.model, 
                                                 kalman_lambda = self.kalman_lambda, 
@@ -643,7 +664,7 @@ class nn_network:
             pass
         else:   
             raise RuntimeError("unsupported scheduler: %s" %opt_scheduler)
-        
+    
     def train(self):
         """    
             trianing method for the class 
@@ -743,7 +764,7 @@ class nn_network:
                 f_epoch_err_log = open(epoch_err_log, 'w')
                 f_epoch_err_log.write('epoch\t loss\t RMSE_Etot\t RMSE_Ei\t RMSE_F\t RMSE_Eg\n')
                 f_epoch_err_log.close()
-            
+                
             f_epoch_err_log = open(epoch_err_log, 'a')
             f_epoch_err_log.write('%d %e %e %e %e %e \n'%(epoch, loss, RMSE_Etot, RMSE_Ei, RMSE_F, RMSE_Egroup))
             f_epoch_err_log.close() 
@@ -870,6 +891,15 @@ class nn_network:
 
             print("time of epoch %d: %f s" %(epoch, timeEpochEnd - timeEpochStart))
 
+    def load_and_train(self):
+        
+        self.load_data()
+        
+        self.set_model()
+        
+        self.set_optimizer()
+
+        self.train()
 
     def train_img(self, sample_batches, model, optimizer, criterion, last_epoch, real_lr):
         """   
@@ -997,7 +1027,7 @@ class nn_network:
         loss_egroup = torch.zeros([1,1],device = self.device)
 
         """
-            update loss with repsect to the data used.  
+            update loss only for used labels  
             At least 2 flags should be true. 
         """
 
@@ -1044,7 +1074,7 @@ class nn_network:
         
         neighbor = Variable(sample_batches['input_nblist'].int().to(self.device))  # [40,108,100]
         natoms_img = Variable(sample_batches['natoms_img'].int().to(self.device))  # [40,108,100]
-
+        
         """
             ******************* load *********************
         """
@@ -1057,6 +1087,13 @@ class nn_network:
 
         Etot_predict, Ei_predict, Force_predict = model(input_data, dfeat, neighbor, natoms_img, egroup_weight, divider)
         
+        if self.dbg is True:
+            print("Etot predict")
+            print(Etot_predict)
+            
+            print("Force predict")
+            print(Force_predict)
+
         Egroup_predict = torch.zeros_like(Ei_predict)
 
         if self.is_trainEgroup:
@@ -1127,7 +1164,7 @@ class nn_network:
         if model_name is None:  
             load_model_path = self.opts.opt_model_dir + 'latest.pt' 
         else:
-            load_model_path = self.opts.opt_model_dir + model_name
+            load_model_path = model_name
 
         print ("extracting parameters from:", load_model_path)
 
@@ -1138,7 +1175,15 @@ class nn_network:
         print ("extracting scaler values from:", load_scaler_path) 
 
         read_scaler(load_scaler_path)
-    
+        
+    def extract_force_field(self, name= "myforcefield.ff", model_name = None):
+        
+        from extract_ff import extract_ff
+
+        self.extract_model_para(model_name= model_name)
+        extract_ff(name = name, model_type = 3)
+                
+
     def run_md(self, init_config = "atom.config", md_details = None, num_thread = 1,follow = False):
         
         import subprocess 
@@ -1191,7 +1236,7 @@ class nn_network:
         command = r'mpirun -n ' + str(num_thread) + r' main_MD.x'
         print (command)
         subprocess.run(command, shell=True) 
-
+        
     """
         ============================================================
         ===================auxiliary functions======================
@@ -1199,14 +1244,13 @@ class nn_network:
     """
 
     def use_global_kalman(self):
-        self.kalman_type = "global"
+        self.kalman_type = "GKF"
 
     def use_layerwise_kalman(self):
-        self.kalman_type = "layerwise"
+        self.kalman_type = "LKF"
 
     def set_kalman_lambda(self,val):
-        self.kalman_lambda = val 
-
+        self.kalman_lambda = val  
     # set prefactor 
     def set_kalman_nue(self,val):
         self.kalman_nue = val
@@ -1252,7 +1296,8 @@ class nn_network:
     def set_b_init(self):
 
         """
-            get mean atomic energy for each type automatically
+            get mean atomic energy (Ei) for each type automatically
+
         """
         type_dict = {} 
         result = []
@@ -1287,7 +1332,6 @@ class nn_network:
         self.opts.opt_logging_file = self.opts.opt_session_dir+'train.log'
         self.opts.opt_model_dir = self.opts.opt_session_dir+'model/'
 
-                #tensorboard_base_dir = self.opt_session_dir+'tensorboard/'
         if not os.path.exists(self.opts.opt_session_dir):
             os.makedirs(self.opts.opt_session_dir) 
         if not os.path.exists(self.opts.opt_model_dir):

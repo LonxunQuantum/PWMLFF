@@ -27,8 +27,8 @@ __global__ void virial_grad_wrt_neighbors_a(
     const unsigned int batch_id = blockIdx.z;
     const unsigned int neigh_index = threadIdx.x + block_id * blockDim.x;
     
-    if (neigh_index >= neigh_num)
-        return; 
+    //if (neigh_index >= neigh_num)
+    //    return; 
 
     const unsigned int index_xyzw = threadIdx.y;
     const unsigned int tid = threadIdx.x;

@@ -316,7 +316,7 @@ def calc_stat(config, image_dR, list_neigh, natoms_img):
             compute_std(sum_Ri2_a, sum_Ri_a, sum_n),
             compute_std(sum_Ri2_a, sum_Ri_a, sum_n),
         ]
-        
+            
         davg.append(
             np.tile(davg_unit, config["maxNeighborNum"] * ntypes).reshape(-1, 4)
         )
@@ -330,6 +330,7 @@ def calc_stat(config, image_dR, list_neigh, natoms_img):
     return davg, dstd
 
 def compute_std(sum2, sum, sumn):
+
     if sumn == 0:
         return 1e-2
     val = np.sqrt(sum2 / sumn - np.multiply(sum / sumn, sum / sumn))
@@ -641,8 +642,8 @@ def sepper_data(config, chunk_size = 10, is_load_stat = False, stat_add = "./", 
     fp.close()
     
     # form a list to contain 1-d np arrays 
-    egroup_single_arr = []
-
+    egroup_single_arr = []  
+    
     for line in raw_egroup:
         
         tmp  = [float(item) for item in line.split(",")]
@@ -677,9 +678,9 @@ def sepper_data(config, chunk_size = 10, is_load_stat = False, stat_add = "./", 
     if is_load_stat is False:
         davg, dstd = calc_stat(
             config,
-            image_dR[0 : image_index[10] * max_neighbor_num * ntypes],
-            list_neigh[0 : image_index[10] * max_neighbor_num * ntypes],
-            atom_num_per_image[0:10],
+            image_dR[0 : image_index[chunk_size] * max_neighbor_num * ntypes],
+            list_neigh[0 : image_index[chunk_size] * max_neighbor_num * ntypes],
+            atom_num_per_image[0:chunk_size],
         )
     else:
         # load from prescribed path

@@ -800,7 +800,7 @@ class dp_network:
 
             if self.terminal_args.evaluate:
                 if self.model_name is None:
-                    file_name = os.path.join(self.terminal_args.store_path, "best.pth.tar")
+                    file_name = os.path.join(self.terminal_args.store_path, "checkpoint.pth.tar")
                 else:
                     file_name = os.path.join("./",self.model_name)
             else:
@@ -1118,7 +1118,7 @@ class dp_network:
             NEED TO ADD SESSION DIR NAME 
         """ 
         if model_name is None: 
-            extract_model_name = self.terminal_args.store_path + "/best.pth.tar"
+            extract_model_name = self.terminal_args.store_path + "/checkpoint.pth.tar"
         else:
             extract_model_name = model_name
         

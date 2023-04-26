@@ -25,6 +25,9 @@ subroutine find_neighbore(iatom,natom,xatom,AL,Rc_type,num_neigh,list_neigh, &
         dR_neigh = 0
         iflag=0
         
+        write(*,*) "AL"
+        write(*,*) AL
+
         do i=1,3
             d=dsqrt(AL(1,i)**2+AL(2,i)**2+AL(3,i)**2)
             nperiod(i)=int(Rc_M/d)+1

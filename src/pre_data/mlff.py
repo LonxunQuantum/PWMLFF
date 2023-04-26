@@ -3,6 +3,49 @@
 import os
 import sys
 
+def calc_feat():
+
+    import default_para as pm 
+    import prepare as pp
+
+    # create dirs
+    print ("creating dirs: input, output, fread_dfeat")
+    os.system('mkdir -p input output fread_dfeat')
+
+    pp.prepare_dir_info()   
+
+    print('deleting old features and feature logs')
+
+    os.system('rm -f ' + pm.trainSetDir + '/t*')
+    os.system('rm -f ' + pm.trainSetDir + '/i*')
+    
+    pp.collectAllSourceFiles()
+    pp.savePath()
+    pp.combineMovement()
+    pp.writeGenFeatInput()
+    
+    os.system('cp '+ pm.fbinListPath +' ./input/')
+
+    calFeatGrid=False
+
+    for i in range(pm.atomTypeNum):
+        if pm.Ftype1_para['iflag_grid'][i] == 3 or pm.Ftype2_para['iflag_grid'][i] == 3:
+            calFeatGrid=True
+            pp.calFeatGrid()
+
+    print('generating feature') 
+
+    for i in pm.use_Ftype:
+        # Do not dump the output into file so that errors can be shown on the screen. 
+        #command=pm.Ftype_name[i]+".x > ./output/out"+str(i)
+
+        command = pm.Ftype_name[i]+".x"
+        print(command)
+        os.system(command)
+    
+    return 
+    
+
 codepath=os.path.abspath(sys.path[0])
 
 #sys.path.append(codepath+'/../src/lib')
@@ -63,6 +106,9 @@ else:
     os.system('cp '+pm.fbinListPath+' ./input/')
     pp.writeGenFeatInput()
     pp.collectAllSourceFiles()
+
+
+
 
 if pm.isFitVdw:
     print('fitting vdw')

@@ -243,16 +243,24 @@ PROGRAM gen_dR
         enddo
         !ccccccccccccccccccccccccccccccccccccccccccc
 
-
         call find_neighbore(iatom,natom,xatom,AL,Rc_type,num_neigh,list_neigh, &
         dR_neigh,iat_neigh,ntype,iat_type,m_neigh,Rc_M,map2neigh_M,list_neigh_M, &
         num_neigh_M,iat_neigh_M)    
+        
+        write(*,*) "dR_neigh in forward" 
+        
+        do k=1,m_neigh
+            write(*,*) dR_neigh(:,k,1,1)
+        enddo 
+
 
         open(1314, file='./PWdata/dRneigh.dat', access='append')
         ! m_neigh,ntype,natom
         do k=1, natom
             do j=1, ntype
                 do i=1, m_neigh
+
+
                     if ((abs(dR_neigh(1, i, j, k)) + abs(dR_neigh(2, i, j, k)) + abs(dR_neigh(3, i, j, k))) > 1.D-8) then
                     !if (abs(dR_neigh(1, i, j, k))>1.D-8) then
                         write(1314, "(3(E17.10, 1x), i4)") dR_neigh(1, i, j, k), dR_neigh(2, i, j, k), dR_neigh(3, i, j, k), list_neigh(i,j,k)

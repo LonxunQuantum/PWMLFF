@@ -81,8 +81,7 @@ def process_data(f_train_feat, f_train_dfeat, f_train_dR_neigh,
     feat_scale_a = np.asfortranarray(feat_scale_a)
     
     init = pm.use_Ftype[0]
-    
-
+        
     dfeatdirs = {}
     energy_all = {}
     force_all = {}

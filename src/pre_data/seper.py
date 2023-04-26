@@ -27,9 +27,9 @@ def run_write_egroup():
     os.system(command)
 
 
-def write_natoms_dfeat():
+def write_natoms_dfeat(chunk_size):
     """
-        put data into chunks? 
+        put data into chunks
     """
     max_natom = int(np.loadtxt(os.path.join(pm.OutputPath, 'max_natom')))
     #print (pm.dp_predict)
@@ -95,6 +95,8 @@ def write_natoms_dfeat():
     img_base = 0 
     line_base = 0
 
+    from math import floor
+
     # some system dependent values 
     for system in system_dir:
         
@@ -108,7 +110,7 @@ def write_natoms_dfeat():
         
         print ("natom", natom)
         print ("num image", ImgNum) 
-
+        
         # image
         img_num_base[system] = img_base 
         img_base += ImgNum
@@ -121,20 +123,32 @@ def write_natoms_dfeat():
         sys_imgNum[system] = ImgNum
 
         trainImgNum = int(ImgNum*(1-pm.test_ratio))
-        
+
+        # chunk num for training and valid set
+        train_chunk_num = floor(trainImgNum/chunk_size)
+        valid_chun_num = floor(ImgNum/chunk_size) - train_chunk_num
+
         # shuffle images within a system. Start from 0 
         #randomIdx = [i for i in range(ImgNum)]
         randomIdx = choice(ImgNum,ImgNum,replace = False) 
 
         # (system , index within the system)
-        sys_img_list_train += [(system, i) for i in randomIdx[:trainImgNum]]
-        sys_img_list_test += [(system, i) for i in randomIdx[trainImgNum:]]
+        # sys_img_list_train contains all chunks
+
+        for i in range(train_chunk_num):
+            sys_img_list_train.append([(system, j) for j in randomIdx[i:i+chunk_size]]) 
+
+        for i in range(train_chunk_num,train_chunk_num+valid_chun_num):
+            sys_img_list_test.append([(system, j) for j in randomIdx[i:i+chunk_size]])
+
+        #sys_img_list_train += [(system, i) for i in randomIdx[:trainImgNum]]
+        #sys_img_list_test += [(system, i) for i in randomIdx[trainImgNum:]]
 
     #print (sys_img_list_train)
     #print (sys_img_list_test)
     print (img_num_base)
     print (line_num_base)
-
+    
     # shuffle the system-idx tuple list
     shuffle(sys_img_list_train)
 
@@ -159,57 +173,59 @@ def write_natoms_dfeat():
         """
         
         # re-arrange data for training set
-        for system, idx_in_sys in sys_img_list_train:
+        for chunk in sys_img_list_train:
+            for system, idx_in_sys in chunk:
 
-            # global image index within feat_all 
-            Imgcount = img_num_base[system] 
-            count = line_num_base[system] 
-            natom = sys_natom[system]
+                # global image index within feat_all 
+                Imgcount = img_num_base[system] 
+                count = line_num_base[system] 
+                natom = sys_natom[system]
 
-            # natom
-            f_train_natom.writelines(str(int(natom))+' '+str(int(natom))+'\n')
+                # natom
+                f_train_natom.writelines(str(int(natom))+' '+str(int(natom))+'\n')
+                
+                #dfeatname 
+                for mm in pm.use_Ftype:
+                    f_train_dfeat[mm].writelines(str(os.path.join(system, 'dfeat.fbin.Ftype'+str(mm)))+', '+str(idx_in_sys+1)+', '+str(dfeat_names[mm][int(Imgcount+idx_in_sys), 1])+'\n')
             
-            #dfeatname 
-            for mm in pm.use_Ftype:
-                f_train_dfeat[mm].writelines(str(os.path.join(system, 'dfeat.fbin.Ftype'+str(mm)))+', '+str(idx_in_sys+1)+', '+str(dfeat_names[mm][int(Imgcount+idx_in_sys), 1])+'\n')
-        
-            idx_start = count + natom*idx_in_sys
-            idx_end = count + natom*(idx_in_sys+1)
+                idx_start = count + natom*idx_in_sys
+                idx_end = count + natom*(idx_in_sys+1)
 
-            # feat 
-            # Note: the order of feat_train.csv is not chaned yet
-            feat_train = np.concatenate(
-                (feat_train, feat_all[idx_start:idx_end,:]), axis=0)
-            
-            #egroup
-            egroup_train = np.concatenate(
-                (egroup_train, egroup_all[idx_start:idx_end,:]), axis=0) 
+                # feat 
+                # Note: the order of feat_train.csv is not chaned yet
+                feat_train = np.concatenate(
+                    (feat_train, feat_all[idx_start:idx_end,:]), axis=0)
+                
+                #egroup
+                egroup_train = np.concatenate(
+                    (egroup_train, egroup_all[idx_start:idx_end,:]), axis=0) 
             
         # valid set
-        for system, idx_in_sys in sys_img_list_test: 
-            
-            Imgcount = img_num_base[system] 
-            count = line_num_base[system] 
-            natom = sys_natom[system]
+        for chunk in sys_img_list_test:
+            for system, idx_in_sys in chunk: 
+                
+                Imgcount = img_num_base[system] 
+                count = line_num_base[system] 
+                natom = sys_natom[system]
 
-            # natom
-            f_test_natom.writelines(str(int(sys_natom[system]))+' '+str(int(sys_natom[system]))+'\n')
+                # natom
+                f_test_natom.writelines(str(int(sys_natom[system]))+' '+str(int(sys_natom[system]))+'\n')
 
-            # dfeatname 
-            for mm in pm.use_Ftype:
-                f_test_dfeat[mm].writelines(str(os.path.join(system, 'dfeat.fbin.Ftype'+str(mm)))+', '+str(idx_in_sys+1)+', '+str(dfeat_names[mm][int(Imgcount+idx_in_sys), 1])+'\n')
+                # dfeatname 
+                for mm in pm.use_Ftype:
+                    f_test_dfeat[mm].writelines(str(os.path.join(system, 'dfeat.fbin.Ftype'+str(mm)))+', '+str(idx_in_sys+1)+', '+str(dfeat_names[mm][int(Imgcount+idx_in_sys), 1])+'\n')
 
-            idx_start = count + natom*idx_in_sys
-            idx_end = count + natom*(idx_in_sys+1)
-            
-            # feat 
-            feat_test = np.concatenate(
-                (feat_test, feat_all[idx_start:idx_end,:]), axis=0)
-            
-            #egroup
-            egroup_test = np.concatenate(
-                (egroup_test, egroup_all[idx_start:idx_end,:]), axis=0)
-            
+                idx_start = count + natom*idx_in_sys
+                idx_end = count + natom*(idx_in_sys+1)
+                
+                # feat 
+                feat_test = np.concatenate(
+                    (feat_test, feat_all[idx_start:idx_end,:]), axis=0)
+                
+                #egroup
+                egroup_test = np.concatenate(
+                    (egroup_test, egroup_all[idx_start:idx_end,:]), axis=0)
+
             
     """
     for system in system_dir:
@@ -331,8 +347,7 @@ def write_dR_neigh():
     
     test_img.to_csv(pm.f_test_dR_neigh, header=False, index=False)
     
-
-def main():
+def seperate_data(chunk_size = 10):
 
     print("start data seperation")
 
@@ -344,7 +359,7 @@ def main():
 
     write_egroup_input()
     run_write_egroup()
-    write_natoms_dfeat()
+    write_natoms_dfeat(chunk_size)
 
     if (pm.dR_neigh):
         write_dR_neigh()
