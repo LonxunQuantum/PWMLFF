@@ -33,7 +33,7 @@ class adaptive_trainer():
                     iter_num = 1,        # num of meta iteration 
                     temp = [], 
                     pressure = [1],
-                    traj_step = 300, 
+                    traj_step = 500, 
                     md_dt = 0.001, 
                     ensemble = "nvt",  # npt, nvt 
                     kspacing = 0.16, 
@@ -42,7 +42,7 @@ class adaptive_trainer():
                     psp_dir = "/share/psp/NCPP-SG15-PBE", 
                     node_num = 1,   
                     atom_type = [],
-                    success_bar = 0.10,
+                    success_bar = 0.12,
                     candidate_bar = 0.25,         
                     lmp_damp = 25,
                     is_single_node = True,       
@@ -701,10 +701,11 @@ class adaptive_trainer():
             #file.writelines("in.psp2 = Si.SG15.PBE.UPF\n")
             
             file.writelines("accuracy = high\n")
-            file.writelines("ecut = 50.0\n")
+            file.writelines("ecut = 70.0\n")
             file.writelines("wg_error = 0.0\n")
             file.writelines("e_error = 0.0001\n")
             file.writelines("rho_error = 0.0\n")
+            file.writelines("in.psp_rcut2 = 4.3\n")
             file.writelines("out.wg = F\n")
             file.writelines("out.rho = F\n")
             file.writelines("out.vr = F\n")
@@ -714,7 +715,7 @@ class adaptive_trainer():
             file.writelines("scf_iter0_1 = 6 4 3 0.0 0.1 2\n")
             file.writelines("scf_iter0_2 = 94 4 3 1.0 0.1 2\n")
             file.writelines("energy_decomp = T\n")
-            file.writelines("energy_decomp_special2 = 2 0 0 1 1\n")
+            file.writelines("energy_decomp_special2 = 2 0 0.5 1 1\n")
             file.writelines(mp_line)
 
     def calc_recip_latt(self,a1,a2,a3):
