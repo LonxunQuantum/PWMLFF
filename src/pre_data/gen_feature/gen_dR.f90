@@ -247,11 +247,11 @@ PROGRAM gen_dR
         dR_neigh,iat_neigh,ntype,iat_type,m_neigh,Rc_M,map2neigh_M,list_neigh_M, &
         num_neigh_M,iat_neigh_M)    
         
-        write(*,*) "dR_neigh in forward" 
+        !write(*,*) "dR_neigh in forward" 
         
-        do k=1,m_neigh
-            write(*,*) dR_neigh(:,k,1,1)
-        enddo 
+        !do k=1,m_neigh
+        !    write(*,*) dR_neigh(:,k,1,1)
+        !enddo 
 
 
         open(1314, file='./PWdata/dRneigh.dat', access='append')
