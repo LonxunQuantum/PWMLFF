@@ -18,13 +18,14 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, co
     data_time = AverageMeter("Data", ":6.3f")
     losses = AverageMeter("Loss", ":.4e", Summary.AVERAGE)
     loss_Etot = AverageMeter("Etot", ":.4e", Summary.ROOT)
+    loss_Etot_per_atom = AverageMeter("Etot_per_atom", ":.4e", Summary.ROOT)
     loss_Force = AverageMeter("Force", ":.4e", Summary.ROOT)
     loss_Virial = AverageMeter("Virial", ":.4e", Summary.ROOT)
     loss_Ei = AverageMeter("Ei", ":.4e", Summary.ROOT)
     loss_Egroup = AverageMeter("Egroup", ":.4e", Summary.ROOT)
     progress = ProgressMeter(
         len(train_loader),
-        [batch_time, data_time, losses, loss_Etot, loss_Force, loss_Ei, loss_Egroup, loss_Virial],
+        [batch_time, data_time, losses, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_Egroup, loss_Virial],
         prefix="Epoch: [{}]".format(epoch),
     )
     
@@ -107,6 +108,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, co
 
         loss_F_val = criterion(Force_predict, Force_label)
         loss_Etot_val = criterion(Etot_predict, Etot_label)
+        loss_Etot_per_atom_val = criterion(Etot_predict, Etot_label)/natom/natom
         loss_Ei_val = criterion(Ei_predict, Ei_label)
         loss_Ei_val = 0
 
@@ -169,6 +171,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, co
         # measure accuracy and record loss
         losses.update(loss_val.item(), batch_size)
         loss_Etot.update(loss_Etot_val.item(), batch_size)
+        loss_Etot_per_atom.update(loss_Etot_per_atom_val.item(), batch_size)
         # loss_Ei.update(loss_Ei_val.item(), batch_size)
         loss_Egroup.update(loss_Egroup_val.item(), batch_size)
         loss_Virial.update(loss_Virial_val.item(), batch_size)
@@ -185,6 +188,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, co
     return (
         losses.avg,
         loss_Etot.root,
+        loss_Etot_per_atom.root,
         loss_Force.root,
         loss_Ei.root,
         loss_Egroup.root,
@@ -228,7 +232,6 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, config):
         if config.datatype == "float64":
             Ei_label = Variable(sample_batches["Ei"].double().to(device))
             Etot_label = Variable(sample_batches["Etot"].double().to(device))
-            #Etot_per_atom_label = Variable(sample_batches["Etot_per_atom"].double().to(device))
             Egroup_label = Variable(sample_batches["Egroup"].double().to(device))
             Divider = Variable(sample_batches["Divider"].double().to(device))
             Egroup_weight = Variable(
@@ -249,7 +252,6 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, config):
         elif config.datatype == "float32":
             Ei_label = Variable(sample_batches["Ei"].float().to(device))
             Etot_label = Variable(sample_batches["Etot"].float().to(device))
-            #Etot_per_atom_label = Variable(sample_batches["Etot_per_atom"].float().to(device))
             """
             Egroup_label = Variable(sample_batches["Egroup"].float().to(device))
             Divider = Variable(sample_batches["Divider"].float().to(device))
@@ -304,17 +306,17 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, config):
         else:
             
             if config.is_etot is True: 
-                KFOptWrapper.update_energy(kalman_inputs, Etot_label, config.pre_fac_etot)
+                Etot_predict = KFOptWrapper.update_energy(kalman_inputs, Etot_label, config.pre_fac_etot)
             
             if config.is_egroup is True:
-                KFOptWrapper.update_egroup(kalman_inputs, Egroup_label, config.pre_fac_egroup)
+                Egroup_predict = KFOptWrapper.update_egroup(kalman_inputs, Egroup_label, config.pre_fac_egroup)
 
             if config.is_force is True:
                 Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = KFOptWrapper.update_force(
                     kalman_inputs, Force_label, config.pre_fac_force) 
                 
             if config.is_virial is True:
-                KFOptWrapper.update_virial(kalman_inputs, Virial_label, config.pre_fac_virial)
+                Virial_predict = KFOptWrapper.update_virial(kalman_inputs, Virial_label, config.pre_fac_virial)
             
 
         loss_F_val = criterion(Force_predict, Force_label)
