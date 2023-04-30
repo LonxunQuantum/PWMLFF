@@ -178,7 +178,7 @@ def pBox2l(lattice):
 
   return [xx,xy,yy,xz,yz,zz]
     
-def p2l(filename = "POSCAR"):
+def p2l(filename = "POSCAR", output_name = "lammps.data"):
     """
         poscar to lammps.data
         
@@ -221,7 +221,12 @@ def p2l(filename = "POSCAR"):
     # x array 
     x = np.zeros([natoms,3],dtype=float)
     
-    for idx,line in enumerate(raw[6:]):
+    if "SELECT" in raw[5][0].upper():
+        n_pos = 7
+    else:
+        n_pos = 6
+
+    for idx,line in enumerate(raw[n_pos:]):
         
         x[idx,0] = float(line[0])
         x[idx,1] = float(line[1])
@@ -275,7 +280,7 @@ def p2l(filename = "POSCAR"):
     #print(AI)
 
     # output LAMMPS data
-    ofile = open('lammps.data', 'w')
+    ofile = open(output_name, 'w')
 
     ofile.write("#converted from POSCAR\n\n")
 
