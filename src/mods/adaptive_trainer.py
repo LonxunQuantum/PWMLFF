@@ -45,6 +45,7 @@ class adaptive_trainer():
                     success_bar = 0.12,
                     candidate_bar = 0.25,         
                     lmp_damp = 25,
+                    lmp_nprocs = 25,
                     is_single_node = True,       
                     lmp_partition_name = None,
                     lmp_ntask_per_node = None, 
@@ -123,6 +124,7 @@ class adaptive_trainer():
         self.node_num = node_num
 
         self.lmp_damp = lmp_damp
+        self.lmp_nprocs = lmp_nprocs
         self.lmp_partition_name = lmp_partition_name
         self.lmp_wall_time = lmp_wall_time
         self.lmp_custom_lines = lmp_custom_lines 
@@ -388,9 +390,9 @@ class adaptive_trainer():
             begin = time.time()
 
             if self.silent_mode is True:
-                subprocess.run(["lmp_mpi -in lammps.in > /dev/null"], shell=True)   
+                subprocess.run(["mpirun -np %d lmp_mpi -in lammps.in > /dev/null"%self.lmp_nprocs], shell=True)   
             else:
-                subprocess.run(["lmp_mpi -in lammps.in"], shell=True)
+                subprocess.run(["mpirun -np %d lmp_mpi -in lammps.in"%self.lmp_nprocs], shell=True)
             
             end = time.time()
 
@@ -405,9 +407,9 @@ class adaptive_trainer():
             multi_node  : use sbatch
         """
         is_complete = False
-
+        ntasks_running = int(self.process_num//self.lmp_nprocs)
         lmp_dirs = [] 
-        lmp_dir_mp = [[] for i in range(self.process_num)] 
+        lmp_dir_mp = [[] for i in range(ntasks_running)] 
 
         # look for sub dirs
         for a, b, c in os.walk(self.explore_subsys_dir):
@@ -421,11 +423,11 @@ class adaptive_trainer():
 
         if self.is_single_node is True:
             for i in range(num_dirs):
-                lmp_dir_mp[i%self.process_num].append(lmp_dirs[i])
+                lmp_dir_mp[i%ntasks_running].append(lmp_dirs[i])
             
             start = time.time()  
             # distribute across processes
-            pool = mp.Pool(self.process_num)
+            pool = mp.Pool(self.ntasks_running)
             pool.map(self.run_lmp_mp,lmp_dir_mp) 
 
             is_complete = True
