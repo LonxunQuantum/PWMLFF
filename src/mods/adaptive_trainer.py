@@ -407,9 +407,12 @@ class adaptive_trainer():
             multi_node  : use sbatch
         """
         is_complete = False
-        ntasks_running = int(self.process_num//self.lmp_nprocs)
-        lmp_dirs = [] 
-        lmp_dir_mp = [[] for i in range(ntasks_running)] 
+        if self.process_num % self.lmp_nprocs != 0:
+            raise Exception("process_num must can be divided by lmp_nprocs!")
+        else:
+            run_nums = int(self.process_num / self.lmp_nprocs)
+        #lmp_dir_mp = [[] for i in range(self.process_num)] 
+        lmp_dir_mp = [[] for i in range(run_nums)]
 
         # look for sub dirs
         for a, b, c in os.walk(self.explore_subsys_dir):
@@ -423,11 +426,13 @@ class adaptive_trainer():
 
         if self.is_single_node is True:
             for i in range(num_dirs):
-                lmp_dir_mp[i%ntasks_running].append(lmp_dirs[i])
+                #lmp_dir_mp[i%ntasks_running].append(lmp_dirs[i])
+                lmp_dir_mp[i%run_nums].append(lmp_dirs[i])
             
             start = time.time()  
             # distribute across processes
-            pool = mp.Pool(self.ntasks_running)
+            #pool = mp.Pool(self.self.process_num)
+            pool = mp.Pool(run_nums)
             pool.map(self.run_lmp_mp,lmp_dir_mp) 
 
             is_complete = True
