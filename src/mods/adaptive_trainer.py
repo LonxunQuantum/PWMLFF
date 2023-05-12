@@ -432,8 +432,8 @@ class adaptive_trainer():
             start = time.time()  
             # distribute across processes
             #pool = mp.Pool(self.self.process_num)
-            pool = mp.Pool(run_nums)
-            pool.map(self.run_lmp_mp,lmp_dir_mp) 
+            with mp.Pool(run_nums) as pool:
+                pool.map(self.run_lmp_mp,lmp_dir_mp) 
 
             is_complete = True
         else:
