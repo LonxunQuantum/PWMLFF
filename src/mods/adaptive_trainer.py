@@ -36,6 +36,7 @@ class adaptive_trainer():
                     traj_step = 500, 
                     md_dt = 0.001, 
                     ensemble = "nvt",  # npt, nvt 
+                    lmp_iso = "tri",
                     kspacing = 0.16, 
                     silent_mode = True, 
                     num_select_per_group = 20,
@@ -84,6 +85,7 @@ class adaptive_trainer():
         self.temperature = temp
         self.pressure = pressure
         self.ensemble = ensemble
+        self.lmp_iso = lmp_iso
         self.traj_step = traj_step
         self.md_dt = md_dt
         # dir for sub systems explore
@@ -297,7 +299,7 @@ class adaptive_trainer():
             line = line + str(write_config["init_temp"]) + " "
             line = line + str(write_config["end_temp"]) + " "
             line  = line + str(write_config["timestep"]*self.lmp_damp) + " "
-            line = line + "tri " +  str(write_config["init_pres"]) + " " + str(write_config["end_pres"])+ " "+ str(write_config["timestep"]*100) + "\n"
+            line = line + str(write_config["lmp_iso"]) + " " +  str(write_config["init_pres"]) + " " + str(write_config["end_pres"])+ " "+ str(write_config["timestep"]*100) + "\n"
             f.writelines(line)
 
         f.writelines("thermo_style     custom step pe ke etotal temp vol press\n")
