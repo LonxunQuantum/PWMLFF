@@ -983,7 +983,7 @@ class dp_network:
             # should include dstd.npy and davg.npy 
             
             if not self.terminal_args.hvd or (self.terminal_args.hvd and hvd.rank() == 0):
-                if not self.terminal_args.save_P_matrix:
+                if self.terminal_args.save_P_matrix:
                     save_checkpoint(
                         {  
                             "epoch": epoch,
