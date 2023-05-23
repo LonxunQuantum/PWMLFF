@@ -347,6 +347,7 @@ class dp_network:
                     fitting_net_act = None, 
 
                     recover = False,
+                    save_P_matrix = False,
                     dataset_size = 1000, 
                     
                     workers_dataload = 1, 
@@ -583,6 +584,7 @@ class dp_network:
             self.terminal_args.blocksize = block_size
             self.terminal_args.nselect = select_num
             self.terminal_args.groupsize = group_size
+            self.terminal_args.save_P_matrix = save_P_matrix
 
             self.terminal_args.is_virial = is_virial
             self.terminal_args.is_egroup = is_egroup
@@ -825,7 +827,8 @@ class dp_network:
                 #self.terminal_args.start_epoch = checkpoint["epoch"] + 1
                 best_loss = checkpoint["best_loss"]
                 model.load_state_dict(checkpoint["state_dict"])
-                #optimizer.load_state_dict(checkpoint["optimizer"])
+                if "optimizer" in checkpoint:
+                    optimizer.load_state_dict(checkpoint["optimizer"])
                 
                 # scheduler.load_state_dict(checkpoint["scheduler"])
                 print(
@@ -881,11 +884,6 @@ class dp_network:
             valid(val_loader, model, criterion, device, self.terminal_args)
             return
 
-        if self.terminal_args.opt == "LKF" or self.terminal_args.opt == "GKF":
-            etot_col_name = "RMSE_Etot_per_atom"
-        else:
-            etot_col_name = "RMSE_Etot"
-
         if not self.terminal_args.hvd or (self.terminal_args.hvd and hvd.rank() == 0):
             train_log = os.path.join(self.terminal_args.store_path, "epoch_train.dat")
 
@@ -914,7 +912,7 @@ class dp_network:
                     train_loader, model, criterion, optimizer, epoch, device, self.terminal_args
                 )
             else:
-                loss, loss_Etot, loss_Force, loss_Ei, loss_egroup, loss_virial, real_lr = train(
+                loss, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_egroup, loss_virial, real_lr = train(
                     train_loader, model, criterion, optimizer, epoch, self.terminal_args.lr, device, self.terminal_args
                 )
             time_end = time.time()
@@ -985,19 +983,32 @@ class dp_network:
             # should include dstd.npy and davg.npy 
             
             if not self.terminal_args.hvd or (self.terminal_args.hvd and hvd.rank() == 0):
-                save_checkpoint(
-                    {  
-                        "epoch": epoch,
-                        "state_dict": model.state_dict(),
-                        "best_loss": best_loss,
-                        #"optimizer": optimizer.state_dict(),
-                        # "scheduler": scheduler.state_dict(),
-                    },
-                    
-                    is_best,
-                    "checkpoint.pth.tar",
-                    self.terminal_args.store_path,
-                )
+                if not self.terminal_args.save_P_matrix:
+                    save_checkpoint(
+                        {  
+                            "epoch": epoch,
+                            "state_dict": model.state_dict(),
+                            "best_loss": best_loss,
+                            "optimizer": optimizer.state_dict(),
+                            # "scheduler": scheduler.state_dict(),
+                        },
+                        
+                        is_best,
+                        "checkpoint.pth.tar",
+                        self.terminal_args.store_path,
+                    )
+                else: 
+                    save_checkpoint(
+                        {  
+                            "epoch": epoch,
+                            "state_dict": model.state_dict(),
+                            "best_loss": best_loss,
+                        },
+                        
+                        is_best,
+                        "checkpoint.pth.tar",
+                        self.terminal_args.store_path,
+                    )
             
     """ 
         ============================================================
