@@ -683,7 +683,7 @@ class adaptive_trainer():
 
         mp_line = "mp_n123 = "
 
-        round_up = lambda x: int(floor(x)+1) if x-floor(x)>0.5 else int(floor(x))
+        round_up = lambda x: round(x) if round(x)>0 else 1
 
         if num_atom > 200:
             mp_line = "mp_n123 = 1 1 1 0 0 0"
