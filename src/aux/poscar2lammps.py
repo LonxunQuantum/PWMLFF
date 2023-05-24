@@ -220,11 +220,12 @@ def p2l(filename = "POSCAR", output_name = "lammps.data"):
     
     # x array 
     x = np.zeros([natoms,3],dtype=float)
-
+    
     if "SELECT" in raw[5][0].upper():
         n_pos = 7
     else:
         n_pos = 6
+
     for idx,line in enumerate(raw[n_pos:]):
         
         x[idx,0] = float(line[0])
