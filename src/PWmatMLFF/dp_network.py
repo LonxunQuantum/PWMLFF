@@ -889,16 +889,16 @@ class dp_network:
 
             f_train_log = open(train_log, "w")
             #f_train_log.write("epoch\t loss\t RMSE_Etot\t RMSE_Egroup\t RMSE_F\t real_lr\t time\n")
-            f_train_log.write("%5s%18s%18s%21s%18s%18s%18s%18s%18s%10s\n" % (
+            f_train_log.write("%5s%18s%18s%21s%18s%18s%18s%18s%23s%18s%10s\n" % (
                 "epoch","loss","RMSE_Etot","RMSE_Etot_per_atom","RMSE_Egroup", \
-                "RMSE_Ei","RMSE_F","RMSE_virial","real_lr","time"))
+                "RMSE_Ei","RMSE_F","RMSE_virial","RMSE_virial_per_atom","real_lr","time"))
 
             valid_log = os.path.join(self.terminal_args.store_path, "epoch_valid.dat")
             f_valid_log = open(valid_log, "w")
 
             #f_valid_log.write("epoch\t loss\t RMSE_Etot\t RMSE_Egroup\t RMSE_F\n")
-            f_valid_log.write("%5s%18s%18s%21s%18s%18s%18s%18s\n" % ("epoch","loss",\
-                "RMSE_Etot","RMSE_Etot_per_atom","RMSE_Egroup","RMSE_Ei","RMSE_F","RMSE_virial"))
+            f_valid_log.write("%5s%18s%18s%21s%18s%18s%18s%18s%23s\n" % ("epoch","loss",\
+                "RMSE_Etot","RMSE_Etot_per_atom","RMSE_Egroup","RMSE_Ei","RMSE_F","RMSE_virial","RMSE_virial_per_atom"))
 
         for epoch in range(self.terminal_args.start_epoch, self.terminal_args.epochs + 1):
             if self.terminal_args.hvd:
@@ -908,18 +908,18 @@ class dp_network:
             time_start = time.time()
             if self.terminal_args.opt == "LKF" or self.terminal_args.opt == "GKF":
                 real_lr = self.terminal_args.lr
-                loss, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_egroup, loss_virial = train_KF(
+                loss, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_egroup, loss_virial, loss_virial_per_atom = train_KF(
                     train_loader, model, criterion, optimizer, epoch, device, self.terminal_args
                 )
             else:
-                loss, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_egroup, loss_virial, real_lr = train(
+                loss, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_egroup, loss_virial, loss_virial_per_atom, real_lr = train(
                     train_loader, model, criterion, optimizer, epoch, self.terminal_args.lr, device, self.terminal_args
                 )
             time_end = time.time()
 
             # evaluate on validation set
             # not 
-            vld_loss, vld_loss_Etot, vld_loss_Etot_per_atom, vld_loss_Force, vld_loss_Ei, val_loss_egroup, val_loss_virial = valid(
+            vld_loss, vld_loss_Etot, vld_loss_Etot_per_atom, vld_loss_Force, vld_loss_Ei, val_loss_egroup, val_loss_virial, val_loss_virial_per_atom = valid(
                 val_loader, model, criterion, device, self.terminal_args
             )
             """
@@ -946,7 +946,7 @@ class dp_network:
             if not self.terminal_args.hvd or (self.terminal_args.hvd and hvd.rank() == 0):
                 f_train_log = open(train_log, "a")
                 f_train_log.write(
-                    "%5d%18.10e%18.10e%21.10e%18.10e%18.10e%18.10e%18.10e%18.10e%10.4f\n"
+                    "%5d%18.10e%18.10e%21.10e%18.10e%18.10e%18.10e%18.10e%23.10e%18.10e%10.4f\n"
                     % (
                         epoch,
                         loss,
@@ -956,13 +956,14 @@ class dp_network:
                         loss_Ei,
                         loss_Force,
                         loss_virial,
+                        loss_virial_per_atom,
                         real_lr,
                         time_end - time_start,
                     )
                 )
                 f_valid_log = open(valid_log, "a")
                 f_valid_log.write(
-                    "%5d%18.10e%18.10e%21.10e%18.10e%18.10e%18.10e%18.10e\n"
+                    "%5d%18.10e%18.10e%21.10e%18.10e%18.10e%18.10e%18.10e%23.10e\n"
                     % (epoch, 
                         vld_loss, 
                         vld_loss_Etot, 
@@ -971,6 +972,7 @@ class dp_network:
                         vld_loss_Ei, 
                         vld_loss_Force,
                         val_loss_virial,
+                        val_loss_virial_per_atom,
                     ) 
                 )
             
