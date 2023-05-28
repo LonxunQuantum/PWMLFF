@@ -46,7 +46,7 @@ class adaptive_trainer():
                     success_bar = 0.12,
                     candidate_bar = 0.25,         
                     lmp_damp = 25,
-                    lmp_nprocs = 25,
+                    lmp_nprocs = 1,
                     is_single_node = True,       
                     lmp_partition_name = None,
                     lmp_ntask_per_node = None, 
@@ -410,6 +410,7 @@ class adaptive_trainer():
             multi_node  : use sbatch
         """
         is_complete = False
+        lmp_dirs = []
         if self.process_num % self.lmp_nprocs != 0:
             raise Exception("process_num must can be divided by lmp_nprocs!")
         else:
