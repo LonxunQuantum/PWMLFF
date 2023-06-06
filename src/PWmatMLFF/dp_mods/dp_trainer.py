@@ -480,6 +480,26 @@ def valid(val_loader, model, criterion, device, args):
             #print(Virial_predict)
             
             """
+            import numpy as np
+            E_DFT = Etot_label.cpu().numpy().reshape(-1) / natom.cpu().numpy()
+            E_MLFF = Etot_predict.cpu().detach().numpy().reshape(-1) / natom.cpu().numpy()
+            F_DFT = Force_label.cpu().numpy().reshape(-1)
+            F_MLFF = Force_predict.cpu().detach().numpy().reshape(-1)
+            E_data = np.zeros([len(E_DFT),2])
+            F_data = np.zeros([len(F_DFT),2])
+            E_data[:,0] = E_DFT
+            E_data[:,1] = E_MLFF
+            F_data[:,0] = F_DFT
+            F_data[:,1] = F_MLFF
+            f = open("E_valid.dat","a")
+            np.savetxt(f,E_data,fmt="%14.6f")
+            f.close()
+            f = open("F_valid.dat","a")
+            np.savetxt(f,F_data,fmt="%14.6f")
+            f.close()
+            """
+
+            """
             idx = 2 
 
             model.embedding_net[0].weights['weight0'][0][idx].data -= 0.001
