@@ -13,7 +13,7 @@ PROGRAM gen_MTP_feature
     integer num_step0,num_step1,natom0,max_neigh
     real*8 Etotp_ave,E_tolerance
     character(len=50) char_tmp(20)
-    character(len=200) trainSetFileDir(200)
+    character(len=200) trainSetFileDir(5000)
     character(len=200) trainSetDir
     character(len=200) MOVEMENTDir,dfeatDir,infoDir,trainDataDir,inquirepos1
     integer(8) inp

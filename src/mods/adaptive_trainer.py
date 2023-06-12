@@ -33,18 +33,20 @@ class adaptive_trainer():
                     iter_num = 1,        # num of meta iteration 
                     temp = [], 
                     pressure = [1],
-                    traj_step = 300, 
+                    traj_step = 500, 
                     md_dt = 0.001, 
                     ensemble = "nvt",  # npt, nvt 
+                    lmp_iso = "tri",
                     kspacing = 0.16, 
                     silent_mode = True, 
                     num_select_per_group = 20,
                     psp_dir = "/share/psp/NCPP-SG15-PBE", 
                     node_num = 1,   
                     atom_type = [],
-                    success_bar = 0.10,
+                    success_bar = 0.12,
                     candidate_bar = 0.25,         
                     lmp_damp = 25,
+                    lmp_nprocs = 1,
                     is_single_node = True,       
                     lmp_partition_name = None,
                     lmp_ntask_per_node = None, 
@@ -83,6 +85,7 @@ class adaptive_trainer():
         self.temperature = temp
         self.pressure = pressure
         self.ensemble = ensemble
+        self.lmp_iso = lmp_iso
         self.traj_step = traj_step
         self.md_dt = md_dt
         # dir for sub systems explore
@@ -108,6 +111,7 @@ class adaptive_trainer():
                                     "init_temp":300,
                                     "end_temp":300,
                                     "ensemble":self.ensemble,
+                                    "lmp_iso":self.lmp_iso,
                                     "timestep":self.md_dt,
                                     "output_name":"traj",
                                     "is_traj":True,
@@ -123,6 +127,7 @@ class adaptive_trainer():
         self.node_num = node_num
 
         self.lmp_damp = lmp_damp
+        self.lmp_nprocs = lmp_nprocs
         self.lmp_partition_name = lmp_partition_name
         self.lmp_wall_time = lmp_wall_time
         self.lmp_custom_lines = lmp_custom_lines 
@@ -295,7 +300,7 @@ class adaptive_trainer():
             line = line + str(write_config["init_temp"]) + " "
             line = line + str(write_config["end_temp"]) + " "
             line  = line + str(write_config["timestep"]*self.lmp_damp) + " "
-            line = line + "tri " +  str(write_config["init_pres"]) + " " + str(write_config["end_pres"])+ " "+ str(write_config["timestep"]*100) + "\n"
+            line = line + str(write_config["lmp_iso"]) + " " +  str(write_config["init_pres"]) + " " + str(write_config["end_pres"])+ " "+ str(write_config["timestep"]*100) + "\n"
             f.writelines(line)
 
         f.writelines("thermo_style     custom step pe ke etotal temp vol press\n")
@@ -388,9 +393,9 @@ class adaptive_trainer():
             begin = time.time()
 
             if self.silent_mode is True:
-                subprocess.run(["lmp_mpi -in lammps.in > /dev/null"], shell=True)   
+                subprocess.run(["mpirun -np %d lmp_mpi -in lammps.in > /dev/null"%self.lmp_nprocs], shell=True)   
             else:
-                subprocess.run(["lmp_mpi -in lammps.in"], shell=True)
+                subprocess.run(["mpirun -np %d lmp_mpi -in lammps.in"%self.lmp_nprocs], shell=True)
             
             end = time.time()
 
@@ -405,9 +410,13 @@ class adaptive_trainer():
             multi_node  : use sbatch
         """
         is_complete = False
-
-        lmp_dirs = [] 
-        lmp_dir_mp = [[] for i in range(self.process_num)] 
+        lmp_dirs = []
+        if self.process_num % self.lmp_nprocs != 0:
+            raise Exception("process_num must can be divided by lmp_nprocs!")
+        else:
+            run_nums = int(self.process_num / self.lmp_nprocs)
+        #lmp_dir_mp = [[] for i in range(self.process_num)] 
+        lmp_dir_mp = [[] for i in range(run_nums)]
 
         # look for sub dirs
         for a, b, c in os.walk(self.explore_subsys_dir):
@@ -421,12 +430,14 @@ class adaptive_trainer():
 
         if self.is_single_node is True:
             for i in range(num_dirs):
-                lmp_dir_mp[i%self.process_num].append(lmp_dirs[i])
+                #lmp_dir_mp[i%ntasks_running].append(lmp_dirs[i])
+                lmp_dir_mp[i%run_nums].append(lmp_dirs[i])
             
             start = time.time()  
             # distribute across processes
-            pool = mp.Pool(self.process_num)
-            pool.map(self.run_lmp_mp,lmp_dir_mp) 
+            #pool = mp.Pool(self.self.process_num)
+            with mp.Pool(run_nums) as pool:
+                pool.map(self.run_lmp_mp,lmp_dir_mp) 
 
             is_complete = True
         else:
@@ -673,7 +684,7 @@ class adaptive_trainer():
 
         mp_line = "mp_n123 = "
 
-        round_up = lambda x: int(floor(x)+1) if x-floor(x)>0.5 else int(floor(x))
+        round_up = lambda x: round(x) if round(x)>0 else 1
 
         if num_atom > 200:
             mp_line = "mp_n123 = 1 1 1 0 0 0"
@@ -701,10 +712,11 @@ class adaptive_trainer():
             #file.writelines("in.psp2 = Si.SG15.PBE.UPF\n")
             
             file.writelines("accuracy = high\n")
-            file.writelines("ecut = 50.0\n")
+            file.writelines("ecut = 70.0\n")
             file.writelines("wg_error = 0.0\n")
             file.writelines("e_error = 0.0001\n")
             file.writelines("rho_error = 0.0\n")
+            file.writelines("in.psp_rcut2 = 4.3\n")
             file.writelines("out.wg = F\n")
             file.writelines("out.rho = F\n")
             file.writelines("out.vr = F\n")
@@ -714,7 +726,7 @@ class adaptive_trainer():
             file.writelines("scf_iter0_1 = 6 4 3 0.0 0.1 2\n")
             file.writelines("scf_iter0_2 = 94 4 3 1.0 0.1 2\n")
             file.writelines("energy_decomp = T\n")
-            file.writelines("energy_decomp_special2 = 2 0 0 1 1\n")
+            file.writelines("energy_decomp_special2 = 2 0 0.5 1 1\n")
             file.writelines(mp_line)
 
     def calc_recip_latt(self,a1,a2,a3):

@@ -18,13 +18,15 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, co
     data_time = AverageMeter("Data", ":6.3f")
     losses = AverageMeter("Loss", ":.4e", Summary.AVERAGE)
     loss_Etot = AverageMeter("Etot", ":.4e", Summary.ROOT)
+    loss_Etot_per_atom = AverageMeter("Etot_per_atom", ":.4e", Summary.ROOT)
     loss_Force = AverageMeter("Force", ":.4e", Summary.ROOT)
     loss_Virial = AverageMeter("Virial", ":.4e", Summary.ROOT)
+    loss_Virial_per_atom = AverageMeter("Virial_per_atom", ":.4e", Summary.ROOT)
     loss_Ei = AverageMeter("Ei", ":.4e", Summary.ROOT)
     loss_Egroup = AverageMeter("Egroup", ":.4e", Summary.ROOT)
     progress = ProgressMeter(
         len(train_loader),
-        [batch_time, data_time, losses, loss_Etot, loss_Force, loss_Ei, loss_Egroup, loss_Virial],
+        [batch_time, data_time, losses, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_Egroup, loss_Virial, loss_Virial_per_atom],
         prefix="Epoch: [{}]".format(epoch),
     )
     
@@ -107,6 +109,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, co
 
         loss_F_val = criterion(Force_predict, Force_label)
         loss_Etot_val = criterion(Etot_predict, Etot_label)
+        loss_Etot_per_atom_val = loss_Etot_val/natom/natom
         loss_Ei_val = criterion(Ei_predict, Ei_label)
         loss_Ei_val = 0
 
@@ -125,6 +128,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, co
         loss_Egroup_val = criterion(Egroup_predict, Egroup_label)
         
         loss_Virial_val = criterion(Virial_predict, Virial_label.squeeze(1))
+        loss_Virial_per_atom_val = loss_Virial_val/natom/natom
 
         loss_val = torch.zeros_like(loss_F_val)
         
@@ -169,9 +173,11 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, co
         # measure accuracy and record loss
         losses.update(loss_val.item(), batch_size)
         loss_Etot.update(loss_Etot_val.item(), batch_size)
+        loss_Etot_per_atom.update(loss_Etot_per_atom_val.item(), batch_size)
         # loss_Ei.update(loss_Ei_val.item(), batch_size)
         loss_Egroup.update(loss_Egroup_val.item(), batch_size)
         loss_Virial.update(loss_Virial_val.item(), batch_size)
+        loss_Virial_per_atom.update(loss_Virial_per_atom_val.item(), batch_size)
         loss_Force.update(loss_F_val.item(), batch_size)
 
         # measure elapsed time
@@ -185,10 +191,12 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, co
     return (
         losses.avg,
         loss_Etot.root,
+        loss_Etot_per_atom.root,
         loss_Force.root,
         loss_Ei.root,
         loss_Egroup.root,
         loss_Virial.root,
+        loss_Virial_per_atom.root,
         real_lr,    
     )
 
@@ -198,14 +206,16 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, config):
     data_time = AverageMeter("Data", ":6.3f")
     losses = AverageMeter("Loss", ":.4e", Summary.AVERAGE)
     loss_Etot = AverageMeter("Etot", ":.4e", Summary.ROOT)
+    loss_Etot_per_atom = AverageMeter("Etot_per_atom", ":.4e", Summary.ROOT)
     loss_Force = AverageMeter("Force", ":.4e", Summary.ROOT)
     loss_Ei = AverageMeter("Ei", ":.4e", Summary.ROOT)
     loss_Egroup = AverageMeter("Egroup", ":.4e", Summary.ROOT)
     loss_Virial = AverageMeter("Virial", ":.4e", Summary.ROOT)
+    loss_Virial_per_atom = AverageMeter("Virial_per_atom", ":.4e", Summary.ROOT)
     
     progress = ProgressMeter(
         len(train_loader),
-        [batch_time, data_time, losses, loss_Etot, loss_Force, loss_Ei, loss_Egroup, loss_Virial],
+        [batch_time, data_time, losses, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_Egroup, loss_Virial, loss_Virial_per_atom],
         prefix="Epoch: [{}]".format(epoch),
     )
 
@@ -266,7 +276,7 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, config):
         dR_neigh_list = Variable(sample_batches["ListNeighbor"].int().to(device))
         natoms_img = Variable(sample_batches["ImageAtomNum"].int().to(device))
         natoms_img = torch.squeeze(natoms_img, 1)
-        natom = natoms_img[0,0] 
+        natom = natoms_img[0,0]
         #Egroup_weight = [] 
         #Divider = [] 
 
@@ -301,36 +311,40 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, config):
         else:
             
             if config.is_etot is True: 
-                KFOptWrapper.update_energy(kalman_inputs, Etot_label, config.pre_fac_etot)
+                Etot_predict = KFOptWrapper.update_energy(kalman_inputs, Etot_label, config.pre_fac_etot)
             
             if config.is_egroup is True:
-                KFOptWrapper.update_egroup(kalman_inputs, Egroup_label, config.pre_fac_egroup)
+                Egroup_predict = KFOptWrapper.update_egroup(kalman_inputs, Egroup_label, config.pre_fac_egroup)
 
             if config.is_force is True:
                 Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = KFOptWrapper.update_force(
                     kalman_inputs, Force_label, config.pre_fac_force) 
                 
             if config.is_virial is True:
-                KFOptWrapper.update_virial(kalman_inputs, Virial_label, config.pre_fac_virial)
+                Virial_predict = KFOptWrapper.update_virial(kalman_inputs, Virial_label, config.pre_fac_virial)
             
 
         loss_F_val = criterion(Force_predict, Force_label)
 
         # divide by natom 
-        loss_Etot_val = criterion(Etot_predict, Etot_label)/natom
+        loss_Etot_val = criterion(Etot_predict, Etot_label)
+        loss_Etot_per_atom_val = loss_Etot_val/natom/natom
         
         loss_Ei_val = criterion(Ei_predict, Ei_label)   
         loss_Egroup_val = criterion(Egroup_predict, Egroup_label)
         loss_Virial_val = criterion(Virial_predict, Virial_label.squeeze(1))
+        loss_Virial_per_atom_val = loss_Virial_val/natom/natom
         loss_val = loss_F_val + loss_Etot_val*natom
 
         # measure accuracy and record loss
         losses.update(loss_val.item(), batch_size)
 
         loss_Etot.update(loss_Etot_val.item(), batch_size)
+        loss_Etot_per_atom.update(loss_Etot_per_atom_val.item(), batch_size)
         loss_Ei.update(loss_Ei_val.item(), batch_size)
         loss_Egroup.update(loss_Egroup_val.item(), batch_size)
         loss_Virial.update(loss_Virial_val.item(), batch_size)
+        loss_Virial_per_atom.update(loss_Virial_per_atom_val.item(), batch_size)
         loss_Force.update(loss_F_val.item(), batch_size)
 
         # measure elapsed time
@@ -343,14 +357,16 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, config):
     if config.hvd:
         losses.all_reduce()
         loss_Etot.all_reduce()
+        loss_Etot_per_atom.all_reduce()
         loss_Force.all_reduce()
         loss_Ei.all_reduce()
         loss_Egroup.all_reduce()
         loss_Virial.all_reduce()
+        loss_Virial_per_atom.all_reduce()
         batch_time.all_reduce()
 
     progress.display_summary(["Training Set:"])
-    return losses.avg, loss_Etot.root, loss_Force.root, loss_Ei.root, loss_Egroup.root, loss_Virial.root
+    return losses.avg, loss_Etot.root, loss_Etot_per_atom.root, loss_Force.root, loss_Ei.root, loss_Egroup.root, loss_Virial.root, loss_Virial_per_atom.root
 
 """
 def get_type_num(q:list):
@@ -392,6 +408,7 @@ def valid(val_loader, model, criterion, device, args):
             if args.datatype == "float64":
                 Ei_label = Variable(sample_batches["Ei"].double().to(device))
                 Etot_label = Variable(sample_batches["Etot"].double().to(device))
+                #Etot_per_atom_label = Variable(sample_batches["Etot_per_atom"].double().to(device))
                 Egroup_label = Variable(sample_batches["Egroup"].double().to(device))
                 Divider = Variable(sample_batches["Divider"].double().to(device))
                 Egroup_weight = Variable(
@@ -414,6 +431,7 @@ def valid(val_loader, model, criterion, device, args):
             elif args.datatype == "float32":
                 Ei_label = Variable(sample_batches["Ei"].float().to(device))
                 Etot_label = Variable(sample_batches["Etot"].float().to(device))
+                #Etot_per_atom_label = Variable(sample_batches["Etot_per_atom"].float().to(device))
                 """
                 Egroup_label = Variable(sample_batches["Egroup"].float().to(device))
                 Divider = Variable(sample_batches["Divider"].float().to(device))
@@ -452,12 +470,35 @@ def valid(val_loader, model, criterion, device, args):
                 ImageDR, Ri, Ri_d, dR_neigh_list, natoms_img, Egroup_weight, Divider
             )
 
-            #print("Etot")
+            #print("Etot_predict")
             #print(Etot_predict)
 
-            #print("virial")
+            #print("Force_predict")
+            #print(Force_predict)
+
+            #print("Virial_predict")
             #print(Virial_predict)
             
+            """
+            import numpy as np
+            E_DFT = Etot_label.cpu().numpy().reshape(-1) / natom.cpu().numpy()
+            E_MLFF = Etot_predict.cpu().detach().numpy().reshape(-1) / natom.cpu().numpy()
+            F_DFT = Force_label.cpu().numpy().reshape(-1)
+            F_MLFF = Force_predict.cpu().detach().numpy().reshape(-1)
+            E_data = np.zeros([len(E_DFT),2])
+            F_data = np.zeros([len(F_DFT),2])
+            E_data[:,0] = E_DFT
+            E_data[:,1] = E_MLFF
+            F_data[:,0] = F_DFT
+            F_data[:,1] = F_MLFF
+            f = open("E_valid.dat","a")
+            np.savetxt(f,E_data,fmt="%14.6f")
+            f.close()
+            f = open("F_valid.dat","a")
+            np.savetxt(f,F_data,fmt="%14.6f")
+            f.close()
+            """
+
             """
             idx = 2 
 
@@ -494,18 +535,22 @@ def valid(val_loader, model, criterion, device, args):
             """
             #return 
             loss_F_val = criterion(Force_predict, Force_label)
-            loss_Etot_val = criterion(Etot_predict, Etot_label)/natom
+            loss_Etot_val = criterion(Etot_predict, Etot_label)
+            loss_Etot_per_atom_val = loss_Etot_val/natom/natom
             loss_Ei_val = criterion(Ei_predict, Ei_label)
             loss_Egroup_val = criterion(Egroup_predict, Egroup_label)
             loss_Virial_val = criterion(Virial_predict, Virial_label.squeeze(1))
+            loss_Virial_per_atom_val = loss_Virial_val/natom/natom
             loss_val = loss_F_val + loss_Etot_val*natom
 
             # measure accuracy and record loss
             losses.update(loss_val.item(), batch_size)
             loss_Etot.update(loss_Etot_val.item(), batch_size)
+            loss_Etot_per_atom.update(loss_Etot_per_atom_val.item(), batch_size)
             loss_Ei.update(loss_Ei_val.item(), batch_size)
             loss_Egroup.update(loss_Egroup_val.item(), batch_size)
             loss_Virial.update(loss_Virial_val.item(), batch_size)
+            loss_Virial_per_atom.update(loss_Virial_per_atom_val.item(), batch_size)
             loss_Force.update(loss_F_val.item(), batch_size)
             # measure elapsed time
             batch_time.update(time.time() - end)
@@ -518,10 +563,12 @@ def valid(val_loader, model, criterion, device, args):
     batch_time = AverageMeter("Time", ":6.3f", Summary.NONE)
     losses = AverageMeter("Loss", ":.4e", Summary.AVERAGE)
     loss_Etot = AverageMeter("Etot", ":.4e", Summary.ROOT)
+    loss_Etot_per_atom = AverageMeter("Etot_per_atom", ":.4e", Summary.ROOT)
     loss_Force = AverageMeter("Force", ":.4e", Summary.ROOT)
     loss_Ei = AverageMeter("Ei", ":.4e", Summary.ROOT)
     loss_Egroup = AverageMeter("Egroup", ":.4e", Summary.ROOT)
     loss_Virial = AverageMeter("Virial", ":.4e", Summary.ROOT)
+    loss_Virial_per_atom = AverageMeter("Virial_per_atom", ":.4e", Summary.ROOT)
 
     progress = ProgressMeter(
         len(val_loader)
@@ -529,7 +576,7 @@ def valid(val_loader, model, criterion, device, args):
             args.hvd
             and (len(val_loader.sampler) * hvd.size() < len(val_loader.dataset))
         ),
-        [batch_time, losses, loss_Etot, loss_Force, loss_Ei, loss_Egroup],
+        [batch_time, losses, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_Egroup, loss_Virial, loss_Virial_per_atom],
         prefix="Test: ",    
     )
     
@@ -555,12 +602,15 @@ def valid(val_loader, model, criterion, device, args):
     if args.hvd:
         losses.all_reduce()
         loss_Etot.all_reduce()
+        loss_Etot_per_atom.all_reduce()
         loss_Force.all_reduce()
         loss_Ei.all_reduce()
+        loss_Virial.all_reduce()
+        loss_Virial_per_atom.all_reduce()
 
     progress.display_summary(["Test Set:"])
 
-    return losses.avg, loss_Etot.root, loss_Force.root, loss_Ei.root, loss_Egroup.root, loss_Virial.root
+    return losses.avg, loss_Etot.root, loss_Etot_per_atom.root, loss_Force.root, loss_Ei.root, loss_Egroup.root, loss_Virial.root, loss_Virial_per_atom.root
 
 def save_checkpoint(state, is_best, filename, prefix):
     filename = os.path.join(prefix, filename)

@@ -687,10 +687,10 @@ def sepper_data(config, chunk_size = 10, is_load_stat = False, stat_add = "./", 
         print ("using exsiting stat files:")
 
         print (stat_add+"davg.npy")
-        davg = np.load(stat_add+"davg.npy")
+        davg = np.load(stat_add+"/davg.npy")
 
         print (stat_add+"dstd.npy")
-        dstd = np.load(stat_add+"dstd.npy")
+        dstd = np.load(stat_add+"/dstd.npy")
             
     Ri, Ri_d = compute_Ri(
             config, image_dR, list_neigh, atom_num_per_image, image_index, davg, dstd

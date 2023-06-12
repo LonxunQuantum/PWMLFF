@@ -36,7 +36,7 @@ subroutine get_grid3b_type2(trainSetFileDir,sys_num,grid31,grid32,Rc,Rc2,Rm,n3b1
     real*8 densityI(0:1000),density2I(0:1000)
     integer iat_type(100)
 
-    character(len=200) trainSetFileDir(200)
+    character(len=200) trainSetFileDir(5000)
     character(len=200) MOVEMENTDir
     integer sys_num
 

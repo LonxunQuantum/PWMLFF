@@ -347,6 +347,7 @@ class dp_network:
                     fitting_net_act = None, 
 
                     recover = False,
+                    save_P_matrix = False,
                     dataset_size = 1000, 
                     
                     workers_dataload = 1, 
@@ -583,6 +584,7 @@ class dp_network:
             self.terminal_args.blocksize = block_size
             self.terminal_args.nselect = select_num
             self.terminal_args.groupsize = group_size
+            self.terminal_args.save_P_matrix = save_P_matrix
 
             self.terminal_args.is_virial = is_virial
             self.terminal_args.is_egroup = is_egroup
@@ -622,7 +624,7 @@ class dp_network:
     def set_gpu_id(self,idx):
         self.terminal_args.gpu = idx
 
-    def generate_data(self, is_real_Ep = False, chunk_size = 10):
+    def generate_data(self, is_real_Ep = False, chunk_size = 10, stat_add = "./"):
         """
             generate dp's pre-feature
         """
@@ -635,10 +637,10 @@ class dp_network:
             subprocess.run(["rm PWdata/*.dat"],shell=True)
         
         dp_mlff.gen_train_data(self.config, is_real_Ep)
-        #mk = self.terminal_args.resume 
+        mk = self.terminal_args.evaluate
         #if mk is True:
         #    print ("using ./davd.npy and ./dstd.npy")
-        dp_mlff.sepper_data(self.config, chunk_size = chunk_size)        
+        dp_mlff.sepper_data(self.config, chunk_size = chunk_size,is_load_stat = mk,stat_add=stat_add)        
 
     def dbg(self):
         
@@ -825,7 +827,8 @@ class dp_network:
                 #self.terminal_args.start_epoch = checkpoint["epoch"] + 1
                 best_loss = checkpoint["best_loss"]
                 model.load_state_dict(checkpoint["state_dict"])
-                optimizer.load_state_dict(checkpoint["optimizer"])
+                if "optimizer" in checkpoint:
+                    optimizer.load_state_dict(checkpoint["optimizer"])
                 
                 # scheduler.load_state_dict(checkpoint["scheduler"])
                 print(
@@ -881,26 +884,21 @@ class dp_network:
             valid(val_loader, model, criterion, device, self.terminal_args)
             return
 
-        if self.terminal_args.opt == "LKF" or self.terminal_args.opt == "GKF":
-            etot_col_name = "RMSE_Etot_per_atom"
-        else:
-            etot_col_name = "RMSE_Etot"
-
         if not self.terminal_args.hvd or (self.terminal_args.hvd and hvd.rank() == 0):
             train_log = os.path.join(self.terminal_args.store_path, "epoch_train.dat")
 
             f_train_log = open(train_log, "w")
             #f_train_log.write("epoch\t loss\t RMSE_Etot\t RMSE_Egroup\t RMSE_F\t real_lr\t time\n")
-            f_train_log.write("%5s%18s%21s%18s%18s%18s%18s%18s%10s\n" % (
-                "epoch","loss",etot_col_name,"RMSE_Egroup", \
-                "RMSE_Ei","RMSE_F","RMSE_virial","real_lr","time"))
+            f_train_log.write("%5s%18s%18s%21s%18s%18s%18s%18s%23s%18s%10s\n" % (
+                "epoch","loss","RMSE_Etot","RMSE_Etot_per_atom","RMSE_Egroup", \
+                "RMSE_Ei","RMSE_F","RMSE_virial","RMSE_virial_per_atom","real_lr","time"))
 
             valid_log = os.path.join(self.terminal_args.store_path, "epoch_valid.dat")
             f_valid_log = open(valid_log, "w")
 
             #f_valid_log.write("epoch\t loss\t RMSE_Etot\t RMSE_Egroup\t RMSE_F\n")
-            f_valid_log.write("%5s%18s%21s%18s%18s%18s%18s\n" % ("epoch","loss",etot_col_name,\
-                "RMSE_Egroup","RMSE_Ei","RMSE_F","RMSE_virial"))
+            f_valid_log.write("%5s%18s%18s%21s%18s%18s%18s%18s%23s\n" % ("epoch","loss",\
+                "RMSE_Etot","RMSE_Etot_per_atom","RMSE_Egroup","RMSE_Ei","RMSE_F","RMSE_virial","RMSE_virial_per_atom"))
 
         for epoch in range(self.terminal_args.start_epoch, self.terminal_args.epochs + 1):
             if self.terminal_args.hvd:
@@ -910,18 +908,18 @@ class dp_network:
             time_start = time.time()
             if self.terminal_args.opt == "LKF" or self.terminal_args.opt == "GKF":
                 real_lr = self.terminal_args.lr
-                loss, loss_Etot, loss_Force, loss_Ei, loss_egroup, loss_virial = train_KF(
+                loss, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_egroup, loss_virial, loss_virial_per_atom = train_KF(
                     train_loader, model, criterion, optimizer, epoch, device, self.terminal_args
                 )
             else:
-                loss, loss_Etot, loss_Force, loss_Ei, loss_egroup, loss_virial, real_lr = train(
+                loss, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_egroup, loss_virial, loss_virial_per_atom, real_lr = train(
                     train_loader, model, criterion, optimizer, epoch, self.terminal_args.lr, device, self.terminal_args
                 )
             time_end = time.time()
 
             # evaluate on validation set
             # not 
-            vld_loss, vld_loss_Etot, vld_loss_Force, vld_loss_Ei, val_loss_egroup, val_loss_virial = valid(
+            vld_loss, vld_loss_Etot, vld_loss_Etot_per_atom, vld_loss_Force, vld_loss_Ei, val_loss_egroup, val_loss_virial, val_loss_virial_per_atom = valid(
                 val_loader, model, criterion, device, self.terminal_args
             )
             """
@@ -948,29 +946,33 @@ class dp_network:
             if not self.terminal_args.hvd or (self.terminal_args.hvd and hvd.rank() == 0):
                 f_train_log = open(train_log, "a")
                 f_train_log.write(
-                    "%5d%18.10e%21.10e%18.10e%18.10e%18.10e%18.10e%18.10e%10.4f\n"
+                    "%5d%18.10e%18.10e%21.10e%18.10e%18.10e%18.10e%18.10e%23.10e%18.10e%10.4f\n"
                     % (
                         epoch,
                         loss,
                         loss_Etot,
+                        loss_Etot_per_atom,
                         loss_egroup,
                         loss_Ei,
                         loss_Force,
                         loss_virial,
+                        loss_virial_per_atom,
                         real_lr,
                         time_end - time_start,
                     )
                 )
                 f_valid_log = open(valid_log, "a")
                 f_valid_log.write(
-                    "%5d%18.10e%21.10e%18.10e%18.10e%18.10e%18.10e\n"
+                    "%5d%18.10e%18.10e%21.10e%18.10e%18.10e%18.10e%18.10e%23.10e\n"
                     % (epoch, 
                         vld_loss, 
                         vld_loss_Etot, 
+                        vld_loss_Etot_per_atom, 
                         val_loss_egroup, 
                         vld_loss_Ei, 
                         vld_loss_Force,
                         val_loss_virial,
+                        val_loss_virial_per_atom,
                     ) 
                 )
             
@@ -983,19 +985,32 @@ class dp_network:
             # should include dstd.npy and davg.npy 
             
             if not self.terminal_args.hvd or (self.terminal_args.hvd and hvd.rank() == 0):
-                save_checkpoint(
-                    {  
-                        "epoch": epoch,
-                        "state_dict": model.state_dict(),
-                        "best_loss": best_loss,
-                        "optimizer": optimizer.state_dict(),
-                        # "scheduler": scheduler.state_dict(),
-                    },
-                    
-                    is_best,
-                    "checkpoint.pth.tar",
-                    self.terminal_args.store_path,
-                )
+                if self.terminal_args.save_P_matrix:
+                    save_checkpoint(
+                        {  
+                            "epoch": epoch,
+                            "state_dict": model.state_dict(),
+                            "best_loss": best_loss,
+                            "optimizer": optimizer.state_dict(),
+                            # "scheduler": scheduler.state_dict(),
+                        },
+                        
+                        is_best,
+                        "checkpoint.pth.tar",
+                        self.terminal_args.store_path,
+                    )
+                else: 
+                    save_checkpoint(
+                        {  
+                            "epoch": epoch,
+                            "state_dict": model.state_dict(),
+                            "best_loss": best_loss,
+                        },
+                        
+                        is_best,
+                        "checkpoint.pth.tar",
+                        self.terminal_args.store_path,
+                    )
             
     """ 
         ============================================================
