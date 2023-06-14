@@ -26,12 +26,17 @@ class MovementDataset(Dataset):
         data = {}
 
         data["Force"] = -1 * np.load(os.path.join(path, "Force.npy"))
-        data["Virial"] = np.load(os.path.join(path, "Virial.npy"))
+
+        if os.path.exists(os.path.join(path, "Virial.npy")):
+            data["Virial"] = np.load(os.path.join(path, "Virial.npy"))
+
         data["Ei"] = np.load(os.path.join(path, "Ei.npy"))
         data["Etot"] = np.load(os.path.join(path, "Etot.npy"))
-        data["Egroup"] = np.load(os.path.join(path, "Egroup.npy"))
-        data["Divider"] = np.load(os.path.join(path, "Divider.npy"))
-        data["Egroup_weight"] = np.load(os.path.join(path, "Egroup_weight.npy"))
+
+        if os.path.exists(os.path.join(path, "Egroup.npy")):
+            data["Egroup"] = np.load(os.path.join(path, "Egroup.npy"))
+            data["Divider"] = np.load(os.path.join(path, "Divider.npy"))
+            data["Egroup_weight"] = np.load(os.path.join(path, "Egroup_weight.npy"))
 
         data["ListNeighbor"] = np.load(os.path.join(path, "ListNeighbor.npy"))
         data["ImageDR"] = np.load(os.path.join(path, "ImageDR.npy"))

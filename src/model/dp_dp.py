@@ -71,7 +71,7 @@ class DP(nn.Module):
         
         return Egroup_out
 
-    def forward(self, ImageDR, Ri, dfeat, list_neigh, natoms_img, Egroup_weight, divider, is_calc_f=None):
+    def forward(self, ImageDR, Ri, dfeat, list_neigh, natoms_img, *is_egroup, is_calc_f=None):
 
         #torch.autograd.set_detect_anomaly(True)
 
@@ -134,14 +134,22 @@ class DP(nn.Module):
             atom_sum = atom_sum + natoms[ntype]
         
         Etot = torch.sum(Ei, 1)   
-        Egroup = self.get_egroup(Ei, Egroup_weight, divider)
+
+        if len(is_egroup) == 2:
+            Egroup_weight, divider = is_egroup
+            Egroup = self.get_egroup(Ei, Egroup_weight, divider)
+        else:
+            Egroup = None
         #Egroup = 0 
         F = torch.zeros((batch_size, atom_sum, 3), device=self.device)
         Virial = torch.zeros((batch_size, 9), device=self.device)
         Ei = torch.squeeze(Ei, 2)
 
         if is_calc_f == False:
-            return Etot, Ei, F, Egroup, Virial
+            if Egroup is not None:
+                return Etot, Ei, F, Egroup, Virial
+            else:
+                return Etot, Ei, F, Virial
         # start_autograd = time.time()
         # print("fitting time:", start_autograd - start_fitting, 's')
         
@@ -169,5 +177,9 @@ class DP(nn.Module):
         # no need to switch sign here 
         #virial = virial * (-1)
 
-        return Etot, Ei, F, Egroup, virial
+        if Egroup is not None:
+            return Etot, Ei, F, Egroup, virial
+        else:
+            return Etot, Ei, F, virial
+            
         
