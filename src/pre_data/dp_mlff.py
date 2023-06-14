@@ -88,7 +88,7 @@ def get_real_Ep(movement_files,train_set_dir):
 
                 
 
-def gen_train_data(config, is_real_Ep = False):
+def gen_train_data(config, is_egroup = True, is_virial = True, is_real_Ep = False):
     trainset_dir = config["trainSetDir"]
     dRFeatureInputDir = config["dRFeatureInputDir"]
     dRFeatureOutputDir = config["dRFeatureOutputDir"]
@@ -163,6 +163,12 @@ def gen_train_data(config, is_real_Ep = False):
                             + str(tmp_virial[2, 2])
                             + "\n"
                         )
+                
+                elif "Lattice vector" in line and "stress" not in lines[idx + 1]:
+                    if is_virial:
+                        raise ValueError("Invalid input file: 'stress' is not present in the line.")
+                    else:
+                        Virial = None
 
                 # Etot.dat
                 if "Etot,Ep,Ek" in line:
@@ -193,8 +199,9 @@ def gen_train_data(config, is_real_Ep = False):
     print("==============Start generating data==============")
     os.system(command)
     command = "gen_egroup.x | tee ./output/out_write_egroup"
-    print("==============Start generating egroup==============")
-    os.system(command)
+    if is_egroup is True:
+        print("==============Start generating egroup==============")
+        os.system(command)
 
     # Ei.dat with respect to the real Etot
     """
@@ -219,21 +226,25 @@ def save_npy_files(data_path, data_set):
     print("    Ei.npy", data_set["Ei"].shape)
     np.save(os.path.join(data_path, "Ei.npy"), data_set["Ei"])
     
-    print("    Egroup.npy", data_set["Egroup"].shape)
-    np.save(os.path.join(data_path, "Egroup.npy"), data_set["Egroup"])
-    print("    Divider.npy", data_set["Divider"].shape)
-    np.save(os.path.join(data_path, "Divider.npy"), data_set["Divider"])
-    print("    Egroup_weight.npy", data_set["Egroup_weight"].shape)
-    np.save(os.path.join(data_path, "Egroup_weight.npy"), data_set["Egroup_weight"])
-    
+    if "Egroup" in data_set.keys():
+        print("    Egroup.npy", data_set["Egroup"].shape)
+        np.save(os.path.join(data_path, "Egroup.npy"), data_set["Egroup"])
+    if "Divider" in data_set.keys():
+        print("    Divider.npy", data_set["Divider"].shape)
+        np.save(os.path.join(data_path, "Divider.npy"), data_set["Divider"])
+    if "Egroup_weight" in data_set.keys():
+        print("    Egroup_weight.npy", data_set["Egroup_weight"].shape)
+        np.save(os.path.join(data_path, "Egroup_weight.npy"), data_set["Egroup_weight"])
+
     print("    Ri.npy", data_set["Ri"].shape)
     np.save(os.path.join(data_path, "Ri.npy"), data_set["Ri"])
     print("    Ri_d.npy", data_set["Ri_d"].shape)
     np.save(os.path.join(data_path, "Ri_d.npy"), data_set["Ri_d"])
     print("    Force.npy", data_set["Force"].shape)
     np.save(os.path.join(data_path, "Force.npy"), data_set["Force"])
-    print("    Virial.npy", data_set["Virial"].shape)
-    np.save(os.path.join(data_path, "Virial.npy"), data_set["Virial"])
+    if "Virial" in data_set.keys():
+        print("    Virial.npy", data_set["Virial"].shape)
+        np.save(os.path.join(data_path, "Virial.npy"), data_set["Virial"])
     print("    Etot.npy", data_set["Etot"].shape)
     np.save(os.path.join(data_path, "Etot.npy"), data_set["Etot"])
     print("    ImageAtomNum.npy", data_set["ImageAtomNum"].shape)
@@ -598,7 +609,7 @@ def compute_Ri(config, image_dR, list_neigh, natoms_img, ind_img, davg, dstd):
 
     return Ri, Ri_d
     
-def sepper_data(config, chunk_size = 10, is_load_stat = False, stat_add = "./", is_shuffle = True):
+def sepper_data(config, is_egroup = True, chunk_size = 10, is_load_stat = False, stat_add = "./", is_shuffle = True):
     """
         do shuffling here, since not sure if image structure support PADDING
         Shuffle for each MOVEMENT  
@@ -625,34 +636,35 @@ def sepper_data(config, chunk_size = 10, is_load_stat = False, stat_add = "./", 
     #Egroup_file = np.loadtxt(
     #    os.path.join(trainset_dir, "Egroup_weight.dat"), delimiter=",", usecols=0
     #)   
+    if is_egroup:
+        Egroup  = np.loadtxt(
+            os.path.join(trainset_dir, "Egroup_weight.dat"), delimiter=",", usecols=0
+        )   
     
-    Egroup  = np.loadtxt(
-        os.path.join(trainset_dir, "Egroup_weight.dat"), delimiter=",", usecols=0
-    )   
-    
-    divider = np.loadtxt(
-        os.path.join(trainset_dir, "Egroup_weight.dat"), delimiter=",", usecols=1
-    )   
+        divider = np.loadtxt(
+            os.path.join(trainset_dir, "Egroup_weight.dat"), delimiter=",", usecols=1
+        )   
 
-    # take care of weights
-    #Egroup_weight = Egroup_file[:, 2:]
-    
-    fp = open(os.path.join(trainset_dir, "Egroup_weight.dat"),"r")
-    raw_egroup = fp.readlines()
-    fp.close()
-    
-    # form a list to contain 1-d np arrays 
-    egroup_single_arr = []  
-    
-    for line in raw_egroup:
+        # take care of weights
+        #Egroup_weight = Egroup_file[:, 2:]
         
-        tmp  = [float(item) for item in line.split(",")]
-        tmp  = tmp[2:]
-        egroup_single_arr.append(np.array(tmp))
+        fp = open(os.path.join(trainset_dir, "Egroup_weight.dat"),"r")
+        raw_egroup = fp.readlines()
+        fp.close()
+        
+        # form a list to contain 1-d np arrays 
+        egroup_single_arr = []  
+        
+        for line in raw_egroup:
+            
+            tmp  = [float(item) for item in line.split(",")]
+            tmp  = tmp[2:]
+            egroup_single_arr.append(np.array(tmp))
 
     Force = np.loadtxt(os.path.join(trainset_dir, "Force.dat"))
     Etot = np.loadtxt(os.path.join(trainset_dir, "Etot.dat"))
-    Virial = np.loadtxt(os.path.join(trainset_dir, "Virial.dat"), delimiter=" ")
+    if os.path.exists(os.path.join(trainset_dir, "Virial.dat")):
+        Virial = np.loadtxt(os.path.join(trainset_dir, "Virial.dat"), delimiter=" ")
     atom_num_per_image = np.loadtxt(
         os.path.join(trainset_dir, "ImageAtomNum.dat"), dtype=int
     )
@@ -804,17 +816,24 @@ def sepper_data(config, chunk_size = 10, is_load_stat = False, stat_add = "./", 
                         image_index[start_index] : image_index[end_index]
                     ],
                     "Ei": Ei[image_index[start_index] : image_index[end_index]],
-                    "Egroup": Egroup[image_index[start_index] : image_index[end_index]],
-                    "Divider": divider[image_index[start_index] : image_index[end_index]],
+                    # "Egroup": Egroup[image_index[start_index] : image_index[end_index]],
+                    # "Divider": divider[image_index[start_index] : image_index[end_index]],
                     #"Egroup_weight": Egroup_weight[image_index[start_index] : image_index[end_index]],
-                    "Egroup_weight": np.vstack(tuple(egroup_single_arr[image_index[start_index] : image_index[end_index]])),
+                    # "Egroup_weight": np.vstack(tuple(egroup_single_arr[image_index[start_index] : image_index[end_index]])),
                     "Ri": Ri[image_index[start_index] : image_index[end_index]],
                     "Ri_d": Ri_d[image_index[start_index] : image_index[end_index]],
                     "Force": Force[image_index[start_index] : image_index[end_index]],
-                    "Virial": Virial[start_index:end_index],
+                    # "Virial": Virial[start_index:end_index],
                     "Etot": Etot[start_index:end_index],
                     "ImageAtomNum": atom_num_per_image[start_index:end_index],
                 }
+            
+            if is_egroup:
+                train_set["Egroup"] = Egroup[image_index[start_index] : image_index[end_index]]
+                train_set["Divider"] = divider[image_index[start_index] : image_index[end_index]]
+                train_set["Egroup_weight"] = np.vstack(tuple(egroup_single_arr[image_index[start_index] : image_index[end_index]]))
+            if "Virial" in locals():
+                train_set["Virial"] = Virial[start_index:end_index]
 
             save_path = os.path.join(train_data_path, "image_" + str(accum_train_num).zfill(width_train))
 
@@ -836,17 +855,25 @@ def sepper_data(config, chunk_size = 10, is_load_stat = False, stat_add = "./", 
                         image_index[start_index] : image_index[end_index]
                     ],
                     "Ei": Ei[image_index[start_index] : image_index[end_index]],
-                    "Egroup": Egroup[image_index[start_index] : image_index[end_index]],
-                    "Divider": divider[image_index[start_index] : image_index[end_index]],
+                    # "Egroup": Egroup[image_index[start_index] : image_index[end_index]],
+                    # "Divider": divider[image_index[start_index] : image_index[end_index]],
                     #"Egroup_weight": Egroup_weight[image_index[start_index] : image_index[end_index]],
-                    "Egroup_weight": np.vstack(tuple(egroup_single_arr[image_index[start_index] : image_index[end_index]])),
+                    # "Egroup_weight": np.vstack(tuple(egroup_single_arr[image_index[start_index] : image_index[end_index]])),
                     "Ri": Ri[image_index[start_index] : image_index[end_index]],
                     "Ri_d": Ri_d[image_index[start_index] : image_index[end_index]],
                     "Force": Force[image_index[start_index] : image_index[end_index]],
-                    "Virial": Virial[start_index:end_index],
+                    # "Virial": Virial[start_index:end_index],
                     "Etot": Etot[start_index:end_index],
                     "ImageAtomNum": atom_num_per_image[start_index:end_index],
                 }
+            
+            if is_egroup:
+                valid_set["Egroup"] = Egroup[image_index[start_index] : image_index[end_index]]
+                valid_set["Divider"] = divider[image_index[start_index] : image_index[end_index]]
+                valid_set["Egroup_weight"] = np.vstack(tuple(egroup_single_arr[image_index[start_index] : image_index[end_index]]))
+
+            if "Virial" in locals():
+                valid_set["Virial"] = Virial[start_index:end_index]
 
             save_path = os.path.join(valid_data_path, "image_" + str(accum_valid_num).zfill(width_valid))
 

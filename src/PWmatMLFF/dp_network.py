@@ -246,6 +246,10 @@ def get_terminal_args():
     )
 
     parser.add_argument(
+        "--is_ei", default=False, type=bool, help="print ei"
+    )
+
+    parser.add_argument(
         "--pre_fac_force", default=2.0, type=float, help="KF force update prefactor"
     )
 
@@ -321,7 +325,7 @@ class dp_network:
                     is_egroup = False, 
                     is_etot = True,
                     is_force = True, 
-
+                    is_ei = False,
                     pre_fac_force = 2.0,
                     pre_fac_etot = 1.0, 
                     pre_fac_virial = 1.0, 
@@ -590,6 +594,7 @@ class dp_network:
             self.terminal_args.is_egroup = is_egroup
             self.terminal_args.is_force  = is_force
             self.terminal_args.is_etot   = is_etot
+            self.terminal_args.is_ei     = is_ei
             self.terminal_args.pre_fac_force = pre_fac_force 
             self.terminal_args.pre_fac_etot = pre_fac_etot
             self.terminal_args.pre_fac_virial = pre_fac_virial
@@ -636,11 +641,11 @@ class dp_network:
             print ("cleaning old .dat")
             subprocess.run(["rm PWdata/*.dat"],shell=True)
         
-        dp_mlff.gen_train_data(self.config, is_real_Ep)
+        dp_mlff.gen_train_data(self.config, self.terminal_args.is_egroup, self.terminal_args.is_virial, is_real_Ep)
         mk = self.terminal_args.evaluate
         #if mk is True:
         #    print ("using ./davd.npy and ./dstd.npy")
-        dp_mlff.sepper_data(self.config, chunk_size = chunk_size,is_load_stat = mk,stat_add=stat_add)        
+        dp_mlff.sepper_data(self.config, self.terminal_args.is_egroup, chunk_size = chunk_size,is_load_stat = mk,stat_add=stat_add)        
 
     def dbg(self):
         
@@ -885,20 +890,74 @@ class dp_network:
             return
 
         if not self.terminal_args.hvd or (self.terminal_args.hvd and hvd.rank() == 0):
-            train_log = os.path.join(self.terminal_args.store_path, "epoch_train.dat")
 
+            train_log = os.path.join(self.terminal_args.store_path, "epoch_train.dat")
             f_train_log = open(train_log, "w")
-            #f_train_log.write("epoch\t loss\t RMSE_Etot\t RMSE_Egroup\t RMSE_F\t real_lr\t time\n")
-            f_train_log.write("%5s%18s%18s%21s%18s%18s%18s%18s%23s%18s%10s\n" % (
-                "epoch","loss","RMSE_Etot","RMSE_Etot_per_atom","RMSE_Egroup", \
-                "RMSE_Ei","RMSE_F","RMSE_virial","RMSE_virial_per_atom","real_lr","time"))
 
             valid_log = os.path.join(self.terminal_args.store_path, "epoch_valid.dat")
             f_valid_log = open(valid_log, "w")
 
+            # Define the lists based on the training type
+            train_lists = ["epoch", "loss"]
+            valid_lists = ["epoch", "loss"]
+
+            if self.terminal_args.is_etot:
+                # train_lists.append("RMSE_Etot")
+                # valid_lists.append("RMSE_Etot")
+                train_lists.append("RMSE_Etot_per_atom")
+                valid_lists.append("RMSE_Etot_per_atom")
+            if self.terminal_args.is_ei:
+                train_lists.append("RMSE_Ei")
+                valid_lists.append("RMSE_Ei")
+            if self.terminal_args.is_egroup:
+                train_lists.append("RMSE_Egroup")
+                valid_lists.append("RMSE_Egroup")
+            if self.terminal_args.is_force:
+                train_lists.append("RMSE_F")
+                valid_lists.append("RMSE_F")
+            if self.terminal_args.is_virial:
+                # train_lists.append("RMSE_virial")
+                # valid_lists.append("RMSE_virial")
+                train_lists.append("RMSE_virial_per_atom")
+                valid_lists.append("RMSE_virial_per_atom")
+
+            if self.terminal_args.opt == "LKF" or self.terminal_args.opt == "GKF":
+                train_lists.extend(["time"])
+            else:
+                train_lists.extend(["real_lr", "time"])
+
+            # f_train_log.write("%s\n" % ("\t".join(train_lists)))
+            # f_valid_log.write("%s\n" % ("\t".join(valid_lists)))
+
+            train_print_width = {
+                "epoch": 5,
+                "loss": 18,
+                "RMSE_Etot": 18,
+                "RMSE_Etot_per_atom": 21,
+                "RMSE_Ei": 18,
+                "RMSE_Egroup": 18,
+                "RMSE_F": 18,
+                "RMSE_virial": 18,
+                "RMSE_virial_per_atom": 23,
+                "real_lr": 18,
+                "time": 10,
+            }
+
+            train_format = "".join(["%{}s".format(train_print_width[i]) for i in train_lists])
+            valid_format = "".join(["%{}s".format(train_print_width[i]) for i in valid_lists])
+
+            f_train_log.write("%s\n" % (train_format % tuple(train_lists)))
+            f_valid_log.write("%s\n" % (valid_format % tuple(valid_lists)))
+
+            '''
+            #f_train_log.write("epoch\t loss\t RMSE_Etot\t RMSE_Egroup\t RMSE_F\t real_lr\t time\n")
+            f_train_log.write("%5s%18s%18s%21s%18s%18s%18s%18s%23s%18s%10s\n" % (
+                "epoch","loss","RMSE_Etot","RMSE_Etot_per_atom","RMSE_Egroup", \
+                "RMSE_Ei","RMSE_F","RMSE_virial","RMSE_virial_per_atom","real_lr","time"))
             #f_valid_log.write("epoch\t loss\t RMSE_Etot\t RMSE_Egroup\t RMSE_F\n")
             f_valid_log.write("%5s%18s%18s%21s%18s%18s%18s%18s%23s\n" % ("epoch","loss",\
                 "RMSE_Etot","RMSE_Etot_per_atom","RMSE_Egroup","RMSE_Ei","RMSE_F","RMSE_virial","RMSE_virial_per_atom"))
+            '''
 
         for epoch in range(self.terminal_args.start_epoch, self.terminal_args.epochs + 1):
             if self.terminal_args.hvd:
@@ -944,6 +1003,51 @@ class dp_network:
                 )
             """
             if not self.terminal_args.hvd or (self.terminal_args.hvd and hvd.rank() == 0):
+
+                f_train_log = open(train_log, "a")
+                f_valid_log = open(valid_log, "a")
+
+                # Write the log line to the file based on the training mode
+                train_log_line = "%5d%18.10e" % (
+                    epoch,
+                    loss,
+                )
+                valid_log_line = "%5d%18.10e" % (
+                    epoch,
+                    vld_loss,
+                )
+
+                if self.terminal_args.is_etot:
+                    # train_log_line += "%18.10e" % (loss_Etot)
+                    # valid_log_line += "%18.10e" % (vld_loss_Etot)
+                    train_log_line += "%21.10e" % (loss_Etot_per_atom)
+                    valid_log_line += "%21.10e" % (vld_loss_Etot_per_atom)
+                if self.terminal_args.is_ei:
+                    train_log_line += "%18.10e" % (loss_Ei)
+                    valid_log_line += "%18.10e" % (vld_loss_Ei)
+                if self.terminal_args.is_egroup:
+                    train_log_line += "%18.10e" % (loss_egroup)
+                    valid_log_line += "%18.10e" % (val_loss_egroup)
+                if self.terminal_args.is_force:
+                    train_log_line += "%18.10e" % (loss_Force)
+                    valid_log_line += "%18.10e" % (vld_loss_Force)
+                if self.terminal_args.is_virial:
+                    # train_log_line += "%18.10e" % (loss_virial)
+                    # valid_log_line += "%18.10e" % (val_loss_virial)
+                    train_log_line += "%23.10e" % (loss_virial_per_atom)
+                    valid_log_line += "%23.10e" % (val_loss_virial_per_atom)
+
+                if self.terminal_args.opt == "LKF" or self.terminal_args.opt == "GKF":
+                    train_log_line += "%10.4f\n" % (time_end - time_start)
+                else:
+                    train_log_line += "%18.10e%10.4f\n" % (real_lr, time_end - time_start)
+
+                f_train_log.write("%s\n" % (train_log_line))
+                f_valid_log.write("%s\n" % (valid_log_line))
+            
+                f_train_log.close()
+                f_valid_log.close()
+                '''
                 f_train_log = open(train_log, "a")
                 f_train_log.write(
                     "%5d%18.10e%18.10e%21.10e%18.10e%18.10e%18.10e%18.10e%23.10e%18.10e%10.4f\n"
@@ -975,6 +1079,7 @@ class dp_network:
                         val_loss_virial_per_atom,
                     ) 
                 )
+                '''
             
             # scheduler.step()
             

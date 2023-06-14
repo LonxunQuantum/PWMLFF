@@ -1,21 +1,31 @@
 import numpy as np
 
+# def dp_loss(
+#     start_lr,
+#     real_lr,
+#     has_fi,
+#     lossFi,
+#     has_etot,
+#     loss_Etot,
+#     has_virial,
+#     loss_Virial,
+#     has_egroup,
+#     loss_Egroup,
+#     has_ei,
+#     loss_Ei,
+#     natoms_sum,
+# ):
+def dp_loss(start_lr, real_lr, stat, *args):
 
-def dp_loss(
-    start_lr,
-    real_lr,
-    has_fi,
-    lossFi,
-    has_etot,
-    loss_Etot,
-    has_virial,
-    loss_Virial,
-    has_egroup,
-    loss_Egroup,
-    has_ei,
-    loss_Ei,
-    natoms_sum,
-):
+    if stat == 1:   
+        has_fi, lossFi, has_etot, loss_Etot, has_virial, loss_Virial, has_egroup, loss_Egroup, has_ei, loss_Ei, natoms_sum = args
+    elif stat == 2: # no virial
+        has_fi, lossFi, has_etot, loss_Etot, has_egroup, loss_Egroup, has_ei, loss_Ei, natoms_sum = args
+    elif stat == 3: # no egroup
+        has_fi, lossFi, has_etot, loss_Etot, has_virial, loss_Virial, has_ei, loss_Ei, natoms_sum = args
+    else:   # no virial and egroup
+        has_fi, lossFi, has_etot, loss_Etot, has_ei, loss_Ei, natoms_sum = args
+
     start_pref_egroup, limit_pref_egroup = 0.02, 1.0
     start_pref_F, limit_pref_F = 1000, 1.0
     start_pref_etot, limit_pref_etot = 0.02, 1.0
@@ -27,12 +37,14 @@ def dp_loss(
     pref_etot = has_etot * (
         limit_pref_etot + (start_pref_etot - limit_pref_etot) * real_lr / start_lr
     )
-    pref_virial = has_virial * (
-        limit_pref_virial + (start_pref_virial - limit_pref_virial) * real_lr / start_lr
-    )
-    pref_egroup = has_egroup * (
-        limit_pref_egroup + (start_pref_egroup - limit_pref_egroup) * real_lr / start_lr
-    )
+    if stat == 1 or stat == 3:
+        pref_virial = has_virial * (
+            limit_pref_virial + (start_pref_virial - limit_pref_virial) * real_lr / start_lr
+        )
+    if stat == 1 or stat == 2:
+        pref_egroup = has_egroup * (
+            limit_pref_egroup + (start_pref_egroup - limit_pref_egroup) * real_lr / start_lr
+        )
     pref_ei = has_ei * (
         limit_pref_ei + (start_pref_ei - limit_pref_ei) * real_lr / start_lr
     )
@@ -41,11 +53,13 @@ def dp_loss(
         l2_loss += pref_fi * lossFi
     if has_etot:
         l2_loss += 1.0 / natoms_sum * pref_etot * loss_Etot
-    if has_virial:
-        l2_loss += 1.0 / natoms_sum * pref_virial * loss_Virial
-        # import ipdb;ipdb.set_trace()
-    if has_egroup:
-        l2_loss += pref_egroup * loss_Egroup
+    if stat == 1 or stat == 3:
+        if has_virial:
+            l2_loss += 1.0 / natoms_sum * pref_virial * loss_Virial
+            # import ipdb;ipdb.set_trace()
+    if stat == 1 or stat == 2:
+        if has_egroup:
+            l2_loss += pref_egroup * loss_Egroup
     if has_ei:
         l2_loss += pref_ei * loss_Ei
     return l2_loss, pref_fi, pref_etot

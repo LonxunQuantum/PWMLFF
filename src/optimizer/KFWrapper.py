@@ -27,16 +27,26 @@ class KFOptimizerWrapper:
     def update_energy(
         self, inputs: list, Etot_label: torch.Tensor, update_prefactor: float = 1
     ) -> None:
-        Etot_predict, _, _, _, _ = self.model(
-            inputs[0],
-            inputs[1],
-            inputs[2],
-            inputs[3],
-            inputs[4],
-            inputs[5],
-            inputs[6],
-            is_calc_f=False,
-        )
+        if len(inputs) == 7:
+            Etot_predict, _, _, _, _ = self.model(
+                inputs[0],
+                inputs[1],
+                inputs[2],
+                inputs[3],
+                inputs[4],
+                inputs[5],
+                inputs[6],
+                is_calc_f=False,
+            )
+        else:
+            Etot_predict, _, _, _ = self.model(
+                inputs[0],
+                inputs[1],
+                inputs[2],
+                inputs[3],
+                inputs[4],
+                is_calc_f=False,
+            )
         natoms_sum = inputs[4][0, 0]
         self.optimizer.set_grad_prefactor(natoms_sum)
 
@@ -116,15 +126,24 @@ class KFOptimizerWrapper:
     def update_virial(
         self, inputs: list, Virial_label: torch.Tensor, update_prefactor: float = 1
     ) -> None:
-        Etot_predict, _, _, _, Virial_predict = self.model(
-            inputs[0],
-            inputs[1],
-            inputs[2],
-            inputs[3],
-            inputs[4],
-            inputs[5],
-            inputs[6]
-        )
+        if len(inputs) == 7:
+            Etot_predict, _, _, _, Virial_predict = self.model(
+                inputs[0],
+                inputs[1],
+                inputs[2],
+                inputs[3],
+                inputs[4],
+                inputs[5],
+                inputs[6]
+            )
+        else:
+            Etot_predict, _, _, Virial_predict = self.model(
+                inputs[0],
+                inputs[1],
+                inputs[2],
+                inputs[3],
+                inputs[4],
+            )
 
         natoms_sum = inputs[4][0, 0]
         self.optimizer.set_grad_prefactor(natoms_sum)
@@ -237,9 +256,15 @@ class KFOptimizerWrapper:
 
         for i in range(index.shape[0]):
             self.optimizer.zero_grad()
-            Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = self.model(
-                inputs[0], inputs[1], inputs[2], inputs[3], inputs[4], inputs[5], inputs[6]
-            )
+            if len(inputs) == 7:
+                Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = self.model(
+                    inputs[0], inputs[1], inputs[2], inputs[3], inputs[4], inputs[5], inputs[6]
+                )
+            else:
+                Etot_predict, Ei_predict, Force_predict, Virial_predict = self.model(
+                    inputs[0], inputs[1], inputs[2], inputs[3], inputs[4]
+                )
+
             error_tmp = Force_label[:, index[i]] - Force_predict[:, index[i]]
             error_tmp = update_prefactor * error_tmp
             mask = error_tmp < 0
@@ -263,7 +288,10 @@ class KFOptimizerWrapper:
             error = error * math.sqrt(bs)
             #print("force steping")
             self.optimizer.step(error)
-        return Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict
+        if len(inputs) == 7:
+            return Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict
+        else:
+            return Etot_predict, Ei_predict, Force_predict, Virial_predict
 
     def __sample(
         self, atoms_selected: int, atoms_per_group: int, natoms: int
