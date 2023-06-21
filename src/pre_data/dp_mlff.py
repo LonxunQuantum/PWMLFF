@@ -116,53 +116,54 @@ def gen_train_data(config, is_egroup = True, is_virial = True, is_real_Ep = Fals
             for idx, line in enumerate(lines):
                 
                 if "Lattice vector" in line and "stress" in lines[idx + 1]:
-                    print (line)
+                    if is_virial:
+                        print (line)
 
-                    tmp_v = []
-                    cell = []
-                    for dd in range(3):
-                        tmp_l = lines[idx + 1 + dd]
-                        cell.append([float(ss) for ss in tmp_l.split()[0:3]])
-                        tmp_v.append([float(stress) for stress in tmp_l.split()[5:8]])
+                        tmp_v = []
+                        cell = []
+                        for dd in range(3):
+                            tmp_l = lines[idx + 1 + dd]
+                            cell.append([float(ss) for ss in tmp_l.split()[0:3]])
+                            tmp_v.append([float(stress) for stress in tmp_l.split()[5:8]])
 
-                    tmp_virial = np.zeros([3, 3])
-                    tmp_virial[0][0] = tmp_v[0][0]
-                    tmp_virial[0][1] = tmp_v[0][1]
-                    tmp_virial[0][2] = tmp_v[0][2]
-                    tmp_virial[1][0] = tmp_v[1][0]
-                    tmp_virial[1][1] = tmp_v[1][1]
-                    tmp_virial[1][2] = tmp_v[1][2]
-                    tmp_virial[2][0] = tmp_v[2][0]
-                    tmp_virial[2][1] = tmp_v[2][1]
-                    tmp_virial[2][2] = tmp_v[2][2]
-                    volume = np.linalg.det(np.array(cell))
-                    print(volume)
-                    print("====================================")
-                    # import ipdb;ipdb.set_trace()
-                    # tmp_virial = tmp_virial * 160.2 * 10.0 / volume
-                    with open(
-                        os.path.join(trainset_dir, "Virial.dat"), "a"
-                    ) as virial_file:
-                        virial_file.write(
-                            str(tmp_virial[0, 0])
-                            + " "
-                            + str(tmp_virial[0, 1])
-                            + " "
-                            + str(tmp_virial[0, 2])
-                            + " "
-                            + str(tmp_virial[1, 0])
-                            + " "
-                            + str(tmp_virial[1, 1])
-                            + " "
-                            + str(tmp_virial[1, 2])
-                            + " "
-                            + str(tmp_virial[2, 0])
-                            + " "
-                            + str(tmp_virial[2, 1])
-                            + " "
-                            + str(tmp_virial[2, 2])
-                            + "\n"
-                        )
+                        tmp_virial = np.zeros([3, 3])
+                        tmp_virial[0][0] = tmp_v[0][0]
+                        tmp_virial[0][1] = tmp_v[0][1]
+                        tmp_virial[0][2] = tmp_v[0][2]
+                        tmp_virial[1][0] = tmp_v[1][0]
+                        tmp_virial[1][1] = tmp_v[1][1]
+                        tmp_virial[1][2] = tmp_v[1][2]
+                        tmp_virial[2][0] = tmp_v[2][0]
+                        tmp_virial[2][1] = tmp_v[2][1]
+                        tmp_virial[2][2] = tmp_v[2][2]
+                        volume = np.linalg.det(np.array(cell))
+                        print(volume)
+                        print("====================================")
+                        # import ipdb;ipdb.set_trace()
+                        # tmp_virial = tmp_virial * 160.2 * 10.0 / volume
+                        with open(
+                            os.path.join(trainset_dir, "Virial.dat"), "a"
+                        ) as virial_file:
+                            virial_file.write(
+                                str(tmp_virial[0, 0])
+                                + " "
+                                + str(tmp_virial[0, 1])
+                                + " "
+                                + str(tmp_virial[0, 2])
+                                + " "
+                                + str(tmp_virial[1, 0])
+                                + " "
+                                + str(tmp_virial[1, 1])
+                                + " "
+                                + str(tmp_virial[1, 2])
+                                + " "
+                                + str(tmp_virial[2, 0])
+                                + " "
+                                + str(tmp_virial[2, 1])
+                                + " "
+                                + str(tmp_virial[2, 2])
+                                + "\n"
+                            )
                 
                 elif "Lattice vector" in line and "stress" not in lines[idx + 1]:
                     if is_virial:

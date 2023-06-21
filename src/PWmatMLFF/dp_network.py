@@ -329,7 +329,7 @@ class dp_network:
                     pre_fac_force = 2.0,
                     pre_fac_etot = 1.0, 
                     pre_fac_virial = 1.0, 
-                    pre_fac_egroup = 0.05, 
+                    pre_fac_egroup = 0.1, 
 
                     precision = "float64", 
                     train_valid_ratio = 0.8, 
@@ -340,15 +340,15 @@ class dp_network:
                     embedding_net_config = None,
                     fitting_net_config = None, 
 
-                    embedding_net_size = None, 
-                    embedding_net_bias = None,
-                    embedding_net_res = None, 
-                    embedding_net_act = None, 
+                    embedding_net_size = [25, 25, 25], 
+                    embedding_net_bias = True,
+                    embedding_net_res = False, 
+                    embedding_net_act = 'tanh', 
 
-                    fitting_net_size = None, 
-                    fitting_net_bias = None,
-                    fitting_net_res  = None, 
-                    fitting_net_act = None, 
+                    fitting_net_size = [50, 50, 50, 1], 
+                    fitting_net_bias = True,
+                    fitting_net_res  = True, 
+                    fitting_net_act = 'tanh', 
 
                     recover = False,
                     save_P_matrix = False,
@@ -629,7 +629,7 @@ class dp_network:
     def set_gpu_id(self,idx):
         self.terminal_args.gpu = idx
 
-    def generate_data(self, is_real_Ep = False, chunk_size = 10, stat_add = "./"):
+    def generate_data(self, is_real_Ep = False, chunk_size = 10, stat_add = "./train"):
         """
             generate dp's pre-feature
         """

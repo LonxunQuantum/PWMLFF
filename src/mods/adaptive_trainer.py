@@ -281,7 +281,7 @@ class adaptive_trainer():
             write_config["ff_name"] = self.explore_model_dir + "/" + str(i) +  ".ff "
             f.writelines(write_config["ff_name"])
 
-        f.writelines(" 3 14 6.0 6.0 %.2f %.2f" % (self.success_bar,self.candidate_bar))
+        f.writelines(" 14 %.2f %.2f" % (self.success_bar,self.candidate_bar))
         f.writelines("\n")
         
         # initial velocity gen
