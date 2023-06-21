@@ -552,8 +552,8 @@ def valid(val_loader, model, criterion, device, args):
                 Etot_predict, Ei_predict, Force_predict, Virial_predict = model(
                     ImageDR, Ri, Ri_d, dR_neigh_list, natoms_img
                 )
-            #print("Etot_predict")
-            #print(Etot_predict)
+            # print("Etot_predict")
+            # print(Etot_predict)
 
             #print("Force_predict")
             #print(Force_predict)

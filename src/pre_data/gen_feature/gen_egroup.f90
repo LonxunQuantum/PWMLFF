@@ -464,7 +464,7 @@ PROGRAM write_Egroup
 
     open(55,file=trainDataDir,position="append")
     do i=1,natom
-    write(55,"(f12.7,',', f12.7,<natom>(',',f15.10))")  &
+    write(55,"(f20.7,',', f20.7,<natom>(',',f15.10))")  &
        energy_group(i),divider(i),(fact(i,j),j=1,natom)
     enddo
     close(55)

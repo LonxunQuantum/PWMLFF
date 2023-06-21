@@ -31,6 +31,16 @@ PROGRAM gen_dR
 
     real*8 Rc_type(100), Rc2_type(100), Rm_type(100),weight_rterm(100)
 
+    integer, parameter :: n = 63  ! Total number of elements
+
+    type dictionary_type
+        integer :: order
+        real :: atomic_E
+    end type dictionary_type
+
+    type(dictionary_type), dimension(n) :: dictionary  
+    integer :: o
+
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
     INTERFACE
         SUBROUTINE scan_title (io_file, title, title_line, if_find)
@@ -182,6 +192,21 @@ PROGRAM gen_dR
         ENDDO
         close(1315)
 
+        !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+        ! Initializes the element's Ei dictionary
+        data dictionary%order /1, 3, 4, 5, 6, 7, 8, 9, &
+        11, 12, 13, 14, 15, 16, 17, &
+        19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, &
+        37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, &
+        55, 56, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83/
+        data dictionary%atomic_E /-45.140551665, -210.0485218888889, -321.1987119, -146.63024691666666, -399.0110205833333, -502.070125, -879.0771215, -1091.0652775, &
+        -1275.295054, -2131.9724644444445, -2412.581311, -787.3439924999999, -1215.4995769047619, -1705.5754946875, -557.9141695, &
+        -1544.3553605, -1105.0024515, -1420.574128, -1970.9374273333333, -2274.598644, -2331.976294, -2762.3960913793107, -3298.6401545, -3637.624857, -4140.3502, -5133.970898611111, -5498.13054, -2073.70436625, -2013.83114375, -463.783827, -658.83885375, -495.05260075, &
+        -782.22601375, -1136.1897344444444, -1567.6510633333335, -2136.8407, -2568.946113, -2845.9228975, -3149.6645705, -3640.458547, -4080.81555, -4952.347355, -5073.703895555555, -4879.3604305, -2082.8865266666667, -2051.94076125, -2380.010715, -2983.2449, -3478.003375, &
+        -1096.984396724138, -969.538106, -2433.925215, -2419.015324, -2872.458516, -4684.01374, -5170.37679, -4678.720765, -5133.04942, -5055.7201, -5791.21431, -1412.194369, -2018.85905225, -2440.8732966666666/
+
+        !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
         CALL scan_title (move_file, "ATOMIC-ENERGY",if_find=nextline)
         if(.not.nextline) then
             write(6,*) "Atomic-energy not found, stop",num_step
@@ -196,6 +221,15 @@ PROGRAM gen_dR
 
         DO j = 1, natom
             READ(move_file, *) iatom(j),Eatom(j)
+            do o = 1, n
+                if (iatom(j) == dictionary(o)%order) then
+                    if (Eatom(j) > 0) then
+                        Eatom(j) = dictionary(o)%atomic_E + Eatom(j)
+                    else
+                        exit
+                    end if
+                end if
+            end do
             write(1316, "(E20.10)") Eatom(j)
             write(1320, "(I6)") iatom(j)
         ENDDO
