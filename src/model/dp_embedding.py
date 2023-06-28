@@ -61,6 +61,9 @@ class EmbeddingNet(nn.Module):
 
 
     def forward(self, x):
+        # check for embedding input: first layer
+        # for num in range(10):
+        #     print(x[0,0,num,0])
         for i in range(1, len(self.network_size)):
             # 
             #if (True in torch.isnan(self.bias['bias' + str(i-1)])):
@@ -88,6 +91,11 @@ class EmbeddingNet(nn.Module):
                     x = torch.cat((x, x), dim=-1)  + hiden
             else:
                 x = hiden
+            
+            # if i == 1:
+            #     for num in range(10):
+            #         print(x[0,0,num,:])
+
         return x
 
 

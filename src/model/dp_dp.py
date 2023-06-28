@@ -76,32 +76,32 @@ class DP(nn.Module):
         #torch.autograd.set_detect_anomaly(True)
 
         Ri_d = dfeat
+        # dim of natoms_img: batch size, natom_sum & natom_types ([9, 6, 2, 1])
         natoms = natoms_img[0, 1:]
         natoms_sum = Ri.shape[1]
         batch_size = Ri.shape[0]
         atom_sum = 0
-        
         for ntype in range(self.ntypes):
             for ntype_1 in range(self.ntypes):
+                # dim of Ri: batch size, natom_sum, ntype*max_neigh_num, local environment matrix , ([10,9,300,4])
                 S_Rij = Ri[:, atom_sum:atom_sum+natoms[ntype], ntype_1 * self.maxNeighborNum:(ntype_1+1) * self.maxNeighborNum, 0].unsqueeze(-1)
-                
                 # determines which embedding net
                 embedding_index = ntype * self.ntypes + ntype_1
                 
                 # itermediate output of embedding net 
                 # dim of G: batch size, natom of ntype, max_neigh_num, final layer dim
                 #  
+                # print("pair type:", ntype, ntype_1)
                 G = self.embedding_net[embedding_index](S_Rij) 
-                #if ntype == 0 and ntype_1==0:
-                #print (ntype, ntype_1 )
-                #print ("dim of G")
-                #print (G.size())
-                #if ntype == 0 and ntype_1==0: 
+                # if ntype == 0 and ntype_1==0:
+                #     print (ntype, ntype_1 )
+                #     print ("dim of G")
+                #     print (G.size())
+                # if ntype == 0 and ntype_1==0: 
                 #    print(G[0,0,1,:])
                 # symmetry conserving 
                 tmp_a = Ri[:, atom_sum:atom_sum+natoms[ntype], ntype_1 * self.maxNeighborNum:(ntype_1+1) * self.maxNeighborNum].transpose(-2, -1)
-                tmp_b = torch.matmul(tmp_a, G)
-                
+                tmp_b = torch.matmul(tmp_a, G)             
                 if ntype_1 == 0:
                     xyz_scater_a = tmp_b
                 else:
@@ -116,10 +116,10 @@ class DP(nn.Module):
             else:
                 DR = torch.concat((DR, DR_ntype), dim=1)
             # dim of DR_ntype: bs, natom in type, 400
-            #print ("input for fitting net of type:",ntype)
-            #print ("DR_ntype[0,:,0]")
-            #print (DR_ntype[0,0,:50])
-            #print(ntype, DR_ntype.size())
+            # print ("input for fitting net of type:",ntype)
+            # print ("DR_ntype")
+            # print (DR_ntype[0,0,:50])
+            # print(ntype, DR_ntype.size())
 
             Ei_ntype = self.fitting_net[ntype](DR_ntype)
             

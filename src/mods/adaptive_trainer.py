@@ -21,6 +21,7 @@ sys.path.append(codepath+'/../aux')
 #import dp_network
 
 from poscar2lammps import p2l 
+from poscar2lammps import elem2idx
 from slice import slice
 
 
@@ -41,6 +42,7 @@ class adaptive_trainer():
                     silent_mode = True, 
                     num_select_per_group = 20,
                     psp_dir = "/share/psp/NCPP-SG15-PBE", 
+                    etot_dir = None,
                     node_num = 1,   
                     atom_type = [],
                     success_bar = 0.12,
@@ -51,7 +53,7 @@ class adaptive_trainer():
                     lmp_partition_name = None,
                     lmp_ntask_per_node = None, 
                     lmp_wall_time = 7200,          
-                    lmp_custom_lines = [],      
+                    lmp_custom_lines = [],
                 ):  
         """
             DIR: train
@@ -97,6 +99,7 @@ class adaptive_trainer():
 
         self.working_dir = os.getcwd() 
         self.psp_dir = psp_dir
+        self.etot_dir = etot_dir
 
         self.train_path = self.working_dir+"/train"
         self.explore_path = self.working_dir+"/explore"
@@ -123,7 +126,7 @@ class adaptive_trainer():
         self.trainer_list = []
          
         self.atom_type = atom_type
-
+        
         self.node_num = node_num
 
         self.lmp_damp = lmp_damp
@@ -281,7 +284,8 @@ class adaptive_trainer():
             write_config["ff_name"] = self.explore_model_dir + "/" + str(i) +  ".ff "
             f.writelines(write_config["ff_name"])
 
-        f.writelines(" 14 %.2f %.2f" % (self.success_bar,self.candidate_bar))
+        atom_type_str = ' '.join(str(atom) for atom in self.atom_type)
+        f.writelines("%s %.2f %.2f" % (atom_type_str, self.success_bar,self.candidate_bar))
         f.writelines("\n")
         
         # initial velocity gen
@@ -674,13 +678,15 @@ class adaptive_trainer():
         
         #self.collect_mvmt()
 
-    def write_etot_input(self, dir, num_atom, norm_b_list):
+    def write_etot_input(self, dir, num_atom, norm_b_list, atom_type):
         """
             write etot.input
         """
         from math import floor 
 
         psp_path = self.psp_dir
+
+        etot_input = self.etot_dir
 
         mp_line = "mp_n123 = "
 
@@ -694,40 +700,28 @@ class adaptive_trainer():
             mp_line = mp_line + str(round_up(norm_b_list[2]/self.ksapcing)) + " "
             mp_line = mp_line + "0 0 0"
         
-        psp_lines = ["in.psp1 = "+psp_path+"/Li.SG15.PBE.UPF\n","in.psp2 = "+psp_path+"/Si.SG15.PBE.UPF\n"] 
+        idx_tabel = elem2idx()
+        elem_type = [elem for elem, order in idx_tabel.items() if order in atom_type]
 
-        # start
-        """
-            !!! Si Li pseudopotential on PWMAT only, at this moment 
-        """ 
-        with open(dir+"/etot.input","w") as file:
-            file.writelines("4    1\n")
-            file.writelines("job = scf\n")
-            file.writelines("in.atom = atom.config\n")
+        psp_lines = []
+        for i, elem in enumerate(elem_type, start=1):
+            psp_lines.append(f"in.psp{i} = {psp_path}/{elem}.SG15.PBE.UPF\n")
+            # psp_lines.append("in.psp"+str(i)+" = "+psp_path+"/"+elem+".SG15.PBE.UPF\n")
 
-            for line in psp_lines:
-                file.writelines(line)
-            
-            #file.writelines("in.psp1 = Li.SG15.PBE.UPF\n")
-            #file.writelines("in.psp2 = Si.SG15.PBE.UPF\n")
-            
-            file.writelines("accuracy = high\n")
-            file.writelines("ecut = 70.0\n")
-            file.writelines("wg_error = 0.0\n")
-            file.writelines("e_error = 0.0001\n")
-            file.writelines("rho_error = 0.0\n")
-            file.writelines("in.psp_rcut2 = 4.3\n")
-            file.writelines("out.wg = F\n")
-            file.writelines("out.rho = F\n")
-            file.writelines("out.vr = F\n")
-            file.writelines("out.force = T\n")
-            file.writelines("out.stress = T\n")
-            file.writelines("out.mlmd = T\n")
-            file.writelines("scf_iter0_1 = 6 4 3 0.0 0.1 2\n")
-            file.writelines("scf_iter0_2 = 94 4 3 1.0 0.1 2\n")
-            file.writelines("energy_decomp = T\n")
-            file.writelines("energy_decomp_special2 = 2 0 0.5 1 1\n")
-            file.writelines(mp_line)
+        if etot_input is not None:
+            with open(dir+"/etot.input","w") as file:
+                with open(etot_input,"r") as etot_file:
+                    etot_lines = etot_file.readlines()
+                for line in etot_lines:
+                    line = line.strip()
+                    file.writelines(line + "\n")
+                file.writelines("job = scf\n")
+                file.writelines("in.atom = atom.config\n")
+                for line in psp_lines:
+                    file.writelines(line)
+                file.writelines(mp_line)
+        else:
+            raise FileNotFoundError("template (etot_input) does not exist")
 
     def calc_recip_latt(self,a1,a2,a3):
         """
@@ -755,6 +749,8 @@ class adaptive_trainer():
         """    
         import time 
 
+        atom_type = self.atom_type
+
         to_array = lambda x: np.array([float(i) for i in x.split()])
 
         scf_dirs = [] 
@@ -779,24 +775,22 @@ class adaptive_trainer():
             norm_b1,norm_b2,norm_b3 = self.calc_recip_latt(a1,a2,a3)
             
             #print (norm_b1,norm_b2,norm_b3)
-            self.write_etot_input(dir, num_atom, [norm_b1,norm_b2,norm_b3] )
+            self.write_etot_input(dir, num_atom, [norm_b1,norm_b2,norm_b3], atom_type)
 
             print("etot.input written in",dir)
 
-            """
             print ("SCF starts in", dir)
             
             os.chdir(dir)
             begin = time.time()
             # silent mode 
-            pwmat_cmd = "mpirun -np $SLURM_NPROCS -iface ib0 PWmat -host 10.0.0.2 50002 > /dev/null"
-            #pwmat_cmd = "mpirun -np $SLURM_NPROCS -iface ib0 PWmat -host 10.0.0.2 50002 | tee output"
+            # pwmat_cmd = "mpirun -np $SLURM_NPROCS -iface ib0 PWmat -host 10.0.0.2 50002 > /dev/null"
+            pwmat_cmd = "mpirun -np $SLURM_NPROCS -iface ib0 PWmat -host 10.0.0.2 50002 | tee output"
             subprocess.run(pwmat_cmd,shell=True) 
             
             end = time.time() 
             
             print ("SCF ends successfully in", end-begin, "s")
-            """
             
     def collect_cfgs(self):
         """
