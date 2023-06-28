@@ -678,7 +678,11 @@ def sepper_data(config, is_egroup = True, chunk_size = 10, is_load_stat = False,
     diff_atom_types_num = []
     for i in range(image_num):
         atom_type_per_image = atom_type[image_index[i] : image_index[i + 1]]
-        mask = np.unique(atom_type_per_image)
+        ######## mask need to flexibly change according to atom_type
+        # unique_values, indices = np.unique(atom_type_per_image, return_index=True)
+        # mask = unique_values[np.argsort(indices)]
+        mask = np.array([atom_type['type'] for atom_type in config["atomType"]])
+        #######
         diff_atom_types_num.append(
             [Counter(atom_type_per_image)[mask[type]] for type in range(mask.shape[0])]
         )
@@ -699,10 +703,10 @@ def sepper_data(config, is_egroup = True, chunk_size = 10, is_load_stat = False,
         # load from prescribed path
         print ("using exsiting stat files:")
 
-        print (stat_add+"davg.npy")
+        print (stat_add+"/davg.npy")
         davg = np.load(stat_add+"/davg.npy")
 
-        print (stat_add+"dstd.npy")
+        print (stat_add+"/dstd.npy")
         dstd = np.load(stat_add+"/dstd.npy")
             
     Ri, Ri_d = compute_Ri(

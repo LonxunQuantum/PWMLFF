@@ -629,7 +629,7 @@ class dp_network:
     def set_gpu_id(self,idx):
         self.terminal_args.gpu = idx
 
-    def generate_data(self, is_real_Ep = False, chunk_size = 10, stat_add = "./train"):
+    def generate_data(self, is_real_Ep = False, chunk_size = 10, stat_add = "."):
         """
             generate dp's pre-feature
         """

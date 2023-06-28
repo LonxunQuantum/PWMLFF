@@ -553,33 +553,35 @@ def valid(val_loader, model, criterion, device, args):
                     ImageDR, Ri, Ri_d, dR_neigh_list, natoms_img
                 )
             # print("Etot_predict")
-            # print(Etot_predict)
+            # print(Etot_predict[0])
 
-            #print("Force_predict")
-            #print(Force_predict)
+            # print("Force_predict")
+            # print(Force_predict[0])
 
             #print("Virial_predict")
             #print(Virial_predict)
             
-            """
-            import numpy as np
-            E_DFT = Etot_label.cpu().numpy().reshape(-1) / natom.cpu().numpy()
-            E_MLFF = Etot_predict.cpu().detach().numpy().reshape(-1) / natom.cpu().numpy()
-            F_DFT = Force_label.cpu().numpy().reshape(-1)
-            F_MLFF = Force_predict.cpu().detach().numpy().reshape(-1)
-            E_data = np.zeros([len(E_DFT),2])
-            F_data = np.zeros([len(F_DFT),2])
-            E_data[:,0] = E_DFT
-            E_data[:,1] = E_MLFF
-            F_data[:,0] = F_DFT
-            F_data[:,1] = F_MLFF
-            f = open("E_valid.dat","a")
-            np.savetxt(f,E_data,fmt="%14.6f")
-            f.close()
-            f = open("F_valid.dat","a")
-            np.savetxt(f,F_data,fmt="%14.6f")
-            f.close()
-            """
+            # """
+            # import numpy as np
+            # E_DFT = Etot_label.cpu().numpy().reshape(-1) / natom.cpu().numpy()
+            # E_MLFF = Etot_predict.cpu().detach().numpy().reshape(-1) / natom.cpu().numpy()
+            # F_DFT = Force_label.cpu().numpy().reshape(-1)
+            # F_MLFF = Force_predict.cpu().detach().numpy().reshape(-1)
+            # E_data = np.zeros([len(E_DFT),2])
+            # F_data = np.zeros([len(F_DFT),2])
+            # E_data[:,0] = E_DFT
+            # E_data[:,1] = E_MLFF
+            # F_data[:,0] = F_DFT
+            # F_data[:,1] = F_MLFF
+            # f = open("E_valid.dat","a")
+            # np.savetxt(f,E_data,fmt="%14.6f")
+            # f.close()
+            # f = open("F_valid.dat","a")
+            # np.savetxt(f,F_data,fmt="%14.6f")
+            # f.close()
+            # Ri_dat = Ri.cpu().detach().numpy()
+            # np.savetxt("Ri_valid.dat",Ri_dat[0,:,:,:].reshape(-1,4),fmt="%14.6f")
+            # """
 
             """
             idx = 2 
