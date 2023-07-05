@@ -5,6 +5,7 @@ import numpy.linalg as LA
 import matplotlib
 import matplotlib.pyplot as plt
 import default_para as pm
+from poscar2lammps import idx2mass
 
 class md100Image():
     def __init__(self, num_atoms, lattice, type_atom, x_atom, f_atom, e_atom, ddde):
@@ -332,6 +333,12 @@ def run_md100(imodel, atom_type, num_process=1):
     print('running-shell-command: ' + command)
     subprocess.run(command, shell=True)
     
+    idx_tabel = idx2mass()
+    mass_type = []
+    for idx in atom_type:
+        if idx in idx_tabel:
+            mass_type.append(idx_tabel[idx])
+
     # create md.input
     f = open('md.input', 'w')
     f.write('xatom.config\n')
@@ -341,7 +348,7 @@ def run_md100(imodel, atom_type, num_process=1):
     f.write('1\n')               # interval for MOVEMENT output
     f.write('%d\n' % len(atom_type))
     for i in range(len(atom_type)):
-        f.write('%d %d\n' % (atom_type[i], 2*atom_type[i]))
+        f.write('%d %.3f\n' % (atom_type[i], mass_type[i]))
     f.close()
 
     # create md100.input

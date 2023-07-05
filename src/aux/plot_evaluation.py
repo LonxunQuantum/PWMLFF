@@ -61,7 +61,7 @@ def read_nn_movement(file_nn='MOVEMENT'):
     return np.array(atomic_energy), np.array(f_atom)   
 
 def plot():
-
+    
     print("Plotting of evaluation starts. Make sure MD/MOVEMENT and MOVEMENT are of EXACTLY THE SAME LENGTH")
     
     num_atoms, num_iters, dft_total_energy, dft_atomic_energy, dft_force = read_dft_movement(file_dft="MD/MOVEMENT")
@@ -111,46 +111,57 @@ def plot():
     f_rms = LA.norm(f_dft_plot - f_nn_plot) / np.sqrt(3*num_atoms*num_iters)
     print('f_rmse: %.3E' % f_rms)
 
-    
+    # Set up matplotlib parameters for better-looking plots
+    plt.rcParams['figure.figsize'] = (8, 6) # Increase figure size 
+    plt.rcParams['font.size'] = 15  # Increase font size 
+    plt.rcParams["axes.linewidth"] = 1.5  # Increase axes linewidth 
+    plt.rcParams["lines.linewidth"] = 2.5  # Increase lines linewidth 
+
     # plot atomic energy
+    plt.figure()
     plt.title('atomic energy')
-    plt.scatter(dft_atomic_energy, nn_atomic_energy, s=0.5)
-    plt.plot((lim_min, lim_max), (lim_min, lim_max), ls='--', color='red')
+    plt.scatter(dft_atomic_energy, nn_atomic_energy, s=2, label="Evaluation data")
+    plt.plot((lim_min, lim_max), (lim_min, lim_max), ls='--', color='red', label="Fit data")
     plt.xlim(lim_min, lim_max)
     plt.ylim(lim_min, lim_max)
     plt.xlabel('DFT energy (eV)')
     plt.ylabel('MLFF energy (eV)')
+    plt.legend(fontsize='small', bbox_to_anchor=(0, 0.8), loc='upper left')
     plt.text(lim_min, lim_max-(lim_max-lim_min)*0.1,'Ei, rmse: %.3E' % (e_atomic_rms))
     # save and show
-    plt.savefig('atomic_energy.png', format='png')
+    plt.savefig('atomic_energy.png', dpi=300, bbox_inches='tight', format='png')
         #if len(sys.argv) < 2:
         #    plt.show()
     
     # plot total energy
     #plt.clf()
     #plt.subplot(1,2,1)
+    plt.figure()
     plt.title('total energy')
-    plt.scatter(dft_total_energy, nn_total_energy, s=0.5)
-    plt.plot((lim_tot_min, lim_tot_max), (lim_tot_min, lim_tot_max), ls='--', color='red')
+    plt.scatter(dft_total_energy, nn_total_energy, s=10, label="Evaluation data")
+    plt.plot((lim_tot_min, lim_tot_max), (lim_tot_min, lim_tot_max), ls='--', color='red', label="Fit data")
     plt.xlim(lim_tot_min, lim_tot_max)
     plt.ylim(lim_tot_min, lim_tot_max)
     plt.text(e_tot_min, e_tot_max,'Etot, rmse: %.3E' %(e_tot_rms))
     plt.text(e_tot_min, e_tot_max - (e_tot_max - e_tot_min)*0.1,'Etot/Natom, rmse: %.3E' %(e_tot_rms/num_atoms))
     plt.xlabel('DFT energy (eV)')
     plt.ylabel('MLFF energy (eV)')
-    plt.savefig('total_energy.png', format='png')
+    plt.legend(fontsize='small', bbox_to_anchor=(0, 0.8), loc='upper left')
+    plt.savefig('total_energy.png', dpi=300, bbox_inches='tight', format='png')
 
     # plot force
     #plt.subplot(1,2,2)
+    plt.figure()
     plt.title('force')
     plt.xlim(lim_f_min, lim_f_max)
     plt.ylim(lim_f_min, lim_f_max)
     plt.text(fmin, fmax,'Force, rmse: %.3E' %(f_rms))
-    plt.plot((lim_f_min, lim_f_max), (lim_f_min, lim_f_max), ls='--', color='red')
-    plt.scatter(f_dft_plot, f_nn_plot, s=0.5)
-    plt.ylabel('MLFF Force')
-    plt.xlabel('DFT Force')
-    plt.savefig('force.png', format='png')
+    plt.plot((lim_f_min, lim_f_max), (lim_f_min, lim_f_max), ls='--', color='red', label="Fit data")
+    plt.scatter(f_dft_plot, f_nn_plot, s=2, label="Evaluation data")
+    plt.ylabel('MLFF Force (eV/$\mathrm{\AA}$)')
+    plt.xlabel('DFT Force (eV/$\mathrm{\AA}$)')
+    plt.legend(fontsize='small', bbox_to_anchor=(0, 0.8), loc='upper left')
+    plt.savefig('force.png', dpi=300, bbox_inches='tight', format='png')
     #if len(sys.argv) < 2:
     #    plt.show()
 

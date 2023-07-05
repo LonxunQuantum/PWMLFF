@@ -209,11 +209,11 @@ program main_MD
             enddo
         endif
 
-        !write(6,*) "TEST2 inode=", inode
+        ! write(6,*) "TEST2 inode=", inode
         
         call molecular_dynamics_new(dtMD,iMD,MDstep,xatom,iMDatom,temperature1,temperature2,iscale_temp_VVMD,nstep_temp_VVMD,imov_at,natom,AL,ALI,iatom,f_xatom)
 
-        !write(6,*) "TEST3 inode=", inode
+        ! write(6,*) "TEST3 inode=", inode
 
         call mpi_finalize(ierr)
 

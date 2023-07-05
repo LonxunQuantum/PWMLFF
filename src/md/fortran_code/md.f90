@@ -33,7 +33,7 @@ subroutine molecular_dynamics_kernel(Etot,fatom,e_stress)
         real*8 :: energyunits, lengthunits, timeunits
         real*8 :: h_plumed(3,3), f_plumed(3,matom_1),r_plumed(3,matom_1)
         real*8 :: stress_plumed(3,3)
-        real*8 AL_tmp(3,3)
+        real*8 AL_tmp(3,3)      ! Lattice vector
 
         real*8 tt1,tt2,tt_tmp
         real(8), allocatable, dimension(:) ::  const_vx,const_vy,const_vz
@@ -91,7 +91,7 @@ subroutine molecular_dynamics_kernel(Etot,fatom,e_stress)
         e_stress = 0.d0 
         
         if ((iflag_model.eq.1) .or. (iflag_model.eq.2) .or. (iflag_model.eq.3).or. (iflag_model.eq.5)) then 
-            call ML_FF_EF(Etot,fatom,MCTRL_xatom,AL_tmp,MCTRL_natom,e_stress)
+            call ML_FF_EF(Etot,fatom,MCTRL_xatom,AL_tmp,MCTRL_natom,e_stress)   ! MCTRL_natom -- atom number
         end if 
 
         !preprocessing for dp model 

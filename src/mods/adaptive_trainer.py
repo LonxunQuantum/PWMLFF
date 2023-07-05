@@ -17,6 +17,7 @@ sys.path.append(codepath)
 
 sys.path.append(codepath+'/../PWmatMLFF')
 sys.path.append(codepath+'/../aux')
+sys.path.append(codepath+'/../pre_data')
 
 #import dp_network
 
@@ -43,6 +44,8 @@ class adaptive_trainer():
                     num_select_per_group = 20,
                     psp_dir = "/share/psp/NCPP-SG15-PBE", 
                     etot_dir = None,
+                    struct_dir = './',
+                    ff_dir = [],
                     node_num = 1,   
                     atom_type = [],
                     success_bar = 0.12,
@@ -54,6 +57,7 @@ class adaptive_trainer():
                     lmp_ntask_per_node = None, 
                     lmp_wall_time = 7200,          
                     lmp_custom_lines = [],
+                    systems_2be_perturbed = []
                 ):  
         """
             DIR: train
@@ -100,6 +104,8 @@ class adaptive_trainer():
         self.working_dir = os.getcwd() 
         self.psp_dir = psp_dir
         self.etot_dir = etot_dir
+        self.struct_dir = struct_dir
+        self.ff_dir = ff_dir
 
         self.train_path = self.working_dir+"/train"
         self.explore_path = self.working_dir+"/explore"
@@ -146,9 +152,9 @@ class adaptive_trainer():
     def initialize(self):
         # housekeeping. Set up dirs etc. 
 
-        if not os.path.exists(self.train_path):
-            print("creating dir \'train\'")
-            os.mkdir(self.train_path)
+        # if not os.path.exists(self.train_path):
+        #     print("creating dir \'train\'")
+        #     os.mkdir(self.train_path)
         
         if not os.path.exists(self.explore_path):
             print("creating dir \'explore\'")
@@ -177,7 +183,6 @@ class adaptive_trainer():
                selecting configurations 
        ****************************************** 
     """
-
     def select_init_config(self):
         """
             move all data from /seed to /subsys    
@@ -187,6 +192,57 @@ class adaptive_trainer():
         #remove all the subsys 
         #subprocess.run(["rm "+self.explore_subsys_dir+" * -r"],shell=True)
         
+        # Delete the old link file (if existence)
+        for filename in os.listdir(self.seed_path):
+            file_path = os.path.join(self.seed_path, filename)
+            if os.path.islink(file_path):
+                os.remove(file_path)
+        # link all the config files in /structures to /seed
+        for path, dirList, fileList in os.walk(os.path.join(self.struct_dir, 'structures')):
+            for filename in fileList:
+                if filename.endswith(".config"):
+                    source_file = os.path.abspath(os.path.join(path, filename))
+                    target_file = os.path.join(self.seed_path, filename)
+                    os.symlink(source_file, target_file)
+
+        for a, b, c in os.walk(self.seed_path):
+                cfg_names = c
+                break
+        
+        for cfg in cfg_names: 
+            # all tempratures 
+            for temp in self.temperature:
+                for pres in self.pressure:
+                    
+                    tmp_path_subsys = self.explore_subsys_dir+"/"+cfg + "_T="+str(temp) + "_P="+str(pres)
+                    tmp_path_result = self.explore_result_dir+"/"+cfg + "_T="+str(temp) + "_P="+str(pres)
+                    
+                    if not os.path.exists(tmp_path_subsys):
+                        os.mkdir(tmp_path_subsys)
+
+                    #if not os.path.exists(tmp_path_result):
+                    #    os.mkdir(tmp_path_result)
+                    
+                    # copy configuration
+                    cmd = "cp "+self.seed_path+"/"+cfg + " " + tmp_path_subsys+"/atom.config"
+                    subprocess.run([cmd],shell=True)
+
+                    # generate lmp.cfg
+                    os.chdir(tmp_path_subsys)
+                    subprocess.run(["config2poscar.x atom.config > /dev/null"], shell = True)
+                    p2l(output_name = "lmp.init")
+                    subprocess.run(["rm","atom.config","POSCAR"])
+
+                    print("lmp input config generated in "+tmp_path_subsys)
+
+                    write_cfg = self.write_lmp_config  
+                    write_cfg["init_temp"] = temp
+                    write_cfg["end_temp"] = temp 
+                    write_cfg["init_pres"] = pres
+                    write_cfg["end_pres"] = pres
+
+                    self.write_lmp_in(write_cfg)
+        """
         # collect all dirs in /seed
         for a, b, c in os.walk(self.seed_path):
             dirs = b
@@ -203,7 +259,7 @@ class adaptive_trainer():
             
             for a,b, c in os.walk(self.seed_path+"/"+subdir):
                 cfg_names = c
-                #print (cfg_names)
+                print (cfg_names)
                 break
             
             cfg_root = self.seed_path+"/"+subdir
@@ -241,6 +297,7 @@ class adaptive_trainer():
                         write_cfg["end_pres"] = pres
 
                         self.write_lmp_in(write_cfg)
+                        """
             
 
     def write_lmp_in(self,write_config):
@@ -405,7 +462,36 @@ class adaptive_trainer():
 
             print("trajectory generated for "+dir+" in", end-begin, "s\n")
             
-            
+    def link_ff_files(self):     
+        """
+            link the force field files to the model dir
+        """
+
+        if not os.path.exists(self.explore_model_dir):
+            os.makedirs(self.explore_model_dir)
+
+        if len(self.ff_dir) == self.model_num:
+            # Delete the old link file (if existence)
+            for file in os.listdir(self.explore_model_dir):
+                ff_name = os.path.join(self.explore_model_dir, file)
+                if os.path.islink(ff_name):
+                    os.unlink(ff_name)
+
+            i = 0
+            for file_path in self.ff_dir:
+                if not os.path.isdir(file_path):
+                    continue
+
+                for ff_name in os.listdir(file_path):
+                    if ff_name.endswith('.ff'):
+                        i += 1
+                        os.symlink(os.path.abspath(os.path.join(file_path, ff_name)), self.explore_model_dir+"/"+str(i)+".ff")
+
+                    if i == self.model_num:
+                        break
+        else:
+            raise ValueError("the number of force field files is not equal to the number of models")
+
     def run_lmp(self):
         """
             using LAMMPS to generate trajectories 
@@ -779,59 +865,64 @@ class adaptive_trainer():
 
             print("etot.input written in",dir)
 
-            print ("SCF starts in", dir)
+            # print ("SCF starts in", dir)
             
-            os.chdir(dir)
-            begin = time.time()
-            # silent mode 
-            # pwmat_cmd = "mpirun -np $SLURM_NPROCS -iface ib0 PWmat -host 10.0.0.2 50002 > /dev/null"
-            pwmat_cmd = "mpirun -np $SLURM_NPROCS -iface ib0 PWmat -host 10.0.0.2 50002 | tee output"
-            subprocess.run(pwmat_cmd,shell=True) 
+            # os.chdir(dir)
+            # begin = time.time()
+            # # silent mode 
+            # # pwmat_cmd = "mpirun -np $SLURM_NPROCS -iface ib0 PWmat -host 10.0.0.2 50002 > /dev/null"
+            # pwmat_cmd = "mpirun -np $SLURM_NPROCS -iface ib0 PWmat -host 10.0.0.2 50002 | tee output"
+            # subprocess.run(pwmat_cmd,shell=True) 
             
-            end = time.time() 
+            # end = time.time() 
             
-            print ("SCF ends successfully in", end-begin, "s")
+            # print ("SCF ends successfully in", end-begin, "s")
             
     def collect_cfgs(self):
         """
             select configs in /subsys to /result
         """
         from random import shuffle
-        lmp_dirs = [] 
 
         # for all groups pick out all config.x in lmp dir 
-        for root, dirs, files in os.walk(self.explore_subsys_dir, topdown=False):
-            group_dirs = dirs
+        # for root, dirs, files in os.walk(self.explore_subsys_dir, topdown=False):
+        #     group_dirs = dirs        
         
-        for group in group_dirs:
+        # for group in group_dirs:
+            # print("collecting configs in",group)
             # walk in this group 
-            cfg_dot_dirs = [] 
-            for root, dirs, files in os.walk(os.path.join(self.explore_subsys_dir,group), topdown=False):
-                """
-                    some lmp run will just die out. 
-                    No config.(x) is generated
-                """
-                for name in files:
-                    tmp = os.path.join(root, name)
-                    if ".config" in tmp:
-                        cfg_dot_dirs.append(tmp)
+        cfg_dot_dirs = [] 
+            
+        for root, dirs, files in os.walk(self.explore_subsys_dir):
+            """
+                some lmp run will just die out. 
+                No config.(x) is generated
+            """
+            for file in files:
+                if file.endswith(".config"):
+                    cfg_dot_dirs.append(os.path.join(root, file))
+            # for name in files:
+            #     tmp = os.path.join(root, name)
+            #     if ".config" in tmp:
+            #         cfg_dot_dirs.append(tmp)
 
-            shuffle(cfg_dot_dirs)
+        shuffle(cfg_dot_dirs)
 
-            # result dir 
-            tgt = (self.explore_result_dir + "/"+group).replace("subsys","result")
+        # result dir 
+            # tgt = (self.explore_result_dir + "/"+group).replace("subsys","result")
+        tgt = (self.explore_result_dir).replace("subsys","result")
 
-            # randomly select self.num_select_per_group
-            for idx, cfg in enumerate(cfg_dot_dirs[:self.num_select_per_group]):
-                
-                tgt_sub = tgt+ "/" + str(idx)
-                print("creating:",tgt_sub)
+        # randomly select self.num_select_per_group
+        for idx, cfg in enumerate(cfg_dot_dirs[:self.num_select_per_group]):
+            
+            tgt_sub = tgt+ "/" + str(idx)
+            print("creating:",tgt_sub)
 
-                if not os.path.exists(tgt_sub):
-                    os.mkdir(tgt_sub)
-                
-                cmd = "cp "+cfg+" "+tgt_sub+"/atom.config"
-                subprocess.run([cmd], shell=True) 
+            if not os.path.exists(tgt_sub):
+                os.mkdir(tgt_sub)
+            
+            cmd = "cp "+cfg+" "+tgt_sub+"/atom.config"
+            subprocess.run([cmd], shell=True) 
 
     def collect_mvmt(self):
         """
@@ -890,13 +981,19 @@ class adaptive_trainer():
     def explore(self):
         
         # prepare directories
-        #self.select_init_config() 
-
+        self.initialize()
+        # prepare initial configs
+        self.select_init_config() 
+        # copy force field files
+        self.link_ff_files() 
         # generate trajectories and select candidates
-        #self.run_lmp()      
-
-        # scf for selected configs
-        self.run_scf()
+        self.run_lmp()    
+        # select a certain number of configs and move into ./result
+        self.collect_cfgs() 
+        # plot sigma from lammmps - explr.error
+        self.plot_sigma()
+        # prepare for scf
+        self.write_scf_in_and_run() 
 
     """
        ****************************************** 
@@ -981,6 +1078,62 @@ class adaptive_trainer():
         # !!! should be a barrier here !!!
         print ("\ntraining done\n")
         
+    """
+       ****************************************** 
+                    plot_sigma core  
+       ****************************************** 
+    """
+    def plot_sigma(self):
+        import matplotlib.pyplot as plt
+        import matplotlib as mpl
+
+        mpl.use("Agg")
+        fontsize = 20
+
+        md_step = self.traj_step + 1   # idx from 1
+        md_dt = int(self.md_dt * 1000) # fs for 'units metal' of lammps.in 
+        T_range = [self.temperature]
+        P_range = [self.pressure]
+        plot_dir = '%s_explr_plot' % self.ensemble
+        if not os.path.isdir(plot_dir):
+            os.mkdir(plot_dir)
+        xticks = range(0, md_step*md_dt, int(md_step//5)*md_dt)
+        for idx in os.listdir(self.seed_path):
+            for P in P_range[0]:
+                if P == 1:
+                    P = '1.0'
+                else:
+                    P = str(P)
+                fig = plt.figure(figsize=(6, 8))
+                ax1 = fig.add_subplot(211)
+                ax2 = fig.add_subplot(212)
+                for T in T_range[0]:
+                    error_data = np.zeros([md_step])
+                    explr_error_file = '%s/%s_T=%d_P=%s/explr.error' % (self.explore_subsys_dir, idx, T, P)
+                    if os.path.isfile(explr_error_file):
+                        error_tmp = np.loadtxt(explr_error_file)
+                        error_data[:len(error_tmp)] = error_tmp[:, 1]
+                        y, x = np.histogram(error_data, bins=200, range=(0., .4))
+                        xx = [(x[i]+x[i+1])/2 for i in range(len(x)-1)]
+                        ax1.plot(xx, y*500./len(error_data), lw=2, ls="--", label="T=%d K" % T)
+                        ax2.plot(np.arange(error_data.shape[0])*md_dt, error_data, lw=2, ls="--", label="T=%d K" % T)
+                ax1.set_title(" %s" % self.ensemble, fontsize=fontsize+4)
+                ax1.set_xlabel(r'$\sigma_f^{\mathrm{max}}$ (eV/$\mathrm{\AA}$)', size=fontsize)
+                ax1.set_ylabel('Distribution (%)', size=fontsize)
+                ax1.set_xticks([0.,.1,.2,.3,.4],[0.,.1,.2,.3,.4],size=fontsize-4)
+                ax1.set_yticks(range(0,41,10),range(0,41,10),size=fontsize-4)
+                ax1.set_ylim([0,45])
+                ax1.set_xlim([0,.4])
+                ax1.legend(fontsize=fontsize-6, labels=['T=%d K' % T for T in T_range[0]])
+                ax2.set_ylabel(r'$\sigma_f^{\mathrm{max}}$ (eV/$\mathrm{\AA}$)', size=fontsize)
+                ax2.set_xlabel('MD time', size=fontsize)
+                ax2.set_yticks([0.,.1,.2,.3,.4],[0.,.1,.2,.3,.4],size=fontsize-4)
+                ax2.set_xticks(xticks,xticks,size=fontsize-4)
+                ax2.set_ylim([0,.4])
+                ax2.set_xlim([0,md_step*md_dt])
+                plt.tight_layout()
+                plt.savefig(plot_dir+'/dev_fmax.png', dpi=300)
+                plt.close()
 
     def my_dbg(self):
 

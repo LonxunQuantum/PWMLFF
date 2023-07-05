@@ -501,7 +501,7 @@ contains
                 !read(88,*) MCTRL_MDstep,MCTRL_nskip_begin_AL,MCTRL_nskip_AL_x, &  
                 !  MCTRL_nskip_x_end,MCTRL_jump100
                 open(188,file='md100.input') 
-                read(188,*) MCTRL_MDstep,MCTRL_nskip_begin_AL,MCTRL_nskip_AL_x, MCTRL_nskip_x_end,MCTRL_jump100
+                read(188,*) MCTRL_MDstep,MCTRL_nskip_begin_AL,MCTRL_nskip_AL_x,MCTRL_nskip_x_end,MCTRL_jump100
                 read(188,'(A200)') MCTRL_md100_movement
                 close(188)
                     if(inode .eq. 1) then                                        
@@ -708,11 +708,10 @@ contains
                 mymd.h_old=mymd.h
 
                 do ii=1,MCTRL_jump100
-
                     do i=1,MCTRL_nskip_begin_AL
                         read(88,*)       ! 88 is IN.MOVEMENT
                     enddo
-                    
+
                     ! line below is somehow buggy 
                     read(88,*) mymd.h(1,1),mymd.h(2,1),mymd.h(3,1)
                     read(88,*) mymd.h(1,2),mymd.h(2,2),mymd.h(3,2)
@@ -729,7 +728,7 @@ contains
                     do i=1,MCTRL_natom
                         read(88,*) iat_tmp,mymd.r(1,i),mymd.r(2,i),mymd.r(3,i)      !no check on iat_tmp!!
                     enddo
-                    
+
                     do i=1,MCTRL_nskip_x_end
                         read(88,*)
                     enddo
