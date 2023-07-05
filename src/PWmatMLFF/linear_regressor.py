@@ -120,6 +120,7 @@ class linear_regressor:
     def run_md(self, init_config = "atom.config", md_details = None, num_thread = 1, follow = False):
 
         import subprocess 
+        from poscar2lammps import idx2mass
         
         # remove existing MOVEMENT file for not 
         if follow == False:
@@ -134,6 +135,12 @@ class linear_regressor:
             raise Exception("initial config for MD is not found")
         
         # preparing md.input 
+        idx_tabel = idx2mass()
+        mass_type = []
+        for idx in pm.atomType:
+            if idx in idx_tabel:
+                mass_type.append(idx_tabel[idx])
+                
         f = open('md.input', 'w')
         f.write(init_config+"\n")
 
@@ -144,7 +151,7 @@ class linear_regressor:
         f.write('%d\n' % len(pm.atomType)) 
         
         for i in range(len(pm.atomType)):
-            f.write('%d %d\n' % (pm.atomType[i], 2*pm.atomType[i]))
+            f.write('%d %.3f\n' % (pm.atomType[i], mass_type[i]))
         f.close()    
         
         # creating md.input for main_MD.x 

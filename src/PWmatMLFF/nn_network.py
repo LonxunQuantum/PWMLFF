@@ -995,8 +995,10 @@ class nn_network:
         """
             **********************************************************************
         """
-
-        kalman_inputs = [input_data, dfeat, neighbor, natoms_img, egroup_weight, divider]
+        if self.is_trainEgroup:
+            kalman_inputs = [input_data, dfeat, neighbor, natoms_img, egroup_weight, divider]
+        else:
+            kalman_inputs = [input_data, dfeat, neighbor, natoms_img]
 
         # choosing what data are used for W update. Defualt are Etot and Force
         if self.is_trainEtot: 
@@ -1015,9 +1017,9 @@ class nn_network:
         
         Etot_predict, Ei_predict, Force_predict = model(input_data, dfeat, neighbor, natoms_img, egroup_weight, divider)
 
-        Egroup_predict = torch.zeros_like(Ei_predict)
 
         if self.is_trainEgroup:
+            Egroup_predict = torch.zeros_like(Ei_predict)
             Egroup_predict = model.get_egroup(Ei_predict,egroup_weight,divider) 
 
         # dtype same as torch.default

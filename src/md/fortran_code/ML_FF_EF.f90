@@ -453,7 +453,6 @@ subroutine ML_FF_EF(Etot,fatom,xatom,AL,natom_tmp,e_stress)
             
             e_atom(1:natom_tmp)=energy_pred_lin(1:natom_tmp)
             fatom(:,1:natom_tmp)=force_pred_lin(:,1:natom_tmp)   ! unit, and - sign?
-            
             ! update the diagonal element of the stress tensor 
             ! if ((MCTRL_iMD.eq.4).or.(MCTRL_iMD.eq.5).or.(MCTRL_iMD.eq.7)) then
             if (1.eq.0) then
