@@ -198,8 +198,10 @@ class GKalmanFilter(nn.Module):
             |<---group1--->|<---group2--->|<-- ... -->|<---groupN--->| 
             randomly choose atomidx for udpate 
         """
-        from numpy.random import choice 
-        selectedIdx = choice(natoms_sum,selectNum,replace = False)
+        # from numpy.random import choice 
+        # selectedIdx = choice(natoms_sum.cpu().numpy(),selectNum,replace = False)    # natoms_sum is a tensor
+        weights = torch.ones(natoms_sum)                                         # Weight for each atom: set 1, means equal probability
+        selectedIdx = torch.multinomial(weights, selectNum, replacement=False)      # randomly choose atomidx for udpate
 
         # looping over chosen indices
         for i in range(int(selectNum / updateNum) + 1):

@@ -30,7 +30,7 @@ class linear_regressor:
                     
                     etot_weight = 0.5, 
                     force_weight = 0.5,
-                    ei_weight = 0.0, 
+                    ei_weight = 0.5, 
                 ):
         
         if atom_type == None:
@@ -54,6 +54,17 @@ class linear_regressor:
         pm.fortranFitWeightOfEnergy = ei_weight
 
     def generate_data(self):
+
+        import subprocess
+        # clean old .dat files otherwise will be appended 
+        if os.path.exists("PWdata/MOVEMENTall"):
+            print ("cleaning old data")
+            subprocess.run([
+                "rm -rf fread_dfeat output input train_data plot_data PWdata/*.txt PWdata/trainData.* PWdata/location PWdata/Egroup_weight PWdata/MOVEMENTall"
+                ],shell=True)
+            subprocess.run(["find PWdata/ -name 'dfeat*' | xargs rm -rf"],shell=True)
+            subprocess.run(["find PWdata/ -name 'info*' | xargs rm -rf"],shell=True)
+            
         print("data generation starts")
         # calculate features
         pm.isCalcFeat = True 
@@ -104,18 +115,25 @@ class linear_regressor:
         
         if not os.path.exists("MD/MOVEMENT"):
             raise Exception("MD/MOVEMENT not found. It should be an Ab Initio MD result")
-                
+        if os.path.exists("MOVEMENT"):
+            os.remove("MOVEMENT")        
         import md100    
         md100.run_md100(imodel = 1, atom_type = pm.atomType, num_process = num_thread)
 
 
-    def plot_evaluation(self):
+    def plot_evaluation(self, plot_elem, save_data):
         
         if not os.path.exists("MOVEMENT"):
             raise Exception("MOVEMENT not found. It should be force field MD result")
 
         import plot_evaluation
-        plot_evaluation.plot()
+
+        if pm.fortranFitWeightOfEnergy == 0:
+            plot_ei = False
+        else:
+            plot_ei = True
+            
+        plot_evaluation.plot_new(atom_type = pm.atomType, plot_elem = plot_elem, save_data = save_data, plot_ei = plot_ei)
         
     def run_md(self, init_config = "atom.config", md_details = None, num_thread = 1, follow = False):
 

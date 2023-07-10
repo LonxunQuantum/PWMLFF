@@ -132,6 +132,9 @@
       do k=1,n2b(itype0)
       num=num+1
       feat_all(num,iat)=feat2(k,itype,iat)
+      if (abs(feat_all(num,iat)).lt.1E-38) then
+            feat_all(num,iat)=0.d0
+            endif
       dfeat_all(num,iat,1:nneigh,:)=dfeat2(k,itype,iat,1:nneigh,:)
       enddo
       enddo
