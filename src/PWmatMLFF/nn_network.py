@@ -373,9 +373,19 @@ class nn_network:
         """
             defualt chunk size set to 10 
         """
+        import subprocess
         #pm.isCalcFeat = True 
         #import mlff 
         #pm.isCalcFeat = False 
+
+        # clean old .dat files otherwise will be appended 
+        if os.path.exists("PWdata/MOVEMENTall"):
+            print ("cleaning old data")
+            subprocess.run([
+                "rm -rf fread_dfeat output input train_data plot_data PWdata/*.txt PWdata/trainData.* PWdata/location PWdata/Egroup_weight PWdata/MOVEMENTall"
+                ],shell=True)
+            subprocess.run(["find PWdata/ -name 'dfeat*' | xargs rm -rf"],shell=True)
+            subprocess.run(["find PWdata/ -name 'info*' | xargs rm -rf"],shell=True)
 
         # calculating feature 
         from mlff import calc_feat
@@ -395,8 +405,8 @@ class nn_network:
         ============================================================ 
     """ 
 
-    def set_epoch_num(self, input_num):
-        self.n_epoch = input_num    
+    # def set_epoch_num(self, input_num):
+    #     self.n_epoch = input_num    
 
     def set_movement_weights(self, input_mvt_w): 
 
@@ -672,6 +682,68 @@ class nn_network:
         iter = 0 
         iter_valid = 0 
 
+        # set the log files
+        iter_train_log = self.opts.opt_session_dir+'iter_loss.dat'
+        f_iter_train_log = open(iter_train_log, 'w')
+        epoch_train_log = self.opts.opt_session_dir+'epoch_loss.dat'
+        f_epoch_train_log = open(epoch_train_log, 'w')
+        iter_valid_log = self.opts.opt_session_dir+'iter_loss_valid.dat'
+        f_iter_valid_log = open(iter_valid_log, 'w')
+        epoch_valid_log =  self.opts.opt_session_dir + 'epoch_loss_valid.dat'
+        f_epoch_valid_log = open(epoch_valid_log, 'w')
+        
+        # Define the lists based on the training type
+        iter_train_lists = ["iter", "loss"]
+        iter_valid_lists = ["iter", "loss"]
+        epoch_train_lists = ["epoch", "loss"]
+        epoch_valid_lists = ["epoch", "loss"]
+
+        if self.is_trainEtot:
+            iter_train_lists.append("RMSE_Etot")
+            epoch_train_lists.append("RMSE_Etot")
+            iter_valid_lists.append("RMSE_Etot")
+            epoch_valid_lists.append("RMSE_Etot")
+        if self.is_trainEi:
+            iter_train_lists.append("RMSE_Ei")
+            epoch_train_lists.append("RMSE_Ei")
+            iter_valid_lists.append("RMSE_Ei")
+            epoch_valid_lists.append("RMSE_Ei")
+        if self.is_trainEgroup:
+            iter_train_lists.append("RMSE_Egroup")
+            epoch_train_lists.append("RMSE_Egroup")
+            iter_valid_lists.append("RMSE_Egroup")
+            epoch_valid_lists.append("RMSE_Egroup")
+        if self.is_trainForce:
+            iter_train_lists.append("RMSE_F")
+            epoch_train_lists.append("RMSE_F")
+            iter_valid_lists.append("RMSE_F")
+            epoch_valid_lists.append("RMSE_F")
+
+        if self.kalman_type is None:
+            iter_valid_lists.extend(["lr"])
+
+        print_width = {
+            "iter": 5,
+            "epoch": 5,
+            "loss": 18,
+            "RMSE_Etot": 18,
+            "RMSE_Ei": 18,
+            "RMSE_Egroup": 18,
+            "RMSE_F": 18,
+            "lr": 18
+        }
+
+        iter_train_format = "".join(["%{}s".format(print_width[i]) for i in iter_train_lists])
+        iter_valid_format = "".join(["%{}s".format(print_width[i]) for i in iter_valid_lists])
+        epoch_train_format = "".join(["%{}s".format(print_width[i]) for i in epoch_train_lists])
+        epoch_valid_format = "".join(["%{}s".format(print_width[i]) for i in epoch_valid_lists])
+
+        # write the header
+        f_iter_train_log.write("%s\n" % (iter_train_format % tuple(iter_train_lists)))
+        f_iter_valid_log.write("%s\n" % (iter_valid_format % tuple(iter_valid_lists)))
+        f_epoch_train_log.write("%s\n" % (epoch_train_format % tuple(epoch_train_lists)))
+        f_epoch_valid_log.write("%s\n" % (epoch_valid_format % tuple(epoch_valid_lists)))
+
         for epoch in range(self.start_epoch, self.n_epoch + 1):
             
             timeEpochStart = time.time()
@@ -723,6 +795,7 @@ class nn_network:
                         self.train_kalman_img(sample_batches, self.model, self.optimizer, nn.MSELoss(), last_epoch, 0.001)
                                 
                 iter += 1
+                """
                 f_err_log = self.opts.opt_session_dir+'iter_loss.dat'
                 
                 if iter == 1:
@@ -734,7 +807,39 @@ class nn_network:
                 fid_err_log = open(f_err_log, 'a')
                 fid_err_log.write('%d %e %e %e %e %e \n'%(iter, batch_loss, math.sqrt(batch_loss_Etot)/natoms_sum, math.sqrt(batch_loss_Ei), math.sqrt(batch_loss_F), math.sqrt(batch_loss_Egroup)))
                 fid_err_log.close() 
+                """
+                f_iter_train_log = open(iter_train_log, 'a')
 
+                # Write the training log line to the log file
+                iter_train_log_line = "%5d%18.10e" % (
+                    iter,
+                    batch_loss,
+                )
+
+                if self.is_trainEtot:
+                    iter_train_log_line += "%18.10e" % (
+                        math.sqrt(batch_loss_Etot)/natoms_sum
+                    )
+                if self.is_trainEi:
+                    iter_train_log_line += "%18.10e" % (
+                        math.sqrt(batch_loss_Ei)
+                    )
+                if self.is_trainEgroup:
+                    iter_train_log_line += "%18.10e" % (
+                        math.sqrt(batch_loss_Egroup)
+                    )
+                if self.is_trainForce:
+                    iter_train_log_line += "%18.10e" % (
+                        math.sqrt(batch_loss_F)
+                    )
+                if self.kalman_type is None:
+                    iter_train_log_line += "%18.10e" % (
+                        real_lr,
+                    )
+
+                f_iter_train_log.write("%s\n" % (iter_train_log_line))
+                f_iter_train_log.close()
+                
                 loss += batch_loss.item() * nr_batch_sample
 
                 loss_Etot += batch_loss_Etot.item() * nr_batch_sample
@@ -743,7 +848,7 @@ class nn_network:
                 loss_Egroup += batch_loss_Egroup.item() * nr_batch_sample 
 
                 nr_total_sample += nr_batch_sample
-                
+                 
             loss /= nr_total_sample
             loss_Etot /= nr_total_sample
             loss_Ei /= nr_total_sample
@@ -757,7 +862,7 @@ class nn_network:
 
             print("epoch_loss = %.10f (RMSE_Etot = %.12f, RMSE_Ei = %.12f, RMSE_F = %.12f, RMSE_Eg = %.12f)" \
                 %(loss, RMSE_Etot, RMSE_Ei, RMSE_F, RMSE_Egroup))
-
+            """
             epoch_err_log = self.opts.opt_session_dir+'epoch_loss.dat'
 
             if epoch == 1:
@@ -768,6 +873,34 @@ class nn_network:
             f_epoch_err_log = open(epoch_err_log, 'a')
             f_epoch_err_log.write('%d %e %e %e %e %e \n'%(epoch, loss, RMSE_Etot, RMSE_Ei, RMSE_F, RMSE_Egroup))
             f_epoch_err_log.close() 
+            """
+            f_epoch_train_log = open(epoch_train_log, 'a')
+
+            # Write the training log line to the log file
+            epoch_train_log_line = "%5d%18.10e" % (
+                epoch,
+                loss,
+            )
+
+            if self.is_trainEtot:
+                epoch_train_log_line += "%18.10e" % (
+                    RMSE_Etot
+                )
+            if self.is_trainEi:
+                epoch_train_log_line += "%18.10e" % (
+                    RMSE_Ei
+                )
+            if self.is_trainEgroup:
+                epoch_train_log_line += "%18.10e" % (
+                    RMSE_Egroup
+                )
+            if self.is_trainForce:
+                epoch_train_log_line += "%18.10e" % (
+                    RMSE_F
+                )
+            
+            f_epoch_train_log.write("%s\n" % (epoch_train_log_line))
+            f_epoch_train_log.close()
             
             if self.not_KF():
                 """
@@ -827,7 +960,7 @@ class nn_network:
                 valid_loss_Egroup += batch_loss_Egroup * nr_batch_sample
                 
                 nr_total_sample += nr_batch_sample
-
+                """
                 f_err_log = self.opts.opt_session_dir+'iter_loss_valid.dat'
 
                 if iter_valid == 1:
@@ -838,6 +971,38 @@ class nn_network:
                 fid_err_log = open(f_err_log, 'a')
                 fid_err_log.write('%d %e %e %e %e %e \n'%(iter, batch_loss, math.sqrt(batch_loss_Etot)/natoms_sum, math.sqrt(batch_loss_Ei), math.sqrt(batch_loss_F), real_lr))
                 fid_err_log.close() 
+                """
+                f_iter_valid_log = open(iter_valid_log, 'a')
+
+                # Write the valid log line to the log file
+                iter_valid_log_line = "%5d%18.10e" % (
+                    iter,
+                    batch_loss,
+                )
+
+                if self.is_trainEtot:
+                    iter_valid_log_line += "%18.10e" % (
+                        math.sqrt(batch_loss_Etot)/natoms_sum
+                    )
+                if self.is_trainEi:
+                    iter_valid_log_line += "%18.10e" % (
+                        math.sqrt(batch_loss_Ei)
+                    )
+                if self.is_trainEgroup:
+                    iter_valid_log_line += "%18.10e" % (
+                        math.sqrt(batch_loss_Egroup)
+                    )
+                if self.is_trainForce:
+                    iter_valid_log_line += "%18.10e" % (
+                        math.sqrt(batch_loss_F)
+                    )
+                if self.kalman_type is None:
+                    iter_train_log_line += "%18.10e" % (
+                        real_lr,
+                    )
+
+                f_iter_valid_log.write("%s\n" % (iter_valid_log_line))
+                f_iter_valid_log.close()
 
             #end for
 
@@ -855,7 +1020,7 @@ class nn_network:
                 
             print("valid_loss = %.10f (valid_RMSE_Etot = %.12f, valid_RMSE_Ei = %.12f, valid_RMSE_F = %.12f, valid_RMSE_Egroup = %.12f)" \
                      %(valid_loss, valid_RMSE_Etot, valid_RMSE_Ei, valid_RMSE_F, valid_RMSE_Egroup))
-
+            """
             f_err_log =  self.opts.opt_session_dir + 'epoch_loss_valid.dat'
             
             if not os.path.exists(f_err_log):
@@ -866,6 +1031,34 @@ class nn_network:
             fid_err_log = open(f_err_log, 'a')
             fid_err_log.write('%d %e %e %e %e\n'%(epoch, valid_RMSE_Etot, valid_RMSE_Ei, valid_RMSE_F, valid_RMSE_Egroup))
             fid_err_log.close() 
+            """
+            f_epoch_valid_log = open(epoch_valid_log, 'a')
+
+            # Write the valid log line to the log file
+            epoch_valid_log_line = "%5d%18.10e" % (
+                epoch,
+                valid_loss,
+            )
+
+            if self.is_trainEtot:
+                epoch_valid_log_line += "%18.10e" % (
+                    valid_RMSE_Etot
+                )
+            if self.is_trainEi:
+                epoch_valid_log_line += "%18.10e" % (
+                    valid_RMSE_Ei
+                )
+            if self.is_trainEgroup:
+                epoch_valid_log_line += "%18.10e" % (
+                    valid_RMSE_Egroup
+                )
+            if self.is_trainForce:
+                epoch_valid_log_line += "%18.10e" % (
+                    valid_RMSE_F
+                )
+
+            f_epoch_valid_log.write("%s\n" % (epoch_valid_log_line))
+            f_epoch_valid_log.close()
 
             """  
                 save model 
@@ -893,12 +1086,19 @@ class nn_network:
 
     def load_and_train(self):
         
+        # transform data
         self.load_data()
         
+        # initialize the network
         self.set_model()
         
+        # initialize the optimizer and related scheduler
         self.set_optimizer()
 
+        # set epoch number for training
+        # self.set_epoch_num()
+
+        # start training
         self.train()
 
     def train_img(self, sample_batches, model, optimizer, criterion, last_epoch, real_lr):
@@ -995,10 +1195,11 @@ class nn_network:
         """
             **********************************************************************
         """
-        if self.is_trainEgroup:
-            kalman_inputs = [input_data, dfeat, neighbor, natoms_img, egroup_weight, divider]
-        else:
-            kalman_inputs = [input_data, dfeat, neighbor, natoms_img]
+        # if self.is_trainEgroup:
+        #     kalman_inputs = [input_data, dfeat, neighbor, natoms_img, egroup_weight, divider]
+        # else:
+        #     kalman_inputs = [input_data, dfeat, neighbor, natoms_img]
+        kalman_inputs = [input_data, dfeat, neighbor, natoms_img, egroup_weight, divider]
 
         # choosing what data are used for W update. Defualt are Etot and Force
         if self.is_trainEtot: 
@@ -1485,13 +1686,20 @@ class nn_network:
         import md100
         md100.run_md100(imodel = 3, atom_type = pm.atomType, num_process = num_thread)
 
-    def plot_evaluation(self):
+    def plot_evaluation(self, plot_elem, save_data):
                 
         if not os.path.exists("MOVEMENT"):
             raise Exception("MOVEMENT not found. It should be force field MD result")
 
         import plot_evaluation
-        plot_evaluation.plot()
+        # plot_evaluation.plot()
+
+        if self.is_trainEi or self.is_trainEgroup:
+            plot_ei = True
+        else:
+            plot_ei = False
+
+        plot_evaluation.plot_new(atom_type = pm.atomType, plot_elem = plot_elem, save_data = save_data, plot_ei = plot_ei)
     
     """
         ======================================================================

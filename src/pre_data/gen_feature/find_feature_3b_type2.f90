@@ -303,6 +303,9 @@
       if(ii_f.gt.0) then
       num=num+1
       feat_all(num,iat)=feat3(ii_f,itype12,iat)
+      if (abs(feat_all(num,iat)).lt.1E-38) then
+            feat_all(num,iat)=0.d0
+            endif
       dfeat_all(num,iat,1:nneigh,:)=dfeat3(ii_f,itype12,iat,1:nneigh,:)
       endif
 

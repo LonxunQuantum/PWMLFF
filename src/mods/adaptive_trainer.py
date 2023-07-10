@@ -22,7 +22,7 @@ sys.path.append(codepath+'/../pre_data')
 #import dp_network
 
 from poscar2lammps import p2l 
-from poscar2lammps import elem2idx
+# from poscar2lammps import elem2idx
 from slice import slice
 
 
@@ -43,7 +43,7 @@ class adaptive_trainer():
                     silent_mode = True, 
                     num_select_per_group = 20,
                     psp_dir = "/share/psp/NCPP-SG15-PBE", 
-                    etot_dir = None,
+                    etot_path = None,
                     struct_dir = './',
                     ff_dir = [],
                     node_num = 1,   
@@ -57,7 +57,6 @@ class adaptive_trainer():
                     lmp_ntask_per_node = None, 
                     lmp_wall_time = 7200,          
                     lmp_custom_lines = [],
-                    systems_2be_perturbed = []
                 ):  
         """
             DIR: train
@@ -103,11 +102,19 @@ class adaptive_trainer():
 
         self.working_dir = os.getcwd() 
         self.psp_dir = psp_dir
-        self.etot_dir = etot_dir
+        self.etot_path = etot_path
         self.struct_dir = struct_dir
-        self.ff_dir = ff_dir
 
-        self.train_path = self.working_dir+"/train"
+        self.train_path = os.path.dirname(self.working_dir)+"/00.train"
+
+        if not ff_dir:
+            self.ff_dir = []
+            for i in range(self.model_num):
+                ff_path = os.path.join(self.train_path, f"{i:03d}")
+                self.ff_dir.append(ff_path)
+        else:
+            self.ff_dir = ff_dir
+
         self.explore_path = self.working_dir+"/explore"
         self.seed_path = self.working_dir+"/seed"
 
@@ -772,7 +779,7 @@ class adaptive_trainer():
 
         psp_path = self.psp_dir
 
-        etot_input = self.etot_dir
+        etot_input = self.etot_path
 
         mp_line = "mp_n123 = "
 
@@ -786,12 +793,12 @@ class adaptive_trainer():
             mp_line = mp_line + str(round_up(norm_b_list[2]/self.ksapcing)) + " "
             mp_line = mp_line + "0 0 0"
         
-        idx_tabel = elem2idx()
-        elem_type = [elem for elem, order in idx_tabel.items() if order in atom_type]
+        # idx_tabel = elem2idx()
+        # elem_type = [elem for elem, order in idx_tabel.items() if order in atom_type]
 
-        psp_lines = []
-        for i, elem in enumerate(elem_type, start=1):
-            psp_lines.append(f"in.psp{i} = {psp_path}/{elem}.SG15.PBE.UPF\n")
+        # psp_lines = []
+        # for i, elem in enumerate(elem_type, start=1):
+        #     psp_lines.append(f"in.psp{i} = {psp_path}/{elem}.SG15.PBE.UPF\n")
             # psp_lines.append("in.psp"+str(i)+" = "+psp_path+"/"+elem+".SG15.PBE.UPF\n")
 
         if etot_input is not None:
@@ -801,10 +808,10 @@ class adaptive_trainer():
                 for line in etot_lines:
                     line = line.strip()
                     file.writelines(line + "\n")
-                file.writelines("job = scf\n")
-                file.writelines("in.atom = atom.config\n")
-                for line in psp_lines:
-                    file.writelines(line)
+                # file.writelines("job = scf\n")
+                # file.writelines("in.atom = atom.config\n")
+                # for line in psp_lines:
+                #     file.writelines(line)
                 file.writelines(mp_line)
         else:
             raise FileNotFoundError("template (etot_input) does not exist")
@@ -1094,7 +1101,7 @@ class adaptive_trainer():
         md_dt = int(self.md_dt * 1000) # fs for 'units metal' of lammps.in 
         T_range = [self.temperature]
         P_range = [self.pressure]
-        plot_dir = '%s_explr_plot' % self.ensemble
+        plot_dir = self.working_dir + '/%s_explr_plot' % self.ensemble
         if not os.path.isdir(plot_dir):
             os.mkdir(plot_dir)
         xticks = range(0, md_step*md_dt, int(md_step//5)*md_dt)
@@ -1117,7 +1124,15 @@ class adaptive_trainer():
                         xx = [(x[i]+x[i+1])/2 for i in range(len(x)-1)]
                         ax1.plot(xx, y*500./len(error_data), lw=2, ls="--", label="T=%d K" % T)
                         ax2.plot(np.arange(error_data.shape[0])*md_dt, error_data, lw=2, ls="--", label="T=%d K" % T)
-                ax1.set_title(" %s" % self.ensemble, fontsize=fontsize+4)
+
+                        ax1_data = np.column_stack((xx, y*500./len(error_data)))
+                        ax2_data = np.column_stack((np.arange(error_data.shape[0])*md_dt, error_data))
+                        data_file1 = f"{plot_dir}/error_data_T{T}_P{P}.txt"
+                        data_file2 = f"{plot_dir}/error_data_T{T}_P{P}_Step.txt"
+                        np.savetxt(data_file1, ax1_data, header="x y", fmt='%.6f')
+                        np.savetxt(data_file2, ax2_data, header="x y", fmt='%d %.6f')
+                        
+                # ax1.set_title(" Iteration %s" % self.iter_num, fontsize=fontsize+4)
                 ax1.set_xlabel(r'$\sigma_f^{\mathrm{max}}$ (eV/$\mathrm{\AA}$)', size=fontsize)
                 ax1.set_ylabel('Distribution (%)', size=fontsize)
                 ax1.set_xticks([0.,.1,.2,.3,.4],[0.,.1,.2,.3,.4],size=fontsize-4)
