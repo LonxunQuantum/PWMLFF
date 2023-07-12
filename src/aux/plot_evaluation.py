@@ -238,7 +238,7 @@ def plot_new(atom_type, plot_elem = False, save_data = False, plot_ei = False):
     if plot_ei:
         fig, axs = plt.subplots(1, 3, figsize=(19, 5))
     else:
-        fig, axs = plt.subplots(1, 2, figsize=(9, 6))
+        fig, axs = plt.subplots(1, 2, figsize=(10, 6))
 
     # Plot atomic energy
     if plot_ei:

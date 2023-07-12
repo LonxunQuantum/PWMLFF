@@ -254,7 +254,8 @@ Ftype6_para={
     'J' :[3.0 for tmp in range(10)],
     'n_w_line': [2 for tmp in range(10)],
     'w1':[ [0.9, 0.1, 0.8, 0.2, 0.7, 0.3, 0.6, 0.4]  for tmp in range(10)],  # shape(w1) = (ntype, n_w_line)
-    'w2':[ [0.1, 0.9, 0.2, 0.8, 0.3, 0.7, 0.4, 0.6]  for tmp in range(10) ],
+    'w2':[ [0.05, 0.85, 0.15, 0.75, 0.65, 0.65, 0.35, 0.55]  for tmp in range(10) ],
+    'w3':[ [0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05]  for tmp in range(10) ],
     }  
 
 

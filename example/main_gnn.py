@@ -1,4 +1,4 @@
-from PWmatMLFF.gnn_network import gnn_network
+from PWMLFF.gnn_network import gnn_network
 
 
 if __name__ == "__main__":
