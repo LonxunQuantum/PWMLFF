@@ -629,6 +629,13 @@ class adaptive_trainer():
         
         num_total = num_success+num_cand+num_fail 
 
+        with open(os.path.join(self.working_dir,"explore.ratio"),"w") as f:
+            f.write("num of all imgs: {}\n".format(num_success+num_cand+num_fail))
+            f.write("ratio of success: {}\n".format(float(num_success)/num_total))
+            f.write("ratio of candidate: {}\n".format(float(num_cand)/num_total))
+            f.write("ratio of failure: {}\n".format(float(num_fail)/num_total))
+
+        '''
         print ("********************************************************")
 
         print ("num of all img:", num_success+num_cand+num_fail)
@@ -637,6 +644,7 @@ class adaptive_trainer():
         print ("ratio of failure:", float(num_fail)/num_total)
         
         print ("********************************************************\n")
+        '''
     
     def lmp_get_err(self,tgt_dir = None):
         lmp_dirs = [] 

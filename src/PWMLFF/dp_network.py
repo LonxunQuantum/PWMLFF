@@ -1038,9 +1038,9 @@ class dp_network:
                     valid_log_line += "%23.10e" % (val_loss_virial_per_atom)
 
                 if self.terminal_args.opt == "LKF" or self.terminal_args.opt == "GKF":
-                    train_log_line += "%10.4f\n" % (time_end - time_start)
+                    train_log_line += "%10.4f" % (time_end - time_start)
                 else:
-                    train_log_line += "%18.10e%10.4f\n" % (real_lr, time_end - time_start)
+                    train_log_line += "%18.10e%10.4f" % (real_lr, time_end - time_start)
 
                 f_train_log.write("%s\n" % (train_log_line))
                 f_valid_log.write("%s\n" % (valid_log_line))
