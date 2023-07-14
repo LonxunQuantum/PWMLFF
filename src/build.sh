@@ -35,4 +35,5 @@ chmod +x ./outcar2movement
 cd ..            # back to src dir
 
 cd op
+rm build -r
 python setup.py install 

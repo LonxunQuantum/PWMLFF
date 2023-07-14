@@ -246,7 +246,7 @@ class MLFFNet(nn.Module):
 
         dim_feat=pm.nFeatures
 
-        result_dEi_dFeat_fortran = torch.zeros((batch_size, natom + 1, dim_feat))
+        result_dEi_dFeat_fortran = torch.zeros((batch_size, natom + 1, dim_feat)).to(self.device)
         result_dEi_dFeat_fortran[:, 1:, :]=test_grad
 
         n_a_idx_fortran = neighbor.reshape(batch_size * natom * neighbor_num)
