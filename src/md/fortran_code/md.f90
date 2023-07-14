@@ -190,7 +190,16 @@ subroutine molecular_dynamics_kernel(Etot,fatom,e_stress)
             !if md then a new routine
             !
             Etot=Etot/Hartree_eV  ! convert back to Hartree
+            ! open(100,file='fatom_md.dat',position="append")
+            ! write(100,*) "convert to Hatree/Bohr", istep
+            !     do i = 1, natom
+            !         if (any(fatom(:,i) /= 0.0)) then
+            !             write(100,"(I5, 1X, 3F12.6)") i, fatom(:,i)
+            !         endif
+            !     enddo
+            ! close(100)
             fatom(:,1:natom)=fatom(:,1:natom)*A_AU_1/Hartree_eV  ! convert to Hatree/Bohr
+
             
             
             call exchange_data_scf2md(md,fatom,Etot,e_stress)

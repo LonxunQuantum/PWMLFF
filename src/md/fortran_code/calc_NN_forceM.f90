@@ -1083,6 +1083,8 @@ module calc_NN
                     force_pred_tmp(1,iat2)=force_pred_tmp(1,iat2)+sum1
                     force_pred_tmp(2,iat2)=force_pred_tmp(2,iat2)+sum2    
                     force_pred_tmp(3,iat2)=force_pred_tmp(3,iat2)+sum3
+
+                    ! write(*,"(I4, I5, 1X, 3F12.6)") i, iat2, force_pred_tmp(1,iat2), force_pred_tmp(2,iat2), force_pred_tmp(3,iat2)
                 
                 enddo
             endif
