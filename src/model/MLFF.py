@@ -177,7 +177,7 @@ class MLFFNet(nn.Module):
         #print (self.atomType)
         #print (len(self.models))
 
-    def forward(self, image, dfeat, neighbor, natoms_img, Egroup_weight, divider, is_calc_f = True):
+    def forward(self, image, dfeat, neighbor, natoms_img, Egroup_weight, divider = None, is_calc_f = True):
         """
             single image at a time 
             add label to avoid force calculation 
@@ -232,7 +232,7 @@ class MLFFNet(nn.Module):
         Etot = Ei.sum(dim=1)
         
         if is_calc_f==False:
-            return Etot, 0.0, 0.0 
+            return Etot, 0.0, 0.0, None #WuXing To maintain consistency with KFwapper output, increase the None placeholder
         
         test = Ei.sum()
         mask = torch.ones_like(test)
@@ -263,7 +263,7 @@ class MLFFNet(nn.Module):
         self.Etot = Etot
         self.Force = Force  
 
-        return Etot, Ei, Force 
+        return Etot, Ei, Force, None # WuXing To maintain consistency with KFwapper output, increase the None placeholder
 
     def get_egroup(self,Ei_input,Egroup_weight, divider):
         

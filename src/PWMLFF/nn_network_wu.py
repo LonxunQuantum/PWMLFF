@@ -43,7 +43,7 @@ from torch.autograd import Variable
 
 import time
 import getopt
-
+from optimizer.KFWrapper import KFOptimizerWrapper
 from sklearn.preprocessing import MinMaxScaler
 from joblib import dump, load
 from sklearn.feature_selection import VarianceThreshold
@@ -60,7 +60,10 @@ import logging
 """
 
 from model.MLFF import MLFFNet
-from optimizer.kalmanfilter import GKalmanFilter, LKalmanFilter, SKalmanFilter
+
+# from optimizer.kalmanfilter import GKalmanFilter, LKalmanFilter, SKalmanFilter
+from optimizer.GKF import GKFOptimizer
+from optimizer.LKF import LKFOptimizer
 
 import default_para as pm
 
@@ -106,11 +109,12 @@ class nn_network:
                     session_dir = "record",  # directory that saves the model
                     
                     # for force update
-                    nselect = 24, 
+                    nselect = 24,
+                    distributed = False, 
                     group_size = 6,
                     
                     # for LKF
-                    block_size = 5120,  
+                    block_size = 2560, 
                     
                     # training label related arguments
                     is_trainForce = True, 
@@ -132,10 +136,10 @@ class nn_network:
                     custom_feat_1 = None, 
                     custom_feat_2 = None, 
                     custom_feat_7 = None, 
-                    
+
                     dbg = False, 
                 ):
-            
+        self.workers = 1
         """
             Global parameters of the class.  
             Some member data are only "declared" here, and assignment requires further operations 
@@ -342,6 +346,7 @@ class nn_network:
         self.load_model_path = self.opts.opt_model_dir+'latest.pt' 
 
         self.nselect = nselect 
+        self.distributed = distributed
         self.group_size = group_size
         
         self.block_size = block_size 
@@ -507,18 +512,47 @@ class nn_network:
         torch_valid_data = get_torch_data(pm.test_data_path)
 
         # scaler saved to self.scaler
-        if pm.is_scale:
-            self.scale(torch_train_data, torch_valid_data)
+        # if pm.is_scale:
+        #     self.scale(torch_train_data, torch_valid_data)
         
-        assert self.scaler != None, "scaler is not correctly saved"
+        # assert self.scaler != None, "scaler is not correctly saved"
 
+        #************************add by wuxing for LKF optimizer******************
+        # if args.distributed:
+        #     train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
+        #     val_sampler = torch.utils.data.distributed.DistributedSampler(
+        #         val_dataset, shuffle=False, drop_last=True
+        #     )
+        # else:
+        train_sampler = None
+        val_sampler = None
+
+        self.loader_train = torch.utils.data.DataLoader(
+            torch_train_data,
+            batch_size=self.batch_size,
+            shuffle=(train_sampler is None),
+            num_workers=self.workers, 
+            pin_memory=True,
+            sampler=train_sampler,
+        )
+
+        self.loader_valid = torch.utils.data.DataLoader(
+            torch_valid_data,
+            batch_size=self.batch_size,
+            shuffle=False,
+            num_workers=self.workers, 
+            pin_memory=True,
+            sampler=val_sampler,
+        )
+        
         """
             Note! When using sparse dfeat, shuffle must be False. 
             sparse dfeat class only works under the batch order before calling Data.DataLoader
         """
-        self.loader_train = Data.DataLoader(torch_train_data, batch_size=self.batch_size, shuffle = False)
-        self.loader_valid = Data.DataLoader(torch_valid_data, batch_size=self.batch_size, shuffle = False)
-
+        #commit by wuxing
+        # self.loader_train = Data.DataLoader(torch_train_data, batch_size=self.batch_size, shuffle = False)
+        # self.loader_valid = Data.DataLoader(torch_valid_data, batch_size=self.batch_size, shuffle = False)
+        #************end ***************#
         assert self.loader_train != None, "training data (except dfeat) loading fails"
         assert self.loader_valid != None, "validation data (except dfeat) loading fails"
 
@@ -589,27 +623,33 @@ class nn_network:
             """
             #if self.use_GKalman == True:
             if self.kalman_type == "GKF": 
-                self.optimizer = GKalmanFilter( self.model, 
-                                                kalman_lambda = self.kalman_lambda, 
-                                                kalman_nue = self.kalman_nue, 
-                                                device = self.device)
+                # self.optimizer = GKalmanFilter( self.model, 
+                #                                 kalman_lambda = self.kalman_lambda, 
+                #                                 kalman_nue = self.kalman_nue, 
+                #                                 device = self.device)
+                self.optimizer = GKFOptimizer(
+                    self.model.parameters(), self.kalman_lambda, self.kalman_nue, self.device, self.precision
+                )
 
             elif self.kalman_type == "LKF": 
-                self.optimizer = LKalmanFilter( 
-                                                self.model, 
-                                                kalman_lambda = self.kalman_lambda, 
-                                                kalman_nue = self.kalman_nue, 
-                                                device = self.device, 
-                                                nselect = self.nselect, 
-                                                groupsize = self.group_size, 
-                                                blocksize = self.block_size, 
-                                                fprefactor = self.opts.opt_fprefactor)
+                # self.optimizer = LKalmanFilter( 
+                #                                 self.model, 
+                #                                 kalman_lambda = self.kalman_lambda, 
+                #                                 kalman_nue = self.kalman_nue, 
+                #                                 device = self.device, 
+                #                                 nselect = self.nselect, 
+                #                                 groupsize = self.group_size, 
+                #                                 blocksize = self.block_size, 
+                #                                 fprefactor = self.opts.opt_fprefactor)
+                self.optimizer = LKFOptimizer(
+                    self.model.parameters(), self.kalman_lambda, self.kalman_nue, self.block_size
+                )
             
-            elif self.kalman_type == "selected": 
-                self.optimizer = SKalmanFilter( self.model, 
-                                                kalman_lambda = self.kalman_lambda,
-                                                kalman_nue = self.kalman_nue, 
-                                                device = self.device)
+            # elif self.kalman_type == "selected": 
+            #     self.optimizer = SKalmanFilter( self.model, 
+            #                                     kalman_lambda = self.kalman_lambda,
+            #                                     kalman_nue = self.kalman_nue, 
+            #                                     device = self.device)
 
             else: 
                 raise Exception("input Kalman filter type is not supported")
@@ -639,7 +679,6 @@ class nn_network:
 
             elif (self.opts.opt_optimizer == 'ADAM'):
                 self.optimizer = optim.Adam(model_parameters, lr = self.LR_base, weight_decay = self.REGULAR_wd)
-
             elif (self.opts.opt_optimizer == 'ADAMW'):
                 self.optimizer = optim.AdamW(model_parameters, lr = self.LR_base)
 
@@ -764,10 +803,16 @@ class nn_network:
             loss_Etot = 0.
             loss_Ei = 0.
             loss_F = 0.
-            loss_Egroup = 0.0   
-
+            loss_Egroup = 0.0 
+            # this line code should go out?
+            KFOptWrapper = KFOptimizerWrapper(
+                self.model, self.optimizer, self.nselect, self.group_size, self.distributed, "torch"
+             )
+            
+            self.model.train()
+            # 重写一下训练这部分
             for i_batch, sample_batches in enumerate(self.loader_train):
-
+                
                 nr_batch_sample = sample_batches['input_feat'].shape[0]
 
                 global_step = (epoch - 1) * len(self.loader_train) + i_batch * nr_batch_sample
@@ -792,7 +837,7 @@ class nn_network:
                 else:
                     # KF 
                     batch_loss, batch_loss_Etot, batch_loss_Ei, batch_loss_F, batch_loss_Egroup = \
-                        self.train_kalman_img(sample_batches, self.model, self.optimizer, nn.MSELoss(), last_epoch, 0.001)
+                        self.train_kalman_img(sample_batches, self.model, KFOptWrapper, nn.MSELoss(), last_epoch, 0.001)
                                 
                 iter += 1
                 """
@@ -1169,7 +1214,7 @@ class nn_network:
         
         return loss, loss_Etot, loss_Ei, loss_F
 
-    def train_kalman_img(self,sample_batches, model, kalman, criterion, last_epoch, real_lr):
+    def train_kalman_img(self,sample_batches, model, KFOptWrapper, criterion, last_epoch, real_lr):
         """
             why setting precision again? 
         """
@@ -1200,23 +1245,33 @@ class nn_network:
         # else:
         #     kalman_inputs = [input_data, dfeat, neighbor, natoms_img]
         kalman_inputs = [input_data, dfeat, neighbor, natoms_img, egroup_weight, divider]
-
+        #        KFOptWrapper.update_energy(kalman_inputs, Etot_label)
+        #        KFOptWrapper.update_force(kalman_inputs, Force_label, 2)
         # choosing what data are used for W update. Defualt are Etot and Force
         if self.is_trainEtot: 
-            kalman.update_energy(kalman_inputs, Etot_label, update_prefactor = self.kf_prefac_Etot)
-
-        if self.is_trainEi:
-            kalman.update_ei(kalman_inputs,Ei_label, update_prefactor = self.kf_prefac_Ei)
-
-        if self.is_trainForce:
-            kalman.update_force(kalman_inputs, Force_label, update_prefactor = self.kf_prefac_F)
+            # kalman.update_energy(kalman_inputs, Etot_label, update_prefactor = self.kf_prefac_Etot)
+            Etot_predict = KFOptWrapper.update_energy(kalman_inputs, Etot_label, self.kf_prefac_Etot)
 
         if self.is_trainEgroup:
-            kalman.update_egroup(kalman_inputs, Egroup_label)
+            # kalman.update_egroup(kalman_inputs, Egroup_label)
+            Egroup_predict = KFOptWrapper.update_egroup(kalman_inputs, Egroup_label, self.kf_prefac_Egroup)
+
+        if self.is_trainForce is True:
+            if self.is_trainEgroup is True:
+                Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = KFOptWrapper.update_force(
+                    kalman_inputs, Force_label, self.kf_prefac_F)
+            else:
+                Etot_predict, Ei_predict, Force_predict, Virial_predict = KFOptWrapper.update_force(
+                    kalman_inputs, Force_label, self.kf_prefac_F)
+
+        # if self.is_trainEi:
+        #     kalman.update_ei(kalman_inputs,Ei_label, update_prefactor = self.kf_prefac_Ei)     
+        # if self.is_trainForce:
+        #     kalman.update_force(kalman_inputs, Force_label, update_prefactor = self.kf_prefac_F)
 
         #kalman.update_ei_and_force(kalman_inputs,Ei_label,Force_label,update_prefactor = 0.1)
         
-        Etot_predict, Ei_predict, Force_predict = model(input_data, dfeat, neighbor, natoms_img, egroup_weight, divider)
+        Etot_predict, Ei_predict, Force_predict, _ = model(input_data, dfeat, neighbor, natoms_img, egroup_weight, divider)
 
 
         if self.is_trainEgroup:
@@ -1288,7 +1343,7 @@ class nn_network:
         # model.train()
         self.model.eval()
 
-        Etot_predict, Ei_predict, Force_predict = model(input_data, dfeat, neighbor, natoms_img, egroup_weight, divider)
+        Etot_predict, Ei_predict, Force_predict, _ = model(input_data, dfeat, neighbor, natoms_img, egroup_weight, divider)
         
         if self.dbg is True:
             print("Etot predict")

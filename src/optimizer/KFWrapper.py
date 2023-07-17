@@ -47,7 +47,7 @@ class KFOptimizerWrapper:
                 inputs[4],
                 is_calc_f=False,
             )
-        natoms_sum = inputs[4][0, 0]
+        natoms_sum = inputs[3][0, 0]
         self.optimizer.set_grad_prefactor(natoms_sum)
 
         self.optimizer.zero_grad()
@@ -91,7 +91,7 @@ class KFOptimizerWrapper:
             inputs[6],
             is_calc_f=False,
         )
-        natoms_sum = inputs[4][0, 0]
+        natoms_sum = inputs[3][0, 0]
         self.optimizer.set_grad_prefactor(1.0)
 
         self.optimizer.zero_grad()
@@ -145,7 +145,7 @@ class KFOptimizerWrapper:
                 inputs[4],
             )
 
-        natoms_sum = inputs[4][0, 0]
+        natoms_sum = inputs[3][0, 0]
         self.optimizer.set_grad_prefactor(natoms_sum)
         
         self.optimizer.zero_grad()
@@ -209,7 +209,7 @@ class KFOptimizerWrapper:
         Base the simply test, it seems like update_egroup is a better choise.
         NEED CHECK!
         '''
-        natoms_sum = inputs[4][0, 0]
+        natoms_sum = inputs[3][0, 0]
         #print ("natoms_sum",natoms_sum)
         bs = Egroup_label.shape[0]
         self.optimizer.set_grad_prefactor(self.atoms_per_group)
@@ -247,7 +247,7 @@ class KFOptimizerWrapper:
     def update_force(
         self, inputs: list, Force_label: torch.Tensor, update_prefactor: float = 1
     ) -> None:
-        natoms_sum = inputs[4][0, 0]
+        natoms_sum = inputs[3][0, 0]
         #print ("natoms_sum",natoms_sum)
         bs = Force_label.shape[0]
         self.optimizer.set_grad_prefactor(natoms_sum * self.atoms_per_group * 3)

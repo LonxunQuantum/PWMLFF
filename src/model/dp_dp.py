@@ -71,7 +71,7 @@ class DP(nn.Module):
         
         return Egroup_out
 
-    def forward(self, ImageDR, Ri, dfeat, list_neigh, natoms_img, *is_egroup, is_calc_f=None):
+    def forward(self, Ri, dfeat, list_neigh, natoms_img, ImageDR, *is_egroup, is_calc_f=None):
 
         #torch.autograd.set_detect_anomaly(True)
 
