@@ -114,7 +114,7 @@ class nn_network:
                     group_size = 6,
                     
                     # for LKF
-                    block_size = 2560, 
+                    block_size = 10240, 
                     
                     # training label related arguments
                     is_trainForce = True, 
