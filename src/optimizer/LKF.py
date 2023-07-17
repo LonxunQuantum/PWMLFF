@@ -47,8 +47,14 @@ class LKFOptimizer(Optimizer):
             for param in params:
                 param_num = param.data.nelement()
                 if param_sum + param_num > block_size:
-                    param_nums.append(param_sum)
-                    param_sum = param_num
+                    if len(param_nums) == 0: 
+                        #when the first layer params nums more than block_size, 
+                        # the first P matrix will be [], this 'elif' is handling for this bug
+                        param_nums.append(param_num)
+                        param_sum = 0
+                    else:
+                        param_nums.append(param_sum)
+                        param_sum = param_num
                 else:
                     param_sum += param_num
         
@@ -82,7 +88,7 @@ class LKFOptimizer(Optimizer):
                 P.append(torch.eye(param_num, dtype=data_type, device=device))
                 params_packed_index.append(param_num)
 
-        self._state.setdefault("P", P)
+        self._state.setdefault("P", P) 
         self._state.setdefault("weights_num", len(P))
         self._state.setdefault("params_packed_index", params_packed_index)
 
