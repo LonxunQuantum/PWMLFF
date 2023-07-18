@@ -114,7 +114,7 @@ class nn_network:
                     group_size = 6,
                     
                     # for LKF
-                    block_size = 10240, 
+                    block_size = 5120, 
                     
                     # training label related arguments
                     is_trainForce = True, 
@@ -123,7 +123,7 @@ class nn_network:
                     is_trainEtot = True,
                     batch_size = 1, 
                     is_movement_weighted = False,
-                    is_dfeat_sparse = False,
+                    is_dfeat_sparse = True,
 
                     n_epoch = None, 
                     
