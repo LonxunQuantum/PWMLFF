@@ -177,7 +177,7 @@ class MLFFNet(nn.Module):
         #print (self.atomType)
         #print (len(self.models))
 
-    def forward(self, image, dfeat, neighbor, natoms_img, Egroup_weight, divider = None, is_calc_f = True):
+    def forward(self, image, dfeat, neighbor, natoms_img, Egroup_weight = None, divider = None, is_calc_f = True):
         """
             single image at a time 
             add label to avoid force calculation 
@@ -230,18 +230,26 @@ class MLFFNet(nn.Module):
         input_grad_allatoms = dE
         cal_ei_de = time.time()
         Etot = Ei.sum(dim=1)
-        
-        if is_calc_f==False:
-            return Etot, 0.0, 0.0, None #WuXing To maintain consistency with KFwapper output, increase the None placeholder
-        
+
+        batch_size = image.shape[0]
+        natom = image.shape[1]
+        F = torch.zeros((batch_size, natom, 3), device=self.device)
+        Virial = torch.zeros((batch_size, 9), device=self.device) # unrealized
+        Egroup = None
+        if Egroup_weight is not None:
+            Egroup = self.get_egroup(Ei, Egroup_weight, divider)
+        if is_calc_f == False:
+            if Egroup is not None:
+                return Etot, Ei, F, Egroup, Virial
+            else:
+                return Etot, Ei, F, Virial               
         test = Ei.sum()
         mask = torch.ones_like(test)
         test_grad = torch.autograd.grad(test,image,grad_outputs=mask, create_graph=True,retain_graph=True)
         test_grad = test_grad[0]
            
-        batch_size = image.shape[0]
+        
 
-        natom = image.shape[1]
         neighbor_num=dfeat.shape[2]
 
         dim_feat=pm.nFeatures
@@ -263,7 +271,10 @@ class MLFFNet(nn.Module):
         self.Etot = Etot
         self.Force = Force  
 
-        return Etot, Ei, Force, None # WuXing To maintain consistency with KFwapper output, increase the None placeholder
+        if Egroup is not None:
+            return Etot, Ei, Force, Egroup, Virial #Virial not used
+        else:
+            return Etot, Ei, Force, Virial
 
     def get_egroup(self,Ei_input,Egroup_weight, divider):
         

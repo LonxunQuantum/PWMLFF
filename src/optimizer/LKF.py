@@ -44,10 +44,10 @@ class LKFOptimizer(Optimizer):
 
         for param_group in self.param_groups:
             params = param_group["params"]
-            for param in params:
+            for index, param in enumerate(params):
                 param_num = param.data.nelement()
                 if param_sum + param_num > block_size:
-                    if len(param_nums) == 0: 
+                    if index == 0:
                         #when the first layer params nums more than block_size, 
                         # the first P matrix will be [], this 'elif' is handling for this bug
                         param_nums.append(param_num)

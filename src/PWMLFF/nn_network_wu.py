@@ -123,7 +123,7 @@ class nn_network:
                     is_trainEtot = True,
                     batch_size = 1, 
                     is_movement_weighted = False,
-                    is_dfeat_sparse = True,
+                    is_dfeat_sparse = False,
 
                     n_epoch = None, 
                     
@@ -512,18 +512,12 @@ class nn_network:
         torch_valid_data = get_torch_data(pm.test_data_path)
 
         # scaler saved to self.scaler
-        # if pm.is_scale:
-        #     self.scale(torch_train_data, torch_valid_data)
+        if pm.is_scale:
+            self.scale(torch_train_data, torch_valid_data)
         
-        # assert self.scaler != None, "scaler is not correctly saved"
+        assert self.scaler != None, "scaler is not correctly saved"
 
         #************************add by wuxing for LKF optimizer******************
-        # if args.distributed:
-        #     train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
-        #     val_sampler = torch.utils.data.distributed.DistributedSampler(
-        #         val_dataset, shuffle=False, drop_last=True
-        #     )
-        # else:
         train_sampler = None
         val_sampler = None
 
@@ -1214,7 +1208,7 @@ class nn_network:
         
         return loss, loss_Etot, loss_Ei, loss_F
 
-    def train_kalman_img(self,sample_batches, model, KFOptWrapper, criterion, last_epoch, real_lr):
+    def train_kalman_img(self,sample_batches, model, KFOptWrapper :KFOptimizerWrapper, criterion, last_epoch, real_lr):
         """
             why setting precision again? 
         """
@@ -1240,11 +1234,10 @@ class nn_network:
         """
             **********************************************************************
         """
-        # if self.is_trainEgroup:
-        #     kalman_inputs = [input_data, dfeat, neighbor, natoms_img, egroup_weight, divider]
-        # else:
-        #     kalman_inputs = [input_data, dfeat, neighbor, natoms_img]
-        kalman_inputs = [input_data, dfeat, neighbor, natoms_img, egroup_weight, divider]
+        if self.is_trainEgroup:
+            kalman_inputs = [input_data, dfeat, neighbor, natoms_img, egroup_weight, divider]
+        else:
+            kalman_inputs = [input_data, dfeat, neighbor, natoms_img, None]
         #        KFOptWrapper.update_energy(kalman_inputs, Etot_label)
         #        KFOptWrapper.update_force(kalman_inputs, Force_label, 2)
         # choosing what data are used for W update. Defualt are Etot and Force
@@ -1271,7 +1264,7 @@ class nn_network:
 
         #kalman.update_ei_and_force(kalman_inputs,Ei_label,Force_label,update_prefactor = 0.1)
         
-        Etot_predict, Ei_predict, Force_predict, _ = model(input_data, dfeat, neighbor, natoms_img, egroup_weight, divider)
+        Etot_predict, Ei_predict, Force_predict, _, _ = model(input_data, dfeat, neighbor, natoms_img, egroup_weight, divider)
 
 
         if self.is_trainEgroup:
@@ -1343,7 +1336,7 @@ class nn_network:
         # model.train()
         self.model.eval()
 
-        Etot_predict, Ei_predict, Force_predict, _ = model(input_data, dfeat, neighbor, natoms_img, egroup_weight, divider)
+        Etot_predict, Ei_predict, Force_predict, _, _ = model(input_data, dfeat, neighbor, natoms_img, egroup_weight, divider)
         
         if self.dbg is True:
             print("Etot predict")
