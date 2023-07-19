@@ -1476,7 +1476,7 @@ class nn_network:
         f.write("3\n")     # imodel=1,2,3.    {1:linear;  2:VV;   3:NN;}
         f.write('1\n')               # interval for MOVEMENT output
         f.write('%d\n' % len(pm.atomType)) 
-        
+            
         # write mass 
         for i in range(len(pm.atomType)):
             #f.write('%d %f\n' % (pm.atomType[i], 2*pm.atomType[i]))
