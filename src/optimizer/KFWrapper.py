@@ -38,7 +38,7 @@ class KFOptimizerWrapper:
                 inputs[6],
                 is_calc_f=False,
             )
-        elif len(inputs) == 6: # nn training with Egroup, stupid code , with a traing type params , or pass list params to model
+        elif len(inputs) == 6: # nn training
             Etot_predict, _, _, _, _ = self.model(
                 inputs[0],
                 inputs[1],
@@ -49,7 +49,7 @@ class KFOptimizerWrapper:
                 is_calc_f=False,
             )
         else:
-            Etot_predict, _, _, _ = self.model( #dp or nn without egroup training
+            Etot_predict, _, _, _ = self.model( #dp without egroup training
                 inputs[0],
                 inputs[1],
                 inputs[2],
@@ -102,7 +102,7 @@ class KFOptimizerWrapper:
                 inputs[6],
                 is_calc_f=False,
             )
-        elif len(inputs) == 6: # nn training with Egroup
+        elif len(inputs) == 6: # nn training
             _, _, _, Egroup_predict, _ = self.model(
                 inputs[0],
                 inputs[1],
@@ -281,7 +281,7 @@ class KFOptimizerWrapper:
                 Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = self.model(
                     inputs[0], inputs[1], inputs[2], inputs[3], inputs[4], inputs[5], inputs[6]
                 )
-            elif len(inputs) == 6:  # nn training with Egroup
+            elif len(inputs) == 6:  # nn training
                 Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = self.model(
                     inputs[0], inputs[1], inputs[2], inputs[3], inputs[4], inputs[5]
                 )
@@ -313,7 +313,7 @@ class KFOptimizerWrapper:
             error = error * math.sqrt(bs)
             #print("force steping")
             self.optimizer.step(error)
-        if len(inputs) == 7 or len(inputs) == 6: #6 for nn training with Egroup
+        if len(inputs) == 7 or len(inputs) == 6: #6 for nn training
             return Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict
         else:
             return Etot_predict, Ei_predict, Force_predict, Virial_predict

@@ -239,10 +239,11 @@ class MLFFNet(nn.Module):
         if Egroup_weight is not None:
             Egroup = self.get_egroup(Ei, Egroup_weight, divider)
         if is_calc_f == False:
-            if Egroup is not None:
-                return Etot, Ei, F, Egroup, Virial
-            else:
-                return Etot, Ei, F, Virial               
+            return Etot, Ei, F, Egroup, Virial
+            # if Egroup is not None:
+            #     return Etot, Ei, F, Egroup, Virial
+            # else:
+            #     return Etot, Ei, F, Virial               
         test = Ei.sum()
         mask = torch.ones_like(test)
         test_grad = torch.autograd.grad(test,image,grad_outputs=mask, create_graph=True,retain_graph=True)
@@ -271,10 +272,11 @@ class MLFFNet(nn.Module):
         self.Etot = Etot
         self.Force = Force  
 
-        if Egroup is not None:
-            return Etot, Ei, Force, Egroup, Virial #Virial not used
-        else:
-            return Etot, Ei, Force, Virial
+        return Etot, Ei, Force, Egroup, Virial #Virial not used
+        # if Egroup is not None:
+        #     return Etot, Ei, Force, Egroup, Virial #Virial not used
+        # else:
+        #     return Etot, Ei, Force, Virial
 
     def get_egroup(self,Ei_input,Egroup_weight, divider):
         
@@ -287,12 +289,13 @@ class MLFFNet(nn.Module):
         
 
         for i in range(batch_size):
+        
             """
                 2nd dimension of weight is the max number in all systems 
                 In this case it is 144 
             """
 
-            Etot1 = Ei_input
+            Etot1 = Ei_input[i]
 
             numAtoms = Egroup_weight[i].shape[0]
             

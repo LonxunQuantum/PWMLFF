@@ -102,7 +102,7 @@ class nn_network:
                     # Rcuts 
                     Rmax = 5.0,
                     Rmin = 0.5, 
-
+                
                     max_neigh_num = 100, 
                     precision = "float64", 
                     kalman_type = "GKF",      # or: "LKF", "layerwise", "selected"  
@@ -1237,7 +1237,7 @@ class nn_network:
         if self.is_trainEgroup:
             kalman_inputs = [input_data, dfeat, neighbor, natoms_img, egroup_weight, divider]
         else:
-            kalman_inputs = [input_data, dfeat, neighbor, natoms_img, None]
+            kalman_inputs = [input_data, dfeat, neighbor, natoms_img, None, None]
         #        KFOptWrapper.update_energy(kalman_inputs, Etot_label)
         #        KFOptWrapper.update_force(kalman_inputs, Force_label, 2)
         # choosing what data are used for W update. Defualt are Etot and Force
@@ -1249,13 +1249,18 @@ class nn_network:
             # kalman.update_egroup(kalman_inputs, Egroup_label)
             Egroup_predict = KFOptWrapper.update_egroup(kalman_inputs, Egroup_label, self.kf_prefac_Egroup)
 
+        # if Egroup does not participate in training, the output of Egroup_predict will be None
         if self.is_trainForce is True:
-            if self.is_trainEgroup is True:
-                Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = KFOptWrapper.update_force(
+            Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = KFOptWrapper.update_force(
                     kalman_inputs, Force_label, self.kf_prefac_F)
-            else:
-                Etot_predict, Ei_predict, Force_predict, Virial_predict = KFOptWrapper.update_force(
-                    kalman_inputs, Force_label, self.kf_prefac_F)
+
+        # if self.is_trainForce is True:
+        #     if self.is_trainEgroup is True:
+        #         Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = KFOptWrapper.update_force(
+        #             kalman_inputs, Force_label, self.kf_prefac_F)
+        #     else:
+        #         Etot_predict, Ei_predict, Force_predict, Virial_predict = KFOptWrapper.update_force(
+        #             kalman_inputs, Force_label, self.kf_prefac_F)
 
         # if self.is_trainEi:
         #     kalman.update_ei(kalman_inputs,Ei_label, update_prefactor = self.kf_prefac_Ei)     
@@ -1264,8 +1269,8 @@ class nn_network:
 
         #kalman.update_ei_and_force(kalman_inputs,Ei_label,Force_label,update_prefactor = 0.1)
         
-        Etot_predict, Ei_predict, Force_predict, _, _ = model(input_data, dfeat, neighbor, natoms_img, egroup_weight, divider)
-
+        # Etot_predict, Ei_predict, Force_predict, _, _ = model(input_data, dfeat, neighbor, natoms_img, egroup_weight, divider)
+        Etot_predict, Ei_predict, Force_predict, _, _ = model(kalman_inputs[0], kalman_inputs[1], kalman_inputs[2], kalman_inputs[3], kalman_inputs[4], kalman_inputs[5])
 
         if self.is_trainEgroup:
             Egroup_predict = torch.zeros_like(Ei_predict)
@@ -1335,8 +1340,11 @@ class nn_network:
         
         # model.train()
         self.model.eval()
-
-        Etot_predict, Ei_predict, Force_predict, _, _ = model(input_data, dfeat, neighbor, natoms_img, egroup_weight, divider)
+        if self.is_trainEgroup:
+            kalman_inputs = [input_data, dfeat, neighbor, natoms_img, egroup_weight, divider]
+        else:
+            kalman_inputs = [input_data, dfeat, neighbor, natoms_img, None, None]
+        Etot_predict, Ei_predict, Force_predict, _, _ = model(kalman_inputs[0], kalman_inputs[1], kalman_inputs[2], kalman_inputs[3], kalman_inputs[4], kalman_inputs[5])
         
         if self.dbg is True:
             print("Etot predict")
