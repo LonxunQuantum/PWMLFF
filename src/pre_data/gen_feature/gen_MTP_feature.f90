@@ -108,8 +108,8 @@ PROGRAM gen_MTP_feature
     numCC=0
     do 99 kkk=1,nMTP_type(itype)
 
-     read(10,*) num
-     backspace(10)
+     read(10,*) num     ! tensor 第一列
+     backspace(10)      ! 将文件指针返回到上一行的末尾。这样做是为了让后续的 read 命令可以重新读取 num 的值。
      if(num.gt.4) then
       write(6,*) "we only support contraction upto 4 tensors,stop",num
       stop
@@ -118,9 +118,24 @@ PROGRAM gen_MTP_feature
         if(num.eq.1) then
         read(10,*,iostat=ierr) num,(mu(i),i=1,num),(rank(i),i=1,num),&
         txt,(ind(j,1),j=1,rank(1)),txt
+        ! write(*,*) "***********num************",num                                        ! 1
+        ! write(*,*) "***********(mu(i),i=1,num)************",(mu(i),i=1,num)                ! 4
+        ! write(*,*) "***********(rank(i),i=1,num)************",(rank(i),i=1,num)            ! 0
+        ! write(*,*) "***********txt************",txt                                        ! )
+        ! write(*,*) "***********(ind(j,1),j=1,rank(1))************",(ind(j,1),j=1,rank(1))  ! 
+        ! write(*,*) "***********txt************",txt                                        ! )
         elseif(num.eq.2) then
         read(10,*,iostat=ierr) num,(mu(i),i=1,num),(rank(i),i=1,num),&
         txt,(ind(j,1),j=1,rank(1)),txt,txt,(ind(j,2),j=1,rank(2)),txt
+        ! write(*,*) "***********num************",num                                        ! 2    ! 2
+        ! write(*,*) "***********(mu(i),i=1,num)************",(mu(i),i=1,num)                ! 3 3  ! 3 3
+        ! write(*,*) "***********(rank(i),i=1,num)************",(rank(i),i=1,num)            ! 0 0  ! 1 1
+        ! write(*,*) "***********txt************",txt                                        ! )    ! )
+        ! write(*,*) "***********(ind(j,1),j=1,rank(1))************",(ind(j,1),j=1,rank(1))  !      ! 21
+        ! write(*,*) "***********txt***********+",txt                                        ! )    ! )
+        ! write(*,*) "***********txt***********-",txt                                        ! )    ! )
+        ! write(*,*) "***********(ind(j,2),j=1,rank(2))************",(ind(j,2),j=1,rank(2))  !      ! 11
+        ! write(*,*) "***********txt************",txt                                        ! )    ! )
         elseif(num.eq.3) then
         read(10,*,iostat=ierr) num,(mu(i),i=1,num),(rank(i),i=1,num),&
         txt,(ind(j,1),j=1,rank(1)),txt,txt,(ind(j,2),j=1,rank(2)),txt, &

@@ -33,7 +33,20 @@ chmod +x ./plot_mlff_inference.py
 chmod +x ./outcar2movement
 
 cd ..            # back to src dir
+################################################################
+#Writing environment variable
 
+current_path=$(pwd)
+
+if ! grep -q "^export PYTHONPATH=.*$current_path" ~/.bashrc; then
+  echo "export PYTHONPATH=$current_path:\$PYTHONPATH" >> ~/.bashrc
+fi
+
+if ! grep -q "^export PATH=.*$current_path/bin" ~/.bashrc; then
+  echo "export PATH=$current_path/bin:\$PATH" >> ~/.bashrc
+fi
+##################################################################
 cd op
 rm build -r
 python setup.py install 
+echo "Environment variables have been written ~/.bashrc"
