@@ -524,7 +524,7 @@ class nn_network:
         self.loader_train = torch.utils.data.DataLoader(
             torch_train_data,
             batch_size=self.batch_size,
-            shuffle=(train_sampler is None),
+            shuffle=False, #(train_sampler is None)
             num_workers=self.workers, 
             pin_memory=True,
             sampler=train_sampler,
