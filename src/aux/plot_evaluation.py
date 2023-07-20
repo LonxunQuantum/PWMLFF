@@ -244,8 +244,8 @@ def plot_new(atom_type, plot_elem = False, save_data = False, plot_ei = False):
     if plot_ei:
         ax = axs[0]
         ax.set_title('Atomic energy')
-        ax.scatter(dft_atomic_energy, nn_atomic_energy, s=30, label="Evaluation data")
-        ax.plot((lim_min, lim_max), (lim_min, lim_max), ls='--', color='red', label="Fit data")
+        ax.scatter(dft_atomic_energy, nn_atomic_energy, s=30, label="MLFF data")
+        ax.plot((lim_min, lim_max), (lim_min, lim_max), ls='--', color='red', label="DFT data")
         ax.set_xlim(lim_min, lim_max)
         ax.set_ylim(lim_min, lim_max)
         ax.set_xlabel('DFT energy (eV)')
@@ -257,8 +257,8 @@ def plot_new(atom_type, plot_elem = False, save_data = False, plot_ei = False):
     # Plot total energy
     ax = axs[1 if plot_ei else 0]
     ax.set_title('Total energy')
-    ax.scatter(dft_total_energy, nn_total_energy, s=30, label="Evaluation data")
-    ax.plot((lim_tot_min, lim_tot_max), (lim_tot_min, lim_tot_max), ls='--', color='red', label="Fit data")
+    ax.scatter(dft_total_energy, nn_total_energy, s=30, label="MLFF data")
+    ax.plot((lim_tot_min, lim_tot_max), (lim_tot_min, lim_tot_max), ls='--', color='red', label="DFT data")
     ax.set_xlim(lim_tot_min, lim_tot_max)
     ax.set_ylim(lim_tot_min, lim_tot_max)
     ax.set_xlabel('DFT energy (eV)')
@@ -270,8 +270,8 @@ def plot_new(atom_type, plot_elem = False, save_data = False, plot_ei = False):
     # Plot force
     ax = axs[2 if plot_ei else 1]
     ax.set_title('Force')
-    ax.scatter(f_dft_plot, f_nn_plot, s=2, label="Evaluation data")
-    ax.plot((lim_f_min, lim_f_max), (lim_f_min, lim_f_max), ls='--', color='red', label="Fit data")
+    ax.scatter(f_dft_plot, f_nn_plot, s=2, label="MLFF data")
+    ax.plot((lim_f_min, lim_f_max), (lim_f_min, lim_f_max), ls='--', color='red', label="DFT data")
     ax.set_xlim(lim_f_min, lim_f_max)
     ax.set_ylim(lim_f_min, lim_f_max)
     ax.set_ylabel('MLFF Force (eV/Å)')
@@ -333,8 +333,8 @@ def plot_new(atom_type, plot_elem = False, save_data = False, plot_ei = False):
             if plot_ei:
                 ax = axs[0]
                 ax.set_title(f'Atomic energy ({elem_type})')
-                ax.scatter(dft_atomic_energy_per_elem[atom], nn_atomic_energy_per_elem[atom], s=30, label="Evaluation data")
-                ax.plot((lim_min, lim_max), (lim_min, lim_max), ls='--', color='red', label="Fit data")
+                ax.scatter(dft_atomic_energy_per_elem[atom], nn_atomic_energy_per_elem[atom], s=30, label="MLFF data")
+                ax.plot((lim_min, lim_max), (lim_min, lim_max), ls='--', color='red', label="DFT data")
                 ax.set_xlim(lim_min, lim_max)
                 ax.set_ylim(lim_min, lim_max)
                 ax.set_xlabel('DFT energy (eV)')
@@ -345,8 +345,8 @@ def plot_new(atom_type, plot_elem = False, save_data = False, plot_ei = False):
             # Plot force
             ax = axs[1 if plot_ei else 0]
             ax.set_title(f'Force ({elem_type})')
-            ax.scatter(dft_atomic_force_per_elemx, nn_atomic_force_per_elemy, s=2, label="Evaluation data")
-            ax.plot((lim_f_min, lim_f_max), (lim_f_min, lim_f_max), ls='--', color='red', label="Fit data")
+            ax.scatter(dft_atomic_force_per_elemx, nn_atomic_force_per_elemy, s=2, label="MLFF data")
+            ax.plot((lim_f_min, lim_f_max), (lim_f_min, lim_f_max), ls='--', color='red', label="DFT data")
             ax.set_xlim(lim_f_min, lim_f_max)
             ax.set_ylim(lim_f_min, lim_f_max)
             ax.set_ylabel('MLFF Force (eV/Å)')

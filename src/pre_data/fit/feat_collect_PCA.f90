@@ -272,7 +272,7 @@ program feat_collect_PCA
       allocate(feat2_case(nfeat2,num_case(itype)))
 
       call dgemm('T','N',nfeat2,num_case(itype),nfeat1,1.d0,PV, &
-      & nfeat1,feat_case(1,1,itype),nfeatM,0.d0,feat2_case,nfeat2)
+      & nfeat1,feat_case(1,1,itype),nfeatM,0.d0,feat2_case,nfeat2) ! feat2_case = 1.d0*(PV^T) * feat_case(1,1,itype) + 0.d0*feat2_case
 
 ! change the last feature just equal one (as a constant)
 ! feat2_case(ifeat,icase) is the new features
@@ -286,7 +286,6 @@ program feat_collect_PCA
 ! This feat2_case has combined all the feature types:nfeat2
       enddo
       close(10)
-
       feat2_case(nfeat2,:)=1.d0      ! this practice is a bit strange, always lost one feat.
       allocate(feat2_scale(nfeat2))
       allocate(feat2_shift(nfeat2))
@@ -320,7 +319,7 @@ program feat_collect_PCA
 
       feat2_shift(nfeat2)=0.d0
       feat2_scale(nfeat2)=1.d0
-!  The deature is then shifted and normalized,
+!  The feature is then shifted and normalized,
       open(10,file=fread_dfeat//"feat_PV."//char(itype+48),form="unformatted")
       rewind(10)
       write(10) nfeat1,nfeat2  ! original bug
