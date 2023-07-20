@@ -38,8 +38,18 @@ class KFOptimizerWrapper:
                 inputs[6],
                 is_calc_f=False,
             )
+        elif len(inputs) == 6: # nn training
+            Etot_predict, _, _, _, _ = self.model(
+                inputs[0],
+                inputs[1],
+                inputs[2],
+                inputs[3],
+                inputs[4],
+                inputs[5],
+                is_calc_f=False,
+            )
         else:
-            Etot_predict, _, _, _ = self.model(
+            Etot_predict, _, _, _ = self.model( #dp without egroup training
                 inputs[0],
                 inputs[1],
                 inputs[2],
@@ -47,7 +57,7 @@ class KFOptimizerWrapper:
                 inputs[4],
                 is_calc_f=False,
             )
-        natoms_sum = inputs[4][0, 0]
+        natoms_sum = inputs[3][0, 0]
         self.optimizer.set_grad_prefactor(natoms_sum)
 
         self.optimizer.zero_grad()
@@ -81,17 +91,28 @@ class KFOptimizerWrapper:
     def update_egroup(
         self, inputs: list, Egroup_label: torch.Tensor, update_prefactor: float = 1
     ) -> None:
-        _, _, _, Egroup_predict, _ = self.model(
-            inputs[0],
-            inputs[1],
-            inputs[2],
-            inputs[3],
-            inputs[4],
-            inputs[5],
-            inputs[6],
-            is_calc_f=False,
-        )
-        natoms_sum = inputs[4][0, 0]
+        if len(inputs) == 7:
+            _, _, _, Egroup_predict, _ = self.model( #dp inputs has 7 para
+                inputs[0],
+                inputs[1],
+                inputs[2],
+                inputs[3],
+                inputs[4],
+                inputs[5],
+                inputs[6],
+                is_calc_f=False,
+            )
+        elif len(inputs) == 6: # nn training
+            _, _, _, Egroup_predict, _ = self.model(
+                inputs[0],
+                inputs[1],
+                inputs[2],
+                inputs[3],
+                inputs[4],
+                inputs[5],
+                is_calc_f=False,
+            )
+        natoms_sum = inputs[3][0, 0]
         self.optimizer.set_grad_prefactor(1.0)
 
         self.optimizer.zero_grad()
@@ -145,7 +166,7 @@ class KFOptimizerWrapper:
                 inputs[4],
             )
 
-        natoms_sum = inputs[4][0, 0]
+        natoms_sum = inputs[3][0, 0]
         self.optimizer.set_grad_prefactor(natoms_sum)
         
         self.optimizer.zero_grad()
@@ -209,7 +230,7 @@ class KFOptimizerWrapper:
         Base the simply test, it seems like update_egroup is a better choise.
         NEED CHECK!
         '''
-        natoms_sum = inputs[4][0, 0]
+        natoms_sum = inputs[3][0, 0]
         #print ("natoms_sum",natoms_sum)
         bs = Egroup_label.shape[0]
         self.optimizer.set_grad_prefactor(self.atoms_per_group)
@@ -247,7 +268,7 @@ class KFOptimizerWrapper:
     def update_force(
         self, inputs: list, Force_label: torch.Tensor, update_prefactor: float = 1
     ) -> None:
-        natoms_sum = inputs[4][0, 0]
+        natoms_sum = inputs[3][0, 0]
         #print ("natoms_sum",natoms_sum)
         bs = Force_label.shape[0]
         self.optimizer.set_grad_prefactor(natoms_sum * self.atoms_per_group * 3)
@@ -259,6 +280,10 @@ class KFOptimizerWrapper:
             if len(inputs) == 7:
                 Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = self.model(
                     inputs[0], inputs[1], inputs[2], inputs[3], inputs[4], inputs[5], inputs[6]
+                )
+            elif len(inputs) == 6:  # nn training
+                Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = self.model(
+                    inputs[0], inputs[1], inputs[2], inputs[3], inputs[4], inputs[5]
                 )
             else:
                 Etot_predict, Ei_predict, Force_predict, Virial_predict = self.model(
@@ -288,7 +313,7 @@ class KFOptimizerWrapper:
             error = error * math.sqrt(bs)
             #print("force steping")
             self.optimizer.step(error)
-        if len(inputs) == 7:
+        if len(inputs) == 7 or len(inputs) == 6: #6 for nn training
             return Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict
         else:
             return Etot_predict, Ei_predict, Force_predict, Virial_predict

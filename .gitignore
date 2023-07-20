@@ -1,0 +1,103 @@
+demo/cu1646/*
+!demo/cu1646/PWdata
+!demo/cu1646/*.py
+!demo/cu1646/PWdata/data1/MOVEMENT
+!demo/cu1646/PWdata/data2/MOVEMENT
+
+demo/cuo/*
+!demo/cuo/PWdata
+!demo/cuo/*.py
+demo/cuo/PWdata/
+# !demo/cuo/PWdata/MOVEMENT
+
+demo/cuo1000/*
+!demo/cuo1000/PWdata
+!demo/cuo1000/*.py
+demo/cuo1000/PWdata/
+# !demo/cuo1000/PWdata/MOVEMENT
+
+/src/md_bk
+# /src/md
+/dataset
+!/dataset/SiC/PWdata/MOVEMENT
+!/dataset/surface_Li/PWdata/MOVEMENT
+!/dataset/li100/PWdata/MOVEMENT
+!/dataset/CuO/PWdata/MOVEMENT
+# ctag file
+tags
+# model file
+*.pt
+*.dat
+*.so
+src/bin/*
+
+src/build.sh
+src/md/f2c_calc_energy_force.a
+src/md/fortran_code/f2c_calc_energy_force.a
+
+
+# Byte-compiled / optimized / DLL files
+*.py[cod]
+*__pycache__/
+*pytest_cache/
+
+# object file
+*.o
+*.mod
+# exec file
+*.r
+*.x
+# lib file
+# model file
+*.pt
+*.dat
+# generated file
+*.npy
+*.csv
+*.log
+# python intermediate files
+*.py[cod]
+*__pycache__/
+*pytest_cache/
+*.egg
+
+##
+# for running intermediate directories
+#
+# **/PWdata/*
+# !**/PWdata/MOVEMENT
+# **/fread_dfeat/
+# **/input/
+# **/output/
+# **/runs/
+
+# NOTE: for all other directories and files, one
+# should carefully select which directory and
+# what files are needed to be add to the repo.
+#
+# for most intermediate directories, there is no
+# need to add them to repo, just leave them in
+# your local environment
+
+src/op/build/lib.linux-x86_64-3.8/calculate_force.cpython-38-x86_64-linux-gnu.so
+src/op/build/lib.linux-x86_64-3.8/op.cpython-38-x86_64-linux-gnu.so
+src/op/build/temp.linux-x86_64-3.8/.ninja_deps
+src/op/build/temp.linux-x86_64-3.8/.ninja_log
+src/op/build/temp.linux-x86_64-3.8/build.ninja
+src/op/calculate_force.egg-info/dependency_links.txt
+src/op/calculate_force.egg-info/PKG-INFO
+src/op/calculate_force.egg-info/SOURCES.txt
+src/op/calculate_force.egg-info/top_level.txt
+src/op/dist/calculate_force-0.0.0-py3.8-linux-x86_64.egg
+src/op/dist/op-0.0.0-py3.8-linux-x86_64.egg
+src/op/op.egg-info/dependency_links.txt
+src/op/op.egg-info/PKG-INFO
+src/op/op.egg-info/SOURCES.txt
+src/op/op.egg-info/top_level.txt
+src/op/build/lib.linux-x86_64-3.8/op_grad.cpython-38-x86_64-linux-gnu.so
+src/op/build/lib.linux-x86_64-3.8/test.cpython-38-x86_64-linux-gnu.so
+.vscode/launch.json
+pwmat_mlff_workdir
+pwmat_mlff_base_test
+.gitignore
+

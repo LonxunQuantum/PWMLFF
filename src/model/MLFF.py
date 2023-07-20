@@ -177,7 +177,7 @@ class MLFFNet(nn.Module):
         #print (self.atomType)
         #print (len(self.models))
 
-    def forward(self, image, dfeat, neighbor, natoms_img, Egroup_weight, divider, is_calc_f = True):
+    def forward(self, image, dfeat, neighbor, natoms_img, Egroup_weight = None, divider = None, is_calc_f = True):
         """
             single image at a time 
             add label to avoid force calculation 
@@ -230,18 +230,27 @@ class MLFFNet(nn.Module):
         input_grad_allatoms = dE
         cal_ei_de = time.time()
         Etot = Ei.sum(dim=1)
-        
-        if is_calc_f==False:
-            return Etot, 0.0, 0.0 
-        
+
+        batch_size = image.shape[0]
+        natom = image.shape[1]
+        F = torch.zeros((batch_size, natom, 3), device=self.device)
+        Virial = torch.zeros((batch_size, 9), device=self.device) # unrealized
+        Egroup = None
+        if Egroup_weight is not None:
+            Egroup = self.get_egroup(Ei, Egroup_weight, divider)
+        if is_calc_f == False:
+            return Etot, Ei, F, Egroup, Virial
+            # if Egroup is not None:
+            #     return Etot, Ei, F, Egroup, Virial
+            # else:
+            #     return Etot, Ei, F, Virial               
         test = Ei.sum()
         mask = torch.ones_like(test)
         test_grad = torch.autograd.grad(test,image,grad_outputs=mask, create_graph=True,retain_graph=True)
         test_grad = test_grad[0]
            
-        batch_size = image.shape[0]
+        
 
-        natom = image.shape[1]
         neighbor_num=dfeat.shape[2]
 
         dim_feat=pm.nFeatures
@@ -263,39 +272,45 @@ class MLFFNet(nn.Module):
         self.Etot = Etot
         self.Force = Force  
 
-        return Etot, Ei, Force 
+        return Etot, Ei, Force, Egroup, Virial #Virial not used
+        # if Egroup is not None:
+        #     return Etot, Ei, Force, Egroup, Virial #Virial not used
+        # else:
+        #     return Etot, Ei, Force, Virial
 
-    def get_egroup(self,Ei_input,Egroup_weight, divider):
-        
-        #batch_size = self.Ei.shape[0]
-
-        batch_size  = Ei_input.shape[0]
-
-        # egroup is an array with the same size as self.Ei 
-        Egroup = torch.zeros_like(Ei_input)
-        
+    def get_egroup(self, Ei, Egroup_weight, divider):
+        batch_size = Ei.shape[0]
+        Egroup = torch.zeros_like(Ei)
 
         for i in range(batch_size):
-            """
-                2nd dimension of weight is the max number in all systems 
-                In this case it is 144 
-            """
-
-            Etot1 = Ei_input
-
-            numAtoms = Egroup_weight[i].shape[0]
-            
+            Etot1 = Ei[i]
             weight_inner = Egroup_weight[i]
-            
-            """
-                only take the first natom rows in weight matrix! 
-            """
-            E_inner = torch.matmul(weight_inner[:,:numAtoms], Etot1)
-            #E_inner = torch.matmul(torch.t(Etot1),weight_inner)
+            E_inner = torch.matmul(weight_inner, Etot1)
             Egroup[i] = E_inner
-
-        Egroup_out = torch.divide(Egroup, divider)
+        Egroup_out = torch.divide(Egroup, divider) # Egroup.squeeze(-1) not need
         return Egroup_out
+    
+    # def get_egroup(self,Ei_input,Egroup_weight, divider):
+    #     #batch_size = self.Ei.shape[0]
+    #     batch_size  = Ei_input.shape[0]
+    #     # egroup is an array with the same size as self.Ei 
+    #     Egroup = torch.zeros_like(Ei_input)
+    #     for i in range(batch_size):
+    #         """
+    #             2nd dimension of weight is the max number in all systems 
+    #             In this case it is 144 
+    #         """
+    #         Etot1 = Ei_input[i]
+    #         numAtoms = Egroup_weight[i].shape[0]
+    #         weight_inner = Egroup_weight[i]
+    #         """
+    #             only take the first natom rows in weight matrix! 
+    #         """
+    #         E_inner = torch.matmul(weight_inner[:,:numAtoms], Etot1)
+    #         #E_inner = torch.matmul(torch.t(Etot1),weight_inner)
+    #         Egroup[i] = E_inner
+    #     Egroup_out = torch.divide(Egroup, divider)
+    #     return Egroup_out
 
     def get_de(self, image, dfeat, neighbor):
         

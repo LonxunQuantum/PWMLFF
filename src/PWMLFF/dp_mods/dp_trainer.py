@@ -107,11 +107,11 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, co
         else:
             if config.is_egroup is True:
                 Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
-                    ImageDR, Ri, Ri_d, dR_neigh_list, natoms_img, Egroup_weight, Divider
+                    Ri, Ri_d, dR_neigh_list, natoms_img, ImageDR, Egroup_weight, Divider
                 )
             else:
                 Etot_predict, Ei_predict, Force_predict, Virial_predict = model(
-                    ImageDR, Ri, Ri_d, dR_neigh_list, natoms_img
+                    Ri, Ri_d, dR_neigh_list, natoms_img, ImageDR
                 )
 
         optimizer.zero_grad()
@@ -343,9 +343,9 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, config):
 
         batch_size = Ri.shape[0]
         if config.is_egroup is True:
-            kalman_inputs = [ImageDR, Ri, Ri_d, dR_neigh_list, natoms_img, Egroup_weight, Divider]
+            kalman_inputs = [Ri, Ri_d, dR_neigh_list, natoms_img, ImageDR, Egroup_weight, Divider]
         else:
-            kalman_inputs = [ImageDR, Ri, Ri_d, dR_neigh_list, natoms_img]
+            kalman_inputs = [Ri, Ri_d, dR_neigh_list, natoms_img, ImageDR]
 
         if config.profiling:
             print("=" * 60, "Start profiling KF update energy", "=" * 60)
@@ -546,11 +546,11 @@ def valid(val_loader, model, criterion, device, args):
             """ 
             if args.is_egroup is True:
                 Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
-                    ImageDR, Ri, Ri_d, dR_neigh_list, natoms_img, Egroup_weight, Divider
+                    Ri, Ri_d, dR_neigh_list, natoms_img, ImageDR, Egroup_weight, Divider
                 )
             else:
                 Etot_predict, Ei_predict, Force_predict, Virial_predict = model(
-                    ImageDR, Ri, Ri_d, dR_neigh_list, natoms_img
+                    Ri, Ri_d, dR_neigh_list, natoms_img, ImageDR
                 )
             # print("Etot_predict")
             # print(Etot_predict[0])
