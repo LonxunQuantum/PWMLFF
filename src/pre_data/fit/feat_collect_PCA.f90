@@ -423,7 +423,7 @@ program feat_collect_PCA
 
          call dgesv(nfeat2,1,S,nfeat2,ipiv,BB,nfeat2,info)
 
-!    BB is the linear eight: Ei_case(icase)= \sum_i BB(i)* feat2_case(i,icase)
+!    BB is the linear weight: Ei_case(icase)= \sum_i BB(i)* feat2_case(i,icase)
 
          do j=1,nfeat2
             BB2_ave(j)=BB2_ave(j)+BB(j)**2

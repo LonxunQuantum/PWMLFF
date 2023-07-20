@@ -169,7 +169,7 @@ PROGRAM gen_dR
 
         ALLOCATE (iatom(natom),xatom(3,natom),fatom(3,natom),Eatom(natom))
 
-        CALL scan_title (move_file, "LATTICE")
+        CALL scan_title (move_file, "LATTICE ")
         DO j = 1, 3
             READ (move_file,*) AL(1:3,j)
         ENDDO
