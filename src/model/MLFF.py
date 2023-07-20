@@ -278,38 +278,39 @@ class MLFFNet(nn.Module):
         # else:
         #     return Etot, Ei, Force, Virial
 
-    def get_egroup(self,Ei_input,Egroup_weight, divider):
-        
-        #batch_size = self.Ei.shape[0]
-
-        batch_size  = Ei_input.shape[0]
-
-        # egroup is an array with the same size as self.Ei 
-        Egroup = torch.zeros_like(Ei_input)
-        
+    def get_egroup(self, Ei, Egroup_weight, divider):
+        batch_size = Ei.shape[0]
+        Egroup = torch.zeros_like(Ei)
 
         for i in range(batch_size):
-        
-            """
-                2nd dimension of weight is the max number in all systems 
-                In this case it is 144 
-            """
-
-            Etot1 = Ei_input[i]
-
-            numAtoms = Egroup_weight[i].shape[0]
-            
+            Etot1 = Ei[i]
             weight_inner = Egroup_weight[i]
-            
-            """
-                only take the first natom rows in weight matrix! 
-            """
-            E_inner = torch.matmul(weight_inner[:,:numAtoms], Etot1)
-            #E_inner = torch.matmul(torch.t(Etot1),weight_inner)
+            E_inner = torch.matmul(weight_inner, Etot1)
             Egroup[i] = E_inner
-
-        Egroup_out = torch.divide(Egroup, divider)
+        Egroup_out = torch.divide(Egroup, divider) # Egroup.squeeze(-1) not need
         return Egroup_out
+    
+    # def get_egroup(self,Ei_input,Egroup_weight, divider):
+    #     #batch_size = self.Ei.shape[0]
+    #     batch_size  = Ei_input.shape[0]
+    #     # egroup is an array with the same size as self.Ei 
+    #     Egroup = torch.zeros_like(Ei_input)
+    #     for i in range(batch_size):
+    #         """
+    #             2nd dimension of weight is the max number in all systems 
+    #             In this case it is 144 
+    #         """
+    #         Etot1 = Ei_input[i]
+    #         numAtoms = Egroup_weight[i].shape[0]
+    #         weight_inner = Egroup_weight[i]
+    #         """
+    #             only take the first natom rows in weight matrix! 
+    #         """
+    #         E_inner = torch.matmul(weight_inner[:,:numAtoms], Etot1)
+    #         #E_inner = torch.matmul(torch.t(Etot1),weight_inner)
+    #         Egroup[i] = E_inner
+    #     Egroup_out = torch.divide(Egroup, divider)
+    #     return Egroup_out
 
     def get_de(self, image, dfeat, neighbor):
         
