@@ -117,25 +117,10 @@ PROGRAM gen_MTP_feature
  !  Cannot do double loop with txt
         if(num.eq.1) then
         read(10,*,iostat=ierr) num,(mu(i),i=1,num),(rank(i),i=1,num),&
-        txt,(ind(j,1),j=1,rank(1)),txt
-        ! write(*,*) "***********num************",num                                        ! 1
-        ! write(*,*) "***********(mu(i),i=1,num)************",(mu(i),i=1,num)                ! 4
-        ! write(*,*) "***********(rank(i),i=1,num)************",(rank(i),i=1,num)            ! 0
-        ! write(*,*) "***********txt************",txt                                        ! )
-        ! write(*,*) "***********(ind(j,1),j=1,rank(1))************",(ind(j,1),j=1,rank(1))  ! 
-        ! write(*,*) "***********txt************",txt                                        ! )
+        txt,(ind(j,1),j=1,rank(1)),txt                          
         elseif(num.eq.2) then
         read(10,*,iostat=ierr) num,(mu(i),i=1,num),(rank(i),i=1,num),&
         txt,(ind(j,1),j=1,rank(1)),txt,txt,(ind(j,2),j=1,rank(2)),txt
-        ! write(*,*) "***********num************",num                                        ! 2    ! 2
-        ! write(*,*) "***********(mu(i),i=1,num)************",(mu(i),i=1,num)                ! 3 3  ! 3 3
-        ! write(*,*) "***********(rank(i),i=1,num)************",(rank(i),i=1,num)            ! 0 0  ! 1 1
-        ! write(*,*) "***********txt************",txt                                        ! )    ! )
-        ! write(*,*) "***********(ind(j,1),j=1,rank(1))************",(ind(j,1),j=1,rank(1))  !      ! 21
-        ! write(*,*) "***********txt***********+",txt                                        ! )    ! )
-        ! write(*,*) "***********txt***********-",txt                                        ! )    ! )
-        ! write(*,*) "***********(ind(j,2),j=1,rank(2))************",(ind(j,2),j=1,rank(2))  !      ! 11
-        ! write(*,*) "***********txt************",txt                                        ! )    ! )
         elseif(num.eq.3) then
         read(10,*,iostat=ierr) num,(mu(i),i=1,num),(rank(i),i=1,num),&
         txt,(ind(j,1),j=1,rank(1)),txt,txt,(ind(j,2),j=1,rank(2)),txt, &

@@ -304,7 +304,6 @@ module calc_SNAP_feature
     ! This num_neigh_alltype(iat) include itself !
     !    dfeat=0.d0
     !    feat=0.d0
-    
           call find_feature_snap(natom,itype_atom,Rc_type,nsnapw_type,snapj_type,wsnap_type,num_neigh,  &
           list_neigh,dR_neigh,iat_neigh,ntype, &
           feat,dfeat,nfeat0m,m_neigh,nfeat_atom,nBB,nBBm,jjj123,CC_func,Clebsch_Gordan,jmm)

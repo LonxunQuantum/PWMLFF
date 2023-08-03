@@ -176,7 +176,7 @@
       if(abs(m1).le.j.and.abs(m2).le.j) then
       y=Clebsch_Gordan(m1,m11,m21,j,j1,j2)*Clebsch_Gordan(m2,m12,m22,j,j1,j2)
       sum=sum+y*conjg(UJ(m1,m2,j,kk))*UJ(m11,m12,j1,kk)*UJ(m21,m22,j2,kk)
-            
+
       dsum(:)=dsum(:)+y*  &
        (conjg(DUJ(:,m1,m2,j,kk))*UJ(m11,m12,j1,kk)*UJ(m21,m22,j2,kk)+  &
         conjg(UJ(m1,m2,j,kk))*DUJ(:,m11,m12,j1,kk)*UJ(m21,m22,j2,kk)+  &

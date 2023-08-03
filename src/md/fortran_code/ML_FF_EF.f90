@@ -251,7 +251,7 @@ subroutine ML_FF_EF(Etot,fatom,xatom,AL,natom_tmp,e_stress)
             
             allocate(feat(nfeat0,natom_n))
             allocate(dfeat(nfeat0,natom_n,m_neigh,3))
-            
+
             count =0
             do kk = 1, nfeat_type
                 ! features that are passed into the NN
@@ -348,68 +348,68 @@ subroutine ML_FF_EF(Etot,fatom,xatom,AL,natom_tmp,e_stress)
                     endif
 
                     if (ifeat_type(kk)  .eq. 2) then
-                    do jj=1,m_neigh
-                    do iat=1,natom_n
-                    do ii=1,nfeat0M2
-                    dfeat(ii+count,iat,jj,1)=dfeat_M2(ii,iat,jj,1)
-                    dfeat(ii+count,iat,jj,2)=dfeat_M2(ii,iat,jj,2)
-                    dfeat(ii+count,iat,jj,3)=dfeat_M2(ii,iat,jj,3)
-                    enddo
-                    enddo
-                    enddo
-                    count=count+nfeat0M2
+                        do jj=1,m_neigh
+                        do iat=1,natom_n
+                        do ii=1,nfeat0M2
+                        dfeat(ii+count,iat,jj,1)=dfeat_M2(ii,iat,jj,1)
+                        dfeat(ii+count,iat,jj,2)=dfeat_M2(ii,iat,jj,2)
+                        dfeat(ii+count,iat,jj,3)=dfeat_M2(ii,iat,jj,3)
+                        enddo
+                        enddo
+                        enddo
+                        count=count+nfeat0M2
                     endif
 
                     if (ifeat_type(kk)  .eq. 3) then
-                    do jj=1,m_neigh
-                    do iat=1,natom_n
-                    do ii=1,nfeat0M3
-                    dfeat(ii+count,iat,jj,1)=dfeat_M3(ii,iat,jj,1)
-                    dfeat(ii+count,iat,jj,2)=dfeat_M3(ii,iat,jj,2)
-                    dfeat(ii+count,iat,jj,3)=dfeat_M3(ii,iat,jj,3)
-                    enddo
-                    enddo
-                    enddo
-                    count=count+nfeat0M3
+                        do jj=1,m_neigh
+                        do iat=1,natom_n
+                        do ii=1,nfeat0M3
+                        dfeat(ii+count,iat,jj,1)=dfeat_M3(ii,iat,jj,1)
+                        dfeat(ii+count,iat,jj,2)=dfeat_M3(ii,iat,jj,2)
+                        dfeat(ii+count,iat,jj,3)=dfeat_M3(ii,iat,jj,3)
+                        enddo
+                        enddo
+                        enddo
+                        count=count+nfeat0M3
                     endif
 
                     if (ifeat_type(kk)  .eq. 4) then
-                    do jj=1,m_neigh
-                    do iat=1,natom_n
-                    do ii=1,nfeat0M4
-                    dfeat(ii+count,iat,jj,1)=dfeat_M4(ii,iat,jj,1)
-                    dfeat(ii+count,iat,jj,2)=dfeat_M4(ii,iat,jj,2)
-                    dfeat(ii+count,iat,jj,3)=dfeat_M4(ii,iat,jj,3)
-                    enddo
-                    enddo
-                    enddo
-                    count=count+nfeat0M4
+                        do jj=1,m_neigh
+                        do iat=1,natom_n
+                        do ii=1,nfeat0M4
+                        dfeat(ii+count,iat,jj,1)=dfeat_M4(ii,iat,jj,1)
+                        dfeat(ii+count,iat,jj,2)=dfeat_M4(ii,iat,jj,2)
+                        dfeat(ii+count,iat,jj,3)=dfeat_M4(ii,iat,jj,3)
+                        enddo
+                        enddo
+                        enddo
+                        count=count+nfeat0M4
                     endif
 
                     if (ifeat_type(kk)  .eq. 5) then
-                    do jj=1,m_neigh
-                    do iat=1,natom_n
-                    do ii=1,nfeat0M5
-                    dfeat(ii+count,iat,jj,1)=dfeat_M5(ii,iat,jj,1)
-                    dfeat(ii+count,iat,jj,2)=dfeat_M5(ii,iat,jj,2)
-                    dfeat(ii+count,iat,jj,3)=dfeat_M5(ii,iat,jj,3)
-                    enddo
-                    enddo
-                    enddo
-                    count=count+nfeat0M5
+                        do jj=1,m_neigh
+                        do iat=1,natom_n
+                        do ii=1,nfeat0M5
+                        dfeat(ii+count,iat,jj,1)=dfeat_M5(ii,iat,jj,1)
+                        dfeat(ii+count,iat,jj,2)=dfeat_M5(ii,iat,jj,2)
+                        dfeat(ii+count,iat,jj,3)=dfeat_M5(ii,iat,jj,3)
+                        enddo
+                        enddo
+                        enddo
+                        count=count+nfeat0M5
                     endif
 
                     if (ifeat_type(kk)  .eq. 6) then
-                    do jj=1,m_neigh
-                    do iat=1,natom_n
-                    do ii=1,nfeat0M6
-                    dfeat(ii+count,iat,jj,1)=dfeat_M6(ii,iat,jj,1)
-                    dfeat(ii+count,iat,jj,2)=dfeat_M6(ii,iat,jj,2)
-                    dfeat(ii+count,iat,jj,3)=dfeat_M6(ii,iat,jj,3)
-                    enddo
-                    enddo
-                    enddo
-                    count=count+nfeat0M6
+                        do jj=1,m_neigh
+                        do iat=1,natom_n
+                        do ii=1,nfeat0M6
+                        dfeat(ii+count,iat,jj,1)=dfeat_M6(ii,iat,jj,1)
+                        dfeat(ii+count,iat,jj,2)=dfeat_M6(ii,iat,jj,2)
+                        dfeat(ii+count,iat,jj,3)=dfeat_M6(ii,iat,jj,3)
+                        enddo
+                        enddo
+                        enddo
+                        count=count+nfeat0M6
                     endif
 
                     if (ifeat_type(kk)  .eq. 7) then
@@ -446,6 +446,7 @@ subroutine ML_FF_EF(Etot,fatom,xatom,AL,natom_tmp,e_stress)
         ! assume the lattice is symmetric in 3 axis
 
         if(iflag_model.eq.1) then
+            ! write(*,*) "feat",feat
             call cal_energy_force_lin(feat,dfeat,num_neigh_alltypeM_use,  &
              list_neigh_alltypeM_use,AL,xatom,natom,nfeat0,m_neigh)
             
@@ -453,6 +454,11 @@ subroutine ML_FF_EF(Etot,fatom,xatom,AL,natom_tmp,e_stress)
             
             e_atom(1:natom_tmp)=energy_pred_lin(1:natom_tmp)
             fatom(:,1:natom_tmp)=force_pred_lin(:,1:natom_tmp)   ! unit, and - sign?
+            ! write(*,*) "natom_tmp",natom_tmp,natom
+            ! write(*,*) "Etot",Etot
+            ! write(*,*) "e_atom",e_atom(1:natom_tmp)
+            ! stop
+            ! write(*,*) "fatom",fatom(:,1:natom_tmp)
             ! update the diagonal element of the stress tensor 
             ! if ((MCTRL_iMD.eq.4).or.(MCTRL_iMD.eq.5).or.(MCTRL_iMD.eq.7)) then
             if (1.eq.0) then

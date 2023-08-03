@@ -18,7 +18,9 @@ sys.path.append(codepath+'/../aux')
 sys.path.append(codepath+'/../lib')
 sys.path.append(codepath+'/../..')
 
-import default_para as pm 
+import default_para as pm
+import fortran_fitting as ff 
+
 
 class linear_regressor:
     
@@ -42,6 +44,7 @@ class linear_regressor:
         pm.atomType = atom_type 
 
         pm.use_Ftype = feature_type 
+        pm.nfeat_type = len(pm.use_Ftype)
 
         pm.atomTypeNum = len(pm.atomType)       
         pm.ntypes = len(pm.atomType)
@@ -74,9 +77,6 @@ class linear_regressor:
     def train(self):
         print ("training starts")
         
-        import fortran_fitting as ff 
-        import prepare as pp
-
         pm.isFitLinModel = True     
 
         #pp.prepare_dir_info()   
@@ -134,6 +134,11 @@ class linear_regressor:
             plot_ei = True
             
         plot_evaluation.plot_new(atom_type = pm.atomType, plot_elem = plot_elem, save_data = save_data, plot_ei = plot_ei)
+
+    def extract_force_field(self, name= "myforcefield.ff"):
+
+        from extract_ff import extract_ff
+        extract_ff(name = name, model_type = 1, atom_type = pm.atomType)
         
     def run_md(self, init_config = "atom.config", md_details = None, num_thread = 1, follow = False):
 

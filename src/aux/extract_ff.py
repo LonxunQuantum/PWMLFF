@@ -35,17 +35,17 @@ def write_featinfo(outfile):
     for i in range(2,2+num_feature_type):
         feature_type.append(int(raw[i])) 
     
-    num_atom_type = int(raw[2+num_feature_type].split()[0][:-1])
+    num_atom_type = int(raw[2+num_feature_type].split()[0].strip())
     
-    effective_lines = num_atom_type + num_feature_type + 3 
+    effective_lines = num_atom_type + num_feature_type + 3
     
     for idx,line in enumerate(raw):
         if idx >= effective_lines:
             break 
         if "," in line:
-            outfile.writelines(line.replace(","," "))
+            outfile.writelines(line.replace(","," ").strip() + '\n')
         else:
-            outfile.writelines(line)
+            outfile.writelines(line.strip() + '\n')
 
     return feature_type, num_atom_type
 
@@ -54,7 +54,7 @@ def write_feat_calc_para(outfile,feat_type):
         input/gen_feature_name.in 
         Write in the order given by feat_types
     """
-    grid_type = {}
+    # grid_type = {}
     
     for feat_idx in feat_type:
         name = table_feature_name[feat_idx]+".in"
@@ -62,23 +62,42 @@ def write_feat_calc_para(outfile,feat_type):
         raw = fin.readlines() 
         fin.close()
         
+        """
         if feat_idx == 1:
             grid_type[1] = raw[3].split("!")[0].split(",")[2]
-            #print (raw[3].split("!")[0].split(",")) 
-        if feat_idx == 2:
+            # print (raw[3].split("!")[0].split(",")) 
+        elif feat_idx == 2:
             grid_type[2] = raw[3].split("!")[0].split(",")[3]
+        """
 
         for idx,line in enumerate(raw):
-            outfile.writelines(line.split("!")[0]+"\n")
+            outfile.writelines(line.replace(","," ").strip().split("!")[0]+"\n")
     
-    return grid_type
+    # return grid_type
     
-def write_feat_grid(outfile,feat_type,num_atom_type,grid_idx):
+def write_feat_grid(outfile,num_atom_type):
     """
         grid info for feature calculation 
         Write in the order given by feat_types
     """
-    #print (feat_type)
+    name_list = []
+    for grid_idx in range(1, num_atom_type+1):
+        name_list.append("output/grid2b_type3."+str(grid_idx)) 
+
+    for grid_idx in range(1, num_atom_type+1):
+        name_list.append("output/grid3b_b1b2_type3."+str(grid_idx))
+
+    for grid_idx in range(1, num_atom_type+1):
+        name_list.append("output/grid3b_cb12_type3."+str(grid_idx))
+
+    for name in name_list:
+        fin = open(name,"r")
+        raw = fin.readlines()
+        fin.close() 
+
+        for line in raw:
+            outfile.writelines(line)
+    """
     for feat_idx, feat in enumerate(feat_type):
         # only for 1 & 2
         if feat != 1 and feat != 2:
@@ -118,6 +137,7 @@ def write_feat_grid(outfile,feat_type,num_atom_type,grid_idx):
 
             for line in raw:
                 outfile.writelines(line)
+    """
 
 def extract_ff( name = "myforcefield.ff",
                 model_type = 3, 
@@ -135,8 +155,74 @@ def extract_ff( name = "myforcefield.ff",
     ff_name = name 
     
     with open(ff_name,"w") as outfile:
+
+        if model_type == 1:
+            # type of the model
+            outfile.writelines(str(model_type)+"\n")
+            outfile.writelines("\n")
+
+            # feature type list
+            feature_type, num_atom_type= write_featinfo(outfile)
+            outfile.writelines("\n")
+
+            # feature calculation paras
+            # grid_idx = write_feat_calc_para(outfile,feature_type)
+            write_feat_calc_para(outfile,feature_type)
+            outfile.writelines("\n")
+            
+            # feature grid paras 
+            # only for 1 & 2! 
+            if 1 in feature_type or 2 in feature_type:
+            # write_feat_grid(outfile, feature_type, num_atom_type, grid_idx)
+                write_feat_grid(outfile, num_atom_type)
+                outfile.writelines("\n")
+
+            # The feature is then shifted and scaled
+            for idx in range(1, len(atom_type)+1):
+                name = "fread_dfeat/feat_shift."+str(idx)
+                fin = open(name,"r")
+                raw = fin.readlines()
+                fin.close() 
+                
+                for line in raw:
+                    outfile.writelines(line.strip() + "\n")
+            # Weight for feature
+            """
+            input/weight_feat.* 
+            Write in the order given by atom_type
+            
+            for idx in range(1, len(atom_type)+1):
+                name = "fread_dfeat/weight_feat."+str(idx)
+                fin = open(name,"r")
+                raw = fin.readlines()
+                fin.close() 
+                
+                for line in raw:
+                    outfile.writelines(line.strip() + "\n")
+
+            # outfile.writelines("\n")
+            """
+            # model_coefficients
+            model_coefficients_name = "fread_dfeat/linear_fitB.ntype"
+            fin = open(model_coefficients_name,"r")
+            raw = fin.readlines()
+            fin.close()
+
+            for line in raw:
+                outfile.writelines(line.strip() + "\n")
+
+            # reading vdw part
+            vdw_name = "fread_dfeat/vdw_fitB.ntype"
+            fin = open(vdw_name,"r")
+            raw = fin.readlines()
+            fin.close()
+
+            for line in raw:
+                outfile.writelines(line.strip() + "\n")
+            
+            print("force field file saved")
         
-        if model_type ==3:
+        if model_type == 3:
             # type of the model
             outfile.writelines(str(model_type)+"\n")
             outfile.writelines("\n")

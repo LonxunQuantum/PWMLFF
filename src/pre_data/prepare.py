@@ -331,8 +331,8 @@ def writeGenFeatInput():
                     GenFeatInput.write(str(pm.Ftype6_para['J'][i])+ '  '+ str(pm.Ftype6_para['n_w_line'][i]) + 
                                          '                                          ! n_MTP_line \n')
                     for j in range(pm.Ftype6_para['n_w_line'][i]):
-                        GenFeatInput.write(str(pm.Ftype6_para['w1'][i][j]) + '  ' + str(pm.Ftype6_para['w2'][i][j]) + '  ' + str(pm.Ftype6_para['w3'][i][j]) + 
-                                            '                                          ! w1, w2, w3 \n')
+                        GenFeatInput.write(str(pm.Ftype6_para['w1'][i][j]) + '  ' + str(pm.Ftype6_para['w2'][i][j])  + 
+                                            '                                          ! w1, w2 \n')
                 GenFeatInput.write(str(pm.E_tolerance)+'    ! E_tolerance  \n')
 
         if ftype == 7: # deepMD1
