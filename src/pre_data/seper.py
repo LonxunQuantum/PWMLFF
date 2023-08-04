@@ -152,13 +152,13 @@ def write_natoms_dfeat(chunk_size):
     # shuffle the system-idx tuple list
     shuffle(sys_img_list_train)
 
-    print("training set")
-    for item in sys_img_list_train:
-        print (item)
+    # print("training set")
+    # for item in sys_img_list_train:   #sys_img_list_train[0][0][1]
+    #     print (item)
     
-    print("valid set") 
-    for item in sys_img_list_test:
-        print (item)
+    # print("valid set") 
+    # for item in sys_img_list_test:
+    #     print (item)
 
     if pm.test_ratio > 0 and pm.test_ratio < 1:
         """

@@ -4,23 +4,34 @@ from torch.utils.data import Dataset
 import torch
 import yaml
 
-
 class MovementDataset(Dataset):
-    def __init__(self, data_path):
+    '''
+    description: 
+    param {*} self
+    param {*} data_path
+    param {*} train_hybrid False is for single system training, True is for multi different systems training.
+    return {*}
+    author: wuxingxing
+    '''    
+    def __init__(self, data_path, train_hybrid=False):
         super(MovementDataset, self).__init__()
+        self.train_hybrid = train_hybrid
         self.davg = np.load(os.path.join(data_path, "davg.npy"))
         self.dstd = np.load(os.path.join(data_path, "dstd.npy"))
-
+        self.ener_shift = np.loadtxt(os.path.join(data_path, "energy_shift.raw"))
+        if self.ener_shift.size == 1:
+            self.ener_shift = [self.ener_shift.tolist()]
+        self.atom_map = np.loadtxt(os.path.join(data_path, "atom_map.raw"))
         self.dirs = []
 
         for current_dir, child_dir, child_file in os.walk(data_path):
             if len(child_dir) == 0 and "Ri.npy" in child_file:
                 self.dirs.append(current_dir)
 
-        self.dirs = sorted(self.dirs)
-        
-        self.__compute_stat_output(10, 1e-3)
-    
+        self.dirs = sorted(self.dirs, key=lambda x: int(x.split('_')[-1]))
+        self.img_max_atom_num, self.img_max_types = self.__set_max_atoms()
+        # self.__compute_stat_output(10, 1e-3)
+
     def __load_data(self, path):
 
         data = {}
@@ -43,72 +54,105 @@ class MovementDataset(Dataset):
         data["Ri"] = np.load(os.path.join(path, "Ri.npy"))
         data["Ri_d"] = np.load(os.path.join(path, "Ri_d.npy"))
         data["ImageAtomNum"] = np.load(os.path.join(path, "ImageAtomNum.npy")).reshape(-1)
-        data["AtomType"] = np.load(os.path.join(path, "AtomType.npy"))
-        #print(data["ImageAtomNum"])
+        atom_type_list = list(np.load(os.path.join(path, "AtomType.npy")))
+        data["AtomType"] = np.array(sorted(set(atom_type_list), key=atom_type_list.index))
+        
+        if self.train_hybrid:
+            if data["ImageAtomNum"][0] < self.img_max_atom_num:
+                # pad_num = self.img_max_atom_num - data["Force"].shape[0]
+                data["Force"].resize((self.img_max_atom_num, data["Force"].shape[1]), refcheck=False)
+                data["Ei"].resize(self.img_max_atom_num, refcheck=False)
+                if "Egroup" in data.keys():
+                    # doing Egroup things 
+                    data["Egroup"].resize(self.img_max_atom_num, refcheck=False)
+                    data["Divider"].resize(self.img_max_atom_num, refcheck=False)
+                    data["Egroup_weight"].resize((self.img_max_atom_num, self.img_max_atom_num), refcheck=False)
+                
+                data["ListNeighbor"].resize((self.img_max_atom_num, data["ListNeighbor"].shape[1]), refcheck=False)
+                data["ImageDR"].resize((self.img_max_atom_num, data["ImageDR"].shape[1], data["ImageDR"].shape[2]), refcheck=False)
+                data["Ri"].resize((self.img_max_atom_num, data["Ri"].shape[1], data["Ri"].shape[2]), refcheck=False)
+                data["Ri_d"].resize((self.img_max_atom_num, data["Ri_d"].shape[1], data["Ri_d"].shape[2], data["Ri_d"].shape[3]), refcheck=False)
+            if len(data["AtomType"]) < self.img_max_types:
+                data["AtomType"] = np.append(data["AtomType"], [0 for _ in range(0,self.img_max_types-len(data["AtomType"]))])
         return data
         
     def __getitem__(self, index):
 
         file_path = self.dirs[index]
         data = self.__load_data(file_path)
+        # if self.train_hybrid is True:
+        #     data = self.__completing_tensor_rows(data)
         return data
     
     def __len__(self): 
         return len(self.dirs)
 
-    def __compute_stat_output(self, image_num=10, rcond=1e-3):
-        energy_per_species=[]
-
-        data = self.__getitem__(0)
-
-        self.ener_shift = []
-        natoms_sum = data["ImageAtomNum"][0]
-        natoms_per_type = data["ImageAtomNum"][1:]
-
-        for i in range(image_num):
-            data = self.__getitem__(i)
-            tmp = data["Ei"].reshape(-1, natoms_sum)
-            if i == 0:
-                energy = tmp
-            else:
-                energy = np.concatenate([energy, tmp], axis=0)
-        
-        energy = np.reshape(energy, (-1, natoms_sum, 1))
-        #print(energy.shape)
-        # natoms_sum = 0
-        # for ntype in range(self.ntypes):
-        #     energy_ntype = energy[:, natoms_sum:natoms_sum+natoms_per_type[ntype]]
-        #     natoms_sum += natoms_per_type[ntype]
-        #     energy_sum = energy_ntype.sum(axis=1)
-        #     energy_one = np.ones_like(energy_sum) * natoms_per_type[ntype]
-        #     ener_shift, _, _, _ = np.linalg.lstsq(energy_one, energy_sum, rcond=rcond)
-        #     self.ener_shift.append(ener_shift[0, 0])
-        # energy_ntype = energy[:, natoms_sum:natoms_sum+natoms_per_type[ntype]]
-        # natoms_sum += natoms_per_type[ntype]
-        
-        #energy_sum = energy.sum(axis=1)
-        #energy_avg = np.average(energy_sum)
-        # energy_one = np.ones_like(energy_sum) * natoms_per_type[ntype]
-        #ener_shift, _, _, _ = np.linalg.lstsq(
-        #    [natoms_per_type], [energy_avg], rcond=rcond
-        #)
-
-        #TODO: Please check for more situation, not so sure with other input, like VASP.
-        for index,num in zip(range(len(natoms_per_type)),natoms_per_type):
-            if index == 0:
-                #print(energy[:,:num].mean().shape)
-                energy_per_species.append(energy[:,:num].mean())
-            else:
-                num_before = natoms_per_type[index-1]
-                energy_per_species.append(energy[:,num_before:num_before+num].mean())
-        
-        self.ener_shift = energy_per_species
-        #self.ener_shift = ener_shift.tolist()
-        #self.ener_shift = [19.0, 674.0] #just for test
-
     def get_stat(self):
         return self.davg, self.dstd, self.ener_shift
     
+    
+    '''
+    description: 
+        get the max atom num of images in training set
+    param {*} self
+    return {*}
+    author: wuxingxing
+    '''    
+    def __set_max_atoms(self):
+        ImageAtomNum = []
+        AtomType = []
+        AtomType_size_list = []
+        for path in self.dirs:
+            ImageAtomNum.append(np.load(os.path.join(path, "ImageAtomNum.npy")).reshape(-1)[0])
+            atom_type_list = list(np.load(os.path.join(path, "AtomType.npy")))
+            AtomType.append(np.array(sorted(set(atom_type_list), key=atom_type_list.index)))
+            AtomType_size_list.append(len(AtomType[-1]))
+        return max(ImageAtomNum), max(AtomType_size_list)
+    
+    '''
+    description: 
+    In mixed training, during the automatic loading process of DataLoader objects, \
+    it is necessary for each data object to have the same number of rows, otherwise the following error will occur.
+        return torch.stack(batch, 0, out=out)
+        RuntimeError: stack expects each tensor to be equal size, but got [64, 3] at entry 0 and [76, 3] at entry 1
+    
+    This function is used to fill in the Tensor row count.
+    param {*} self
+    param {*} data
+    return {*}
+    author: wuxingxing
+    '''    
+    def __completing_tensor_rows(self, data):
+        dest = {}
+        if data["ImageAtomNum"][0] == self.img_max_atom_num:
+            return data
+        else:
+            data["Force"] = __complet_tensor(data["Force"], self.img_max_atom_num)
+        np.resize()
+    
+        def __complet_tensor(souce, img_max_atom_num):
+            
+            pass
+        # data["Force"] = -1 * np.load(os.path.join(path, "Force.npy"))
+
+        # if os.path.exists(os.path.join(path, "Virial.npy")):
+        #     data["Virial"] = np.load(os.path.join(path, "Virial.npy"))
+
+        # data["Ei"] = np.load(os.path.join(path, "Ei.npy"))
+        # data["Etot"] = np.load(os.path.join(path, "Etot.npy"))
+
+        # if os.path.exists(os.path.join(path, "Egroup.npy")):
+        #     data["Egroup"] = np.load(os.path.join(path, "Egroup.npy"))
+        #     data["Divider"] = np.load(os.path.join(path, "Divider.npy"))
+        #     data["Egroup_weight"] = np.load(os.path.join(path, "Egroup_weight.npy"))
+
+        # data["ListNeighbor"] = np.load(os.path.join(path, "ListNeighbor.npy"))
+        # data["ImageDR"] = np.load(os.path.join(path, "ImageDR.npy"))
+        # data["Ri"] = np.load(os.path.join(path, "Ri.npy"))
+        # data["Ri_d"] = np.load(os.path.join(path, "Ri_d.npy"))
+        # data["ImageAtomNum"] = np.load(os.path.join(path, "ImageAtomNum.npy")).reshape(-1)
+        # atom_type_list = list(np.load(os.path.join(path, "AtomType.npy")))
+        # data["AtomType"] = np.array(sorted(set(atom_type_list), key=atom_type_list.index))
 
 def main():
 

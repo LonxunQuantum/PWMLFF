@@ -49,8 +49,8 @@ from joblib import dump, load
 from sklearn.feature_selection import VarianceThreshold
 
 # src/aux 
-from opts import opt_values 
-from feat_modifier import feat_modifier
+from src.aux.opts import opt_values 
+from src.aux.feat_modifier import feat_modifier
 
 import pickle
 import logging
@@ -67,8 +67,8 @@ from optimizer.LKF import LKFOptimizer
 
 import default_para as pm
 
-from data_loader_2type import MovementDataset, get_torch_data
-from scalers import DataScalers
+from src.pre_data.data_loader_2type import MovementDataset, get_torch_data
+from src.pre_data.scalers import DataScalers
 from utils import get_weight_grad
 from dfeat_sparse import dfeat_raw 
 
@@ -397,11 +397,11 @@ class nn_network:
         calc_feat()
 
         # seperate training set and valid set
-        import seper 
+        import src.pre_data.seper as seper 
         seper.seperate_data(chunk_size = chunk_size)
         
         # save as .npy
-        import gen_data     
+        import src.pre_data.gen_data as gen_data
         gen_data.write_data()
         
     """

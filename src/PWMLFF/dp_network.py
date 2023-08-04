@@ -1,3 +1,11 @@
+'''
+Author: WuXing wuxingxing20g@ict.ac.cn
+Date: 2023-07-28 17:45:22
+LastEditors: your name
+LastEditTime: 2023-08-04 10:00:40
+FilePath: /PWMLFF/src/PWMLFF/dp_network.py
+Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
+'''
 """
     module for Deep Potential Network 
 
@@ -29,6 +37,7 @@ import torch
     
 import time
 import numpy as np
+import pickle
 import torch.autograd as autograd
 import matplotlib.pyplot as plt
 import torch.nn as nn
@@ -50,7 +59,6 @@ import time
 import warnings
 
 from joblib import dump, load
-
 # src/aux 
 from opts import opt_values 
 from feat_modifier import feat_modifier
@@ -61,8 +69,8 @@ from feat_modifier import feat_modifier
 from model.dp_dp import DP
 from optimizer.GKF import GKFOptimizer
 from optimizer.LKF import LKFOptimizer
-from dp_data_loader import MovementDataset
-from dp_mods.dp_trainer import *
+from src.pre_data.dp_data_loader import MovementDataset
+from src.PWMLFF.dp_mods.dp_trainer import train_KF, train, valid, save_checkpoint, predict
 
 import default_para as pm
 
@@ -165,6 +173,20 @@ def get_terminal_args():
         help="evaluate model on validation set",
     )
     parser.add_argument(
+        "-i",
+        "--inference",
+        dest="inference",
+        action="store_true",
+        help="using models for inference",
+    )
+    parser.add_argument(
+    "--hybrid",
+    dest="hybrid",
+    action="store_true",
+    default=False,
+    help="hybrid training",
+    )
+    parser.add_argument(
         "--world-size",
         default=-1,
         type=int,
@@ -183,7 +205,7 @@ def get_terminal_args():
         "--dist-backend", default="nccl", type=str, help="distributed backend"
     )
     parser.add_argument(
-        "--seed", default=None, type=int, help="seed for initializing training. "
+        "--seed", default=2023, type=int, help="seed for initializing training. "
     )
     parser.add_argument("--magic", default=2022, type=int, help="Magic number. ")
     parser.add_argument("--gpu", default=None, type=int, help="GPU id to use.")
@@ -246,7 +268,7 @@ def get_terminal_args():
     )
 
     parser.add_argument(
-        "--is_ei", default=False, type=bool, help="print ei"
+        "--is_ei", default=False, type=bool, help="train ei"
     )
 
     parser.add_argument(
@@ -255,6 +277,10 @@ def get_terminal_args():
 
     parser.add_argument(
         "--pre_fac_etot", default=1.0, type=float, help="KF etot update prefactor"
+    )
+
+    parser.add_argument(
+        "--pre_fac_ei", default=1.0, type=float, help="KF ei update prefactor"
     )
 
     parser.add_argument(
@@ -328,6 +354,7 @@ class dp_network:
                     is_ei = False,
                     pre_fac_force = 2.0,
                     pre_fac_etot = 1.0, 
+                    pre_fac_ei = 1.0,
                     pre_fac_virial = 1.0, 
                     pre_fac_egroup = 0.1, 
 
@@ -363,10 +390,24 @@ class dp_network:
                     # paras for DP network
                     M2 = 16, 
 
-                    model_name = None                  
-                    
+                    model_name = None,                  
+                    inference = False,
+                    hybrid=False # hybrid training
                     ):
         
+        # if do inference, the batch_size should be 1 and train_valid_ratio be 1
+        if inference:
+            is_resume = True
+            batch_size = 1
+            train_valid_ratio = 1
+        
+        # when doing hybrid training, the data shuffle should be done in dp_mlff.py file, \
+        # to avoid the problem that different atom nums of images can not load automatically by Troch.DataLoader:
+        #  "for i, sample_batches in enumerate(train_loader)"
+
+        # if hybrid:
+        #     self.data_shuffle = False
+            
         # args from terminal 
         self.terminal_args = get_terminal_args()
         
@@ -597,9 +638,12 @@ class dp_network:
             self.terminal_args.is_ei     = is_ei
             self.terminal_args.pre_fac_force = pre_fac_force 
             self.terminal_args.pre_fac_etot = pre_fac_etot
+            self.terminal_args.pre_fac_ei = pre_fac_ei
             self.terminal_args.pre_fac_virial = pre_fac_virial
             self.terminal_args.pre_fac_egroup = pre_fac_egroup
             
+            self.terminal_args.inference = inference
+            self.terminal_args.hybrid = hybrid
             print("WARNING: Using arguments from class instantiation\n")
             
         else:
@@ -629,23 +673,21 @@ class dp_network:
     def set_gpu_id(self,idx):
         self.terminal_args.gpu = idx
 
-    def generate_data(self, is_real_Ep = False, chunk_size = 10, stat_add = "."):
+    def generate_data(self, stat_add = None):
         """
             generate dp's pre-feature
         """
-        import dp_mlff 
+        import src.pre_data.dp_mlff as dp_mlff
         import subprocess 
         
         # clean old .dat files otherwise will be appended 
-        if os.path.exists("PWdata/AtomType.dat"):
-            print ("cleaning old .dat")
-            subprocess.run(["rm PWdata/*.dat"],shell=True)
+        # if os.path.exists("PWdata/AtomType.dat"):
+        #     print ("cleaning old .dat")
+        #     subprocess.run(["rm PWdata/*.dat"],shell=True)
         
-        dp_mlff.gen_train_data(self.config, self.terminal_args.is_egroup, self.terminal_args.is_virial, is_real_Ep)
-        mk = self.terminal_args.evaluate
-        #if mk is True:
-        #    print ("using ./davd.npy and ./dstd.npy")
-        dp_mlff.sepper_data(self.config, self.terminal_args.is_egroup, chunk_size = chunk_size,is_load_stat = mk,stat_add=stat_add)        
+        dp_mlff.gen_train_data(self.config, self.terminal_args.is_egroup, self.terminal_args.is_virial)
+
+        dp_mlff.sepper_data_main(self.config, self.terminal_args.is_egroup, stat_add=stat_add)        
 
     def dbg(self):
         
@@ -694,7 +736,7 @@ class dp_network:
     """ 
         load and train. 
     """ 
-    def load_and_train(self):
+    def load_and_train(self, data_shuffle=True):
         """
             main()
         """
@@ -746,8 +788,8 @@ class dp_network:
         #global best_loss
 
         # Create dataset
-        train_dataset = MovementDataset("./train")
-        valid_dataset = MovementDataset("./valid")
+        train_dataset = MovementDataset("./train", train_hybrid=self.terminal_args.hybrid)
+        valid_dataset = MovementDataset("./valid", train_hybrid=self.terminal_args.hybrid)
 
         # create model 
         # when running evaluation, nothing needs to be done with davg.npy
@@ -755,8 +797,6 @@ class dp_network:
         stat = [davg, dstd, ener_shift]
         model = DP(self.config, device, stat, self.terminal_args.magic)
         model = model.to(training_type)
-
-
 
         if not torch.cuda.is_available():
             print("using CPU, this will be slow")
@@ -804,17 +844,10 @@ class dp_network:
             print("attempting to load model from", self.model_name)
 
         if self.terminal_args.resume:
-
-            if self.terminal_args.evaluate:
-                if self.model_name is None:
-                    file_name = os.path.join(self.terminal_args.store_path, "checkpoint.pth.tar")
-                else:
-                    file_name = os.path.join("./",self.model_name)
+            if self.model_name is None:
+                file_name = os.path.join(self.terminal_args.store_path, "checkpoint.pth.tar")
             else:
-                if self.model_name is None:
-                    file_name = os.path.join(self.terminal_args.store_path, "checkpoint.pth.tar")
-                else:
-                    file_name = os.path.join("./",self.model_name)
+                file_name = os.path.join("./",self.model_name)
             
             if os.path.isfile(file_name):
                 print("=> loading checkpoint '{}'".format(file_name))
@@ -869,7 +902,7 @@ class dp_network:
         train_loader = torch.utils.data.DataLoader(
             train_dataset,
             batch_size=self.terminal_args.batch_size,
-            shuffle=False,
+            shuffle=data_shuffle,
             num_workers=self.terminal_args.workers,   
             pin_memory=True,
             sampler=train_sampler,          
@@ -884,6 +917,48 @@ class dp_network:
             sampler=val_sampler,
         )
         
+        # do inference
+        if self.terminal_args.inference:
+            res_pd, ei_label_list, ei_predict_list, force_label_list, force_predict_list\
+            = predict(train_loader, model, criterion, device, self.terminal_args)
+            # print infos
+            inference_cout = ""
+            inference_cout += "For {} images: \n".format(res_pd.shape[0])
+            inference_cout += "Avarage REMSE of Etot: {} \n".format(res_pd['RMSE_Etot'].mean())
+            inference_cout += "Avarage REMSE of Etot per atom: {} \n".format(res_pd['RMSE_Etot_per_atom'].mean())
+            inference_cout += "Avarage REMSE of Ei: {} \n".format(res_pd['RMSE_Ei'].mean())
+            inference_cout += "Avarage REMSE of RMSE_F: {} \n".format(res_pd['RMSE_F'].mean())
+            if self.terminal_args.is_egroup:
+                inference_cout += "Avarage REMSE of RMSE_Egroup: {} \n".format(res_pd['RMSE_Egroup'].mean())
+            if self.terminal_args.is_virial:
+                inference_cout += "Avarage REMSE of RMSE_virial: {} \n".format(res_pd['RMSE_virial'].mean())
+                inference_cout += "Avarage REMSE of RMSE_virial_per_atom: {} \n".format(res_pd['RMSE_virial_per_atom'].mean())
+
+            inference_cout += "\nMore details can be found under the file directory:\n".format(os.path.realpath(self.terminal_args.store_path))
+            print(inference_cout)
+            # save result
+            # Different systems in a mixed system have different atomic numbers, and numpy cannot store arrays of different lengths. \
+            # Therefore, the util pickle is used here. Read a picle format file could use this way:
+            # with open('uu.pk', 'rb') as file_1:
+            #     b = pickle.load(file_1)
+            inference_path = os.path.join(self.terminal_args.store_path, "inference")
+            if os.path.exists(inference_path) is False:
+                os.mkdir(inference_path)
+            res_pd.to_csv(os.path.join(inference_path, "inference_result.csv"))
+
+            with open(os.path.join(inference_path, "ei_label.pk"), 'wb') as wf:
+                pickle.dump(ei_label_list,wf)
+            with open(os.path.join(inference_path, "ei_inference.pk"), 'wb') as wf:
+                pickle.dump(ei_predict_list,wf)
+            with open(os.path.join(inference_path, "force_label.pk"), 'wb') as wf:
+                pickle.dump(force_label_list,wf)
+            with open(os.path.join(inference_path, "force_inference.pk"), 'wb') as wf:
+                pickle.dump(force_predict_list,wf)
+            
+            with open(os.path.join(inference_path, "inference.txt"), 'w') as wf:
+                wf.writelines(inference_cout)
+            return  
+
         if self.terminal_args.evaluate:
             # validate(val_loader, model, criterion, args)
             valid(val_loader, model, criterion, device, self.terminal_args)
@@ -949,16 +1024,6 @@ class dp_network:
             f_train_log.write("%s\n" % (train_format % tuple(train_lists)))
             f_valid_log.write("%s\n" % (valid_format % tuple(valid_lists)))
 
-            '''
-            #f_train_log.write("epoch\t loss\t RMSE_Etot\t RMSE_Egroup\t RMSE_F\t real_lr\t time\n")
-            f_train_log.write("%5s%18s%18s%21s%18s%18s%18s%18s%23s%18s%10s\n" % (
-                "epoch","loss","RMSE_Etot","RMSE_Etot_per_atom","RMSE_Egroup", \
-                "RMSE_Ei","RMSE_F","RMSE_virial","RMSE_virial_per_atom","real_lr","time"))
-            #f_valid_log.write("epoch\t loss\t RMSE_Etot\t RMSE_Egroup\t RMSE_F\n")
-            f_valid_log.write("%5s%18s%18s%21s%18s%18s%18s%18s%23s\n" % ("epoch","loss",\
-                "RMSE_Etot","RMSE_Etot_per_atom","RMSE_Egroup","RMSE_Ei","RMSE_F","RMSE_virial","RMSE_virial_per_atom"))
-            '''
-
         for epoch in range(self.terminal_args.start_epoch, self.terminal_args.epochs + 1):
             if self.terminal_args.hvd:
                 train_sampler.set_epoch(epoch)
@@ -981,27 +1046,7 @@ class dp_network:
             vld_loss, vld_loss_Etot, vld_loss_Etot_per_atom, vld_loss_Force, vld_loss_Ei, val_loss_egroup, val_loss_virial, val_loss_virial_per_atom = valid(
                 val_loader, model, criterion, device, self.terminal_args
             )
-            """
-            if not self.terminal_args.hvd or (self.terminal_args.hvd and hvd.rank() == 0):
-                f_train_log = open(train_log, "a")
-                f_train_log.write(
-                    "%d %e %e %e %e %e %s\n"
-                    % (
-                        epoch,
-                        loss,
-                        loss_Etot,
-                        loss_egroup,
-                        loss_Force,
-                        real_lr,
-                        time_end - time_start,
-                    )
-                )
-                f_valid_log = open(valid_log, "a")
-                f_valid_log.write(
-                    "%d %e %e %e %e\n"
-                    % (epoch, vld_loss, vld_loss_Etot, val_loss_egroup, vld_loss_Force)
-                )
-            """
+
             if not self.terminal_args.hvd or (self.terminal_args.hvd and hvd.rank() == 0):
 
                 f_train_log = open(train_log, "a")
@@ -1047,41 +1092,6 @@ class dp_network:
             
                 f_train_log.close()
                 f_valid_log.close()
-                '''
-                f_train_log = open(train_log, "a")
-                f_train_log.write(
-                    "%5d%18.10e%18.10e%21.10e%18.10e%18.10e%18.10e%18.10e%23.10e%18.10e%10.4f\n"
-                    % (
-                        epoch,
-                        loss,
-                        loss_Etot,
-                        loss_Etot_per_atom,
-                        loss_egroup,
-                        loss_Ei,
-                        loss_Force,
-                        loss_virial,
-                        loss_virial_per_atom,
-                        real_lr,
-                        time_end - time_start,
-                    )
-                )
-                f_valid_log = open(valid_log, "a")
-                f_valid_log.write(
-                    "%5d%18.10e%18.10e%21.10e%18.10e%18.10e%18.10e%18.10e%23.10e\n"
-                    % (epoch, 
-                        vld_loss, 
-                        vld_loss_Etot, 
-                        vld_loss_Etot_per_atom, 
-                        val_loss_egroup, 
-                        vld_loss_Ei, 
-                        vld_loss_Force,
-                        val_loss_virial,
-                        val_loss_virial_per_atom,
-                    ) 
-                )
-                '''
-            
-            # scheduler.step()
             
             # remember best loss and save checkpoint
             is_best = vld_loss < best_loss
@@ -1587,4 +1597,3 @@ class dp_network:
         command = r'mpirun -n ' + str(num_thread) + r' main_MD.x'
         print (command)
         subprocess.run(command, shell=True) 
-

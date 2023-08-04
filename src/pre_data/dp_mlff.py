@@ -10,18 +10,56 @@ import subprocess as sp
 import random
 import time
 
+'''
+description: 
+ get all movement files under the dir 'workDir', and class movements with same atomtype
+param {*} workDir
+param {*} sourceFileName
+return {*} 2D List: [[path1/movement, path3/movement], [path2/movement, path4/movement], [...], ...]
+            in which [path1/movement, path3/movement] with same atomtypes and , [path2/movement, path4/movement] with same atomtypes, and so on. 
+author: wuxingxing
+'''
 def collect_all_sourcefiles(workDir, sourceFileName="MOVEMENT"):
-
-    res = []
+    movement_dir = []
     if not os.path.exists(workDir):
         raise FileNotFoundError(workDir + "  does not exist")
     
     # added followlinks = True to support softlinks
+    # get dir of movements
     for path, dirList, fileList in os.walk(workDir, followlinks=True):
         if sourceFileName in fileList:
-            res.append(os.path.abspath(path))
-    return res
+            movement_dir.append(os.path.abspath(path))
+    
+    for dir in movement_dir:
+        atom_type = get_movement_atomtype(os.path.join(dir, "MOVEMENT"))
+        
+    return movement_dir
 
+'''
+description: read atomtypes from movement file
+param {*} movement
+return {*} atomtype and atom nums:
+    examplle li-si system: {3: 60, 14: 16}, with 60 li atoms and 16 si atoms.
+author: wuxingxing
+'''
+def get_movement_atomtype(movement):
+    type_list = {}
+    with open(movement, 'r') as rf:
+        lines = rf.readlines()
+    atom_nums = int(lines[0].strip().split(" ")[0])
+    for idx, line in enumerate(lines):
+        if " Position" in line:
+            atom_index = idx+1
+            while(atom_index <= idx + atom_nums):
+                atom_type = int(lines[atom_index].strip().split(" ")[0])
+                if atom_type not in type_list.keys():
+                    type_list[atom_type] = 1
+                else:
+                    type_list[atom_type] += 1
+                atom_index = atom_index + 1
+            break
+    return type_list
+    
 def gen_config_inputfile(config):
     output_path = os.path.join(config["dRFeatureInputDir"], "gen_dR_feature.in")
     with open(output_path, "w") as GenFeatInput:
@@ -88,7 +126,7 @@ def get_real_Ep(movement_files,train_set_dir):
 
                 
 
-def gen_train_data(config, is_egroup = True, is_virial = True, is_real_Ep = False):
+def gen_train_data(config, is_egroup = True, is_virial = True):
     trainset_dir = config["trainSetDir"]
     dRFeatureInputDir = config["dRFeatureInputDir"]
     dRFeatureOutputDir = config["dRFeatureOutputDir"]
@@ -252,6 +290,16 @@ def save_npy_files(data_path, data_set):
     np.save(os.path.join(data_path, "ImageAtomNum.npy"), data_set["ImageAtomNum"])
 
 
+'''
+description: 
+claculate davg and dstd, the atom type order is the same as movement  
+param {*} config
+param {*} image_dR
+param {*} list_neigh
+param {*} natoms_img
+return {*}
+author: wuxingxing
+'''
 def calc_stat(config, image_dR, list_neigh, natoms_img):
 
     davg = []
@@ -492,6 +540,11 @@ def smooth(config, image_dR, x, Ri_xyz, mask, inr, davg, dstd, natoms):
     vv_copy = vv.unsqueeze(-1).repeat(1, 1, 1, 4)
     Ri[mask] *= vv_copy[mask]
 
+    davg_res, dstd_res = None, None
+    # 0 is that the atom nums is zero, for example, CH4 system in CHO system hybrid training, O atom nums is zero.\
+    # beacuse the dstd or davg does not contain O atom, therefore, special treatment is needed here for atoms with 0 elements
+    natoms = [_ for _ in natoms if _ != 0]
+    ntypes = len(natoms)
     for ntype in range(ntypes):
         atom_num_ntype = natoms[ntype]
         davg_ntype = (
@@ -500,12 +553,14 @@ def smooth(config, image_dR, x, Ri_xyz, mask, inr, davg, dstd, natoms):
         dstd_ntype = (
             dstd[ntype].reshape(-1, 4).repeat(batch_size, atom_num_ntype, 1, 1)
         )  # [32,100,4]
-        if ntype == 0:
-            davg_res = davg_ntype
-            dstd_res = dstd_ntype
-        else:
-            davg_res = torch.concat((davg_res, davg_ntype), dim=1)
-            dstd_res = torch.concat((dstd_res, dstd_ntype), dim=1)
+        davg_res = davg_ntype if davg_res is None else torch.concat((davg_res, davg_ntype), dim=1)
+        dstd_res = dstd_ntype if dstd_res is None else torch.concat((dstd_res, dstd_ntype), dim=1)
+        # if ntype == 0:
+        #     davg_res = davg_ntype
+        #     dstd_res = dstd_ntype
+        # else:
+        #     davg_res = torch.concat((davg_res, davg_ntype), dim=1)
+        #     dstd_res = torch.concat((dstd_res, dstd_ntype), dim=1)
     Ri = (Ri - davg_res) / dstd_res
     dstd_res = dstd_res.unsqueeze(-1).repeat(1, 1, 1, 1, 3)
     Ri_d = Ri_d / dstd_res
@@ -609,66 +664,295 @@ def compute_Ri(config, image_dR, list_neigh, natoms_img, ind_img, davg, dstd):
             Ri_d = np.concatenate((Ri_d, Ri_d_i), 0)
 
     return Ri, Ri_d
-    
-def sepper_data(config, is_egroup = True, chunk_size = 10, is_load_stat = False, stat_add = "./", is_shuffle = True):
-    """
-        do shuffling here, since not sure if image structure support PADDING
-        Shuffle for each MOVEMENT  
-    """
-    trainset_dir = config["trainSetDir"]
 
+'''
+description:
+    classify movements according to thier atomtypes
+    example: for systems: movement1[C,H,O], movement2[C,H], movement3[H,C,O], movement4[C], movement5[C,H,O]
+                after classify:
+                    movement1[C,H,O], movement5[C,H,O] belong to the same system.
+                    movement2[C,H], movement3[H,C,O],movement4[C] are different system.
+                    The atomic order of movement3[H,C,O] and movement5[C,H,O] is different, so they are different system.
+param {*} img_per_mvmt
+param {*} atom_num_per_image
+param {*} atom_types
+param {*} max_neighbor_num
+param {*} ntypes the input of user
+return {*}
+author: wuxingxing
+'''
+def _classify_systems(img_per_mvmt, atom_num_per_image, atom_types, max_neighbor_num, ntypes):
+    # read loactions of movement ?
+    # for each movement, get the first image and count its atom type info
+    movement_info = {}
+    dr_start = 0
+    for idx_mvmt, imgs_mvmt in enumerate(img_per_mvmt):
+        idx_img = sum(img_per_mvmt[:idx_mvmt])
+        img_atom_nums = atom_num_per_image[idx_img]
+        # atom start index in AtomType.dat
+        idx_atom_start_img = sum(atom_num_per_image[:sum(img_per_mvmt[:idx_mvmt])])
+        atom_list = atom_types[idx_atom_start_img: idx_atom_start_img + img_atom_nums]
+        types, type_nums, key = _get_type_info(atom_list)
+        # Key consists of atomic type (atomic order is in the order of movement) and atomic number.
+        movement_info[idx_mvmt] = {"image_nums":imgs_mvmt, 
+            "atom_nums":sum(atom_num_per_image[idx_img:idx_img + imgs_mvmt]),
+                "types":types, "type_nums":type_nums, "key":key}
+        
+        # get dRneigh indexs of the movement in the dRneigh.dat file
+        # num of dRneigh = img_nums * atom_nums * all_atom_types * max nerghbor nums
+        # all_atom_types and max nerghbor nums are global variables
+        dr_rows = imgs_mvmt * sum(type_nums) * ntypes * max_neighbor_num 
+        movement_info[idx_mvmt]["drneigh_rows"] = [dr_start, dr_start + dr_rows]
+        dr_start += dr_rows
+        # get Etot indexs of the movement in the Etot.dat file
+        movement_info[idx_mvmt]["etot_rows"] = [idx_img, idx_img+imgs_mvmt]
+        # get Ei index of the movement in the Ei.dat file
+        movement_info[idx_mvmt]["ei_rows"] = [idx_atom_start_img, idx_atom_start_img + imgs_mvmt*img_atom_nums]
+        # get Force index of the movement in the Force.dat file
+        movement_info[idx_mvmt]["force_rows"] = movement_info[idx_mvmt]["ei_rows"]
+        # the index of movement in input/local file
+        movement_info[idx_mvmt]["mvm_index"] = idx_mvmt
+        # set egroup and viral
+        
+    # The movement is sorted according to the number of atomic types. \
+    # After that, the first MOVEMENT in movement_info dict has all atomic types, and will be used to calculate davg, dstd and energy_shift
+    movement_info = sorted(movement_info.items(), key = lambda x: len(x[1]['types']), reverse=True)
+
+    assert len(movement_info[0][1]['types'])== ntypes, "Error: At least one input movement should contain all atomic types!"
+    # classfiy movement_info by key
+    classify = {}
+    for mvm in movement_info:
+        mvm = mvm[1] # mvm format is:(0, {'image_nums': 100, 'atom_nums': 1000, 'types': [...], 'type_nums': [...], 'key': '8_6_1_10', ...})
+        if mvm['key'] not in classify.keys():
+            classify[mvm['key']] = [mvm]
+        else:
+            classify[mvm['key']].append(mvm)      
+    return classify
+
+'''
+description: 
+    count atom type and atom numbers of each type, \
+        key consists of atomic type (atomic order is in the order of movement) and atomic number.
+param {*} atom_list the atom list of one image
+    such as a Li-Si image: [3,3,3,3,3,14,14,14,14,14,14,14]
+return {*}  types, the nums of type, and key
+    such as [3, 14], [5, 7], "3_14_12"
+author: wuxingxing
+'''
+def _get_type_info(atom_list: list):
+    types = {}
+    for atom in atom_list:
+        if atom in types.keys():
+            types[atom] += 1
+        else:
+            types[atom] = 1
+    key = ""
+    for k in types.keys():
+        key += "{}_".format(k)
+    key += "{}".format(len(atom_list))
+    return list(types.keys()), list(types.values()), key
+
+'''
+description:
+    sepper .dat data to npy format:
+    For hybrid data, there are many different systems, which contain different atomic numbers and different atomic types.
+        1. classify movements according to thier atomtypes and atom numbers.
+        2. calculate davg, dstd and energy_shift from system which contain all atom types.
+        3. for movements in the same category, call function sepper_data.
+        4. the last, save davg, dstd and energy_shift.
+param {*} config
+param {*} is_egroup
+param {*} is_load_stat
+param {*} stat_add
+return {*}
+author: wuxingxing
+'''
+def sepper_data_main(config, is_egroup = True, stat_add = None):
+    trainset_dir = config["trainSetDir"]
     train_data_path = config["trainDataPath"] 
     valid_data_path = config["validDataPath"]
-
     max_neighbor_num = config["maxNeighborNum"]
     ntypes = len(config["atomType"])
-    
+    atom_type_list = [int(_['type']) for _ in config["atomType"]] # get atom types,the order is consistent with user input order
     # image number in each movement 
     img_per_mvmt = np.loadtxt(os.path.join(trainset_dir, "ImgPerMVT.dat"), dtype=int)
+    # when there is only one movement, convert img_per_mvmt type: array(num) -> [array(num)]
+    if img_per_mvmt.size == 1:
+        img_per_mvmt = [img_per_mvmt]
+    # atom nums in each image
+    atom_num_per_image = np.loadtxt(os.path.join(trainset_dir, "ImageAtomNum.dat"), dtype=int)    
+    # atom type of each atom in the image
+    atom_types = np.loadtxt(os.path.join(trainset_dir, "AtomType.dat"), dtype=int)
+    movement_classify = _classify_systems(img_per_mvmt, atom_num_per_image, atom_types, max_neighbor_num, ntypes)
     
-    atom_type = np.loadtxt(os.path.join(trainset_dir, "AtomType.dat"), dtype=int)
     dR_neigh = np.loadtxt(os.path.join(trainset_dir, "dRneigh.dat"))
-    image_dR = dR_neigh[:, :3]
-    list_neigh = dR_neigh[:, 3]
-    
+    Etot = np.loadtxt(os.path.join(trainset_dir, "Etot.dat"))
     Ei = np.loadtxt(os.path.join(trainset_dir, "Ei.dat"))
-
-    # note that Egroup comes with different col number! 
-    #Egroup_file = np.loadtxt(
-    #    os.path.join(trainset_dir, "Egroup_weight.dat"), delimiter=",", usecols=0
-    #)   
+    Force = np.loadtxt(os.path.join(trainset_dir, "Force.dat"))
     if is_egroup:
-        Egroup  = np.loadtxt(
-            os.path.join(trainset_dir, "Egroup_weight.dat"), delimiter=",", usecols=0
-        )   
-    
-        divider = np.loadtxt(
-            os.path.join(trainset_dir, "Egroup_weight.dat"), delimiter=",", usecols=1
-        )   
-
+        Egroup  = np.loadtxt(os.path.join(trainset_dir, "Egroup_weight.dat"), delimiter=",", usecols=0)   
+        divider = np.loadtxt(os.path.join(trainset_dir, "Egroup_weight.dat"), delimiter=",", usecols=1)   
         # take care of weights
         #Egroup_weight = Egroup_file[:, 2:]
-        
         fp = open(os.path.join(trainset_dir, "Egroup_weight.dat"),"r")
         raw_egroup = fp.readlines()
         fp.close()
-        
         # form a list to contain 1-d np arrays 
         egroup_single_arr = []  
-        
         for line in raw_egroup:
-            
             tmp  = [float(item) for item in line.split(",")]
             tmp  = tmp[2:]
             egroup_single_arr.append(np.array(tmp))
+    else:
+        Egroup, divider, egroup_single_arr = None, None, None
 
-    Force = np.loadtxt(os.path.join(trainset_dir, "Force.dat"))
-    Etot = np.loadtxt(os.path.join(trainset_dir, "Etot.dat"))
     if os.path.exists(os.path.join(trainset_dir, "Virial.dat")):
         Virial = np.loadtxt(os.path.join(trainset_dir, "Virial.dat"), delimiter=" ")
-    atom_num_per_image = np.loadtxt(
-        os.path.join(trainset_dir, "ImageAtomNum.dat"), dtype=int
-    )
+    else:
+        Virial = None
+
+    if stat_add is not None:
+        # load from prescribed path
+        print ("using exsiting stat files:")
+        print (stat_add+"/davg.npy")
+        davg = np.load(stat_add+"/davg.npy")
+        print (stat_add+"/dstd.npy")
+        dstd = np.load(stat_add+"/dstd.npy")
+        print( stat_add+"/energy_shift.raw")
+        energy_shift = np.loadtxt(stat_add+"/energy_shift.raw")
+        if energy_shift.size == 1:
+            energy_shift = [energy_shift]
+    else:
+        # calculate davg and dstd from first category of movement_classify
+        davg, dstd = None, None
+
+    img_start = [0, 0] # the index of images saved (train set and valid set)
+    for mvm_type_key in movement_classify.keys():
+        _Etot, _Ei, _Force, _dR = None, None, None, None
+        _atom_num_per_image, _atom_types, _img_per_mvmt = None, None, None,
+        _Egroup, _divider, _egroup_single_arr, _Virial = None, None, None, None
+        #construct data
+        for mvm in movement_classify[mvm_type_key]:
+            _Etot = Etot[mvm["etot_rows"][0]:mvm["etot_rows"][1]] if _Etot is None \
+                else np.concatenate([_Etot, Etot[mvm["etot_rows"][0]:mvm["etot_rows"][1]]],axis=0)
+            _Ei = Ei[mvm["ei_rows"][0]:mvm["ei_rows"][1]] if _Ei is None \
+                else np.concatenate([_Ei, Ei[mvm["ei_rows"][0]:mvm["ei_rows"][1]]],axis=0)
+            _Force = Force[mvm["force_rows"][0]:mvm["force_rows"][1]] if _Force is None \
+                else np.concatenate([_Force, Force[mvm["force_rows"][0]:mvm["force_rows"][1]]],axis=0)
+            _dR = dR_neigh[mvm["drneigh_rows"][0]:mvm["drneigh_rows"][1]] if _dR is None \
+                else np.concatenate([_dR, dR_neigh[mvm["drneigh_rows"][0]:mvm["drneigh_rows"][1]]],axis=0)
+            # egroup
+            if Egroup is not None:
+                _Egroup = Egroup[mvm["ei_rows"][0]:mvm["ei_rows"][1]] if _Egroup is None \
+                    else np.concatenate([_Egroup, Egroup[mvm["ei_rows"][0]:mvm["ei_rows"][1]]],axis=0)
+                _divider = divider[mvm["ei_rows"][0]:mvm["ei_rows"][1]] if _divider is None \
+                    else np.concatenate([_divider, divider[mvm["ei_rows"][0]:mvm["ei_rows"][1]]],axis=0)
+                _egroup_single_arr = egroup_single_arr[mvm["ei_rows"][0]:mvm["ei_rows"][1]] if _egroup_single_arr is None \
+                    else np.concatenate([_egroup_single_arr, egroup_single_arr[mvm["ei_rows"][0]:mvm["ei_rows"][1]]],axis=0)
+            # Virial not realized
+            if Virial is not None:
+                _Virial = Virial[mvm["etot_rows"][0]:mvm["etot_rows"][1]] if _Virial is None \
+                else np.concatenate([_Virial, Virial[mvm["etot_rows"][0]:mvm["etot_rows"][1]]],axis=0)
+
+            _atom_num_per_image = atom_num_per_image[mvm["etot_rows"][0]:mvm["etot_rows"][1]] if _atom_num_per_image is None \
+                else np.concatenate([_atom_num_per_image, atom_num_per_image[mvm["etot_rows"][0]:mvm["etot_rows"][1]]],axis=0)
+            _atom_types = atom_types[mvm["ei_rows"][0]:mvm["ei_rows"][1]] if _atom_types is None \
+                else np.concatenate([_atom_types, atom_types[mvm["ei_rows"][0]:mvm["ei_rows"][1]]],axis=0)
+            _img_per_mvmt = [img_per_mvmt[mvm["mvm_index"]]] if _img_per_mvmt is None \
+                else np.concatenate([_img_per_mvmt, [img_per_mvmt[mvm["mvm_index"]]]],axis=0)
+
+        if davg is None:
+            # the davg and dstd only need calculate one time
+            # the davg, dstd and energy_shift atom order are the same --> atom_type_order 
+            davg, dstd = _calculate_davg_dstd(config, _dR, _atom_types, _atom_num_per_image)
+            energy_shift, atom_type_order = _calculate_energy_shift(_Ei, _atom_types, _atom_num_per_image)
+
+        # reorder davg and dstd to consistent with atom type order of current movement
+        _davg, _dstd = _reorder_davg_dstd(davg, dstd, atom_type_order, mvm['types'])
+
+        accum_train_num, accum_valid_num= sepper_data(config, _Etot, _Ei, _Force, _dR, \
+                    _atom_num_per_image, _atom_types, _img_per_mvmt, \
+                    _Egroup, _divider, _egroup_single_arr, _Virial, \
+                        _davg, _dstd,\
+                        stat_add, img_start)
+        
+        img_start = [accum_train_num, accum_valid_num]
+    if os.path.exists(os.path.join(train_data_path, "davg.npy")) is False:
+        np.save(os.path.join(train_data_path, "davg.npy"), davg)
+        np.save(os.path.join(valid_data_path, "davg.npy"), davg)
+        np.save(os.path.join(train_data_path, "dstd.npy"), dstd)
+        np.save(os.path.join(valid_data_path, "dstd.npy"), dstd)
+        np.savetxt(os.path.join(train_data_path, "atom_map.raw"), atom_type_list)
+        np.savetxt(os.path.join(valid_data_path, "atom_map.raw"), atom_type_list)
+        np.savetxt(os.path.join(train_data_path, "energy_shift.raw"), energy_shift)
+        np.savetxt(os.path.join(valid_data_path, "energy_shift.raw"), energy_shift)
+                
+
+'''
+description: 
+According to the atom type and order of tar_order output corresponding davg and dstd
+    example
+         for source order O-C-H system: davg[0] is O atom, davg[1] is C atom, and davg[2] is H atom:
+                for a target order H-C-O system: davg[0] is H atom, davg[1] is C atom, and davg[2] is O atom
+                for a target order H-C system: davg[0] is H atom, davg[1] is C atom.
+        dstd is same as above.
+param {*} davg
+param {*} dstd
+param {*} sor_order the input order of davg and dstd
+param {*} tar_order the output order of davg and dstd
+return {*}
+author: wuxingxing
+'''
+def _reorder_davg_dstd(davg, dstd, sor_order, tar_order):
+    tar_davg, tar_dstd = [], []
+    for i in tar_order:
+        tar_davg.append(davg[sor_order.index(i)])
+        tar_dstd.append(dstd[sor_order.index(i)])
+    return tar_davg, tar_dstd
+
+'''
+description: 
+    calculate energy shift, this value is used in DP model when doning the fitting net bias_init
+    energy shift is the avrage value of atom's Ei. 
+param {*} Ei
+param {*} atom_type
+param {*} atom_num_per_image 
+param {*} chunk_size: the image nums for energy shift calculating
+return: two list: energy shift list and atom type list
+        example: for a li-si system: [-191.614604541, -116.03510427249998], [3, 14]
+author: wuxingxing
+'''
+def _calculate_energy_shift(Ei, atom_type, atom_num_per_image,  chunk_size=10):
+    Ei = Ei[: sum(atom_num_per_image[:chunk_size])]
+    atom_type = atom_type[: sum(atom_num_per_image[:chunk_size])]
+    type_dict = {}
+    for i in range(sum(atom_num_per_image[:chunk_size])):
+        if atom_type[i] not in type_dict.keys():
+            type_dict[atom_type[i]] = [Ei[i]]
+        else:
+            type_dict[atom_type[i]].append(Ei[i])
+    res = []
+    for t in type_dict.keys():
+        res.append(np.mean(type_dict[t]))
+    return res, list(type_dict.keys())
+
+'''
+description: 
+    calculate davg and dstd, the atom type order of davg and dstd is same as input paramter atom_type 
+param {*} config
+param {*} dR_neigh
+param {*} atom_type, atom list in image, such as a li-si system: atom_type = [3,3,3,3,3,3,3,14,14,14,14,14] 
+param {*} chunk_size, chose 10(default) images.
+return {*}
+author: wuxingxing
+'''
+def _calculate_davg_dstd(config, dR_neigh, atom_type, atom_num_per_image, chunk_size=10):
+    ntypes = len(config["atomType"])
+    max_neighbor_num = config["maxNeighborNum"]
+    
+    image_dR = dR_neigh[:, :3]
+    list_neigh = dR_neigh[:, 3]
+    
     image_index = np.insert(
         atom_num_per_image, 0, 0
     ).cumsum()  # array([  0, 108, 216, 324, 432, 540, 648, 756, 864, 972])
@@ -691,24 +975,51 @@ def sepper_data(config, is_egroup = True, chunk_size = 10, is_load_stat = False,
         (atom_num_per_image.reshape(-1, 1), narray_diff_atom_types_num), axis=1
     )
     
-    # in test, should re-use the stats calced in training 
-    if is_load_stat is False:
-        davg, dstd = calc_stat(
+    davg, dstd = calc_stat(
             config,
             image_dR[0 : image_index[chunk_size] * max_neighbor_num * ntypes],
             list_neigh[0 : image_index[chunk_size] * max_neighbor_num * ntypes],
             atom_num_per_image[0:chunk_size],
         )
-    else:
-        # load from prescribed path
-        print ("using exsiting stat files:")
 
-        print (stat_add+"/davg.npy")
-        davg = np.load(stat_add+"/davg.npy")
+    return davg, dstd
+    
+def sepper_data(config, Etot, Ei, Force, dR_neigh,\
+                atom_num_per_image, atom_type, img_per_mvmt, \
+                Egroup=None, divider=None, egroup_single_arr = None, Virial=None, \
+                    davg=None, dstd=None,\
+                    stat_add = "./", img_start=[0, 0]):
 
-        print (stat_add+"/dstd.npy")
-        dstd = np.load(stat_add+"/dstd.npy")
-            
+    train_data_path = config["trainDataPath"]
+    valid_data_path = config["validDataPath"]
+    max_neighbor_num = config["maxNeighborNum"]
+    ntypes = len(config["atomType"])
+    
+    image_dR = dR_neigh[:, :3]
+    list_neigh = dR_neigh[:, 3]
+    
+    image_index = np.insert(
+        atom_num_per_image, 0, 0
+    ).cumsum()  # array([  0, 108, 216, 324, 432, 540, 648, 756, 864, 972])
+    
+    image_num = atom_num_per_image.shape[0]
+    
+    diff_atom_types_num = []
+    for i in range(image_num):
+        atom_type_per_image = atom_type[image_index[i] : image_index[i + 1]]
+        ######## mask need to flexibly change according to atom_type
+        # unique_values, indices = np.unique(atom_type_per_image, return_index=True)
+        # mask = unique_values[np.argsort(indices)]
+        mask = np.array([atom_type['type'] for atom_type in config["atomType"]])
+        #######
+        diff_atom_types_num.append(
+            [Counter(atom_type_per_image)[mask[type]] for type in range(mask.shape[0])]
+        )
+    narray_diff_atom_types_num = np.array(diff_atom_types_num)
+    atom_num_per_image = np.concatenate(
+        (atom_num_per_image.reshape(-1, 1), narray_diff_atom_types_num), axis=1
+    )
+    
     Ri, Ri_d = compute_Ri(
             config, image_dR, list_neigh, atom_num_per_image, image_index, davg, dstd
         )
@@ -718,297 +1029,92 @@ def sepper_data(config, is_egroup = True, chunk_size = 10, is_load_stat = False,
 
     if not os.path.exists(valid_data_path):
         os.makedirs(valid_data_path)
-
-    print("Saving npy file")
-
-    np.save(os.path.join(train_data_path, "davg.npy"), davg)
-    np.save(os.path.join(valid_data_path, "davg.npy"), davg)
-    np.save(os.path.join(train_data_path, "dstd.npy"), dstd)
-    np.save(os.path.join(valid_data_path, "dstd.npy"), dstd)
     
     # num total trian img 
     train_image_num = math.ceil(image_num * config["ratio"])
 
+
     list_neigh = list_neigh.reshape(-1, max_neighbor_num * ntypes)
     image_dR = image_dR.reshape(-1, max_neighbor_num * ntypes, 3)
 
-    width_train = len(str(train_image_num))
-    width_valid = len(str(image_num - train_image_num))
-
+    width = len(str(train_image_num))
+    accum_train_num = img_start[0] 
+    accum_valid_num = img_start[1]
     index = 0
-    
-    """
-        Since image padding is not supported at this moment 
-        we manipulate the data formation to support batch size larger than 1
+    while index < train_image_num:
+        start_index = index
+        end_index = index + 1
+
+        end_index = min(end_index, train_image_num)
+
+        train_set = {
+                "AtomType": atom_type[image_index[start_index] : image_index[end_index]],
+                "ImageDR": image_dR[image_index[start_index] : image_index[end_index]],
+                "ListNeighbor": list_neigh[
+                    image_index[start_index] : image_index[end_index]
+                ],
+                "Ei": Ei[image_index[start_index] : image_index[end_index]],
+                "Ri": Ri[image_index[start_index] : image_index[end_index]],
+                "Ri_d": Ri_d[image_index[start_index] : image_index[end_index]],
+                "Force": Force[image_index[start_index] : image_index[end_index]],
+                "Etot": Etot[start_index:end_index],
+                "ImageAtomNum": atom_num_per_image[start_index:end_index],
+            }
         
-        $chunk_size images form a chunk, chunk by chunk  
-    """ 
-    
-    train_chunks = []
-    valid_chunks = []
-    
-    accum_train_num = 0 
-    accum_valid_num = 0 
+        if Egroup is not None:
+            train_set["Egroup"] = Egroup[image_index[start_index] : image_index[end_index]]
+            train_set["Divider"] = divider[image_index[start_index] : image_index[end_index]]
+            train_set["Egroup_weight"] = np.vstack(tuple(egroup_single_arr[image_index[start_index] : image_index[end_index]]))
+        if Virial is not None:
+            train_set["Virial"] = Virial[start_index:end_index]
 
-    range_mvmt = [0 for i in range(img_per_mvmt.size)]
+        save_path = os.path.join(train_data_path, "image_" + str(accum_train_num).zfill(width))
+
+        if not os.path.exists(save_path):
+            os.mkdir(save_path)
+        save_npy_files(save_path, train_set)
+
+        accum_train_num += 1 
+
+        index = end_index
+
+    width = len(str(image_num - train_image_num))
+
+    while index < image_num:
+        start_index = index
+        end_index = index + 1
+
+        end_index = min(end_index, image_num)
+
+        valid_set = {
+                "AtomType": atom_type[image_index[start_index] : image_index[end_index]],
+                "ImageDR": image_dR[image_index[start_index] : image_index[end_index]],
+                "ListNeighbor": list_neigh[
+                    image_index[start_index] : image_index[end_index]
+                ],
+                "Ei": Ei[image_index[start_index] : image_index[end_index]],
+                "Ri": Ri[image_index[start_index] : image_index[end_index]],
+                "Ri_d": Ri_d[image_index[start_index] : image_index[end_index]],
+                "Force": Force[image_index[start_index] : image_index[end_index]],
+                "Etot": Etot[start_index:end_index],
+                "ImageAtomNum": atom_num_per_image[start_index:end_index],
+            }
         
-    if img_per_mvmt.size == 1:
-        range_mvmt[0] = img_per_mvmt
-    else:
-        for idx in range(img_per_mvmt.size):
-            range_mvmt[idx] = sum(img_per_mvmt[:idx+1])
-    
-    range_mvmt = [0] + range_mvmt
-    
-    # assume all movements are of same size! 
-    #chunk_size = 10 
-    #rotate_fac = 10
+        if Egroup is not None:
+            valid_set["Egroup"] = Egroup[image_index[start_index] : image_index[end_index]]
+            valid_set["Divider"] = divider[image_index[start_index] : image_index[end_index]]
+            valid_set["Egroup_weight"] = np.vstack(tuple(egroup_single_arr[image_index[start_index] : image_index[end_index]]))
+        if Virial is not None:
+            valid_set["Virial"] = Virial[start_index:end_index]
 
-    """
-        for each movement, divide by chunck size
-    """
+        save_path = os.path.join(valid_data_path, "image_" + str(accum_valid_num).zfill(width))
 
-    for i in range(len(range_mvmt)-1):
-        
-        mvmt_begin = range_mvmt[i]
-        mvmt_end = range_mvmt[i+1]
-        
-        # range of index of current movement 
-        idx_range = [j for j in range(mvmt_begin,mvmt_end)]
-        
-        # shuffle 
-        if is_shuffle is True:
-            random.seed(time.time())
-            random.shuffle(idx_range)
-
-        mvmt_len = mvmt_end - mvmt_begin
-        
-        train_cut = int(mvmt_len*config["ratio"])
-
-        # notice that some images at the end could be discarded 
-        num_chunk_train = int(train_cut/chunk_size)
-        num_chunk_valid = int((mvmt_len - num_chunk_train*chunk_size)/chunk_size)
-        
-        # form chunks of indices
-        for j in range(num_chunk_train):
-            p = j*chunk_size
-            train_chunks.append(idx_range[p:p+chunk_size].copy())
-        
-        for j in range(num_chunk_valid):
-            p = (j+num_chunk_train)*chunk_size
-            valid_chunks.append(idx_range[p:p+chunk_size].copy())
-        
-        print ("in mvmt",i)
-        print ("num of image:", mvmt_len)
-        print ("num of image used",(num_chunk_train+num_chunk_valid)*chunk_size)
-
-    # shuffle chunks 
-    random.seed(time.time())
-    random.shuffle(train_chunks)
-    
-    # write in /train and /valid 
-    for chunk in train_chunks:
-        for index in chunk:
-            start_index = index
-            end_index = index + 1
-
-            print (image_index[start_index], image_index[end_index])
-            
-            train_set = {
-                    "AtomType": atom_type[image_index[start_index] : image_index[end_index]],
-                    "ImageDR": image_dR[image_index[start_index] : image_index[end_index]],
-                    "ListNeighbor": list_neigh[
-                        image_index[start_index] : image_index[end_index]
-                    ],
-                    "Ei": Ei[image_index[start_index] : image_index[end_index]],
-                    # "Egroup": Egroup[image_index[start_index] : image_index[end_index]],
-                    # "Divider": divider[image_index[start_index] : image_index[end_index]],
-                    #"Egroup_weight": Egroup_weight[image_index[start_index] : image_index[end_index]],
-                    # "Egroup_weight": np.vstack(tuple(egroup_single_arr[image_index[start_index] : image_index[end_index]])),
-                    "Ri": Ri[image_index[start_index] : image_index[end_index]],
-                    "Ri_d": Ri_d[image_index[start_index] : image_index[end_index]],
-                    "Force": Force[image_index[start_index] : image_index[end_index]],
-                    # "Virial": Virial[start_index:end_index],
-                    "Etot": Etot[start_index:end_index],
-                    "ImageAtomNum": atom_num_per_image[start_index:end_index],
-                }
-            
-            if is_egroup:
-                train_set["Egroup"] = Egroup[image_index[start_index] : image_index[end_index]]
-                train_set["Divider"] = divider[image_index[start_index] : image_index[end_index]]
-                train_set["Egroup_weight"] = np.vstack(tuple(egroup_single_arr[image_index[start_index] : image_index[end_index]]))
-            if "Virial" in locals():
-                train_set["Virial"] = Virial[start_index:end_index]
-
-            save_path = os.path.join(train_data_path, "image_" + str(accum_train_num).zfill(width_train))
-
-            if not os.path.exists(save_path):
-                os.mkdir(save_path)
-            save_npy_files(save_path, train_set)
-
-            accum_train_num += 1 
-    
-    for chunk in valid_chunks:
-        for index in chunk:
-            start_index = index
-            end_index = index + 1
-
-            valid_set = {
-                    "AtomType": atom_type[image_index[start_index] : image_index[end_index]],
-                    "ImageDR": image_dR[image_index[start_index] : image_index[end_index]],
-                    "ListNeighbor": list_neigh[
-                        image_index[start_index] : image_index[end_index]
-                    ],
-                    "Ei": Ei[image_index[start_index] : image_index[end_index]],
-                    # "Egroup": Egroup[image_index[start_index] : image_index[end_index]],
-                    # "Divider": divider[image_index[start_index] : image_index[end_index]],
-                    #"Egroup_weight": Egroup_weight[image_index[start_index] : image_index[end_index]],
-                    # "Egroup_weight": np.vstack(tuple(egroup_single_arr[image_index[start_index] : image_index[end_index]])),
-                    "Ri": Ri[image_index[start_index] : image_index[end_index]],
-                    "Ri_d": Ri_d[image_index[start_index] : image_index[end_index]],
-                    "Force": Force[image_index[start_index] : image_index[end_index]],
-                    # "Virial": Virial[start_index:end_index],
-                    "Etot": Etot[start_index:end_index],
-                    "ImageAtomNum": atom_num_per_image[start_index:end_index],
-                }
-            
-            if is_egroup:
-                valid_set["Egroup"] = Egroup[image_index[start_index] : image_index[end_index]]
-                valid_set["Divider"] = divider[image_index[start_index] : image_index[end_index]]
-                valid_set["Egroup_weight"] = np.vstack(tuple(egroup_single_arr[image_index[start_index] : image_index[end_index]]))
-
-            if "Virial" in locals():
-                valid_set["Virial"] = Virial[start_index:end_index]
-
-            save_path = os.path.join(valid_data_path, "image_" + str(accum_valid_num).zfill(width_valid))
-
-            if not os.path.exists(save_path):
-                os.mkdir(save_path)
-            save_npy_files(save_path, valid_set)
-
-            accum_valid_num += 1
-
-    print("Saving npy file done")
-    
-    return 
-
-    mvmt_size = 0 
-
-    local_train_idx_list = []
-    local_valid_idx_list = [] 
-
-    for i in range(len(range_mvmt)-1):
-        """
-            (0,100) (100,200) ... 
-        """
-        # shuffled image in a single movement 
-        local_img_idx = [i for i in range(range_mvmt[i],range_mvmt[i+1])]
-
-        # shoudld add a seed here 
-        random.seed(time.time())
-        random.shuffle(local_img_idx)
-
-        local_img_num = range_mvmt[i+1] - range_mvmt[i]
-        local_train_num = math.ceil(local_img_num * config["ratio"])
-
-        local_train_idx = local_img_idx[:local_train_num] 
-        local_valid_idx = local_img_idx[local_train_num:] 
-        
-        local_train_idx_list.append(local_train_idx)
-        local_valid_idx_list.append(local_valid_idx)   
-            
-        mvmt_size = local_img_num 
-    
-    # switch system every rotate fac steps
-    # training   
-    for j in range(0, mvmt_size, chunk_size):
-        for i in range(len(range_mvmt)-1):
-            
-            # only rotate_fac steps
-            for index in local_train_idx_list[i][j:j+chunk_size]:
-                start_index = index
-                end_index = index + 1
-                print (image_index[start_index], image_index[end_index])
-                train_set = {
-                    "AtomType": atom_type[image_index[start_index] : image_index[end_index]],
-                    "ImageDR": image_dR[image_index[start_index] : image_index[end_index]],
-                    "ListNeighbor": list_neigh[
-                        image_index[start_index] : image_index[end_index]
-                    ],
-                    "Ei": Ei[image_index[start_index] : image_index[end_index]],
-                    "Egroup": Egroup[image_index[start_index] : image_index[end_index]],
-                    "Divider": divider[image_index[start_index] : image_index[end_index]],
-                    #"Egroup_weight": Egroup_weight[image_index[start_index] : image_index[end_index]],
-                    "Egroup_weight": np.vstack(tuple(egroup_single_arr[image_index[start_index] : image_index[end_index]])),
-                    "Ri": Ri[image_index[start_index] : image_index[end_index]],
-                    "Ri_d": Ri_d[image_index[start_index] : image_index[end_index]],
-                    "Force": Force[image_index[start_index] : image_index[end_index]],
-                    "Virial": Virial[start_index:end_index],
-                    "ImageAtomNum": atom_num_per_image[start_index:end_index],
-                }
-
-                save_path = os.path.join(
-                    train_data_path, "image_" + str(accum_train_num).zfill(width_train)
-                )
-
-                if not os.path.exists(save_path):
-                    os.mkdir(save_path)
-                save_npy_files(save_path, train_set)
-
-                accum_train_num += 1 
-                #index = end_index
-        
-    # switch system every rotate fac steps
-    # valid
-    for j in range(0, local_img_num, chunk_size):
-        for i in range(len(range_mvmt)-1):
-            
-            #while index < image_num:
-            for index in local_valid_idx_list[i][j:j+chunk_size]:
-
-                start_index = index
-                end_index = index + 1
-
-                valid_set = {
-                    "AtomType": atom_type[image_index[start_index] : image_index[end_index]],
-                    "ImageDR": image_dR[image_index[start_index] : image_index[end_index]],
-                    "ListNeighbor": list_neigh[
-                        image_index[start_index] : image_index[end_index]
-                    ],
-                    "Ei": Ei[image_index[start_index] : image_index[end_index]],
-                    "Egroup": Egroup[image_index[start_index] : image_index[end_index]],
-                    "Divider": divider[image_index[start_index] : image_index[end_index]],
-                    #"Egroup_weight": Egroup_weight[image_index[start_index] : image_index[end_index]],
-                    "Egroup_weight": np.vstack(tuple(egroup_single_arr[image_index[start_index] : image_index[end_index]])),
-                    "Ri": Ri[image_index[start_index] : image_index[end_index]],
-                    "Ri_d": Ri_d[image_index[start_index] : image_index[end_index]],
-                    "Force": Force[image_index[start_index] : image_index[end_index]],
-                    "Virial": Virial[start_index:end_index],
-                    "ImageAtomNum": atom_num_per_image[start_index:end_index],
-                }
-
-                save_path = os.path.join(
-                    valid_data_path, "image_" + str(accum_valid_num).zfill(width_valid)
-                )
-
-                if not os.path.exists(save_path):
-                    os.mkdir(save_path)
-                save_npy_files(save_path, valid_set)
-
-                accum_valid_num += 1
-                #index = end_index   
+        if not os.path.exists(save_path):
+            os.mkdir(save_path)
+        save_npy_files(save_path, valid_set)
+        index = end_index
+        accum_valid_num += 1
 
     print("Saving npy file done")
 
-def main():
-
-    with open("config.yaml", "r") as yamlfile:
-        config = yaml.load(yamlfile, Loader=yaml.FullLoader)
-        print("Read Config successful")
-
-    gen_train_data(config)
-    sepper_data(config)
-
-
-if __name__ == "__main__":
-    main()
+    return accum_train_num, accum_valid_num

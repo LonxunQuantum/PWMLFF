@@ -130,6 +130,11 @@ class LKFOptimizer(Optimizer):
         A = 1 / tmp
 
         for i in range(weights_num):
+            # for a Si-Si system in hybrid traing:
+            # for Li-Si DP model: 0-layer [0:4050] is embding net of Li-Li, Li-Si, Si-Li, the weights are zero, \
+            # 0-layer [4050:4500] is emb net of Si-Si.
+            # P[0] shape is [5400, 5400] and H[0] shape is [5400, 1],  the K shape is [5400, 1].
+            # when update, the K[:4050] is not zero because the H[4050:5400] is not zero.
             K = torch.matmul(P[i], H[i])
 
             weights[i] = weights[i] + A * error * K
