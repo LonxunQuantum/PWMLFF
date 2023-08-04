@@ -165,6 +165,7 @@ use_Ftype=[1]
 use_GKalman = False
 use_LKalman = False
 use_SKalman = False
+nfeat_type=1
 
 kalman_prefac_Ei = 1.0
 kalman_prefac_Etot = 1.0
@@ -180,8 +181,6 @@ is_dfeat_sparse = True
 n_epoch = 100
 itype_Ei_mean = [0 for i in range(10)]
 batch_size = 1  # only support bn=1 so far
-
-nfeat_type=len(use_Ftype)
 
 Ftype1_para={               #2b
     'numOf2bfeat':[24 for tmp in range(10)],       # [itpye1,itype2]
@@ -254,8 +253,7 @@ Ftype6_para={
     'J' :[3.0 for tmp in range(10)],
     'n_w_line': [2 for tmp in range(10)],
     'w1':[ [0.9, 0.1, 0.8, 0.2, 0.7, 0.3, 0.6, 0.4]  for tmp in range(10)],  # shape(w1) = (ntype, n_w_line)
-    'w2':[ [0.05, 0.85, 0.15, 0.75, 0.65, 0.65, 0.35, 0.55]  for tmp in range(10) ],
-    'w3':[ [0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05]  for tmp in range(10) ],
+    'w2':[ [0.1, 0.9, 0.2, 0.8, 0.3, 0.7, 0.3, 0.6]  for tmp in range(10) ],
     }  
 
 

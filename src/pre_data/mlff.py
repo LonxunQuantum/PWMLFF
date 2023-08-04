@@ -2,11 +2,11 @@
 # -*- coding: utf-8 -*-
 import os
 import sys
+import default_para as pm 
+import prepare as pp
+import fortran_fitting as ff 
 
 def calc_feat():
-
-    import default_para as pm 
-    import prepare as pp
 
     # create dirs
     print ("creating dirs: input, output, fread_dfeat")
@@ -53,7 +53,6 @@ codepath=os.path.abspath(sys.path[0])
 
 os.system('mkdir -p input output fread_dfeat')
 
-import default_para as pm 
 
 """
 import use_para as pm
@@ -61,9 +60,6 @@ import parse_input
 parse_input.parse_input()
 """
 pm.fortranFitSourceDir = codepath + '/../src/fit'
-
-import prepare as pp
-import fortran_fitting as ff 
 
 pp.prepare_dir_info()   
 

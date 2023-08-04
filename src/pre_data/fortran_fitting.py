@@ -103,14 +103,12 @@ def FeatCollectIn():
     # m_neigh=pm.maxNeighborNum
     # n_image=200
     with open(pm.featCollectInPath,'w') as fitInput:
-        fitInput.write(str(pm.iflag_PCA)+'        ! iflag_PCA\n')
-        fitInput.write(str(pm.nfeat_type)+'        ! nfeat_type\n')
+        fitInput.write(str(pm.iflag_PCA)+'        ! iflag_PCA \n')
+        fitInput.write(str(pm.nfeat_type)+'        ! nfeat_type \n')
         for i in range(pm.nfeat_type):
-            #line=str(i+1)+'        ! iFtype\n'
-            # liuliping,
-            line = str(pm.use_Ftype[i]) + '        ! iFtype\n'
+            line = str(pm.use_Ftype[i]) + '        ! iFtype \n'
             fitInput.write(line)
-        fitInput.write(str(pm.atomTypeNum)+'        ! ntype\n')
+        fitInput.write(str(pm.atomTypeNum)+'        ! ntype \n')
         for i in range(pm.atomTypeNum):
             line=str(pm.atomType[i])+'        ! iat \n'
             fitInput.write(line)

@@ -251,7 +251,7 @@ PROGRAM gen_3b_feature
 
     !cccccccccccccccccccccccccccccccccccccccccccc
     if(iflag_grid.eq.3) then  
-    ! for iflag_grid.eq.3, the graid is just read in. 
+    ! for iflag_grid.eq.3, the grid is just read in. 
     ! Its format is different from above grid31, grid32. 
     ! For each point, it just have two numbers, r1,r2, indicating the region of the sin peak function.
 

@@ -179,7 +179,7 @@ program linear_forceMM
     nfeat1m=0   ! the original feature
     nfeat2m=0   ! the new PCA, PV feature
     nfeat2tot=0 ! tht total feature of diff atom type
-    nfeat2i=0   ! the starting point
+    nfeat2i=0   ! the starting point    0 72 144...
     nfeat2i(1)=0
     do i=1,ntype
     if(nfeat1(i).gt.nfeat1m) nfeat1m=nfeat1(i)

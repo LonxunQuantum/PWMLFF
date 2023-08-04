@@ -18,6 +18,7 @@ ln -s ../../utils/plot_nn_test.py .
 ln -s ../../utils/plot_mlff_inference.py .
 ln -s ../../utils/read_torch_wij_dp.py . 
 ln -s ../../utils/outcar2movement . 
+ln -s ../md/fortran_code/main_md.x .
 
 chmod +x ./mlff.py
 chmod +x ./seper.py
@@ -48,5 +49,5 @@ fi
 ##################################################################
 cd op
 rm build -r
-python setup.py install 
+python setup.py install --user
 echo "Environment variables have been written ~/.bashrc"

@@ -328,6 +328,11 @@ program feat_collect_PCA
       write(10) feat2_scale
       close(10)
       ! write(6,*) feat2_case
+      ! ! Open a new formatted file for writing
+      ! open(20, file=fread_dfeat//"feat_PV_new."//char(itype+48), form="formatted")
+      ! ! Write data to the formatted file
+      ! write(20, *) PV
+      ! close(20)
       open(10,file=fread_dfeat//"feat_shift."//char(itype+48))
       rewind(10)
       do i=1,nfeat2
@@ -423,7 +428,7 @@ program feat_collect_PCA
 
          call dgesv(nfeat2,1,S,nfeat2,ipiv,BB,nfeat2,info)
 
-!    BB is the linear eight: Ei_case(icase)= \sum_i BB(i)* feat2_case(i,icase)
+!    BB is the linear weight: Ei_case(icase)= \sum_i BB(i)* feat2_case(i,icase)
 
          do j=1,nfeat2
             BB2_ave(j)=BB2_ave(j)+BB(j)**2
@@ -473,7 +478,7 @@ program feat_collect_PCA
    do i=1,nfeat_type
       write(11,*) ifeat_type(i)
    enddo
-   write(11,*) ntype      ! there ate ntype of atoms
+   write(11,*) ntype       ! there ate ntype of atoms
    do i=1,ntype
       write(11,"(3(i6,2x))") iatom_type(i),nfeat1_store(i),nfeat2_store(i)
    end do

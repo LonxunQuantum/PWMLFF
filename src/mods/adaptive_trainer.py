@@ -48,8 +48,8 @@ class adaptive_trainer():
                     ff_dir = [],
                     node_num = 1,   
                     atom_type = [],
-                    success_bar = 0.12,
-                    candidate_bar = 0.25,         
+                    success_bar = 0.15,
+                    candidate_bar = 0.35,         
                     lmp_damp = 25,
                     lmp_nprocs = 1,
                     is_single_node = True,       
@@ -461,9 +461,9 @@ class adaptive_trainer():
             begin = time.time()
 
             if self.silent_mode is True:
-                subprocess.run(["mpirun -np %d lmp_mpi -in lammps.in > /dev/null"%self.lmp_nprocs], shell=True)   
+                subprocess.run(["srun --exclusive -n %d lmp_mpi -in lammps.in > /dev/null"%self.lmp_nprocs], shell=True)   
             else:
-                subprocess.run(["mpirun -np %d lmp_mpi -in lammps.in"%self.lmp_nprocs], shell=True)
+                subprocess.run(["srun --exclusive -n %d lmp_mpi -in lammps.in"%self.lmp_nprocs], shell=True)
             
             end = time.time()
 

@@ -102,6 +102,7 @@
                     x=(d-grid2_2(1,k,itype0))/(grid2_2(2,k,itype0)-grid2_2(1,k,itype0))
                     y=(x-0.5d0)*pi2
                     f1=0.5d0*(cos(y)+1)
+                  !   write(*,*) "dbg info",f1
                     feat2(k,itype,iat1)=feat2(k,itype,iat1)+f1
                     y2=-pi*sin(y)/(d*(grid2_2(2,k,itype0)-grid2_2(1,k,itype0)))
                     dfeat2(k,itype,iat1,jj,:)=dfeat2(k,itype,iat1,jj,:)+y2*dR_neigh(:,j,itype,iat)

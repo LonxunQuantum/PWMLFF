@@ -506,9 +506,9 @@ module calc_deepMD
         do i = 1, natom
             if(mod(i-1,nnodes).eq.inode-1) then
                 iat1=iat1+1
-                    itype = iatom_type(i)
-                    natom_n_type(itype) = natom_n_type(itype) + 1
-                    iat_ind(natom_n_type(itype),itype)=i
+                itype = iatom_type(i)
+                natom_n_type(itype) = natom_n_type(itype) + 1
+                iat_ind(natom_n_type(itype),itype)=i
             endif
         enddo
 
