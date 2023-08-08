@@ -183,7 +183,7 @@ def process_data(f_train_feat, f_train_dfeat, f_train_dR_neigh,
         for m in range(len(pm.use_Ftype)):
             f.writelines(str(pm.use_Ftype[m])+'\n')
 
-        f.writelines(str(pm.ntypes)+', '+str(pm.maxNeighborNum)+'\n')
+        f.writelines(str(pm.ntypes)+'  '+str(pm.maxNeighborNum)+'\n')
         for i in range(pm.ntypes):
             f.writelines(str(pm.atomType[i])+'  ' +
                          str(nfeat0m)+'  '+str(nfeat0m)+'\n')

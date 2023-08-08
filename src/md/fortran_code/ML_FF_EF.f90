@@ -512,9 +512,12 @@ subroutine ML_FF_EF(Etot,fatom,xatom,AL,natom_tmp,e_stress)
             
             !write(*,*) "unperturbed Etot"
             !write(*,*) Etot
-            
+                        
             e_atom(1:natom_tmp)=energy_pred_nn(1:natom_tmp)
             fatom(:,1:natom_tmp)=force_pred_NN(:,1:natom_tmp)   ! unit, and - sign?
+            ! write(*,*) "Etot",Etot
+            ! write(*,*) "e_atom",e_atom(1:natom_tmp)
+            ! stop
             
             ! test tensor calculation NPT
             
