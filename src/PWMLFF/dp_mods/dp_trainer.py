@@ -714,86 +714,120 @@ def predict(val_loader, model, criterion, device, args):
     ei_label_list = []
     ei_predict_list = []
     model.eval()
-    
-    for i, sample_batches in enumerate(val_loader):
-        if args.datatype == "float64":
-            Ei_label = Variable(sample_batches["Ei"].double().to(device))
-            Etot_label = Variable(sample_batches["Etot"].double().to(device))
-            if args.is_egroup is True:
-                Egroup_label = Variable(sample_batches["Egroup"].double().to(device))
-                Divider = Variable(sample_batches["Divider"].double().to(device))
-                Egroup_weight = Variable(sample_batches["Egroup_weight"].double().to(device))
-            
-            Force_label = Variable(sample_batches["Force"][:, :, :].double().to(device))
-            if args.is_virial is True:
-                Virial_label = Variable(sample_batches["Virial"].double().to(device))
 
-            ImageDR = Variable(sample_batches["ImageDR"].double().to(device))
-            Ri = Variable(sample_batches["Ri"].double().to(device),requires_grad=True,)
-            Ri_d = Variable(sample_batches["Ri_d"].to(device))
+    for i, sample_batches in enumerate(val_loader):
+        # measure data loading time
+        # load data to cpu
+        if args.datatype == "float64":
+            Ei_label_cpu = sample_batches["Ei"].double()
+            Etot_label_cpu = sample_batches["Etot"].double()
+            Force_label_cpu = sample_batches["Force"][:, :, :].double()
+
+            if args.is_egroup is True:
+                Egroup_label_cpu = sample_batches["Egroup"].double()
+                Divider_cpu = sample_batches["Divider"].double()
+                Egroup_weight_cpu = sample_batches["Egroup_weight"].double()
+
+            if args.is_virial is True:
+                Virial_label_cpu = sample_batches["Virial"].double()
+
+            ImageDR_cpu = sample_batches["ImageDR"].double()
+            Ri_cpu = sample_batches["Ri"].double()
+            Ri_d_cpu = sample_batches["Ri_d"].double()
 
         elif args.datatype == "float32":
-            Ei_label = Variable(sample_batches["Ei"].float().to(device))
-            Etot_label = Variable(sample_batches["Etot"].float().to(device))
-            Force_label = Variable(sample_batches["Force"][:, :, :].float().to(device))
-            
+            Ei_label_cpu = sample_batches["Ei"].float()
+            Etot_label_cpu = sample_batches["Etot"].float()
+            Force_label_cpu = sample_batches["Force"][:, :, :].float()
+
+            if args.is_egroup is True:
+                Egroup_label_cpu = sample_batches["Egroup"].float()
+                Divider_cpu = sample_batches["Divider"].float()
+                Egroup_weight_cpu = sample_batches["Egroup_weight"].float()
+
             if args.is_virial is True:
-                Virial_label = Variable(sample_batches["Virial"].float().to(device))
+                Virial_label_cpu = sample_batches["Virial"].float()
 
-            ImageDR = Variable(sample_batches["ImageDR"].float().to(device))
-            Ri = Variable(sample_batches["Ri"].float().to(device),requires_grad=True,)
-            Ri_d = Variable(sample_batches["Ri_d"].float().to(device))
-
-        # Etot_label = torch.sum(torch.unsqueeze(Ei_label, 2), dim=1)
-        dR_neigh_list = Variable(sample_batches["ListNeighbor"].int().to(device))
-        natoms_img = Variable(sample_batches["ImageAtomNum"].int().to(device))
-
-        natoms_img = torch.squeeze(natoms_img, 1)
-        atom_type = Variable(sample_batches["AtomType"].int().to(device))[0].tolist()
-        natom = natoms_img[0,0]
-        """
-            Dim of Ri [bs, natom, ntype*max_neigh_num, 4] 
-        """ 
-        if args.is_egroup is True:
-            Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
-                Ri, Ri_d, dR_neigh_list, natoms_img, atom_type, ImageDR, Egroup_weight, Divider)
+            ImageDR_cpu = sample_batches["ImageDR"].float()
+            Ri_cpu = sample_batches["Ri"].float()
+            Ri_d_cpu = sample_batches["Ri_d"].float()
         else:
-            Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
-                Ri, Ri_d, dR_neigh_list, natoms_img, atom_type, ImageDR, None, None 
-            )
-        # mse
-        loss_Etot_val = criterion(Etot_predict, Etot_label)
-        loss_F_val = criterion(Force_predict, Force_label)
-        loss_Ei_val = criterion(Ei_predict, Ei_label)
-        loss_val = loss_F_val + loss_Etot_val
-        if args.is_egroup is True:
-            loss_Egroup_val = criterion(Egroup_predict, Egroup_label)
-
-        if args.is_virial is True:
-            loss_Virial_val = criterion(Virial_predict, Virial_label.squeeze(1))
-            loss_Virial_per_atom_val = loss_Virial_val/natom/natom
-        # rmse
-        Etot_rmse = loss_Etot_val ** 0.5
-        etot_atom_rmse = Etot_rmse / natoms_img[0][0]
-        Ei_rmse = loss_Ei_val ** 0.5
-        F_rmse = loss_F_val ** 0.5
-
-        res_list = [i, float(Etot_label), float(Etot_predict), \
-                    float(Ei_label.abs().mean()), float(Ei_predict.abs().mean()), \
-                    float(Force_label.abs().mean()), float(Force_predict.abs().mean()),\
-                    float(Etot_rmse), float(etot_atom_rmse), float(Ei_rmse), float(F_rmse)]
-
-        if args.is_egroup:
-            train_lists.append(loss_Egroup_val)
-        if args.is_virial:
-            res_list.append(loss_Virial_val)
-            res_list.append(loss_Virial_per_atom_val)
+            raise Exception("Error! Please specify floating point type: float32 or float64 by the parameter --datatype! ")
         
-        force_label_list.append(Force_label.flatten().cpu().numpy())
-        force_predict_list.append(Force_predict.flatten().detach().cpu().numpy())
-        ei_label_list.append(Ei_label.flatten().cpu().numpy())
-        ei_predict_list.append(Ei_predict.flatten().detach().cpu().numpy())
-        res_pd.loc[res_pd.shape[0]] = res_list
+        dR_neigh_list_cpu = sample_batches["ListNeighbor"].int()
+        natoms_img_cpu = sample_batches["ImageAtomNum"].int()
+        atom_type_cpu = sample_batches["AtomType"].int()
+        # classify batchs according to their atom type and atom nums
+        batch_clusters = _classify_batchs(np.array(atom_type_cpu), np.array(natoms_img_cpu))
+
+        for batch_indexs in batch_clusters:
+            # transport data to GPU
+            natoms_img = Variable(natoms_img_cpu[batch_indexs].int().to(device))
+            natoms_img = torch.squeeze(natoms_img, 1)
+            natoms = natoms_img[0,1:].sum()
+            
+            dR_neigh_list = Variable(dR_neigh_list_cpu[batch_indexs, :natoms].int().to(device))
+            # atom list of image
+            atom_type = Variable(atom_type_cpu[batch_indexs].to(device))
+            natom = natoms_img[0,0]
+            Ei_label = Variable(Ei_label_cpu[batch_indexs, :natoms].to(device))
+            Etot_label = Variable(Etot_label_cpu[batch_indexs].to(device))
+            Force_label = Variable(Force_label_cpu[batch_indexs, :natoms].to(device))  # [40,108,3]
+
+            if args.is_egroup is True:
+                Egroup_label = Variable(Egroup_label_cpu[batch_indexs, :natoms].to(device))
+                Divider = Variable(Divider_cpu[batch_indexs, :natoms].to(device))
+                Egroup_weight = Variable(Egroup_weight_cpu[batch_indexs, :natoms, :natoms].to(device))
+
+            if args.is_virial is True:
+                Virial_label = Variable(Virial_label_cpu[batch_indexs].to(device))
+            
+            ImageDR = Variable(ImageDR_cpu[batch_indexs, :natoms].to(device))
+            Ri = Variable(Ri_cpu[batch_indexs, :natoms].to(device), requires_grad=True)
+            Ri_d = Variable(Ri_d_cpu[batch_indexs, :natoms].to(device))
+
+            batch_size = len(batch_indexs)
+
+            if args.is_egroup is True:
+                Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
+                    Ri, Ri_d, dR_neigh_list, natoms_img, atom_type, ImageDR, Egroup_weight, Divider)
+            else:
+                Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
+                    Ri, Ri_d, dR_neigh_list, natoms_img, atom_type, ImageDR, None, None 
+                )
+            # mse
+            loss_Etot_val = criterion(Etot_predict, Etot_label)
+            loss_F_val = criterion(Force_predict, Force_label)
+            loss_Ei_val = criterion(Ei_predict, Ei_label)
+            loss_val = loss_F_val + loss_Etot_val
+            if args.is_egroup is True:
+                loss_Egroup_val = criterion(Egroup_predict, Egroup_label)
+
+            if args.is_virial is True:
+                loss_Virial_val = criterion(Virial_predict, Virial_label.squeeze(1))
+                loss_Virial_per_atom_val = loss_Virial_val/natom/natom
+            # rmse
+            Etot_rmse = loss_Etot_val ** 0.5
+            etot_atom_rmse = Etot_rmse / natoms_img[0][0]
+            Ei_rmse = loss_Ei_val ** 0.5
+            F_rmse = loss_F_val ** 0.5
+
+            res_list = [i, float(Etot_label), float(Etot_predict), \
+                        float(Ei_label.abs().mean()), float(Ei_predict.abs().mean()), \
+                        float(Force_label.abs().mean()), float(Force_predict.abs().mean()),\
+                        float(Etot_rmse), float(etot_atom_rmse), float(Ei_rmse), float(F_rmse)]
+
+            if args.is_egroup:
+                train_lists.append(loss_Egroup_val)
+            if args.is_virial:
+                res_list.append(loss_Virial_val)
+                res_list.append(loss_Virial_per_atom_val)
+            
+            force_label_list.append(Force_label.flatten().cpu().numpy())
+            force_predict_list.append(Force_predict.flatten().detach().cpu().numpy())
+            ei_label_list.append(Ei_label.flatten().cpu().numpy())
+            ei_predict_list.append(Ei_predict.flatten().detach().cpu().numpy())
+            res_pd.loc[res_pd.shape[0]] = res_list
     
     return res_pd, ei_label_list, ei_predict_list, force_label_list, force_predict_list
 
