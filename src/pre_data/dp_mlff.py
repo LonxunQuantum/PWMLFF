@@ -866,7 +866,8 @@ def sepper_data_main(config, is_egroup = True, stat_add = None):
             # the davg, dstd and energy_shift atom order are the same --> atom_type_order 
             davg, dstd = _calculate_davg_dstd(config, _dR, _atom_types, _atom_num_per_image)
             energy_shift, atom_type_order = _calculate_energy_shift(_Ei, _atom_types, _atom_num_per_image)
-
+        else:
+            atom_type_order = _get_atom_type_order(_atom_types, _atom_num_per_image)
         # reorder davg and dstd to consistent with atom type order of current movement
         _davg, _dstd = _reorder_davg_dstd(davg, dstd, atom_type_order, mvm['types'])
 
@@ -936,6 +937,15 @@ def _calculate_energy_shift(Ei, atom_type, atom_num_per_image,  chunk_size=10):
         res.append(np.mean(type_dict[t]))
     return res, list(type_dict.keys())
 
+def _get_atom_type_order(atom_type, atom_num_per_image):
+    atom_type = atom_type[: sum(atom_num_per_image[:1])]    #get first image atom list
+    type_list = []
+    for i in atom_type:
+        if i not in type_list:
+            type_list.append(i)
+    return type_list
+
+        
 '''
 description: 
     calculate davg and dstd, the atom type order of davg and dstd is same as input paramter atom_type 

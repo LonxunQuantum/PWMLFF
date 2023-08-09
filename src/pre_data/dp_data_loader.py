@@ -107,7 +107,10 @@ class MovementDataset(Dataset):
             atom_type_list = list(np.load(os.path.join(path, "AtomType.npy")))
             AtomType.append(np.array(sorted(set(atom_type_list), key=atom_type_list.index)))
             AtomType_size_list.append(len(AtomType[-1]))
-        return max(ImageAtomNum), max(AtomType_size_list)
+        if len(self.dirs) == 0:
+            return 0, 0
+        else:
+            return max(ImageAtomNum), max(AtomType_size_list)
     
     '''
     description: 

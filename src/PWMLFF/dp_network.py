@@ -2,7 +2,7 @@
 Author: WuXing wuxingxing20g@ict.ac.cn
 Date: 2023-07-28 17:45:22
 LastEditors: your name
-LastEditTime: 2023-08-04 10:00:40
+LastEditTime: 2023-08-09 10:01:28
 FilePath: /PWMLFF/src/PWMLFF/dp_network.py
 Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
 '''
@@ -400,6 +400,8 @@ class dp_network:
             is_resume = True
             batch_size = 1
             train_valid_ratio = 1
+            hybrid = False  # 'True' is used for data loading in multi batch mixed training, \
+                            #  which is a symbol for completing tensors of different dimensions in the same batch.
         
         # when doing hybrid training, the data shuffle should be done in dp_mlff.py file, \
         # to avoid the problem that different atom nums of images can not load automatically by Troch.DataLoader:
@@ -934,7 +936,7 @@ class dp_network:
                 inference_cout += "Avarage REMSE of RMSE_virial: {} \n".format(res_pd['RMSE_virial'].mean())
                 inference_cout += "Avarage REMSE of RMSE_virial_per_atom: {} \n".format(res_pd['RMSE_virial_per_atom'].mean())
 
-            inference_cout += "\nMore details can be found under the file directory:\n".format(os.path.realpath(self.terminal_args.store_path))
+            inference_cout += "\nMore details can be found under the file directory:\n{}\n".format(os.path.realpath(self.terminal_args.store_path))
             print(inference_cout)
             # save result
             # Different systems in a mixed system have different atomic numbers, and numpy cannot store arrays of different lengths. \
