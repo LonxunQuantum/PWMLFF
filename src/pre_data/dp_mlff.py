@@ -1047,9 +1047,10 @@ def sepper_data(config, Etot, Ei, Force, dR_neigh,\
     list_neigh = list_neigh.reshape(-1, max_neighbor_num * ntypes)
     image_dR = image_dR.reshape(-1, max_neighbor_num * ntypes, 3)
 
-    width = len(str(train_image_num))
     accum_train_num = img_start[0] 
     accum_valid_num = img_start[1]
+    # width = len(str(accum_train_num))
+
     index = 0
     while index < train_image_num:
         start_index = index
@@ -1078,7 +1079,7 @@ def sepper_data(config, Etot, Ei, Force, dR_neigh,\
         if Virial is not None:
             train_set["Virial"] = Virial[start_index:end_index]
 
-        save_path = os.path.join(train_data_path, "image_" + str(accum_train_num).zfill(width))
+        save_path = os.path.join(train_data_path, "image_" + str(accum_train_num))
 
         if not os.path.exists(save_path):
             os.mkdir(save_path)
@@ -1088,7 +1089,7 @@ def sepper_data(config, Etot, Ei, Force, dR_neigh,\
 
         index = end_index
 
-    width = len(str(image_num - train_image_num))
+    # width = len(str(image_num - train_image_num))
 
     while index < image_num:
         start_index = index
@@ -1117,7 +1118,7 @@ def sepper_data(config, Etot, Ei, Force, dR_neigh,\
         if Virial is not None:
             valid_set["Virial"] = Virial[start_index:end_index]
 
-        save_path = os.path.join(valid_data_path, "image_" + str(accum_valid_num).zfill(width))
+        save_path = os.path.join(valid_data_path, "image_" + str(accum_valid_num))
 
         if not os.path.exists(save_path):
             os.mkdir(save_path)
