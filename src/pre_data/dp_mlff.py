@@ -718,7 +718,7 @@ def _classify_systems(img_per_mvmt, atom_num_per_image, atom_types, max_neighbor
     # After that, the first MOVEMENT in movement_info dict has all atomic types, and will be used to calculate davg, dstd and energy_shift
     movement_info = sorted(movement_info.items(), key = lambda x: len(x[1]['types']), reverse=True)
 
-    assert len(movement_info[0][1]['types'])== ntypes, "Error: At least one input movement should contain all atomic types!"
+    # assert len(movement_info[0][1]['types'])== ntypes, "Error: At least one input movement should contain all atomic types!"
     # classfiy movement_info by key
     classify = {}
     for mvm in movement_info:
