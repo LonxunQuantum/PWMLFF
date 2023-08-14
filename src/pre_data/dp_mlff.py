@@ -820,6 +820,7 @@ def sepper_data_main(config, is_egroup = True, stat_add = None):
         dstd = np.load(stat_add+"/dstd.npy")
         print( stat_add+"/energy_shift.raw")
         energy_shift = np.loadtxt(stat_add+"/energy_shift.raw")
+        atom_type_order = list(np.loadtxt(stat_add+"/atom_map.raw"))
         if energy_shift.size == 1:
             energy_shift = [energy_shift]
     else:
@@ -866,8 +867,8 @@ def sepper_data_main(config, is_egroup = True, stat_add = None):
             # the davg, dstd and energy_shift atom order are the same --> atom_type_order 
             davg, dstd = _calculate_davg_dstd(config, _dR, _atom_types, _atom_num_per_image)
             energy_shift, atom_type_order = _calculate_energy_shift(_Ei, _atom_types, _atom_num_per_image)
-        else:
-            atom_type_order = _get_atom_type_order(_atom_types, _atom_num_per_image)
+        # else:
+        #     atom_type_order = _get_atom_type_order(_atom_types, _atom_num_per_image)
         # reorder davg and dstd to consistent with atom type order of current movement
         _davg, _dstd = _reorder_davg_dstd(davg, dstd, atom_type_order, mvm['types'])
 
