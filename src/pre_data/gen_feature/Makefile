@@ -1,4 +1,4 @@
-all:gen_egroup.x  gen_dR.x gen_3b_feature.x gen_2b_feature.x gen_2bgauss_feature.x gen_3bcos_feature.x gen_MTP_feature.x gen_SNAP_feature.x write_egroup.x gen_deepMD1_feature.x gen_deepMD2_feature.x
+all:gen_egroup.x gen_dR.x gen_dR_nonEi.x gen_3b_feature.x gen_2b_feature.x gen_2bgauss_feature.x gen_3bcos_feature.x gen_MTP_feature.x gen_SNAP_feature.x write_egroup.x gen_deepMD1_feature.x gen_deepMD2_feature.x
 	\cp *.x ../../bin/
 
 FFLAG = -g -traceback
@@ -13,6 +13,11 @@ gen_egroup.x:
 gen_dR.x: 
 	ifort -O3 scan_title.f90 transform_to_upper.f90 \
         find_neighbore00.f90 find_neighbore.f90 gen_dR.f90  \
+		-o $@
+
+gen_dR_nonEi.x: 
+	ifort -O3 scan_title.f90 transform_to_upper.f90 \
+        find_neighbore00.f90 find_neighbore.f90 gen_dR_nonEi.f90  \
 		-o $@
 
 gen_2b_feature.x: 

@@ -675,7 +675,7 @@ class dp_network:
     def set_gpu_id(self,idx):
         self.terminal_args.gpu = idx
 
-    def generate_data(self, stat_add = None):
+    def generate_data(self, stat_add = None, is_real_Ep = False):
         """
             generate dp's pre-feature
         """
@@ -687,7 +687,7 @@ class dp_network:
         #     print ("cleaning old .dat")
         #     subprocess.run(["rm PWdata/*.dat"],shell=True)
         
-        dp_mlff.gen_train_data(self.config, self.terminal_args.is_egroup, self.terminal_args.is_virial)
+        dp_mlff.gen_train_data(self.config, self.terminal_args.is_egroup, self.terminal_args.is_virial, is_real_Ep)
 
         dp_mlff.sepper_data_main(self.config, self.terminal_args.is_egroup, stat_add=stat_add)        
 
