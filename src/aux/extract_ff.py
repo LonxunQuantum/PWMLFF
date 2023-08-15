@@ -232,17 +232,18 @@ def extract_ff( name = "myforcefield.ff",
             outfile.writelines("\n")
 
             # feature calculation paras
-            grid_idx = write_feat_calc_para(outfile,feature_type)
+            # grid_idx = write_feat_calc_para(outfile,feature_type)
+            write_feat_calc_para(outfile,feature_type)
             outfile.writelines("\n")
             
             # feature grid paras 
             # only for 1 & 2! 
             if 1 in feature_type or 2 in feature_type:
-                write_feat_grid(outfile, feature_type, num_atom_type, grid_idx)
+                # write_feat_grid(outfile, feature_type, num_atom_type, grid_idx)
+                write_feat_grid(outfile, num_atom_type)
                 outfile.writelines("\n")
             
             # network paramters 
-
             # nn parameters
             name_list = ["fread_dfeat/Wij.txt", "fread_dfeat/data_scaler.txt"] 
 
@@ -263,13 +264,22 @@ def extract_ff( name = "myforcefield.ff",
                             
                             max_node_num = max(max_node_num,int(nums[0]))
                             max_node_num = max(max_node_num,int(nums[1]))       
-                    #print("max node num:", max_node_num)
+                    # print("max node num:", max_node_num)
                 
                     outfile.writelines(str(max_node_num)+"\n")
 
                 for line in raw:
                     
                     outfile.writelines(line)  
+
+            # reading vdw part
+            vdw_name = "fread_dfeat/vdw_fitB.ntype"
+            fin = open(vdw_name,"r")
+            raw = fin.readlines()
+            fin.close()
+
+            for line in raw:
+                outfile.writelines(line.strip() + "\n")
 
             print("force field file saved")
 

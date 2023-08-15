@@ -20,6 +20,8 @@ module calc_NN
     integer(4) :: m_neigh                                  !模型所使用的最大近邻数(考虑这个数是否可以不用)
     integer(4) :: nfeat1m                                  !不同种原子的原始feature数目中最大者(目前似无意义)
     integer(4),allocatable,dimension(:) :: nfeat1          !各种原子的原始feature数目
+    integer(4),allocatable,dimension(:) :: nfeat2          !各种原子PCA之后的feature数目
+
   
     real(8),allocatable,dimension(:) :: bb                 !计算erergy和force时与new feature相乘的系数向量w
     real(8),allocatable,dimension(:,:) :: bb_type          !不明白有何作用,似乎应该是之前用的变量
@@ -115,6 +117,7 @@ module calc_NN
         ! **************** read fit_linearMM.input ********************    
         if (allocated(itype_atom)) deallocate(itype_atom)
         if (allocated(nfeat1)) deallocate(nfeat1)
+        if (allocated(nfeat2)) deallocate(nfeat2)
         if (allocated(rad_atom)) deallocate(rad_atom)
         if (allocated(wp_atom)) deallocate(wp_atom)
         if (allocated(E_ave_vdw)) deallocate(E_ave_vdw)
@@ -130,6 +133,7 @@ module calc_NN
         
         allocate (itype_atom(ntype))
         allocate (nfeat1(ntype))
+        allocate (nfeat2(ntype))
         
         allocate (num(ntype))                              !image数据,在此处allocate，但在set_image_info中赋值
         allocate (num_atomtype(ntype))                     !image数据,在此处allocate，但在set_image_info中赋值
@@ -151,13 +155,13 @@ module calc_NN
         read(10,*) ntype,m_neigh
         
         do i=1,ntype
-            read(10,*) itype_atom(i),nfeat1(i)   ! these nfeat1,nfeat2 include all ftype
+            read(10,*) itype_atom(i),nfeat1(i),nfeat2(i)   ! these nfeat1,nfeat2 include all ftype
         enddo
         close(10)
-
+        
         nfeat1m=0   ! the original feature
         do i=1,ntype
-           if(nfeat1(i).gt.nfeat1m) nfeat1m=nfeat1(i)
+            if(nfeat1(i).gt.nfeat1m) nfeat1m=nfeat1(i)
         enddo
         ! **************** read fit_linearMM.input ********************    
         ! ****************** read vdw ************************
