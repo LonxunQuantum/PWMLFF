@@ -38,6 +38,10 @@ def collectAllSourceFiles(workDir=pm.trainSetDir,sourceFileName='MOVEMENT'):
     if not os.path.exists(workDir):
         raise FileNotFoundError(workDir+'  is not exist!')
     for path,dirList,fileList in os.walk(workDir):
+        print(path)
+        print(dirList)
+        print(fileList)
+        print()
         if sourceFileName in fileList:
             #pm.sourceFileList.append(os.path.abspath(path))
             # use relative path
