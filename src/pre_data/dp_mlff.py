@@ -126,7 +126,7 @@ def get_real_Ep(movement_files,train_set_dir):
 
                 
 
-def gen_train_data(config, is_egroup = True, is_virial = True):
+def gen_train_data(config, is_egroup = True, is_virial = True, is_real_Ep = False):
     trainset_dir = config["trainSetDir"]
     dRFeatureInputDir = config["dRFeatureInputDir"]
     dRFeatureOutputDir = config["dRFeatureOutputDir"]
@@ -234,7 +234,10 @@ def gen_train_data(config, is_egroup = True, is_virial = True):
         for movement_path in movement_files:
             location_writer.write(movement_path + "\n")
 
-    command = "gen_dR.x | tee ./output/out"
+    if is_real_Ep is True:
+        command = "gen_dR_nonEi.x | tee ./output/out"
+    else:
+        command = "gen_dR.x | tee ./output/out"
     print("==============Start generating data==============")
     os.system(command)
     command = "gen_egroup.x | tee ./output/out_write_egroup"
@@ -243,13 +246,8 @@ def gen_train_data(config, is_egroup = True, is_virial = True):
         os.system(command)
 
     # Ei.dat with respect to the real Etot
-    """
     if is_real_Ep is True:
-        # remove fortran generated Ei
-        print ("Removing " + trainset_dir + "Ei.dat")
-        sp.run(["mv", trainset_dir + "/Ei.dat", trainset_dir + "/Ei_plus.dat"])
         get_real_Ep(movement_files,trainset_dir)
-    """
     
     print("==============Success==============")
     
@@ -820,6 +818,7 @@ def sepper_data_main(config, is_egroup = True, stat_add = None):
         dstd = np.load(stat_add+"/dstd.npy")
         print( stat_add+"/energy_shift.raw")
         energy_shift = np.loadtxt(stat_add+"/energy_shift.raw")
+        atom_type_order = list(np.loadtxt(stat_add+"/atom_map.raw"))
         if energy_shift.size == 1:
             energy_shift = [energy_shift]
     else:
@@ -866,8 +865,8 @@ def sepper_data_main(config, is_egroup = True, stat_add = None):
             # the davg, dstd and energy_shift atom order are the same --> atom_type_order 
             davg, dstd = _calculate_davg_dstd(config, _dR, _atom_types, _atom_num_per_image)
             energy_shift, atom_type_order = _calculate_energy_shift(_Ei, _atom_types, _atom_num_per_image)
-        else:
-            atom_type_order = _get_atom_type_order(_atom_types, _atom_num_per_image)
+        # else:
+        #     atom_type_order = _get_atom_type_order(_atom_types, _atom_num_per_image)
         # reorder davg and dstd to consistent with atom type order of current movement
         _davg, _dstd = _reorder_davg_dstd(davg, dstd, atom_type_order, mvm['types'])
 
