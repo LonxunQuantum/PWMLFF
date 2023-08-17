@@ -381,20 +381,22 @@ class nn_network:
         root_dir = os.getcwd()
         tmp_work_dir = os.path.join(root_dir, "PWdata/gen_feat_dir")
         final_data_dir = os.path.join(root_dir, "train_data")
+
         if os.path.exists(tmp_work_dir) is True:
             shutil.rmtree(tmp_work_dir)
         if os.path.exists(final_data_dir) is True:
             shutil.rmtree(final_data_dir)
+
         # 对所有的MOVEMENT文件根据元素类型、原子数进行分类
         work_dir_list = get_cluster_dirs(root_dir)
         # 对同类型的MOVEMENT 构建临时目录，用于生成该类型的MOVEMENT的feature
         sub_work_dir = make_work_dir(tmp_work_dir, work_dir_list)
-        cwd_path = os.getcwd()
         for index, sub_dir in enumerate(sub_work_dir):
             os.chdir(sub_dir)
             # reset pm parameters
             atom_type = work_dir_list[os.path.basename(sub_dir)]['types']
             self._reset_pm_params(sub_dir, atom_type)
+
             # clean old .dat files otherwise will be appended 
             if os.path.exists("PWdata/MOVEMENTall"):
                 print ("cleaning old data")
@@ -403,6 +405,7 @@ class nn_network:
                     ],shell=True)
                 subprocess.run(["find PWdata/ -name 'dfeat*' | xargs rm -rf"],shell=True)
                 subprocess.run(["find PWdata/ -name 'info*' | xargs rm -rf"],shell=True)
+
             # calculating feature 
             from src.pre_data.mlff_wu import calc_feat
             calc_feat()
@@ -420,8 +423,14 @@ class nn_network:
         fread_dfeat_dir = os.path.join(root_dir, "fread_dfeat")
         if os.path.exists(fread_dfeat_dir) is False:
             os.makedirs(fread_dfeat_dir)
-        mv_file(os.path.join(sub_work_dir[0], "fread_dfeat/feat.info"), os.path.join(fread_dfeat_dir, "feat.info"))
-        mv_file(os.path.join(sub_work_dir[0], "fread_dfeat/vdw_fitB.ntype"), os.path.join(fread_dfeat_dir, "vdw_fitB.ntype"))
+        if os.path.exists(os.path.join(fread_dfeat_dir, "feat.info")) is False:
+            mv_file(os.path.join(sub_work_dir[0], "fread_dfeat/feat.info"), os.path.join(fread_dfeat_dir, "feat.info"))
+            mv_file(os.path.join(sub_work_dir[0], "fread_dfeat/vdw_fitB.ntype"), os.path.join(fread_dfeat_dir, "vdw_fitB.ntype"))
+        # copy input dir 
+        input_dir = os.path.join(root_dir, "input")
+        source_input_dir = os.path.join(sub_work_dir[0], "input")
+        if os.path.exists(input_dir) is False:
+            shutil.copytree(source_input_dir, input_dir)
         os.chdir(root_dir)
         self._reset_pm_params(root_dir, self.atom_type)
 
@@ -1667,7 +1676,7 @@ class nn_network:
             #''.join(map(str, list(np.array(Force_predict.flatten().cpu().data))))
             ''.join(map(str, list(np.array(Force_predict.flatten().cpu().data))))
             write_line_to_file(inf_force_save_path, \
-                               ' '.join(np.array(Force_predict.flatten().cpu().data).astype('str')), "a")
+                               ' '.join(np.array(Force_predict.flatten().cpu().data, dtype=do).astype('str')), "a")
             write_line_to_file(lab_force_save_path, \
                                ' '.join(np.array(Force_label.flatten().cpu().data).astype('str')), "a")
             
