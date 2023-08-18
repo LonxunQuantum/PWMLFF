@@ -3,7 +3,8 @@
     2022.8
 """
 import os,sys
-from re import I
+import shutil
+import subprocess
 import pathlib
 
 codepath = str(pathlib.Path(__file__).parent.resolve())
@@ -20,40 +21,29 @@ sys.path.append(codepath+'/../aux')
 sys.path.append(codepath+'/../lib')
 sys.path.append(codepath+'/../..')
 
-from statistics import mode 
-from turtle import Turtle
 import torch
 
 import random
 import time
 import numpy as np
-import torch.autograd as autograd
-import matplotlib.pyplot as plt
+import pandas as pd
 import torch.nn as nn
 import math
 
-import torch.nn.functional as F
-from torch.nn.modules import loss
 import torch.optim as optim
-from torch.nn.parameter import Parameter
-from torch.utils.data import Dataset, DataLoader
-from loss.AutomaticWeightedLoss import AutomaticWeightedLoss
 import torch.utils.data as Data
 from torch.autograd import Variable
 
 import time
-import getopt
 from optimizer.KFWrapper import KFOptimizerWrapper
 from sklearn.preprocessing import MinMaxScaler
 from joblib import dump, load
-from sklearn.feature_selection import VarianceThreshold
 
 # src/aux 
 from src.aux.opts import opt_values 
 from src.aux.feat_modifier import feat_modifier
 
 import pickle
-import logging
 
 """
     customized modules 
@@ -67,12 +57,16 @@ from optimizer.LKF import LKFOptimizer
 
 import default_para as pm
 
-from src.pre_data.data_loader_2type import MovementDataset, get_torch_data
-from src.pre_data.scalers import DataScalers
-from utils import get_weight_grad
-from dfeat_sparse import dfeat_raw 
+# get_torch_data for nn single system training
+from src.pre_data.data_loader_2type import get_torch_data
+#get_torch_data_hybrid for nn multi hybrid systems training
+from pre_data.data_loader_2type_nn_hybrid import MovementHybridDataset, get_torch_data_hybrid
 
+from src.pre_data.dfeat_sparse import dfeat_raw 
 
+from pre_data.nn_mlff_hybrid import get_cluster_dirs, make_work_dir, mv_featrues, mv_file
+
+from utils.file_operation import write_line_to_file
 class nn_network:
     
     """
@@ -115,12 +109,8 @@ class nn_network:
                     
                     # for LKF
                     block_size = 5120, 
-                    
                     # training label related arguments
-                    is_trainForce = True, 
-                    is_trainEi = False,
-                    is_trainEgroup = False,
-                    is_trainEtot = True,
+
                     batch_size = 1, 
                     is_movement_weighted = False,
                     is_dfeat_sparse = True,
@@ -129,15 +119,26 @@ class nn_network:
                     
                     recover = False,
                     
-                    kf_prefac_etot = 2.0,
-                    kf_prefac_force = 1.0,
-                    
+                    is_trainEtot = True,
+                    is_trainForce = True, 
+                    is_trainEi = False,
+                    is_trainEgroup = False,
+                    is_trainViral = False,  #not realilzed
+
+                    kf_prefac_etot = 1.0,
+                    kf_prefac_force = 2.0,
+                    kf_prefac_Ei = 1.0,
+                    kf_prefac_Egroup = 0.1,
+                    kf_prefac_virial = 1.0, 
+
                     # custom feature parameters
                     custom_feat_1 = None, 
                     custom_feat_2 = None, 
                     custom_feat_7 = None, 
 
                     dbg = False, 
+                    hybrid = False,
+                    inference = False
                 ):
         self.workers = 1
         """
@@ -149,6 +150,15 @@ class nn_network:
         """
             Frequently-used control parameters that are directly passed in as arguments:        
         """     
+        
+        # for hybrid training
+        self.hybrid = hybrid
+        self.inference = inference
+        if self.inference is True:
+            # pm.test_ratio = 0
+            store_scaler = False
+            batch_size = 1
+            recover = True
 
         # initializing the opt class 
         self.opts = opt_values() 
@@ -158,7 +168,7 @@ class nn_network:
         # at the end of the day, one no longer needs parameters.py
 
         pm.atomType = atom_type
-        
+        self.atom_type = atom_type
         # scaling options. 
         pm.is_scale = scale 
         pm.storage_scaler = store_scaler
@@ -226,12 +236,13 @@ class nn_network:
         self.is_trainEi = is_trainEi
         self.is_trainEgroup = is_trainEgroup
         self.is_trainEtot = is_trainEtot
-
+        self.is_trainViral = is_trainViral # not relized
         #prefactors in kfnn
         self.kf_prefac_Etot = kf_prefac_etot
-        self.kf_prefac_Ei = 1.0
+        self.kf_prefac_Ei = kf_prefac_Ei
         self.kf_prefac_F  = kf_prefac_force
-        self.kf_prefac_Egroup  = 1.0
+        self.kf_prefac_Egroup  = kf_prefac_Egroup
+        self.kf_prefac_virial = kf_prefac_virial
         
         # decay rate of kf prefactor
         #self.kf_decay_rate = kf_decay_rate
@@ -366,23 +377,150 @@ class nn_network:
             pm.Ftype2_para = custom_feat_2.copy()
             
             
-            
+    def generate_data(self,chunk_size=1, shuffle=False):
+        if self.hybrid:
+            self.do_hybord_feat_generate(chunk_size=1, shuffle=False)
+        else:
+            self.generate_data_single()
+
+    def do_hybord_feat_generate(self, chunk_size=10, shuffle=True):
+        root_dir = os.getcwd()
+        tmp_work_dir = os.path.join(root_dir, "PWdata/tmp_gen_feat_dir")
+        final_data_dir = os.path.join(root_dir, "train_data")
+
+        if os.path.exists(tmp_work_dir) is True:
+            shutil.rmtree(tmp_work_dir)
+        if os.path.exists(final_data_dir) is True:
+            shutil.rmtree(final_data_dir)
+
+        # 对所有的MOVEMENT文件根据元素类型、原子数进行分类
+        work_dir_list = get_cluster_dirs(root_dir)
+        # 对同类型的MOVEMENT 构建临时目录，用于生成该类型的MOVEMENT的feature
+        sub_work_dir = make_work_dir(tmp_work_dir, work_dir_list)
+        for index, sub_dir in enumerate(sub_work_dir):
+            os.chdir(sub_dir)
+            # reset pm parameters
+            atom_type = work_dir_list[os.path.basename(sub_dir)]['types']
+            self._reset_pm_params(sub_dir, atom_type)
+
+            # clean old .dat files otherwise will be appended 
+            if os.path.exists("PWdata/MOVEMENTall"):
+                print ("cleaning old data")
+                subprocess.run([
+                    "rm -rf fread_dfeat output input train_data plot_data PWdata/*.txt PWdata/trainData.* PWdata/location PWdata/Egroup_weight PWdata/MOVEMENTall"
+                    ],shell=True)
+                subprocess.run(["find PWdata/ -name 'dfeat*' | xargs rm -rf"],shell=True)
+                subprocess.run(["find PWdata/ -name 'info*' | xargs rm -rf"],shell=True)
+
+            # calculating feature 
+            from src.pre_data.mlff import calc_feat
+            calc_feat()
+            # seperate training set and valid set
+            import src.pre_data.seper as seper 
+            seper.seperate_data(chunk_size = chunk_size, shuffle=shuffle)
+            # save as .npy
+            import src.pre_data.gen_data as gen_data
+            gen_data.write_data()
+
+            # move features 
+            mv_file(os.path.dirname(pm.train_data_path), os.path.join(final_data_dir, os.path.basename(sub_dir)))
+        
+        # copy feat_info and vdw_fitB.ntype
+        fread_dfeat_dir = os.path.join(root_dir, "fread_dfeat")
+        if os.path.exists(fread_dfeat_dir) is False:
+            os.makedirs(fread_dfeat_dir)
+        if os.path.exists(os.path.join(fread_dfeat_dir, "feat.info")) is False:
+            mv_file(os.path.join(sub_work_dir[0], "fread_dfeat/feat.info"), os.path.join(fread_dfeat_dir, "feat.info"))
+            mv_file(os.path.join(sub_work_dir[0], "fread_dfeat/vdw_fitB.ntype"), os.path.join(fread_dfeat_dir, "vdw_fitB.ntype"))
+        # copy input dir 
+        input_dir = os.path.join(root_dir, "input")
+        source_input_dir = os.path.join(sub_work_dir[0], "input")
+        if os.path.exists(input_dir) is False:
+            shutil.copytree(source_input_dir, input_dir)
+        os.chdir(root_dir)
+        self._reset_pm_params(root_dir, self.atom_type)
+
+    '''
+    description: reset PM paramters
+    param {*} self
+    param {*} work_dir, new work_dir
+    param {*} atom_type, new atom type
+    return {*}
+    author: wuxingxing
+    '''
+    def _reset_pm_params(self, work_dir, atom_type):
+        pm.sourceFileList = []
+        # pm.atomType = atom_type
+        # pm.atomTypeNum = len(pm.atomType)       #this step is important. Unexpected error
+        # pm.ntypes = len(pm.atomType)
+        # reset dirs
+        pm.train_data_path = os.path.join(work_dir, r'train_data/final_train')
+        pm.test_data_path =os.path.join(work_dir,  r'train_data/final_test')
+        pm.prefix = work_dir
+        pm.trainSetDir = os.path.join(work_dir, r'PWdata')
+        # fortranFitSourceDir=r'/home/liuliping/program/nnff/git_version/src/fit'
+        pm.fitModelDir = os.path.join(work_dir, r'fread_dfeat')
+        pm.dRneigh_path = pm.trainSetDir + r'dRneigh.dat'
+
+        pm.trainSetDir=os.path.abspath(pm.trainSetDir)
+        #genFeatDir=os.path.abspath(genFeatDir)
+        pm.fbinListPath=os.path.join(pm.trainSetDir,'location')
+        sourceFileList=[]
+        pm.InputPath=os.path.abspath('./input/')
+        pm.OutputPath=os.path.abspath('./output/')
+        pm.Ftype1InputPath=os.path.join('./input/',pm.Ftype_name[1]+'.in')
+        pm.Ftype2InputPath=os.path.join('./input/',pm.Ftype_name[2]+'.in')
+
+        pm.featCollectInPath=os.path.join(pm.fitModelDir,'feat_collect.in')
+        pm.fitInputPath_lin=os.path.join(pm.fitModelDir,'fit_linearMM.input')
+        pm.fitInputPath2_lin=os.path.join(pm.InputPath,'fit_linearMM.input')
+        pm.featCollectInPath2=os.path.join(pm.InputPath,'feat_collect.in')
+
+        pm.linModelCalcInfoPath=os.path.join(pm.fitModelDir,'linear_feat_calc_info.txt')
+        pm.linFitInputBakPath=os.path.join(pm.fitModelDir,'linear_fit_input.txt')
+
+        pm.dir_work = os.path.join(pm.fitModelDir,'NN_output/')
+
+        pm.f_train_feat = os.path.join(pm.dir_work,'feat_train.csv')
+        pm.f_test_feat = os.path.join(pm.dir_work,'feat_test.csv')
+
+        pm.f_train_natoms = os.path.join(pm.dir_work,'natoms_train.csv')
+        pm.f_test_natoms = os.path.join(pm.dir_work,'natoms_test.csv')        
+
+        pm.f_train_dfeat = os.path.join(pm.dir_work,'dfeatname_train.csv')
+        pm.f_test_dfeat  = os.path.join(pm.dir_work,'dfeatname_test.csv')
+
+        pm.f_train_dR_neigh = os.path.join(pm.dir_work,'dR_neigh_train.csv')
+        pm.f_test_dR_neigh  = os.path.join(pm.dir_work,'dR_neigh_test.csv')
+
+        pm.f_train_force = os.path.join(pm.dir_work,'force_train.csv')
+        pm.f_test_force  = os.path.join(pm.dir_work,'force_test.csv')
+
+        pm.f_train_egroup = os.path.join(pm.dir_work,'egroup_train.csv')
+        pm.f_test_egroup  = os.path.join(pm.dir_work,'egroup_test.csv')
+
+        pm.f_train_ep = os.path.join(pm.dir_work,'ep_train.csv')
+        pm.f_test_ep  = os.path.join(pm.dir_work,'ep_test.csv')
+
+        pm.d_nnEi  = os.path.join(pm.dir_work,'NNEi/')
+        pm.d_nnFi  = os.path.join(pm.dir_work,'NNFi/')
+
+        pm.f_Einn_model   = pm.d_nnEi+'allEi_final.ckpt'
+        pm.f_Finn_model   = pm.d_nnFi+'Fi_final.ckpt'
+
+        pm.f_data_scaler = pm.d_nnFi+'data_scaler.npy'
+        pm.f_Wij_np  = pm.d_nnFi+'Wij.npy'
+
 
     """
         ============================================================
         =================data preparation functions=================
         ============================================================ 
-    """ 
-
-    def generate_data(self, chunk_size = 10):
+    """
+    def generate_data_single(self, chunk_size = 10):
         """
             defualt chunk size set to 10 
         """
-        import subprocess
-        #pm.isCalcFeat = True 
-        #import mlff 
-        #pm.isCalcFeat = False 
-
         # clean old .dat files otherwise will be appended 
         if os.path.exists("PWdata/MOVEMENTall"):
             print ("cleaning old data")
@@ -393,7 +531,7 @@ class nn_network:
             subprocess.run(["find PWdata/ -name 'info*' | xargs rm -rf"],shell=True)
 
         # calculating feature 
-        from mlff import calc_feat
+        from src.pre_data.mlff import calc_feat
         calc_feat()
 
         # seperate training set and valid set
@@ -448,18 +586,45 @@ class nn_network:
 
         #the map of movement name (i.e. the name of directory) and its weight
         self.movement_weights = input_mvt_w
-                
-    def get_movement_weight(self, imgIdx):
 
-        mvt_name = None 
+    def scale_hybrid(self, train_data:MovementHybridDataset, valid_data:MovementHybridDataset, data_num:int):
+        feat_train, feat_valid = None, None
+        shape_train, shape_valid = [0], [0]
+        for data_index in range(data_num):
+            feat_train = train_data.feat[data_index] if feat_train is None else np.concatenate((feat_train,train_data.feat[data_index]),0)
+            feat_valid = valid_data.feat[data_index] if feat_valid is None else np.concatenate((feat_valid,valid_data.feat[data_index]),0)
+            shape_train.append(train_data.feat[data_index].shape[0] + sum(shape_train))
+            shape_valid.append(valid_data.feat[data_index].shape[0] + sum(shape_valid))
+
+        # scale feat
+        if pm.use_storage_scaler:
+            scaler_path = self.opts.opt_session_dir + 'scaler.pkl'
+            print("loading scaler from file",scaler_path)
+            self.scaler = load(scaler_path)
+            print("transforming feat with loaded scaler")
+            feat_train = self.scaler.transform(feat_train)
+            feat_valid = self.scaler.transform(feat_valid)
+        else:
+            self.scaler = MinMaxScaler()
+            feat_train = self.scaler.fit_transform(feat_train)
+            feat_valid = self.scaler.transform(feat_valid)
+        for i in range(len(shape_train)-1):
+            train_data.feat[data_index] = feat_train[shape_train[i]:shape_train[i+1]]
+            valid_data.feat[data_index] = feat_valid[shape_valid[i]:shape_valid[i+1]]
+        
+        # scale dfeat
+        if pm.is_dfeat_sparse == False:
+            for data_index in range(data_num):
+                trans = lambda x : x.transpose(0, 1, 3, 2) 
+                train_data.dfeat[data_index] = trans(trans(train_data.dfeat[data_index]) * self.scaler.scale_) 
+                valid_data.dfeat[data_index] = trans(trans(valid_data.dfeat[data_index]) * self.scaler.scale_)           
     
-        for pair in self.movement_idx:
-            if img < pair[0][1] and img >= pair[0][1]:
-                mvt_name = pair[1] 
-                break 
-                
-        return self.movement_weights[mvt_name]  
+        if pm.storage_scaler:
+            pickle.dump(self.scaler, open(self.opts.opt_session_dir+"scaler.pkl",'wb'))
+            print ("scaler.pkl saved to:",self.opts.opt_session_dir)
 
+        return train_data, valid_data
+    
     def scale(self,train_data,valid_data):
 
         """
@@ -517,6 +682,55 @@ class nn_network:
         
         assert self.scaler != None, "scaler is not correctly saved"
 
+        """
+            Note! When using sparse dfeat, shuffle must be False. 
+            sparse dfeat class only works under the batch order before calling Data.DataLoader
+        """
+        self.loader_train = Data.DataLoader(torch_train_data, batch_size=self.batch_size, shuffle = True)
+        self.loader_valid = Data.DataLoader(torch_valid_data, batch_size=self.batch_size, shuffle = False)
+
+        assert self.loader_train != None, "training data (except dfeat) loading fails"
+        assert self.loader_valid != None, "validation data (except dfeat) loading fails"
+
+        # load sparse dfeat. This is the default setting 
+        if pm.is_dfeat_sparse == True:     
+
+            self.dfeat = dfeat_raw( input_dfeat_record_path_train = pm.f_train_dfeat, 
+                                    input_feat_path_train = pm.f_train_feat,
+                                    input_natoms_path_train = pm.f_train_natoms,
+
+                                    input_dfeat_record_path_valid = pm.f_test_dfeat, 
+                                    input_feat_path_valid = pm.f_test_feat,
+                                    input_natoms_path_valid = pm.f_test_natoms,
+
+                                    scaler = self.scaler)
+
+            self.dfeat.load() 
+
+    def load_data_hybrid(self, data_shuffle=False):
+
+        """
+            In default, training data is not shuffled, and should not be.
+        """
+        # load anything other than dfeat
+        
+        self.set_nFeature()
+        train_data_path = os.path.dirname(pm.train_data_path)
+        data_dirs = os.listdir(train_data_path)
+        # data_dirs = sorted(data_dirs, key=lambda x: len(x.split('_')), reverse = True)
+        torch_train_data = get_torch_data_hybrid(train_data_path, data_dirs, data_type = os.path.basename(pm.train_data_path), \
+                                                 atom_type = pm.atomType, is_dfeat_sparse=pm.is_dfeat_sparse)
+        self.energy_shift = torch_train_data.energy_shift
+
+        torch_valid_data = get_torch_data_hybrid(train_data_path, data_dirs, data_type = os.path.basename(pm.test_data_path), \
+                                                 atom_type = pm.atomType, is_dfeat_sparse=pm.is_dfeat_sparse)
+        
+        # scaler saved to self.scaler
+        if pm.is_scale:
+            torch_train_data, torch_valid_data = self.scale_hybrid(torch_train_data, torch_valid_data, len(data_dirs))
+        
+        assert self.scaler != None, "scaler is not correctly saved"
+
         #************************add by wuxing for LKF optimizer******************
         train_sampler = None
         val_sampler = None
@@ -524,7 +738,7 @@ class nn_network:
         self.loader_train = torch.utils.data.DataLoader(
             torch_train_data,
             batch_size=self.batch_size,
-            shuffle=False, #(train_sampler is None)
+            shuffle=data_shuffle, #(train_sampler is None)
             num_workers=self.workers, 
             pin_memory=True,
             sampler=train_sampler,
@@ -552,7 +766,6 @@ class nn_network:
 
         # load sparse dfeat. This is the default setting 
         if pm.is_dfeat_sparse == True:     
-
             self.dfeat = dfeat_raw( input_dfeat_record_path_train = pm.f_train_dfeat, 
                                     input_feat_path_train = pm.f_train_feat,
                                     input_natoms_path_train = pm.f_train_natoms,
@@ -571,8 +784,10 @@ class nn_network:
             set the model 
         """ 
         # automatically calculate mean atomic energy
-        pm.itype_Ei_mean = self.set_b_init()
-
+        if self.hybrid is True:
+            pm.itype_Ei_mean = self.energy_shift
+        else:
+            pm.itype_Ei_mean = self.set_b_init()
         self.model = MLFFNet(device = self.device)
         
         self.model.to(self.device)
@@ -816,11 +1031,10 @@ class nn_network:
                 if self.not_KF():
                     for param_group in self.optimizer.param_groups:
                         param_group['lr'] = real_lr * (self.batch_size ** 0.5)
-                
                 natoms_sum = sample_batches['natoms_img'][0, 0].item()  
-                
                 # use sparse feature 
                 if pm.is_dfeat_sparse == True:
+                    # Error this function not realized
                     #sample_batches['input_dfeat']  = dfeat_train.transform(i_batch)
                     sample_batches['input_dfeat']  = self.dfeat.transform(i_batch,"train")
 
@@ -834,19 +1048,7 @@ class nn_network:
                         self.train_kalman_img(sample_batches, self.model, KFOptWrapper, nn.MSELoss(), last_epoch, 0.001)
                                 
                 iter += 1
-                """
-                f_err_log = self.opts.opt_session_dir+'iter_loss.dat'
-                
-                if iter == 1:
-                    fid_err_log = open(f_err_log, 'w')
-                    fid_err_log.write('iter\t loss\t RMSE_Etot\t RMSE_Ei\t RMSE_F\t RMSE_Eg\n')
-                    fid_err_log.close() 
 
-
-                fid_err_log = open(f_err_log, 'a')
-                fid_err_log.write('%d %e %e %e %e %e \n'%(iter, batch_loss, math.sqrt(batch_loss_Etot)/natoms_sum, math.sqrt(batch_loss_Ei), math.sqrt(batch_loss_F), math.sqrt(batch_loss_Egroup)))
-                fid_err_log.close() 
-                """
                 f_iter_train_log = open(iter_train_log, 'a')
 
                 # Write the training log line to the log file
@@ -884,7 +1086,7 @@ class nn_network:
                 loss_Etot += batch_loss_Etot.item() * nr_batch_sample
                 loss_Ei += batch_loss_Ei.item() * nr_batch_sample
                 loss_F += batch_loss_F.item() * nr_batch_sample
-                # loss_Egroup += batch_loss_Egroup.item() * nr_batch_sample 
+                loss_Egroup += batch_loss_Egroup.item() * nr_batch_sample 
 
                 nr_total_sample += nr_batch_sample
                  
@@ -953,10 +1155,10 @@ class nn_network:
                     self.scheduler.step(loss)
 
                 elif (opt_scheduler == 'LR_INC'):
-                    self.LinearLR(optimizer=optimizer, base_lr=self.LR_base, target_lr=opt_LR_max_lr, total_epoch=n_epoch, cur_epoch=epoch)
+                    self.LinearLR(optimizer=self.optimizer, base_lr=self.LR_base, target_lr=pm.opt_LR_max_lr, total_epoch=self.n_epoch, cur_epoch=epoch)
 
                 elif (opt_scheduler == 'LR_DEC'):
-                    self.LinearLR(optimizer=optimizer, base_lr=self.LR_base, target_lr=opt_LR_min_lr, total_epoch=n_epoch, cur_epoch=epoch)
+                    self.LinearLR(optimizer=self.optimizer, base_lr=self.LR_base, target_lr=pm.opt_LR_min_lr, total_epoch=self.n_epoch, cur_epoch=epoch)
 
                 elif (opt_scheduler == 'NONE'):
                     pass
@@ -1104,7 +1306,7 @@ class nn_network:
             """
 
             if self.not_KF():
-                state = {'model': self.model.state_dict(),'optimizer':self.optimizer.state_dict(),'epoch':epoch}
+                state = {'model': self.model.state_dict(),'optimizer':optimizer.state_dict(),'epoch':epoch}
             else:
                 state = {'model': self.model.state_dict(), 'epoch': epoch}
             
@@ -1123,11 +1325,13 @@ class nn_network:
 
             print("time of epoch %d: %f s" %(epoch, timeEpochEnd - timeEpochStart))
 
-    def load_and_train(self):
+    def load_and_train(self, data_shuffle=False):
         
         # transform data
-        self.load_data()
-        
+        if self.hybrid:
+            self.load_data_hybrid(data_shuffle=data_shuffle)
+        else:
+            self.load_data()
         # initialize the network
         self.set_model()
         
@@ -1138,7 +1342,12 @@ class nn_network:
         # self.set_epoch_num()
 
         # start training
+        if self.inference is True:
+            self.do_inference()
+            return
+        
         self.train()
+
 
     def train_img(self, sample_batches, model, optimizer, criterion, last_epoch, real_lr):
         """   
@@ -1174,9 +1383,9 @@ class nn_network:
         neighbor = Variable(sample_batches['input_nblist'].int().to(self.device))  # [40,108,100]
         ind_img = Variable(sample_batches['ind_image'].int().to(self.device))
         natoms_img = Variable(sample_batches['natoms_img'].int().to(self.device))    
-        
-        Etot_predict, Ei_predict, Force_predict, Egroup_predict, _ = self.model(input_data, dfeat, neighbor, natoms_img, egroup_weight, divider)
 
+        Etot_predict, Ei_predict, Force_predict, Egroup_predict = self.model(input_data, dfeat, neighbor, natoms_img, egroup_weight, divider)
+        
         optimizer.zero_grad()
 
         loss_Etot = torch.zeros([1,1],device = self.device)
@@ -1230,29 +1439,32 @@ class nn_network:
         neighbor = Variable(sample_batches['input_nblist'].int().to(self.device))  # [40,108,100]
         #ind_img = Variable(sample_batches['ind_image'].int().to(self.device))
         natoms_img = Variable(sample_batches['natoms_img'].int().to(self.device))
-
+        atom_type = Variable(sample_batches['atom_type'].int().to(self.device))
         """
             **********************************************************************
         """
         if self.is_trainEgroup:
-            kalman_inputs = [input_data, dfeat, neighbor, natoms_img, egroup_weight, divider]
+            kalman_inputs = [input_data, dfeat, neighbor, natoms_img, atom_type, egroup_weight, divider]
         else:
-            kalman_inputs = [input_data, dfeat, neighbor, natoms_img, None, None]
+            kalman_inputs = [input_data, dfeat, neighbor, natoms_img, atom_type, None, None]
         #        KFOptWrapper.update_energy(kalman_inputs, Etot_label)
         #        KFOptWrapper.update_force(kalman_inputs, Force_label, 2)
         # choosing what data are used for W update. Defualt are Etot and Force
         if self.is_trainEtot: 
             # kalman.update_energy(kalman_inputs, Etot_label, update_prefactor = self.kf_prefac_Etot)
-            Etot_predict = KFOptWrapper.update_energy(kalman_inputs, Etot_label, self.kf_prefac_Etot)
+            Etot_predict = KFOptWrapper.update_energy(kalman_inputs, Etot_label, self.kf_prefac_Etot, train_type = "NN")
+
+        if self.is_trainEi:
+            Ei_predict = KFOptWrapper.update_ei(kalman_inputs,Ei_label, update_prefactor = self.kf_prefac_Ei, train_type = "NN")     
 
         if self.is_trainEgroup:
             # kalman.update_egroup(kalman_inputs, Egroup_label)
-            Egroup_predict = KFOptWrapper.update_egroup(kalman_inputs, Egroup_label, self.kf_prefac_Egroup)
+            Egroup_predict = KFOptWrapper.update_egroup(kalman_inputs, Egroup_label, self.kf_prefac_Egroup, train_type = "NN")
 
         # if Egroup does not participate in training, the output of Egroup_predict will be None
-        if self.is_trainForce is True:
+        if self.is_trainForce:
             Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = KFOptWrapper.update_force(
-                    kalman_inputs, Force_label, self.kf_prefac_F)
+                    kalman_inputs, Force_label, self.kf_prefac_F, train_type = "NN")
 
         # if self.is_trainForce is True:
         #     if self.is_trainEgroup is True:
@@ -1270,11 +1482,11 @@ class nn_network:
         #kalman.update_ei_and_force(kalman_inputs,Ei_label,Force_label,update_prefactor = 0.1)
         
         # Etot_predict, Ei_predict, Force_predict, _, _ = model(input_data, dfeat, neighbor, natoms_img, egroup_weight, divider)
-        Etot_predict, Ei_predict, Force_predict, _, _ = model(kalman_inputs[0], kalman_inputs[1], kalman_inputs[2], kalman_inputs[3], kalman_inputs[4], kalman_inputs[5])
+        Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(kalman_inputs[0], kalman_inputs[1], kalman_inputs[2], kalman_inputs[3], kalman_inputs[4], kalman_inputs[5], kalman_inputs[6])
 
-        if self.is_trainEgroup:
-            Egroup_predict = torch.zeros_like(Ei_predict)
-            Egroup_predict = model.get_egroup(Ei_predict,egroup_weight,divider) 
+        # if self.is_trainEgroup:
+        #     Egroup_predict = torch.zeros_like(Ei_predict)
+        #     Egroup_predict = model.get_egroup(Ei_predict,egroup_weight,divider) 
 
         # dtype same as torch.default
         loss_Etot = torch.zeros([1,1],device = self.device)
@@ -1330,10 +1542,8 @@ class nn_network:
         
         neighbor = Variable(sample_batches['input_nblist'].int().to(self.device))  # [40,108,100]
         natoms_img = Variable(sample_batches['natoms_img'].int().to(self.device))  # [40,108,100]
-        
-        """
-            ******************* load *********************
-        """
+        atom_type = Variable(sample_batches['atom_type'].int().to(self.device))
+
         error=0
         atom_number = Ei_label.shape[1]
         Etot_label = torch.sum(Ei_label, dim=1)
@@ -1341,10 +1551,11 @@ class nn_network:
         # model.train()
         self.model.eval()
         if self.is_trainEgroup:
-            kalman_inputs = [input_data, dfeat, neighbor, natoms_img, egroup_weight, divider]
+            kalman_inputs = [input_data, dfeat, neighbor, natoms_img, atom_type, egroup_weight, divider]
         else:
-            kalman_inputs = [input_data, dfeat, neighbor, natoms_img, None, None]
-        Etot_predict, Ei_predict, Force_predict, _, _ = model(kalman_inputs[0], kalman_inputs[1], kalman_inputs[2], kalman_inputs[3], kalman_inputs[4], kalman_inputs[5])
+            kalman_inputs = [input_data, dfeat, neighbor, natoms_img, atom_type, None, None]
+
+        Etot_predict, Ei_predict, Force_predict, Egroup_predict, _ = model(kalman_inputs[0], kalman_inputs[1], kalman_inputs[2], kalman_inputs[3], kalman_inputs[4], kalman_inputs[5], kalman_inputs[6])
         
         if self.dbg is True:
             print("Etot predict")
@@ -1353,14 +1564,13 @@ class nn_network:
             print("Force predict")
             print(Force_predict)
 
-        Egroup_predict = torch.zeros_like(Ei_predict)
+        # Egroup_predict = torch.zeros_like(Ei_predict)
 
-        if self.is_trainEgroup:
-            Egroup_predict = self.model.get_egroup(Ei_predict,egroup_weight,divider)
+        # if self.is_trainEgroup:
+        #     Egroup_predict = self.model.get_egroup(Ei_predict,egroup_weight,divider)
 
         # Egroup_predict = model.get_egroup(Ei_predict, egroup_weight, divider) 
 
-        # the logic is the same as training.
         """
         loss_F = criterion(Force_predict, Force_label)
         loss_Etot = criterion(Etot_predict, Etot_label)
@@ -1387,17 +1597,118 @@ class nn_network:
 
         error = float(loss_F.item()) + float(loss_Etot.item()) + float(loss_Ei.item()) + float(loss_egroup.item())
 
-        del Ei_label
-        del Force_label
-        del Egroup_label
-        del input_data
-        del dfeat
-        del egroup_weight
-        del divider
-        del neighbor
-        del natoms_img  
+        # del Ei_label
+        # del Force_label
+        # del Egroup_label
+        # del input_data
+        # del dfeat
+        # del egroup_weight
+        # del divider
+        # del neighbor
+        # del natoms_img  
         
         return error, loss_Etot, loss_Ei, loss_F, loss_egroup
+
+    def do_inference(self):
+
+        train_lists = ["img_idx", "Etot_lab", "Etot_pre", "Ei_lab", "Ei_pre", "Force_lab", "Force_pre"]
+        train_lists.extend(["RMSE_Etot", "RMSE_Etot_per_atom", "RMSE_Ei", "RMSE_F"])
+        if self.is_trainEgroup:
+            train_lists.append("RMSE_Egroup")
+        res_pd = pd.DataFrame(columns=train_lists)
+
+        inf_dir = os.path.join(self.opts.opt_session_dir, "inference")
+        if os.path.exists(inf_dir) is True:
+            shutil.rmtree(inf_dir)
+        os.mkdir(inf_dir)
+        res_pd_save_path = os.path.join(inf_dir, "inference_info.csv")
+        inf_force_save_path = os.path.join(inf_dir,"inference_force.txt")
+        lab_force_save_path = os.path.join(inf_dir,"label_force.txt")
+        inf_energy_save_path = os.path.join(inf_dir,"inference_energy.txt")
+        lab_energy_save_path = os.path.join(inf_dir,"label_energy.txt")
+        inf_Ei_save_path = os.path.join(inf_dir,"inference_Ei.txt")
+        lab_Ei_save_path = os.path.join(inf_dir,"label_Ei.txt")
+
+        for i_batch, sample_batches in enumerate(self.loader_train):
+            if pm.is_dfeat_sparse == True:
+                sample_batches['input_dfeat']  = self.dfeat.transform(i_batch,"valid")
+            if sample_batches['input_dfeat'] == "aborted":
+                continue 
+
+            Ei_label = Variable(sample_batches['output_energy'][:,:,:].to(self.device))
+            Force_label = Variable(sample_batches['output_force'][:,:,:].to(self.device))   #[40,108,3]
+            Egroup_label = Variable(sample_batches['input_egroup'].to(self.device))
+            input_data = Variable(sample_batches['input_feat'].to(self.device), requires_grad=True)
+            dfeat = Variable(sample_batches['input_dfeat'].to(self.device))  #[40,108,100,42,3]
+            egroup_weight = Variable(sample_batches['input_egroup_weight'].to(self.device))
+            divider = Variable(sample_batches['input_divider'].to(self.device))
+            
+            neighbor = Variable(sample_batches['input_nblist'].int().to(self.device))  # [40,108,100]
+            natoms_img = Variable(sample_batches['natoms_img'].int().to(self.device))  # [40,108,100]
+            atom_type = Variable(sample_batches['atom_type'].int().to(self.device))
+            Etot_label = torch.sum(Ei_label, dim=1)
+            
+            self.model.eval()
+            if self.is_trainEgroup:
+                kalman_inputs = [input_data, dfeat, neighbor, natoms_img, atom_type, egroup_weight, divider]
+            else:
+                kalman_inputs = [input_data, dfeat, neighbor, natoms_img, atom_type, None, None]
+
+            Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = self.model(kalman_inputs[0], kalman_inputs[1], kalman_inputs[2], kalman_inputs[3], kalman_inputs[4], kalman_inputs[5], kalman_inputs[6])
+            
+            # mse
+            criterion = nn.MSELoss()
+            loss_Etot_val = criterion(Etot_predict, Etot_label)
+            loss_F_val = criterion(Force_predict, Force_label)
+            loss_Ei_val = criterion(Ei_predict, Ei_label)
+            if self.is_trainEgroup is True:
+                loss_Egroup_val = criterion(Egroup_predict, Egroup_label)
+            # rmse
+            Etot_rmse = loss_Etot_val ** 0.5
+            etot_atom_rmse = Etot_rmse / natoms_img[0][0]
+            Ei_rmse = loss_Ei_val ** 0.5
+            F_rmse = loss_F_val ** 0.5
+
+            res_list = [i_batch, float(Etot_label), float(Etot_predict), \
+                        float(Ei_label.abs().mean()), float(Ei_predict.abs().mean()), \
+                        float(Force_label.abs().mean()), float(Force_predict.abs().mean()),\
+                        float(Etot_rmse), float(etot_atom_rmse), float(Ei_rmse), float(F_rmse)]
+            res_pd.loc[res_pd.shape[0]] = res_list
+           
+            #''.join(map(str, list(np.array(Force_predict.flatten().cpu().data))))
+            ''.join(map(str, list(np.array(Force_predict.flatten().cpu().data))))
+            write_line_to_file(inf_force_save_path, \
+                               ' '.join(np.array(Force_predict.flatten().cpu().data).astype('str')), "a")
+            write_line_to_file(lab_force_save_path, \
+                               ' '.join(np.array(Force_label.flatten().cpu().data).astype('str')), "a")
+            
+            write_line_to_file(inf_Ei_save_path, \
+                               ' '.join(np.array(Ei_predict.flatten().cpu().data).astype('str')), "a")
+            write_line_to_file(lab_Ei_save_path, \
+                               ' '.join(np.array(Ei_label.flatten().cpu().data).astype('str')), "a")
+            
+            write_line_to_file(inf_energy_save_path, \
+                               ' '.join(np.array(Etot_label.flatten().cpu().data).astype('str')), "a")
+            write_line_to_file(lab_energy_save_path, \
+                               ' '.join(np.array(Etot_predict.flatten().cpu().data).astype('str')), "a")
+            
+        res_pd.to_csv(res_pd_save_path)
+        
+        inference_cout = ""
+        inference_cout += "For {} images: \n".format(res_pd.shape[0])
+        inference_cout += "Avarage REMSE of Etot: {} \n".format(res_pd['RMSE_Etot'].mean())
+        inference_cout += "Avarage REMSE of Etot per atom: {} \n".format(res_pd['RMSE_Etot_per_atom'].mean())
+        inference_cout += "Avarage REMSE of Ei: {} \n".format(res_pd['RMSE_Ei'].mean())
+        inference_cout += "Avarage REMSE of RMSE_F: {} \n".format(res_pd['RMSE_F'].mean())
+        if self.is_trainEgroup:
+            inference_cout += "Avarage REMSE of RMSE_Egroup: {} \n".format(res_pd['RMSE_Egroup'].mean())
+        if self.is_trainViral:  #not realized
+            inference_cout += "Avarage REMSE of RMSE_virial: {} \n".format(res_pd['RMSE_virial'].mean())
+            inference_cout += "Avarage REMSE of RMSE_virial_per_atom: {} \n".format(res_pd['RMSE_virial_per_atom'].mean())
+
+        inference_cout += "\nMore details can be found under the file directory:\n{}\n".format(inf_dir)
+        print(inference_cout)
+        return
 
     """ 
         ============================================================
@@ -1418,7 +1729,7 @@ class nn_network:
         """
             extracting network parameters and scaler values for fortran MD routine
         """
-        from extract_nn import read_wij, read_scaler 
+        from src.aux.extract_nn import read_wij, read_scaler 
 
         if model_name is None:  
             load_model_path = self.opts.opt_model_dir + 'latest.pt' 
@@ -1445,7 +1756,6 @@ class nn_network:
 
     def run_md(self, init_config = "atom.config", md_details = None, num_thread = 1,follow = False):
         
-        import subprocess 
         mass_table = {  1:1.007,2:4.002,3:6.941,4:9.012,5:10.811,6:12.011,
                         7:14.007,8:15.999,9:18.998,10:20.18,11:22.99,12:24.305,
                         13:26.982,14:28.086,15:30.974,16:32.065,17:35.453,
@@ -1766,122 +2076,3 @@ class nn_network:
 
     def mydebug():
         return "hahaha"
-
-    def test_debug():
-        """
-            used to check if the loaded model is correct. 
-        """
-        """
-        nr_total_sample = 0
-        valid_loss = 0.
-        valid_loss_Etot = 0.
-        valid_loss_Ei = 0.
-        valid_loss_F = 0.
-        valid_loss_Egroup = 0.0
-
-        for i_batch, sample_batches in enumerate(loader_valid):
-            natoms_sum = sample_batches['natoms_img'][0, 0].item()
-            nr_batch_sample = sample_batches['input_feat'].shape[0]
-            
-            valid_error_iter, batch_loss_Etot, batch_loss_Ei, batch_loss_F, batch_loss_Egroup = valid(sample_batches, model, nn.MSELoss())
-
-            # n_iter = (epoch - 1) * len(loader_valid) + i_batch + 1
-            valid_loss += valid_error_iter * nr_batch_sample
-
-            valid_loss_Etot += batch_loss_Etot * nr_batch_sample
-            valid_loss_Ei += batch_loss_Ei * nr_batch_sample
-            valid_loss_F += batch_loss_F * nr_batch_sample
-            valid_loss_Egroup += batch_loss_Egroup * nr_batch_sample
-
-            nr_total_sample += nr_batch_sample
-            
-        valid_loss /= nr_total_sample
-        valid_loss_Etot /= nr_total_sample
-        valid_loss_Ei /= nr_total_sample
-        valid_loss_F /= nr_total_sample
-        valid_loss_Egroup /= nr_total_sample
-
-        valid_RMSE_Etot = valid_loss_Etot ** 0.5
-        valid_RMSE_Ei = valid_loss_Ei ** 0.5
-        valid_RMSE_F = valid_loss_F ** 0.5
-        valid_RMSE_Egroup = valid_loss_Egroup ** 0.5
-
-        print("valid_RMSE_Etot",valid_RMSE_Etot)
-        print("valid_RMSE_Ei",valid_RMSE_Ei)
-        print("valid_RMSE_F",valid_RMSE_F)
-        print("valid_RMSE_Egroup",valid_RMSE_Egroup)
-        """
-
-
-"""
-    END OF CLASS "TRAINER" 
-"""
-
-
-# if torch.cuda.device_count() > 1:
-    # model = nn.DataParallel(model)
-
-# os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
-# torch.distributed.init_process_group(backend='nccl', init_method='tcp://localhost:23457', rank=0, world_size=1)
-
-
-"""
-    =============================
-    !!!!!!    JUNKYARD     !!!!!!
-    =============================
-"""
-
-"""
-def scaleMultiElement():
-
-
-    #scaling for multiple element
-
-    scaler = []  
-    itype_index =[] # index for each type of element
-
-    if pm.is_scale:
-        if pm.use_storage_scaler:
-            for i in range(pm.ntypes):
-                scaler.append(load('scaler_{}.pkl'.format(pm.atomType[i])))
-                itype_index.append(np.where(torch_train_data.itype == pm.atomType[i])[0])
-                torch_train_data.feat[itype_index[i]]=scaler[i].transform(torch_train_data.feat[itype_index[i]])
-        else:
-
-
-            #is this correct? 
-            for i in range(pm.ntypes):
-                
-                #below can be wrong. Use .copy() 
-                scaler.append(MinMaxScaler())
-                
-                itype_index.append(np.where(torch_train_data.itype == pm.atomType[i])[0])
-                torch_train_data.feat[itype_index[i]]=scaler[i].fit_transform(torch_train_data.feat[itype_index[i]])
-
-        for i in range(pm.ntypes):
-            dfeat_tmp = torch_train_data.dfeat[itype_index[i]]
-            dfeat_tmp = dfeat_tmp.transpose(0, 1, 3, 2)
-            dfeat_tmp = dfeat_tmp * scaler[i].scale_
-            dfeat_tmp = dfeat_tmp.transpose(0, 1, 3, 2)
-            torch_train_data.dfeat[itype_index[i]] = dfeat_tmp
-
-        if pm.storage_scaler:
-            for i in range(pm.ntypes):
-                output_name = opt_session_dir+'scaler_{}.pkl'.format(pm.atomType[i])
-                #dump(scaler[i], output_name)
-                pickle.dump(scaler[i],open(output_name,"wb"))
-
-        itype_index = []
-
-        for i in range(pm.ntypes):
-            itype_index.append(np.where(torch_valid_data.itype == pm.atomType[i])[0])
-            
-            torch_valid_data.feat[itype_index[i]] = scaler[i].transform(torch_valid_data.feat[itype_index[i]])
-
-            dfeat_tmp = torch_valid_data.dfeat[itype_index[i]]
-            dfeat_tmp = dfeat_tmp.transpose(0, 1, 3, 2)
-            dfeat_tmp = dfeat_tmp * scaler[i].scale_
-            dfeat_tmp = dfeat_tmp.transpose(0, 1, 3, 2)
-            torch_valid_data.dfeat[itype_index[i]] = dfeat_tmp
-
-"""
