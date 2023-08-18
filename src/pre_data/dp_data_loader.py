@@ -13,25 +13,28 @@ class MovementDataset(Dataset):
     return {*}
     author: wuxingxing
     '''    
-    def __init__(self, data_path, train_hybrid=False):
+    def __init__(self, data_paths):
         super(MovementDataset, self).__init__()
-        self.train_hybrid = train_hybrid
-        self.davg = np.load(os.path.join(data_path, "davg.npy"))
-        self.dstd = np.load(os.path.join(data_path, "dstd.npy"))
-        self.ener_shift = np.loadtxt(os.path.join(data_path, "energy_shift.raw"))
-        if self.ener_shift.size == 1:
-            self.ener_shift = [self.ener_shift.tolist()]
-        self.atom_map = np.loadtxt(os.path.join(data_path, "atom_map.raw"))
+
         self.dirs = []
 
-        for current_dir, child_dir, child_file in os.walk(data_path):
-            if len(child_dir) == 0 and "Ri.npy" in child_file:
-                self.dirs.append(current_dir)
+        for data_path in data_paths:
+            for current_dir, child_dir, child_file in os.walk(data_path):
+                if len(child_dir) == 0 and "Ri.npy" in child_file:
+                    self.dirs.append(current_dir)
 
         self.dirs = sorted(self.dirs, key=lambda x: int(x.split('_')[-1]))
-        self.img_max_atom_num, self.img_max_types = self.__set_max_atoms()
+        self.img_max_atom_num, self.img_max_types, file_index = self.__set_max_atoms()
         # self.__compute_stat_output(10, 1e-3)
-
+        if file_index is not None:
+            data_path = os.path.dirname(file_index)
+            self.davg = np.load(os.path.join(data_path, "davg.npy"))
+            self.dstd = np.load(os.path.join(data_path, "dstd.npy"))
+            self.ener_shift = np.loadtxt(os.path.join(data_path, "energy_shift.raw"))
+            if self.ener_shift.size == 1:
+                self.ener_shift = [self.ener_shift.tolist()]
+            self.atom_map = np.loadtxt(os.path.join(data_path, "atom_map.raw"), dtype=int)
+        
     def __load_data(self, path):
 
         data = {}
@@ -57,23 +60,24 @@ class MovementDataset(Dataset):
         atom_type_list = list(np.load(os.path.join(path, "AtomType.npy")))
         data["AtomType"] = np.array(sorted(set(atom_type_list), key=atom_type_list.index))
         
-        if self.train_hybrid:
-            if data["ImageAtomNum"][0] < self.img_max_atom_num:
-                # pad_num = self.img_max_atom_num - data["Force"].shape[0]
-                data["Force"].resize((self.img_max_atom_num, data["Force"].shape[1]), refcheck=False)
-                data["Ei"].resize(self.img_max_atom_num, refcheck=False)
-                if "Egroup" in data.keys():
-                    # doing Egroup things 
-                    data["Egroup"].resize(self.img_max_atom_num, refcheck=False)
-                    data["Divider"].resize(self.img_max_atom_num, refcheck=False)
-                    data["Egroup_weight"].resize((self.img_max_atom_num, self.img_max_atom_num), refcheck=False)
-                
-                data["ListNeighbor"].resize((self.img_max_atom_num, data["ListNeighbor"].shape[1]), refcheck=False)
-                data["ImageDR"].resize((self.img_max_atom_num, data["ImageDR"].shape[1], data["ImageDR"].shape[2]), refcheck=False)
-                data["Ri"].resize((self.img_max_atom_num, data["Ri"].shape[1], data["Ri"].shape[2]), refcheck=False)
-                data["Ri_d"].resize((self.img_max_atom_num, data["Ri_d"].shape[1], data["Ri_d"].shape[2], data["Ri_d"].shape[3]), refcheck=False)
-            if len(data["AtomType"]) < self.img_max_types:
-                data["AtomType"] = np.append(data["AtomType"], [0 for _ in range(0,self.img_max_types-len(data["AtomType"]))])
+        # this block is used for hybrid training
+        if data["ImageAtomNum"][0] < self.img_max_atom_num:
+            # pad_num = self.img_max_atom_num - data["Force"].shape[0]
+            data["Force"].resize((self.img_max_atom_num, data["Force"].shape[1]), refcheck=False)
+            data["Ei"].resize(self.img_max_atom_num, refcheck=False)
+            if "Egroup" in data.keys():
+                # doing Egroup things 
+                data["Egroup"].resize(self.img_max_atom_num, refcheck=False)
+                data["Divider"].resize(self.img_max_atom_num, refcheck=False)
+                data["Egroup_weight"].resize((self.img_max_atom_num, self.img_max_atom_num), refcheck=False)
+            
+            data["ListNeighbor"].resize((self.img_max_atom_num, data["ListNeighbor"].shape[1]), refcheck=False)
+            data["ImageDR"].resize((self.img_max_atom_num, data["ImageDR"].shape[1], data["ImageDR"].shape[2]), refcheck=False)
+            data["Ri"].resize((self.img_max_atom_num, data["Ri"].shape[1], data["Ri"].shape[2]), refcheck=False)
+            data["Ri_d"].resize((self.img_max_atom_num, data["Ri_d"].shape[1], data["Ri_d"].shape[2], data["Ri_d"].shape[3]), refcheck=False)
+        if len(data["AtomType"]) < self.img_max_types:
+            data["AtomType"] = np.append(data["AtomType"], [0 for _ in range(0,self.img_max_types-len(data["AtomType"]))])
+        
         return data
         
     def __getitem__(self, index):
@@ -88,12 +92,13 @@ class MovementDataset(Dataset):
         return len(self.dirs)
 
     def get_stat(self):
-        return self.davg, self.dstd, self.ener_shift
+        return self.davg, self.dstd, self.ener_shift, self.atom_map
     
     
     '''
     description: 
         get the max atom num of images in training set
+        file_index is the image index which has max atom num
     param {*} self
     return {*}
     author: wuxingxing
@@ -107,10 +112,12 @@ class MovementDataset(Dataset):
             atom_type_list = list(np.load(os.path.join(path, "AtomType.npy")))
             AtomType.append(np.array(sorted(set(atom_type_list), key=atom_type_list.index)))
             AtomType_size_list.append(len(AtomType[-1]))
+        
         if len(self.dirs) == 0:
-            return 0, 0
+            return 0, 0, None
         else:
-            return max(ImageAtomNum), max(AtomType_size_list)
+            file_index = self.dirs[AtomType_size_list.index(max(AtomType_size_list))]
+            return max(ImageAtomNum), max(AtomType_size_list), file_index
     
     '''
     description: 

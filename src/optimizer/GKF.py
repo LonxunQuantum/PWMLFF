@@ -8,14 +8,14 @@ class GKFOptimizer(Optimizer):
         params,
         kalman_lambda=0.98,
         kalman_nue=0.9987,
-        device=torch.device("cuda"),
-        data_type=torch.float64,    #not used
+        # device=torch.device("cuda"),
     ):
         super(GKFOptimizer, self).__init__(params, {"lr": 0.1})
         self.kalman_lambda = kalman_lambda
         self.kalman_nue = kalman_nue
-        self.device = device
+        # self.device = device
         self.data_type = self.param_groups[0]["params"][0].dtype
+        self.device = self.param_groups[0]["params"][0].device
         self.__init_P()
 
     def __init_P(self):
