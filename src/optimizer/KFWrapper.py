@@ -47,6 +47,7 @@ class KFOptimizerWrapper:
                 inputs[3],
                 inputs[4],
                 inputs[5],
+                inputs[6],
                 is_calc_f=False,
             )
         else:
@@ -105,6 +106,7 @@ class KFOptimizerWrapper:
                 inputs[3],
                 inputs[4],
                 inputs[5],
+                inputs[6],
                 is_calc_f=False,
             )
         else:
@@ -162,6 +164,8 @@ class KFOptimizerWrapper:
                 inputs[2],
                 inputs[3],
                 inputs[4],
+                inputs[5],
+                inputs[6]
             )
         else:
             raise Exception("Error! the train type {} is not realized!".format(train_type))
@@ -263,7 +267,7 @@ class KFOptimizerWrapper:
                 )
             elif train_type == "NN":  # nn training
                 Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = self.model(
-                    inputs[0], inputs[1], inputs[2], inputs[3], inputs[4], inputs[5]
+                    inputs[0], inputs[1], inputs[2], inputs[3], inputs[4], inputs[5], inputs[6]
                 )
             else:
                 raise Exception("Error! the train type {} is not realized!".format(train_type))
@@ -323,6 +327,7 @@ class KFOptimizerWrapper:
                 inputs[3],
                 inputs[4],
                 inputs[5],
+                inputs[6],
                 is_calc_f=False,
             )
         else:

@@ -177,7 +177,7 @@ class MLFFNet(nn.Module):
         #print (self.atomType)
         #print (len(self.models))
 
-    def forward(self, image, dfeat, neighbor, natoms_img, Egroup_weight = None, divider = None, is_calc_f = True):
+    def forward(self, image, dfeat, neighbor, natoms_img, atom_type, Egroup_weight = None, divider = None, is_calc_f = True):
         """
             single image at a time 
             add label to avoid force calculation 
@@ -209,14 +209,15 @@ class MLFFNet(nn.Module):
             only carry out forward when pm.atomType[i] == atomIdx
             
         """ 
-
-        for i in range(len(pm.atomType)):            
+        atom_type = list(np.array(atom_type[0].cpu()))
+        for i in range(len(atom_type)):            
             itype = pm.atomType[i]
-
+            # for atom in atom_type:
+            #     i = pm.atomType.index(atom)
             # get the segment corresponding to the current atom type 
             x = image[:, natoms_index[i]:natoms_index[i+1]]
-
-            predict, grad = self.models[i](x)
+            fit_model_index = pm.atomType.index(atom_type[i])
+            predict, grad = self.models[fit_model_index](x)
             
             #print ("Ei prediction value:\n", predict)
             if(i==0):
@@ -234,23 +235,18 @@ class MLFFNet(nn.Module):
         batch_size = image.shape[0]
         natom = image.shape[1]
         F = torch.zeros((batch_size, natom, 3), device=self.device)
-        Virial = torch.zeros((batch_size, 9), device=self.device) # unrealized
+        Virial = None, #torch.zeros((batch_size, 9), device=self.device) unrealized
         Egroup = None
         if Egroup_weight is not None:
             Egroup = self.get_egroup(Ei, Egroup_weight, divider)
         if is_calc_f == False:
             return Etot, Ei, F, Egroup, Virial
-            # if Egroup is not None:
-            #     return Etot, Ei, F, Egroup, Virial
-            # else:
-            #     return Etot, Ei, F, Virial               
+        
         test = Ei.sum()
         mask = torch.ones_like(test)
         test_grad = torch.autograd.grad(test,image,grad_outputs=mask, create_graph=True,retain_graph=True)
         test_grad = test_grad[0]
            
-        
-
         neighbor_num=dfeat.shape[2]
 
         dim_feat=pm.nFeatures

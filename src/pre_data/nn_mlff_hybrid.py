@@ -38,11 +38,13 @@ def make_work_dir(work_dir, cluster_dir_list: list):
     sub_work_dir = []
     for cluster in cluster_dir_list.items():
         tmp_dir = os.path.join(work_dir, "{}/PWdata".format(cluster[0]))
-        os.makedirs(tmp_dir)
+        if os.path.exists(tmp_dir) is False:
+            os.makedirs(tmp_dir)
         # copy movement
         for mvm_path in cluster[1]['mvm_path']:
             mvm_dir = os.path.dirname(mvm_path)
-            shutil.copytree(mvm_dir, os.path.join(tmp_dir, os.path.basename(mvm_dir)))
+            if os.path.exists(os.path.join(tmp_dir, os.path.basename(mvm_dir))) is False:
+                shutil.copytree(mvm_dir, os.path.join(tmp_dir, os.path.basename(mvm_dir)))
         sub_work_dir.append(os.path.dirname(tmp_dir))
     return sub_work_dir
 
