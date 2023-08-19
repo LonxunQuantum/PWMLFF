@@ -272,7 +272,7 @@ subroutine gen_feature(AL,xatom)
     do iat2=1,natom
     do ii_tmp=1,nfeat0
     if(abs(dfeat(ii_tmp,iat2,jj_tmp,1))+abs(dfeat(ii_tmp,iat2,jj_tmp,2))+ &
-         abs(dfeat(ii_tmp,iat2,jj_tmp,3)).gt.1.E-7) then
+         abs(dfeat(ii_tmp,iat2,jj_tmp,3)).gt.1.E-22) then
     num_tmp=num_tmp+1
     endif
     enddo
@@ -288,7 +288,7 @@ subroutine gen_feature(AL,xatom)
     do iat2=1,natom
     do ii_tmp=1,nfeat0
     if(abs(dfeat(ii_tmp,iat2,jj_tmp,1))+abs(dfeat(ii_tmp,iat2,jj_tmp,2))+ &
-          abs(dfeat(ii_tmp,iat2,jj_tmp,3)).gt.1.E-7) then
+          abs(dfeat(ii_tmp,iat2,jj_tmp,3)).gt.1.E-22) then
     num_tmp=num_tmp+1
     dfeat_tmp(:,num_tmp)=dfeat(ii_tmp,iat2,jj_tmp,:)
     iat_tmp(num_tmp)=iat2
