@@ -19,7 +19,8 @@ def calc_feat():
     os.system('rm -f ' + pm.trainSetDir + '/t*')
     os.system('rm -f ' + pm.trainSetDir + '/i*')
     
-    pp.collectAllSourceFiles()
+    if len(pm.sourceFileList) < 1: # this function has been excuted at line collectAllSourceFiles, when import mlff.py
+        pp.collectAllSourceFiles()
     pp.savePath()
     pp.combineMovement()
     pp.writeGenFeatInput()

@@ -51,7 +51,8 @@ class MovementDataset(Dataset):
         
         self.ntypes = pm.ntypes
         self.natoms_img = np.load(natoms_img_path)
-        
+        self.atom_type = np.array(self.get_atom_type(list(self.itype[0:self.ind_img[1]])))
+
         if dR_neigh_path:
             self.use_dR_neigh = True
             tmp = np.load(dR_neigh_path)
@@ -65,7 +66,11 @@ class MovementDataset(Dataset):
 
             self.Ri_all = np.load(Ri_path) #(12, 108, 100, 4)
             self.Ri_d_all = np.load(Ri_d_path)
-        
+
+    def get_atom_type(self, atom_type_list):
+        atom_type_data_input = sorted(set(atom_type_list), key=atom_type_list.index) 
+        return atom_type_data_input
+    
     # for dR
     def prepare(self, Ri_path, Ri_d_path):
         image_dR = self.dR
@@ -130,6 +135,8 @@ class MovementDataset(Dataset):
                 'input_divider': self.divider[self.ind_img[index]:self.ind_img[index+1]],
                 'input_itype': self.itype[self.ind_img[index]:self.ind_img[index+1]],
                 'input_nblist': self.nblist[self.ind_img[index]:self.ind_img[index+1]],
+                'atom_type': self.atom_type,
+
                 'input_weight_all': self.weight_all[self.ind_img[index]:self.ind_img[index+1]],
 
                 'output_energy': self.energy[self.ind_img[index]:self.ind_img[index+1]],

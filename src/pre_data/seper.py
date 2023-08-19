@@ -27,14 +27,15 @@ def run_write_egroup():
     os.system(command)
 
 
-def write_natoms_dfeat(chunk_size):
+def write_natoms_dfeat(chunk_size, shuffle=True):
     """
         put data into chunks
     """
     max_natom = int(np.loadtxt(os.path.join(pm.OutputPath, 'max_natom')))
     #print (pm.dp_predict)
     # do not execute this step for dp prediction 
-    if pm.dp_predict == False: 
+    if pm.dp_predict == False\
+        and len(pm.sourceFileList) == 0: 
         pp.collectAllSourceFiles()
     
     f_train_natom = open(pm.f_train_natoms, 'w')
@@ -130,7 +131,10 @@ def write_natoms_dfeat(chunk_size):
 
         # shuffle images within a system. Start from 0 
         #randomIdx = [i for i in range(ImgNum)]
-        randomIdx = choice(ImgNum,ImgNum,replace = False) 
+        if shuffle is True:
+            randomIdx = choice(ImgNum,ImgNum,replace = False) 
+        else:
+            randomIdx = list(range(0, ImgNum))
 
         # (system , index within the system)
         # sys_img_list_train contains all chunks
@@ -150,7 +154,8 @@ def write_natoms_dfeat(chunk_size):
     print (line_num_base)
     
     # shuffle the system-idx tuple list
-    shuffle(sys_img_list_train)
+    if shuffle is True:
+        shuffle(sys_img_list_train)
 
     # print("training set")
     # for item in sys_img_list_train:   #sys_img_list_train[0][0][1]
@@ -347,7 +352,7 @@ def write_dR_neigh():
     
     test_img.to_csv(pm.f_test_dR_neigh, header=False, index=False)
     
-def seperate_data(chunk_size = 10):
+def seperate_data(chunk_size = 10, shuffle=True):
 
     print("start data seperation")
 
@@ -359,7 +364,7 @@ def seperate_data(chunk_size = 10):
 
     write_egroup_input()
     run_write_egroup()
-    write_natoms_dfeat(chunk_size)
+    write_natoms_dfeat(chunk_size, shuffle)
 
     if (pm.dR_neigh):
         write_dR_neigh()
