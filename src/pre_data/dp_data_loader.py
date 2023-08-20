@@ -34,7 +34,9 @@ class MovementDataset(Dataset):
             if self.ener_shift.size == 1:
                 self.ener_shift = [self.ener_shift.tolist()]
             self.atom_map = np.loadtxt(os.path.join(data_path, "atom_map.raw"), dtype=int)
-        
+        else:
+            self.davg, self.dstd, self.ener_shift, self.atom_map = None, None, None, None
+            
     def __load_data(self, path):
 
         data = {}

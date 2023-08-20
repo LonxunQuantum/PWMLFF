@@ -1,22 +1,30 @@
+import os
+import shutil
 from src.user.model_param import DpParam
 import torch
 import numpy as np
 import src.aux.extract_ff as extract_ff
 
-def extract_force_field(dp_params:DpParam, name:str = "myforcefield.ff"):
+def extract_force_field(dp_params:DpParam):
     config = dp_params.get_dp_net_dict()
+    forcefield_dir = dp_params.file_paths.forcefield_dir
+    if os.path.exists(forcefield_dir):
+        shutil.rmtree(forcefield_dir)
+    os.makedirs(forcefield_dir)
     
-    extract_model_para(config, dp_params, )
+    cwd = os.getcwd()
+    os.chdir(forcefield_dir)
+    extract_model_para(config, dp_params)
 
     mk = config["net_cfg"]["fitting_net"]["resnet_dt"]
-    extract_ff.extract_ff(name = name, model_type = 5, atom_type = dp_params.atom_type, is_fitting_recon = mk)
-
+    extract_ff.extract_ff(name = dp_params.file_paths.forcefield_name, model_type = 5, atom_type = dp_params.atom_type, is_fitting_recon = mk)
+    os.chdir(cwd)
 def extract_model_para(config:dict, dp_params:DpParam):
     """ 
         extract the model parameters of DP network
         NEED TO ADD SESSION DIR NAME 
     """ 
-    extract_model_name = dp_params.file_paths.model_path
+    extract_model_name = dp_params.file_paths.model_save_path
     
     print ("extracting network parameters from:",extract_model_name )
     
@@ -294,3 +302,27 @@ def load_davg_dstd_from_checkpoint(model_path):
     if atom_type_order.size == 1:   #
         atom_type_order = [atom_type_order.tolist()]
     return davg, dstd, atom_type_order, energy_shift
+
+'''
+description: load davg from feature paths, \
+    at least one of the feature paths should contail all atom types, when doing hybrid training.
+param {list} feature_paths
+return {*}
+author: wuxingxing
+'''
+def load_davg_dstd_from_feature_path(feature_paths:list):
+    atom_type_order = []
+    num_atom_type = []
+    for feature_path in feature_paths:
+        atom_map = np.loadtxt(os.path.join(feature_path, "train", "atom_map.raw"), dtype=int)
+        atom_type_order.append(atom_map)
+        num_atom_type.append(atom_map.size)
+    feature_path = feature_paths[num_atom_type.index(max(num_atom_type))]
+    davg = np.load(os.path.join(feature_path, "train", "davg.npy"))
+    dstd = np.load(os.path.join(feature_path, "train", "dstd.npy"))
+    energy_shift = np.loadtxt(os.path.join(feature_path, "train", "energy_shift.raw"))
+    if energy_shift.size == 1:
+        energy_shift = [energy_shift.tolist()]
+    return davg, dstd, atom_type_order[num_atom_type.index(max(num_atom_type))].tolist(), energy_shift
+
+        
