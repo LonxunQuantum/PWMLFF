@@ -9,6 +9,8 @@ from src.PWMLFF.dp_network import dp_network
 description: do dp training
     step1. generate feature from MOVEMENTs
     step2. load features and do training
+    step3. extract forcefield files
+    step4. copy features, trained model files to the same level directory of jsonfile
 param {json} input_json
 return {*}
 author: wuxingxing
@@ -31,6 +33,17 @@ def gen_dp_feature(input_json: json, cmd:str):
     feature_path = dp_trainer.generate_data()
     print("feature generated done, the dir path is: \n{}".format(feature_path))
 
+'''
+description: 
+    do dp inference:
+    step1. generate feature, the movement from json file 'test_movement_path'
+    step2. load model and do inference
+    step3. copy inference result files to the same level directory of jsonfile
+param {json} input_json
+param {str} cmd
+return {*}
+author: wuxingxing
+'''
 def dp_test(input_json: json, cmd:str):
     dp_param = DpParam(input_json, cmd)
     dp_param.print_input_params()

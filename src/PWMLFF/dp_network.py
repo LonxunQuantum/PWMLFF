@@ -519,8 +519,8 @@ class dp_network:
             while os.path.exists(target_data_path): 
                 target_data_path = os.path.join(self.dp_params.file_paths.json_dir, "{}_{}".format(os.path.basename(source_data_path), index))
                 index +=1
-            shutil.move(source_data_path, target_data_path)
-            os.symlink(os.path.realpath(target_data_path), os.path.realpath(source_data_path))
+            shutil.copy(source_data_path, target_data_path)
+            # os.symlink(os.path.realpath(target_data_path), os.path.realpath(source_data_path))
             # copy fread/input
 
             # copy model
@@ -528,16 +528,16 @@ class dp_network:
             target_model_path = os.path.join(self.dp_params.file_paths.json_dir, os.path.basename(source_data_path))
             if os.path.exists(target_model_path):
                 shutil.rmtree(target_model_path)
-            shutil.move(source_model_path, target_model_path)
-            os.symlink(os.path.realpath(target_model_path), os.path.realpath(source_model_path))
+            shutil.copy(source_model_path, target_model_path)
+            # os.symlink(os.path.realpath(target_model_path), os.path.realpath(source_model_path))
 
             # copy forcefild
             source_forcefield_dir = self.dp_params.file_paths.forcefield_dir
             target_forcefield_dir = os.path.join(self.dp_params.file_paths.json_dir, os.path.basename(source_forcefield_dir))
             if os.path.exists(target_forcefield_dir):
                 shutil.rmtree(target_forcefield_dir)
-            shutil.move(source_forcefield_dir, target_forcefield_dir)
-            os.symlink(os.path.realpath(target_forcefield_dir), os.path.realpath(source_forcefield_dir))
+            shutil.copy(source_forcefield_dir, target_forcefield_dir)
+            # os.symlink(os.path.realpath(target_forcefield_dir), os.path.realpath(source_forcefield_dir))
 
     def post_process_test(self):
         # copy inference result
@@ -546,5 +546,5 @@ class dp_network:
             target_test_dir = os.path.join(self.dp_params.file_paths.json_dir, os.path.basename(source_test_dir))
             if os.path.exists(target_test_dir):
                 shutil.rmtree(target_test_dir)
-            shutil.move(source_test_dir, target_test_dir)
-            os.symlink(os.path.realpath(target_test_dir), os.path.realpath(source_test_dir))
+            shutil.copy(source_test_dir, target_test_dir)
+            # os.symlink(os.path.realpath(target_test_dir), os.path.realpath(source_test_dir))

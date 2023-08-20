@@ -1,0 +1,103 @@
+{
+    "model_type":"dp",
+    "recover_train":true,
+    "_recover":"recovering from last training",
+    "work_dir":"/data/home/wuxingxing/codespace/PWMLFF/pwmat_mlff_workdir/lisi/ref_dp_ef/work_train_dir",
+    
+    "model_load_path":"/data/home/wuxingxing/datas/pwmat_mlff_workdir/lisi/ref_dp_ef/work_train_dir/model_record/checkpoint.pth.tar",
+    "_model_load_path":"when specify this value, inference will use this checkpoint model, otherwise, inference use the checkpoint at work dir",
+    "train_movement_path":["/data/home/wuxingxing/datas/pwmat_mlff_workdir/lisi/ref_dp_ef/MOVEMENT_2", 
+                            "/data/home/wuxingxing/datas/pwmat_mlff_workdir/lisi/ref_dp_ef/MOVEMENT_3"],
+
+    "_bk":"movement dir should not named PWdata", 
+    
+    "train_feature_path": ["./feature_2"],
+
+    "forcefield_name": "forcefield_ff",
+    "forcefield_dir": "forcefield",
+
+    "test_movement_path":["/data/home/wuxingxing/datas/pwmat_mlff_workdir/lisi/ref_dp_ef/test/MOVEMENT", 
+                            "./test/MOVEMENT_2", "./test/MOVEMENT_3"],
+    "test_feature_path":[],
+    "test_dir_name":"test_dir",
+
+    "model_name": "checkpoint.pth.tar",
+    "model_store_dir":"model_record",
+    "_model_store_dir":"model dir name",
+
+    "atom_type":[3,14],
+    "max_neigh_num":100, 
+
+    "Rmax":6.0, 
+    "Rmin":0.5,
+    "M2":16,
+    "E_tolerance":9999999.99,
+    "data_shuffle":true,
+    "train_valid_ratio":0.8,
+    "dwidth":3.0,
+    
+    "precision":"float64",
+
+    "workers":1,
+    "hvd":false,
+    "world_size":-1,
+    "rank":-1,
+    "dist_url":"tcp://localhost:23456",
+    "dist_backend":"nccl",
+    "distributed":false,
+
+    "model_path":"./model_record_sgd",
+    "model":{
+        "fitting_net":{
+        "network_size":[50, 50, 50, 1],
+        "bias":true,
+        "resnet_dt":false,
+        "activation":"tanh"        
+        },
+        "embedding_net":{
+        "network_size":[25, 25, 25],
+        "bias":true,
+        "resnet_dt":false,
+        "activation":"tanh"
+        }
+    },
+
+    "optimizer":{
+        "optimizer":"LKF",
+        "block_size":5120, 
+        "kalman_lambda":0.98, 
+        "kalman_nue":0.99870,
+        "nselect":24,
+        "groupsize":6,
+        
+        "batch_size": 4,
+        "epochs":11,
+        "start_epoch":1,
+        "print_freq":10,
+        "best_loss":1e10,
+
+        "train_energy":true,
+        "train_force":true,
+        "train_ei":true,
+        "train_virial":true,
+        "train_egroup":true,
+    
+        "pre_fac_force":2.0,
+        "pre_fac_etot":1.0, 
+        "pre_fac_ei":1.0,
+        "pre_fac_virial":1.0, 
+        "pre_fac_egroup":0.1
+        
+        },
+
+    "_optimizer":{
+        "optimizer":"SGD",
+        "learning_rate": 0.001,
+        "weight_decay":1e-4,
+        "momentum":0.9,
+
+        "batch_size": 4,
+        "epochs":5,
+        "start_epoch":1
+        }
+}
