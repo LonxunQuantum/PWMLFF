@@ -381,7 +381,7 @@ class nn_network:
         if self.hybrid:
             self.do_hybord_feat_generate(chunk_size=1, shuffle=False)
         else:
-            self.generate_data_single()
+            self.generate_data_single(chunk_size=chunk_size, shuffle=shuffle)
 
     def do_hybord_feat_generate(self, chunk_size=10, shuffle=True):
         root_dir = os.getcwd()
@@ -517,7 +517,7 @@ class nn_network:
         =================data preparation functions=================
         ============================================================ 
     """
-    def generate_data_single(self, chunk_size = 10):
+    def generate_data_single(self, chunk_size = 10, shuffle=False):
         """
             defualt chunk size set to 10 
         """
@@ -536,7 +536,7 @@ class nn_network:
 
         # seperate training set and valid set
         import src.pre_data.seper as seper 
-        seper.seperate_data(chunk_size = chunk_size)
+        seper.seperate_data(chunk_size = chunk_size, shuffle=shuffle)
         
         # save as .npy
         import src.pre_data.gen_data as gen_data
