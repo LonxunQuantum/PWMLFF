@@ -1,8 +1,9 @@
 import os
 import json
 from numpy import Inf
-from src.user.file_structure import TrainFileStructure, ModelParam, NetParam, OptimizerParam
 from utils.json_operation import get_parameter, get_required_parameter
+from src.user.nn_feature_type import Descriptor
+from src.user.param_structure import TrainFileStructure, ModelParam, NetParam, OptimizerParam
 
 '''
 description: 
@@ -20,10 +21,21 @@ class DpParam(object):
     author: wuxingxing
     '''
     def __init__(self, json_input:dict, cmd) -> None:
+        self.cmd = cmd
+        self.model_type = get_required_parameter("model_type", json_input).upper()
+        
         # set fitting net, embeding net
         self.recover_train = get_parameter("recover_train", json_input, False)
         model_dict = get_parameter("model", json_input, {})
-        self.model_param = self._set_model_params(model_dict)
+        self.descriptor = Descriptor(get_parameter("descriptor", model_dict, {}), self.model_type, self.cmd)
+
+        if self.model_type == "DP":
+            self.model_param = self._set_dp_model_params(model_dict)
+        elif self.model_type == "NN":
+            self.model_param = self._set_nn_model_params(model_dict)
+            self._set_nn_personal_params(json_input)
+        else: # linear
+            raise Exception("model_type {} not realized yet".format(self.model_type))
 
         # set optimizer
         opt_dict = get_parameter("optimizer", json_input, {})
@@ -31,31 +43,26 @@ class DpParam(object):
 
         # set file structures
         self.file_paths = self._set_file_paths(json_input)
-        
-        self._set_default_params(json_input)
 
-        self.model_type = get_parameter("model_type", json_input, "DP")
         # set feature related params
-        self.E_tolerance = get_parameter("E_tolerance", json_input, 9999999.0)
-        self.Rmax = get_parameter("Rmax", json_input, 6.0) 
-        self.Rmin = get_parameter("Rmin", json_input, 0.5) 
-        self.M2 = get_parameter("M2", json_input, 16)
+
         self.data_shuffle = get_parameter("data_shuffle", json_input, True)
         self.train_valid_ratio = get_parameter("train_valid_ratio", json_input, 0.8)
+        self.dwidth = get_parameter("dwidth", json_input, 3.0)
+        self.seed = get_parameter("seed", json_input, None)
+        self.precision = get_parameter("precision", json_input, "float64")
 
-        
         # required params
         self.atom_type = get_required_parameter("atom_type", json_input)
         self.atom_type_dict = []
         for idx in self.atom_type:
             #the last 4 param used in function gen_config_inputfile()
-            single_dict = {'type': idx, 'Rc': self.Rmax, 'Rm': self.Rmin, 'iflag_grid': 3, 'fact_base': 0.2, 'dR1': 0.5, "b_init":166.0}    
+            single_dict = {'type': idx, 'Rc': self.descriptor.Rmax, 'Rm': self.descriptor.Rmin, 'iflag_grid': 3, 'fact_base': 0.2, 'dR1': 0.5, "b_init":166.0}    
             self.atom_type_dict.append(single_dict)
         self.max_neigh_num = get_required_parameter("max_neigh_num", json_input)
 
-        self.precision = get_parameter("precision", json_input, "float64")
 
-        self.profiling = get_parameter("profiling", json_input, False)
+        self.profiling = get_parameter("profiling", json_input, False)#not realized
 
         # multi GPU train params  these params not used
         # "number of data loading workers (default: 4)
@@ -70,7 +77,6 @@ class DpParam(object):
         self.gpu = get_parameter("gpu", json_input, None)
 
         # set cmd prams
-        self.cmd = cmd
         self._set_cmd_relative_params(json_input)
 
     def _set_cmd_relative_params(self, json_input:dict):
@@ -92,10 +98,15 @@ class DpParam(object):
                 if os.path.exists(mvm) is False:
                     raise Exception("{} file is not exists, please check!".format(mvm))
             test_dir_name = get_parameter("test_dir_name", json_input, "test_result")
-            if os.path.isabs(test_dir_name) is False:
-                test_dir = os.path.join(self.file_paths.work_dir, test_dir_name)
-            else:
-                test_dir = test_dir_name
+            test_dir = os.path.join(self.file_paths.work_dir, test_dir_name)
+
+            test_feature_path = get_parameter("test_feature_path", json_input, [])
+            for feat_path in test_feature_path:
+                if os.path.exists(feat_path) is False:
+                    raise Exception("Error! test_feature_path {} does not exist!".format(feat_path))
+            test_feature_path = [os.path.abspath(_) for _ in test_feature_path]
+            test_movement_path = [os.path.abspath(_) for _ in test_movement_path]
+
             self.file_paths._set_inference_paths(test_movement_path, test_dir)
         else:
             error_info = "error! The command {} does not exist and currently only includes the following commands:\
@@ -104,8 +115,9 @@ class DpParam(object):
 
     def _set_file_paths(self, json_input:dict):
         json_dir = os.getcwd()
-        work_dir = get_parameter("work_dir", json_input, None)
-        file_paths = TrainFileStructure(json_dir=json_dir, work_dir=work_dir)
+        work_dir = os.path.abspath(get_parameter("work_dir", json_input, json_dir))
+        reserve_work_dir = get_parameter("reserve_work_dir", json_input, False)
+        file_paths = TrainFileStructure(json_dir=json_dir, work_dir=work_dir, reserve_work_dir=reserve_work_dir)
         # model paths
         model_load_path = get_parameter("model_load_path", json_input, "")
         # if self.recover_train is True and os.path.isfile(model_load_path):
@@ -123,10 +135,13 @@ class DpParam(object):
             if os.path.exists(mvm) is False:
                 raise Exception("Error! train movement: {} file not exist!".format(mvm))
         # set train feature path
+        train_movement_path = [os.path.abspath(_) for _ in train_movement_path]
+
         train_feature_path = get_parameter("train_feature_path", json_input, [])
         for feat_path in train_feature_path:
             if os.path.exists(feat_path) is False:
-                raise Exception("Error! train movement: {} file not exist!".format(feat_path)) 
+                raise Exception("Error! train movement: {} file not exist!".format(feat_path))
+        train_feature_path = [os.path.abspath(_) for _ in train_feature_path]
         file_paths._set_training_path(train_movement_path=train_movement_path, 
                                       train_feature_path=train_feature_path,
                                       train_dir=os.path.join(file_paths.work_dir, "feature"))
@@ -154,18 +169,17 @@ class DpParam(object):
             file_paths._set_p_matrix_paths(None, False)
         return file_paths
     
-    def _set_model_params(self, json_input:dict):
+    def _set_dp_model_params(self, json_input:dict):
         model_param = ModelParam()
-    
         # set dp embedding net params
-        embedding_json = get_parameter("embedding_net",json_input, {})
+        embedding_json = get_parameter("descriptor", json_input, {})
         network_size = get_parameter("network_size", embedding_json, [25, 25, 25])
         bias = get_parameter("bias", embedding_json, True)
         resnet_dt = get_parameter("resnet_dt", embedding_json, True) # resnet in embedding net is true.
         activation = get_parameter("activation", embedding_json, "tanh")
         embedding_net = NetParam("embedding_net")
         embedding_net.set_params(network_size, bias, resnet_dt, activation)
-
+       
         # set dp fitting net params
         fitting_net_dict = get_parameter("fitting_net",json_input, {})
         network_size = get_parameter("network_size", fitting_net_dict, [50, 50, 50, 1])
@@ -178,6 +192,22 @@ class DpParam(object):
         model_param.set_net(fitting_net=fitting_net, embedding_net=embedding_net)
         return model_param
 
+    def _set_descriptor(self, json_input:dict):
+        pass
+
+    def _set_nn_model_params(self, json_input:dict):
+        model_param = ModelParam()
+        fitting_net_dict = get_parameter("fitting_net",json_input, {})
+        network_size = get_parameter("network_size", fitting_net_dict,[15,15,1])
+        bias = True # get_parameter("bias", fitting_net_dict, True)
+        resnet_dt = False # get_parameter("resnet_dt", fitting_net_dict, False)
+        activation = "tanh" #get_parameter("activation", fitting_net_dict, )
+        fitting_net = NetParam("fitting_net")
+        fitting_net.set_params(network_size, bias, resnet_dt, activation)
+
+        model_param.set_net(fitting_net=fitting_net, embedding_net=None)
+        return model_param
+
     def _set_optimizer(self, json_input:dict):
         optimizer_type = get_parameter("optimizer", json_input, "LKF")
         batch_size = get_parameter("batch_size", json_input, 1)
@@ -186,9 +216,8 @@ class DpParam(object):
         # the start epoch could be reset at the resume model code block
         start_epoch = get_parameter("start_epoch", json_input, 1)
         best_loss = get_parameter("best_loss", json_input, 1e10)    #may be not need
-        min_loss = Inf
         optimizer_param = OptimizerParam(optimizer_type, start_epoch=start_epoch, epochs=epochs, batch_size=batch_size, \
-                                         print_freq=print_freq, best_loss=best_loss, min_loss=min_loss)
+                                         print_freq=print_freq, best_loss=best_loss)
 
         if "KF" in optimizer_param.opt_name.upper():  #set Kalman Filter Optimizer params
             kalman_lambda = get_parameter("kalman_lambda", json_input, 0.98)
@@ -201,38 +230,61 @@ class DpParam(object):
             learning_rate = get_parameter("learning_rate", json_input, 0.001)
             weight_decay = get_parameter("weight_decay", json_input, 1e-4)
             momentum = get_parameter("momentum", json_input, 0.9)
-            optimizer_param.set_adam_sgd_params(learning_rate, weight_decay, momentum)
+            gamma = get_parameter("gamma", json_input, 0.99) # used in nn optimizer
+            step = get_parameter("step", json_input, 100) # used in nn optimizer
+            scheduler = get_parameter("scheduler", json_input, None) # used in nn optimizer
+
+            stop_step = get_parameter("stop_step", json_input, 1000000)
+            decay_step = get_parameter("decay_step", json_input, 5000)
+            stop_lr = get_parameter("stop_lr",json_input, 3.51e-8)
+            optimizer_param.set_adam_sgd_params(learning_rate, weight_decay, momentum,\
+                                                 gamma, step, scheduler, stop_step, decay_step, stop_lr)
         
         train_energy = get_parameter("train_energy", json_input, True) 
         train_force = get_parameter("train_force", json_input, True) 
         train_ei = get_parameter("train_ei", json_input, False) 
         train_virial = get_parameter("train_virial", json_input, False) 
         train_egroup = get_parameter("train_egroup", json_input, False) 
-        pre_fac_force = get_parameter("pre_fac_force", json_input, 2.0) 
-        pre_fac_etot = get_parameter("pre_fac_etot", json_input, 1.0) 
-        pre_fac_ei = get_parameter("pre_fac_ei", json_input, 1.0) 
-        pre_fac_virial = get_parameter("pre_fac_virial", json_input, 1.0) 
-        pre_fac_egroup = get_parameter("pre_fac_egroup", json_input, 0.1) 
-        
-        optimizer_param.set_train_pref(train_energy = train_energy, train_force = train_force, 
-            train_ei = train_ei, train_virial = train_virial, train_egroup = train_egroup, 
-                pre_fac_force = pre_fac_force, pre_fac_etot = pre_fac_etot, 
-                    pre_fac_ei = pre_fac_ei, pre_fac_virial = pre_fac_virial, pre_fac_egroup = pre_fac_egroup
-                )
+
+        if "KF" in optimizer_param.opt_name:
+            pre_fac_force = get_parameter("pre_fac_force", json_input, 2.0) 
+            pre_fac_etot = get_parameter("pre_fac_etot", json_input, 1.0) 
+            pre_fac_ei = get_parameter("pre_fac_ei", json_input, 1.0) 
+            pre_fac_virial = get_parameter("pre_fac_virial", json_input, 1.0) 
+            pre_fac_egroup = get_parameter("pre_fac_egroup", json_input, 0.1) 
+            
+            optimizer_param.set_train_pref(train_energy = train_energy, train_force = train_force, 
+                train_ei = train_ei, train_virial = train_virial, train_egroup = train_egroup, 
+                    pre_fac_force = pre_fac_force, pre_fac_etot = pre_fac_etot, 
+                        pre_fac_ei = pre_fac_ei, pre_fac_virial = pre_fac_virial, pre_fac_egroup = pre_fac_egroup
+                    )
+        else:
+            start_pre_fac_force = get_parameter("start_pre_fac_force", json_input, 2.0) 
+            start_pre_fac_etot = get_parameter("start_pre_fac_etot", json_input, 1.0) 
+            start_pre_fac_ei = get_parameter("start_pre_fac_ei", json_input, 1.0) 
+            start_pre_fac_virial = get_parameter("start_pre_fac_virial", json_input, 1.0) 
+            start_pre_fac_egroup = get_parameter("start_pre_fac_egroup", json_input, 0.1) 
+
+            end_pre_fac_force = get_parameter("end_pre_fac_force", json_input, 2.0) 
+            end_pre_fac_etot = get_parameter("end_pre_fac_etot", json_input, 1.0) 
+            end_pre_fac_ei = get_parameter("end_pre_fac_ei", json_input, 1.0) 
+            end_pre_fac_virial = get_parameter("end_pre_fac_virial", json_input, 1.0) 
+            end_pre_fac_egroup = get_parameter("end_pre_fac_egroup", json_input, 0.1) 
+
+            optimizer_param.set_adam_sgd_train_pref(
+                    train_energy = train_energy, train_force = train_force, 
+                        train_ei = train_ei, train_virial = train_virial, train_egroup = train_egroup, 
+                    start_pre_fac_force = start_pre_fac_force, start_pre_fac_etot = start_pre_fac_etot, 
+                        start_pre_fac_ei = start_pre_fac_ei, start_pre_fac_virial = start_pre_fac_virial, 
+                        start_pre_fac_egroup = start_pre_fac_egroup,
+                    end_pre_fac_force = end_pre_fac_force, end_pre_fac_etot = end_pre_fac_etot, 
+                        end_pre_fac_ei = end_pre_fac_ei, end_pre_fac_virial = end_pre_fac_virial, 
+                        end_pre_fac_egroup = end_pre_fac_egroup,
+                    )      
         return optimizer_param
 
-    '''
-    description: these params use default value, but also could be set by user.
-    param {*} self
-    param {dict} json_input
-    return {*}
-    author: wuxingxing
-    '''    
-    def _set_default_params(self, json_input:dict):
-
-        self.dwidth = 3.0
-        self.seed = get_parameter("seed", json_input, None)
-
+    def _set_nn_personal_params(self, json_input:dict):
+        self.is_dfeat_sparse = get_parameter("is_dfeat_sparse", json_input, False)  #if true not realized
 
     def _to_dict(self):
         pass
@@ -242,20 +294,20 @@ class DpParam(object):
         net_dict["net_cfg"] = {}
         net_dict["net_cfg"][self.model_param.embedding_net.net_type] = self.model_param.embedding_net.to_dict()
         net_dict["net_cfg"][self.model_param.fitting_net.net_type] = self.model_param.fitting_net.to_dict()
-        net_dict["M2"] = self.M2
+        net_dict["M2"] = self.descriptor.M2
         net_dict["maxNeighborNum"] = self.max_neigh_num
         net_dict["atomType"]=self.atom_type_dict
         net_dict["training_type"] = self.precision
-        net_dict["Rc_M"] = self.Rmax
+        net_dict["Rc_M"] = self.descriptor.Rmax
         return net_dict
     
     def get_data_file_dict(self):
         data_file_dict = self.file_paths.get_data_file_structure()
-        data_file_dict["M2"] = self.M2
+        data_file_dict["M2"] = self.descriptor.M2
         data_file_dict["maxNeighborNum"] = self.max_neigh_num
         data_file_dict["atomType"]=self.atom_type_dict
-        data_file_dict["Rc_M"] = self.Rmax
-        data_file_dict["E_tolerance"] = self.E_tolerance
+        data_file_dict["Rc_M"] = self.descriptor.Rmax
+        data_file_dict["E_tolerance"] = self.descriptor.E_tolerance
         data_file_dict["dwidth"] = self.dwidth
         data_file_dict["ratio"] = self.train_valid_ratio
 
@@ -267,13 +319,13 @@ class DpParam(object):
         params_dict["atom_type"] = self.atom_type
         params_dict["max_neigh_num"] = self.max_neigh_num
        
-        params_dict["E_tolerance"] = self.E_tolerance
-        params_dict["Rmax"] = self.Rmax
-        params_dict["Rmin"] = self.Rmin
-        params_dict["M2"] = self.M2
+        # params_dict["E_tolerance"] = self.descriptor.E_tolerance
+        # params_dict["Rmax"] = self.descriptor.Rmax
+        # params_dict["Rmin"] = self.Rmin
+        # params_dict["M2"] = self.descriptor.M2
         params_dict["data_shuffle"] = self.data_shuffle
         params_dict["train_valid_ratio"] = self.train_valid_ratio
-
+        params_dict["dwidth"] = self.dwidth
         params_dict["precision"] = self.precision
 
         # params_dict["profiling"] = self.profiling
@@ -284,16 +336,13 @@ class DpParam(object):
         # params_dict["dist_url"] = self.dist_url
         # params_dict["dist_backend"] = self.dist_backend
         # params_dict["distributed"] = self.distributed
-        
-        params_dict["train_valid_ratio"] = self.train_valid_ratio
-        params_dict["data_shuffle"] = self.data_shuffle
-        params_dict["dwidth"] = self.dwidth
 
         if self.cmd == "train".upper():
             params_dict["recover_train"] = self.recover_train
         params_dict["inference"] = self.inference
-
-        params_dict["model"] = self.model_param.to_dict()
+        params_dict["model"] = {}
+        params_dict["model"]["fitting_net"] = self.model_param.to_dict()
+        params_dict["model"]["descriptor"] = self.descriptor.to_dict()
         params_dict["optimizer"] = self.optimizer_param.to_dict()
         
         file_dir_dict = self.file_paths.to_dict()

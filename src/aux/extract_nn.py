@@ -31,16 +31,13 @@ import os
 # Wij.txt structure: w0, b0, w1, b1, w2, b2
 #   [42,60], [60], [60,30], [30], [30,1], [1]
 
-def read_wij(src_name):
+def read_wij(model_path):
     #first argument as input file path
-    pt_name = src_name
-
-    pt_file=os.path.join(pt_name)
-    chpt = torch.load(pt_file,map_location=torch.device('cpu'))
-    nn_model = chpt['model']
+    model_checkpoint = torch.load(model_path, map_location=torch.device("cpu"))
+    nn_model = model_checkpoint['state_dict']
     nlayers = len(nn_model) // pm.ntypes // 2
     #print('nlayers %d' % (nlayers))
-    
+
     info_net = []
     for i in range(nlayers):
         info_net.append(np.array(nn_model[r'models.0.weights.'+str(i)].shape))
@@ -48,12 +45,8 @@ def read_wij(src_name):
     wij_all = [ [ np.zeros((info_net[ilayer]),dtype=float) for ilayer in range(nlayers) ] for itype in range(pm.ntypes)]
     bij_all = [ [ np.zeros((info_net[ilayer]),dtype=float) for ilayer in range(nlayers) ] for itype in range(pm.ntypes)]
     
-    # for dir different from trianing
-    if not os.path.exists(pm.fitModelDir):
-        os.mkdir(pm.fitModelDir)
-    
-    with open(os.path.join(pm.fitModelDir,'Wij.txt'),'w') as f:
-        f.write('test ' + str(pt_file) + '  \n')
+    with open(os.path.join('fread_dfeat/Wij.txt'),'w') as f:
+        f.write('test ' + str(model_path) + '  \n')
         f.write('shape '+str(nlayers*2*pm.ntypes)+'\n')
         f.write('dim 1'+'\n')
         f.write('size '+str(nlayers*2*pm.ntypes)+'\n')
@@ -83,11 +76,9 @@ def read_wij(src_name):
 
 
 def read_scaler(src_name):
-    #scaler = joblib.load(r'./scaler.pkl')
-    scaler_name = src_name
+    model_checkpoint = torch.load(src_name, map_location=torch.device("cpu"))
+    scaler = model_checkpoint['scaler']
 
-    scaler  = joblib.load(scaler_name)
-    
     fout = open('fread_dfeat/data_scaler.txt', 'w')
     fout.write('test\n')
     fout.write('shape, ignored\n')

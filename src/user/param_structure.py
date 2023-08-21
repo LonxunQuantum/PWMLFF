@@ -1,5 +1,6 @@
 import json
 import os
+import numpy as np
 from varname import nameof
 
 class TrainFileStructure(object):
@@ -13,12 +14,10 @@ class TrainFileStructure(object):
     return {*}
     author: wuxingxing
     '''    
-    def __init__(self, json_dir:str=None, work_dir:str=None) -> None:
+    def __init__(self, json_dir:str, work_dir:str, reserve_work_dir:bool) -> None:
         self.json_dir = json_dir
-        if work_dir is None:
-            self.work_dir = json_dir
-        else:
-            self.work_dir = work_dir
+        self.work_dir = work_dir
+        self.reserve_work_dir = reserve_work_dir
         self.movement_name = "MOVEMENT"
         self.test_movement_path = []
         self.train_movement_path = []
@@ -84,6 +83,8 @@ class TrainFileStructure(object):
     def to_dict(self):
         dicts = {}
         dicts["work_dir"] = self.work_dir
+        dicts["reserve_work_dir"] = self.reserve_work_dir
+
         if os.path.exists(self.model_load_path):
             dicts["model_load_path"] = self.model_load_path
         if len(self.train_movement_path) > 0:
@@ -128,16 +129,16 @@ class ModelParam(object):
         self.embedding_net = embedding_net
     
     def to_dict(self):
-        dicts = {}
-        if self.embedding_net is not None:
-            dicts[self.embedding_net.net_type] = self.embedding_net.to_dict()
-        if self.fitting_net is not None:
-            dicts[self.fitting_net.net_type] = self.fitting_net.to_dict()
-        return dicts
+        # dicts = {}
+        # if self.embedding_net is not None:
+        #     dicts[self.embedding_net.net_type] = self.embedding_net.to_dict()
+        # if self.fitting_net is not None:
+        #     dicts[self.fitting_net.net_type] = self.fitting_net.to_dict()
+        return self.fitting_net.to_dict()
 
 class OptimizerParam(object):
     def __init__(self, optimizer:str, start_epoch:int, epochs:int, batch_size:int, \
-                 print_freq:int, best_loss:int, min_loss:int) -> None:
+                 print_freq:int, best_loss:int) -> None:
         self.opt_name = optimizer.upper()
         self.start_epoch = start_epoch
         self.epochs = epochs
@@ -145,7 +146,6 @@ class OptimizerParam(object):
 
         self.print_freq = print_freq
         self.best_loss=best_loss
-        self.min_loss=min_loss
 
     def set_kf_params(self, block_size:int, kalman_lambda:float, kalman_nue:float, \
                    nselect:int, groupsize:int):
@@ -155,20 +155,36 @@ class OptimizerParam(object):
         self.nselect = nselect
         self.groupsize = groupsize
 
-    def set_adam_sgd_params(self, learning_rate:float, weight_decay:float, momentum:float):
+    def set_adam_sgd_params(self, learning_rate:float, weight_decay:float, momentum:float, \
+                            gamma:float, step:int, scheduler:str,\
+                                 stop_step:float, decay_step:float, stop_lr:float):
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
         self.momentum = momentum
+        self.gamma = gamma
+        self.step = step
+        self.scheduler = scheduler
+        self.stop_step = stop_step
+        self.decay_step = decay_step
+        self.stop_lr = stop_lr
 
     '''
     description: these params are used when optimizer is KF
     return {*}
     author: wuxingxing
     '''
-    def set_train_pref(self,train_energy:bool=True, train_force:bool=True, 
-                       train_ei:bool=False, train_virial:bool=False, train_egroup:bool=False, 
-                            pre_fac_etot:float=1.0, pre_fac_force:float=2.0, 
-                                pre_fac_ei:float=1.0, pre_fac_virial:float=1.0, pre_fac_egroup:float=0.1):
+    def set_train_pref(self,train_energy:bool,
+                        train_force:bool,
+                        train_ei:bool,
+                        train_virial:bool,
+                        train_egroup:bool,
+
+                        pre_fac_etot:float,
+                        pre_fac_force:float,
+                        pre_fac_ei:float,
+                        pre_fac_virial:float,
+                        pre_fac_egroup:float
+                        ):
         self.train_energy = train_energy
         self.train_force = train_force
         self.train_ei = train_ei
@@ -181,6 +197,42 @@ class OptimizerParam(object):
         self.pre_fac_virial = pre_fac_virial
         self.pre_fac_egroup = pre_fac_egroup
 
+    def set_adam_sgd_train_pref(self,train_energy:bool, 
+                                train_force:bool, 
+                                train_ei:bool, 
+                                train_virial:bool, 
+                                train_egroup:bool, 
+
+                                start_pre_fac_etot:float, 
+                                start_pre_fac_force:float, 
+                                start_pre_fac_ei:float, 
+                                start_pre_fac_virial:float, 
+                                start_pre_fac_egroup:float,
+
+                                end_pre_fac_etot:float,
+                                end_pre_fac_force:float,
+                                end_pre_fac_ei:float,
+                                end_pre_fac_virial:float,
+                                end_pre_fac_egroup:float,
+                                ):
+        self.train_energy = train_energy
+        self.train_force = train_force
+        self.train_ei = train_ei
+        self.train_virial = train_virial
+        self.train_egroup = train_egroup
+
+        self.start_pre_fac_etot = start_pre_fac_etot
+        self.start_pre_fac_force = start_pre_fac_force
+        self.start_pre_fac_ei = start_pre_fac_ei
+        self.start_pre_fac_virial = start_pre_fac_virial
+        self.start_pre_fac_egroup = start_pre_fac_egroup
+
+        self.end_pre_fac_etot = end_pre_fac_etot
+        self.end_pre_fac_force = end_pre_fac_force
+        self.end_pre_fac_ei = end_pre_fac_ei
+        self.end_pre_fac_virial = end_pre_fac_virial
+        self.end_pre_fac_egroup = end_pre_fac_egroup
+
     def to_dict(self):
         opt_dict = {}
         opt_dict["optimizer"]=self.opt_name
@@ -189,18 +241,18 @@ class OptimizerParam(object):
         opt_dict["batch_size"] = self.batch_size
         opt_dict["print_freq"] = self.print_freq
         opt_dict["best_loss"] = self.best_loss
-        opt_dict["min_loss"] = self.min_loss
 
+        opt_dict["train_energy"] = self.train_energy
+        opt_dict["train_force"] = self.train_force
+        opt_dict["train_ei"] = self.train_ei
+        opt_dict["train_virial"] = self.train_virial
+        opt_dict["train_egroup"] = self.train_egroup
+    
         if "KF" in self.opt_name:
             opt_dict["block_size"] = self.block_size 
             opt_dict["kalman_lambda"] = self.kalman_lambda
             opt_dict["kalman_nue"] = self.kalman_nue
             #prefect:
-            opt_dict["train_energy"] = self.train_energy
-            opt_dict["train_force"] = self.train_force
-            opt_dict["train_ei"] = self.train_ei
-            opt_dict["train_virial"] = self.train_virial
-            opt_dict["train_egroup"] = self.train_egroup
             opt_dict["pre_fac_force"] = self.pre_fac_force
             opt_dict["pre_fac_etot"] = self.pre_fac_etot
             opt_dict["pre_fac_ei"] = self.pre_fac_ei
@@ -210,4 +262,19 @@ class OptimizerParam(object):
             opt_dict["learning_rate"]= self.learning_rate
             opt_dict["weight_decay"]= self.weight_decay
             opt_dict["momentum"]= self.momentum
+            opt_dict["stop_lr"] = self.stop_lr
+            opt_dict["stop_step"] = self.stop_step
+            opt_dict["decay_step"] = self.decay_step
+
+            opt_dict["start_pre_fac_force"] = self.start_pre_fac_force
+            opt_dict["start_pre_fac_etot"] = self.start_pre_fac_etot
+            opt_dict["start_pre_fac_ei"] = self.start_pre_fac_ei
+            opt_dict["start_pre_fac_virial"] = self.start_pre_fac_virial
+            opt_dict["start_pre_fac_egroup"] = self.start_pre_fac_egroup
+
+            opt_dict["end_pre_fac_force"] = self.end_pre_fac_force
+            opt_dict["end_pre_fac_etot"] = self.end_pre_fac_etot
+            opt_dict["end_pre_fac_ei"] = self.end_pre_fac_ei
+            opt_dict["end_pre_fac_virial"] = self.end_pre_fac_virial
+            opt_dict["end_pre_fac_egroup"] = self.end_pre_fac_egroup
         return opt_dict

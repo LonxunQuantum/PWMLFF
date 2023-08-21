@@ -4,47 +4,45 @@ import subprocess
 import default_para as pm
 
 '''
-    get sub_dir of root_dir, for each sub_dir, it should contains at least 1 MOVEMENT file
-description: 
-param {*} root_dir
-param {*} dest_dir
-param {*} file_name
+description: do cluster according to movement [atom type, atom type order, atom type nums] 
+param {list} movement_list
 return {*}
 author: wuxingxing
 '''
-def get_cluster_dirs(root_dir, file_name="MOVEMENT"):
+def get_cluster_dirs(movement_list:list):
     # read movement dir from root_dir
     cluster_dir_list = {}
-    mvm_dirs = []
-    for path,dirList,fileList in os.walk(os.path.join(root_dir, "PWdata")):
-        if file_name in fileList:
-            mvm_dirs.append(path)
-    for mvm_dir in mvm_dirs:
-        mvm_path = os.path.join(mvm_dir, file_name)
+    for mvm_path in movement_list:
         types, nums, key = get_atom_info_from_movement(mvm_path)
         if key not in cluster_dir_list.keys():
-            cluster_dir_list[key] = {"mvm_path":[mvm_path], "types":types, "type_nums":nums}
+            cluster_dir_list[key] = {"mvm_path":[os.path.abspath(mvm_path)], "types":types, "type_nums":nums}
         else:
             cluster_dir_list[key]["mvm_path"].append(mvm_path)
-    
     # sorted by atom_type
     tmp_cluster = sorted(cluster_dir_list.items(), key = lambda x: len(x[1]['types']), reverse=True)
     for tmp in tmp_cluster:
         cluster_dir_list[tmp[0]] = tmp[1]
-
     return cluster_dir_list
 
-def make_work_dir(work_dir, cluster_dir_list: list):
+'''
+description: 
+param {*} feature_dir
+param {list} cluster_dir_list
+return {*}
+author: wuxingxing
+'''
+def make_work_dir(feature_dir:str, pwdata_name:str, movement_name:str, cluster_dir_list: list):
     sub_work_dir = []
+    if os.path.exists(feature_dir):
+        shutil.rmtree(feature_dir)
+    os.makedirs(feature_dir)
     for cluster in cluster_dir_list.items():
-        tmp_dir = os.path.join(work_dir, "{}/PWdata".format(cluster[0]))
-        if os.path.exists(tmp_dir) is False:
-            os.makedirs(tmp_dir)
+        tmp_dir = os.path.join(feature_dir, "{}".format(cluster[0]), pwdata_name)
         # copy movement
-        for mvm_path in cluster[1]['mvm_path']:
-            mvm_dir = os.path.dirname(mvm_path)
-            if os.path.exists(os.path.join(tmp_dir, os.path.basename(mvm_dir))) is False:
-                shutil.copytree(mvm_dir, os.path.join(tmp_dir, os.path.basename(mvm_dir)))
+        for index, mvm_path in enumerate(cluster[1]['mvm_path']):
+            mvm_dir = os.path.join(tmp_dir, "{}_{}".format(os.path.basename(mvm_path), index))
+            os.makedirs(mvm_dir)
+            shutil.copy(mvm_path, os.path.join(mvm_dir, movement_name))
         sub_work_dir.append(os.path.dirname(tmp_dir))
     return sub_work_dir
 
@@ -99,13 +97,13 @@ def mv_featrues(source_dir, dest_dir, index):
             dest_path = os.path.join(dest_dir, "{}_{}".format(index, file))
             shutil.move(os.path.join(source_dir, file), dest_path)
 
-def mv_file(source_file, dest_file):
+def copy_file(source_file, dest_file):
     if os.path.exists(dest_file):
         if os.path.isdir(dest_file):
             shutil.rmtree(dest_file)
         else:
             os.remove(dest_file)
-    shutil.move(source_file, dest_file)
+    shutil.copy(source_file, dest_file)
 
 def line_file(source_file, dest_filse):
     if os.path.exists(dest_filse):

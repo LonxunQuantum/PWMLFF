@@ -158,34 +158,34 @@ class MovementHybridDataset(Dataset):
     examplespath : npy_file_dir
     data_file_frompwmat : read train_data.csv or test_data.csv
     '''
-def get_torch_data_hybrid(data_root_path, sub_data_dir, data_type = "final_train", atom_type = None, is_dfeat_sparse=False):
+def get_torch_data_hybrid(data_list, data_type = "final_train", atom_type = None, is_dfeat_sparse=False):
     # examplespath='./train_data/final_train'   # for example
 
     f_feat, f_dfeat, f_egroup, f_egroup_weight, f_divider, \
         f_itype, f_nblist, f_weight_all, ind_img, natoms_img, f_energy, f_force\
         =[], [], [], [], [], [], [], [], [], [], [], []
     
-    for dir in sub_data_dir:
-            
-        f_feat.append(os.path.join(data_root_path, dir, data_type, 'feat_scaled.npy'))
-        f_dfeat.append(os.path.join(data_root_path, dir, data_type, 'dfeat_scaled.npy'))
+    for dir in data_list:
+        dir = os.path.join(dir, data_type)
+        f_feat.append(os.path.join(dir, 'feat_scaled.npy'))
+        f_dfeat.append(os.path.join(dir, 'dfeat_scaled.npy'))
 
-        f_egroup.append(os.path.join(data_root_path, dir, data_type, 'egroup.npy'))
-        f_egroup_weight.append(os.path.join(data_root_path, dir, data_type, 'egroup_weight.npy'))
-        f_divider.append(os.path.join(data_root_path, dir, data_type, 'divider.npy'))
+        f_egroup.append(os.path.join(dir, 'egroup.npy'))
+        f_egroup_weight.append(os.path.join(dir, 'egroup_weight.npy'))
+        f_divider.append(os.path.join(dir, 'divider.npy'))
 
-        f_itype.append(os.path.join(data_root_path, dir, data_type, 'itypes.npy'))
-        f_nblist.append(os.path.join(data_root_path, dir, data_type, 'nblist.npy'))
-        f_weight_all.append(os.path.join(data_root_path, dir, data_type, 'weight_all.npy'))
-        ind_img.append(os.path.join(data_root_path, dir, data_type, 'ind_img.npy'))
-        natoms_img.append(os.path.join(data_root_path, dir, data_type, 'natoms_img.npy'))
+        f_itype.append(os.path.join(dir, 'itypes.npy'))
+        f_nblist.append(os.path.join(dir, 'nblist.npy'))
+        f_weight_all.append(os.path.join(dir, 'weight_all.npy'))
+        ind_img.append(os.path.join(dir, 'ind_img.npy'))
+        natoms_img.append(os.path.join(dir, 'natoms_img.npy'))
 
-        f_energy.append(os.path.join(data_root_path, dir, data_type, 'engy_scaled.npy'))
-        f_force.append(os.path.join(data_root_path, dir, data_type, 'fors_scaled.npy'))
+        f_energy.append(os.path.join(dir, 'engy_scaled.npy'))
+        f_force.append(os.path.join(dir, 'fors_scaled.npy'))
         # f_force = os.path.join(examplespath+'/force.npy')
 
     torch_data = MovementHybridDataset(f_feat, f_dfeat,
                                  f_egroup, f_egroup_weight, f_divider,
                                  f_itype, f_nblist, f_weight_all,
-                                 f_energy, f_force, ind_img, natoms_img, len(sub_data_dir), atom_type, is_dfeat_sparse)
+                                 f_energy, f_force, ind_img, natoms_img, len(data_list), atom_type, is_dfeat_sparse)
     return torch_data

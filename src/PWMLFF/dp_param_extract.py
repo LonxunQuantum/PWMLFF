@@ -19,6 +19,7 @@ def extract_force_field(dp_params:DpParam):
     mk = config["net_cfg"]["fitting_net"]["resnet_dt"]
     extract_ff.extract_ff(name = dp_params.file_paths.forcefield_name, model_type = 5, atom_type = dp_params.atom_type, is_fitting_recon = mk)
     os.chdir(cwd)
+    
 def extract_model_para(config:dict, dp_params:DpParam):
     """ 
         extract the model parameters of DP network
@@ -152,28 +153,6 @@ def extract_model_para(config:dict, dp_params:DpParam):
     # only extract fitting net now 
     if config["net_cfg"]["fitting_net"]["resnet_dt"]:
         numResNet = 0
-
-        """
-        for keys in list(raw.keys()):
-            tmp = keys.split('.')
-            if tmp[0] == "fitting_net" and tmp[1] == '0' and tmp[2] == 'resnet_dt':
-                numResNet +=1 
-
-        print ("number of resnet: " + str(numResNet))
-
-        filename  = "fittingNet.resnet"
-
-        f= open(filename, "w")
-        
-        f.write(str(numResNet)+"\n")
-
-        for fittingNetIdx in range(nFittingNet):
-            for resNetIdx in range(1,numResNet+1):
-                f.write(str(fittingNetSizes[i+1])+"\n")
-                label_resNet = catNameFittingRes(fittingNetIdx,resNetIdx)
-                dump(raw[label_resNet][0],f)
-
-        """ 
 
         """
             The format below fits Dr.Wang's Fortran routine
@@ -325,4 +304,3 @@ def load_davg_dstd_from_feature_path(feature_paths:list):
         energy_shift = [energy_shift.tolist()]
     return davg, dstd, atom_type_order[num_atom_type.index(max(num_atom_type))].tolist(), energy_shift
 
-        

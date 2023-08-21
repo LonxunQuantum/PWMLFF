@@ -41,7 +41,8 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
 
         nr_batch_sample = sample_batches["Ei"].shape[0]
         global_step = (epoch - 1) * len(train_loader) + i * nr_batch_sample
-        real_lr = adjust_lr(global_step, start_lr)
+        real_lr = adjust_lr(global_step, start_lr, \
+                            args.optimizer_param.stop_step, args.optimizer_param.decay_step, args.optimizer_param.stop_lr) #  stop_step, decay_step
 
         for param_group in optimizer.param_groups:
             param_group["lr"] = real_lr * (nr_batch_sample**0.5)
@@ -186,6 +187,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
 
             if args.optimizer_param.train_egroup is True and args.optimizer_param.train_virial is True:
                 loss, _, _ = dp_loss(
+                    args,
                     0.001,
                     real_lr,
                     1,
@@ -203,6 +205,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
                 )
             elif args.optimizer_param.train_egroup is True and args.optimizer_param.train_virial is False:
                 loss, _, _ = dp_loss(
+                    args,
                     0.001,
                     real_lr,
                     2,
@@ -218,6 +221,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
                 )
             elif args.optimizer_param.train_egroup is False and args.optimizer_param.train_virial is True:
                 loss, _, _ = dp_loss(
+                    args,
                     0.001,
                     real_lr,
                     3,
@@ -233,6 +237,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
                 )
             else:
                 loss, _, _ = dp_loss(
+                    args,
                     0.001,
                     real_lr,
                     4,

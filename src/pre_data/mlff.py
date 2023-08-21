@@ -20,7 +20,7 @@ def calc_feat():
     os.system('rm -f ' + pm.trainSetDir + '/i*')
     
     if len(pm.sourceFileList) < 1: # this function has been excuted at line collectAllSourceFiles, when import mlff.py
-        pp.collectAllSourceFiles()
+        pp.collectAllSourceFiles(pm.trainSetDir)
     pp.savePath()
     pp.combineMovement()
     pp.writeGenFeatInput()
@@ -75,7 +75,7 @@ if pm.isCalcFeat:
     if pm.dR_neigh:
         os.system('rm ' + pm.dRneigh_path)
 
-    pp.collectAllSourceFiles()
+    pp.collectAllSourceFiles(pm.trainSetDir)
     pp.savePath()
     pp.combineMovement()
     pp.writeGenFeatInput()
@@ -102,7 +102,7 @@ if pm.isCalcFeat:
 else:
     os.system('cp '+pm.fbinListPath+' ./input/')
     pp.writeGenFeatInput()
-    pp.collectAllSourceFiles()
+    pp.collectAllSourceFiles(pm.trainSetDir)
 
 
 

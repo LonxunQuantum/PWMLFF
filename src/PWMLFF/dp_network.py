@@ -64,7 +64,7 @@ class dp_network:
                 davg, dstd, atom_map, energy_shift = load_davg_dstd_from_checkpoint(self.dp_params.file_paths.model_save_path)
             else:
                 raise Exception("Erorr! Loading model for inference can not find checkpoint: \
-                                \nmodel load path {} \n model at work path: {}\n"\
+                                \nmodel load path: {} \n or model at work path: {}\n"\
                                 .format(self.dp_params.file_paths.model_load_path, self.dp_params.file_paths.model_save_path))
             stat_add = [davg, dstd, atom_map, energy_shift]
 
@@ -132,8 +132,12 @@ class dp_network:
             training_type = torch.float64
         
         # Create dataset
-        train_dataset = MovementDataset([os.path.join(_, "train") for _ in self.dp_params.file_paths.train_feature_path])
-        valid_dataset = MovementDataset([os.path.join(_, "valid") for _ in self.dp_params.file_paths.train_feature_path])
+        if self.dp_params.inference:
+            train_dataset = MovementDataset([os.path.join(_, "train") for _ in self.dp_params.file_paths.test_feature_path])
+            valid_dataset = MovementDataset([os.path.join(_, "valid") for _ in self.dp_params.file_paths.test_feature_path])
+        else:            
+            train_dataset = MovementDataset([os.path.join(_, "train") for _ in self.dp_params.file_paths.train_feature_path])
+            valid_dataset = MovementDataset([os.path.join(_, "valid") for _ in self.dp_params.file_paths.train_feature_path])
 
         # create model 
         # when running evaluation, nothing needs to be done with davg.npy
@@ -509,42 +513,3 @@ class dp_network:
         print (command)
         subprocess.run(command, shell=True) 
 
-    def post_process_train(self):
-        if os.path.realpath(self.dp_params.file_paths.json_dir) != os.path.realpath(self.dp_params.file_paths.work_dir) :
-            # copy data
-            source_data_path = self.dp_params.file_paths.train_dir
-            target_data_path = os.path.join(self.dp_params.file_paths.json_dir, "gen_feature")
-            index = 0
-            #If a feature path already exists under the JSON dir path, then the feature_ Path+1
-            while os.path.exists(target_data_path): 
-                target_data_path = os.path.join(self.dp_params.file_paths.json_dir, "{}_{}".format(os.path.basename(source_data_path), index))
-                index +=1
-            shutil.copy(source_data_path, target_data_path)
-            # os.symlink(os.path.realpath(target_data_path), os.path.realpath(source_data_path))
-            # copy fread/input
-
-            # copy model
-            source_model_path = self.dp_params.file_paths.model_store_dir
-            target_model_path = os.path.join(self.dp_params.file_paths.json_dir, os.path.basename(source_data_path))
-            if os.path.exists(target_model_path):
-                shutil.rmtree(target_model_path)
-            shutil.copy(source_model_path, target_model_path)
-            # os.symlink(os.path.realpath(target_model_path), os.path.realpath(source_model_path))
-
-            # copy forcefild
-            source_forcefield_dir = self.dp_params.file_paths.forcefield_dir
-            target_forcefield_dir = os.path.join(self.dp_params.file_paths.json_dir, os.path.basename(source_forcefield_dir))
-            if os.path.exists(target_forcefield_dir):
-                shutil.rmtree(target_forcefield_dir)
-            shutil.copy(source_forcefield_dir, target_forcefield_dir)
-            # os.symlink(os.path.realpath(target_forcefield_dir), os.path.realpath(source_forcefield_dir))
-
-    def post_process_test(self):
-        # copy inference result
-        if os.path.realpath(self.dp_params.file_paths.json_dir) != os.path.realpath(self.dp_params.file_paths.work_dir) :
-            source_test_dir = self.dp_params.file_paths.test_dir
-            target_test_dir = os.path.join(self.dp_params.file_paths.json_dir, os.path.basename(source_test_dir))
-            if os.path.exists(target_test_dir):
-                shutil.rmtree(target_test_dir)
-            shutil.copy(source_test_dir, target_test_dir)
-            # os.symlink(os.path.realpath(target_test_dir), os.path.realpath(source_test_dir))
