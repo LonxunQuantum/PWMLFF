@@ -233,6 +233,16 @@ class OptimizerParam(object):
         self.end_pre_fac_virial = end_pre_fac_virial
         self.end_pre_fac_egroup = end_pre_fac_egroup
 
+    def to_linear_dict(self):
+        opt_dict = {}
+        opt_dict["train_energy"] = self.train_energy
+        opt_dict["train_force"] = self.train_force
+        opt_dict["train_ei"] = self.train_ei
+        opt_dict["pre_fac_force"] = self.pre_fac_force
+        opt_dict["pre_fac_etot"] = self.pre_fac_etot
+        opt_dict["pre_fac_ei"] = self.pre_fac_ei
+        return opt_dict
+    
     def to_dict(self):
         opt_dict = {}
         opt_dict["optimizer"]=self.opt_name

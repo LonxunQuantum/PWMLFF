@@ -284,18 +284,18 @@ class dp_network:
             inference_path = self.dp_params.file_paths.test_dir
             if os.path.exists(inference_path) is False:
                 os.mkdir(inference_path)
-            write_arrays_to_file(os.path.join(inference_path, "etot_label.txt"), etot_label_list)
-            write_arrays_to_file(os.path.join(inference_path, "etot_inference.txt"), etot_predict_list)
+            write_arrays_to_file(os.path.join(inference_path, "dft_total_energy.txt"), etot_label_list)
+            write_arrays_to_file(os.path.join(inference_path, "inference_total_energy.txt"), etot_predict_list)
 
-            write_arrays_to_file(os.path.join(inference_path, "ei_label.txt"), ei_label_list)
-            write_arrays_to_file(os.path.join(inference_path, "ei_inference.txt"), ei_predict_list)
+            write_arrays_to_file(os.path.join(inference_path, "dft_atomic_energy.txt"), ei_label_list)
+            write_arrays_to_file(os.path.join(inference_path, "inference_atomic_energy.txt"), ei_predict_list)
 
-            write_arrays_to_file(os.path.join(inference_path, "force_label.txt"), force_label_list)
-            write_arrays_to_file(os.path.join(inference_path, "force_inference.txt"), force_predict_list)
+            write_arrays_to_file(os.path.join(inference_path, "dft_force.txt"), force_label_list)
+            write_arrays_to_file(os.path.join(inference_path, "inference_force.txt"), force_predict_list)
 
-            res_pd.to_csv(os.path.join(inference_path, "inference_result.csv"))
+            res_pd.to_csv(os.path.join(inference_path, "inference_loss.csv"))
 
-            with open(os.path.join(inference_path, "inference.txt"), 'w') as wf:
+            with open(os.path.join(inference_path, "inference_summary.txt"), 'w') as wf:
                 wf.writelines(inference_cout)
             return  
 

@@ -1110,13 +1110,14 @@ class nn_network:
         if os.path.exists(inf_dir) is True:
             shutil.rmtree(inf_dir)
         os.mkdir(inf_dir)
-        res_pd_save_path = os.path.join(inf_dir, "inference_info.csv")
+        res_pd_save_path = os.path.join(inf_dir, "inference_loss.csv")
         inf_force_save_path = os.path.join(inf_dir,"inference_force.txt")
-        lab_force_save_path = os.path.join(inf_dir,"label_force.txt")
-        inf_energy_save_path = os.path.join(inf_dir,"inference_energy.txt")
-        lab_energy_save_path = os.path.join(inf_dir,"label_energy.txt")
-        inf_Ei_save_path = os.path.join(inf_dir,"inference_Ei.txt")
-        lab_Ei_save_path = os.path.join(inf_dir,"label_Ei.txt")
+        lab_force_save_path = os.path.join(inf_dir,"dft_force.txt")
+        inf_energy_save_path = os.path.join(inf_dir,"inference_total_energy.txt")
+        lab_energy_save_path = os.path.join(inf_dir,"dft_total_energy.txt")
+        inf_Ei_save_path = os.path.join(inf_dir,"inference_atomic_energy.txt")
+        lab_Ei_save_path = os.path.join(inf_dir,"dft_atomic_energy.txt")
+        inference_path = os.path.join(inf_dir,"inference_summary.txt") 
 
         for i_batch, sample_batches in enumerate(self.loader_train):
             if pm.is_dfeat_sparse == True:
@@ -1196,7 +1197,9 @@ class nn_network:
 
         inference_cout += "\nMore details can be found under the file directory:\n{}\n".format(inf_dir)
         print(inference_cout)
-        return
+        with open(os.path.join(inference_path, "inference_summary.txt"), 'w') as wf:
+            wf.writelines(inference_cout)
+        return  
 
     """ 
         ============================================================

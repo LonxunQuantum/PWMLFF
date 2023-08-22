@@ -34,6 +34,8 @@ class DpParam(object):
         elif self.model_type == "NN":
             self.model_param = self._set_nn_model_params(model_dict)
             self._set_nn_personal_params(json_input)
+        elif self.model_type == "Linear".upper():
+            pass
         else: # linear
             raise Exception("model_type {} not realized yet".format(self.model_type))
 
@@ -337,26 +339,28 @@ class DpParam(object):
         # params_dict["dist_backend"] = self.dist_backend
         # params_dict["distributed"] = self.distributed
 
-        if self.cmd == "train".upper():
-            params_dict["recover_train"] = self.recover_train
         params_dict["inference"] = self.inference
         params_dict["model"] = {}
-        params_dict["model"]["fitting_net"] = self.model_param.to_dict()
         params_dict["model"]["descriptor"] = self.descriptor.to_dict()
-        params_dict["optimizer"] = self.optimizer_param.to_dict()
+        if self.model_type == "Linear".upper():
+            params_dict["optimizer"] = self.optimizer_param.to_linear_dict()
+        else:
+            if self.cmd == "train".upper():
+                params_dict["recover_train"] = self.recover_train
+            params_dict["model"]["fitting_net"] = self.model_param.to_dict()
+            params_dict["optimizer"] = self.optimizer_param.to_dict()
         
         file_dir_dict = self.file_paths.to_dict()
         for key in file_dir_dict:
             params_dict[key] = file_dir_dict[key]
         return params_dict
     
-    def print_input_params(self):
+    def print_input_params(self, json_file_save_name="json_all.json"):
         params_dict = self.to_dict()
-        json.dump(params_dict, open(os.path.join(self.file_paths.json_dir, "json_all.json"), "w"), indent=4)
+        json.dump(params_dict, open(os.path.join(self.file_paths.json_dir, json_file_save_name), "w"), indent=4)
         print(params_dict)
         
 def help_info():
-    print("dp_train: do dp model training")
-    print("dp_test: do dp model inference")
-    print("dp_gen_feat: generate feature for dp model")
- 
+    print("train: do model training")
+    print("test: do dp model inference")
+    

@@ -194,6 +194,9 @@ class Descriptor(object):
             # for feature in self.feature_type:
             #     feature = "{}".format(feature)
             #     dicts[feature] = self.feature_dict[feature]
+        elif self.model_type == "Linear".upper():
+            dicts["feature_type"] = self.feature_type
+            
         else:
             raise Exception("descriptor to dict: the model type not realized:{}".format(self.model_type))
         

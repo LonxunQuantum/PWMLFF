@@ -4,7 +4,7 @@ import json
 from src.user.model_param import DpParam
 from src.PWMLFF.nn_param_extract import extract_force_field
 from src.PWMLFF.nn_network import nn_network
-from utils.file_operation import post_process_train, post_process_test, delete_dir
+from utils.file_operation import delete_tree, copy_tree
 
 '''
 description: do nn training
@@ -18,7 +18,7 @@ author: wuxingxing
 '''
 def nn_train(input_json: json, cmd:str):
     nn_param = DpParam(input_json, cmd) 
-    nn_param.print_input_params()
+    nn_param.print_input_params(json_file_save_name="nn_train_final.json")
     nn_trainer = nn_network(nn_param)
     if len(nn_param.file_paths.train_movement_path) > 0:
         feature_path = nn_trainer.generate_data()
@@ -30,11 +30,11 @@ def nn_train(input_json: json, cmd:str):
         post_process_train(nn_param.file_paths.json_dir, \
                     nn_param.file_paths.model_store_dir, nn_param.file_paths.forcefield_dir, nn_param.file_paths.train_dir)
         if nn_param.file_paths.reserve_work_dir is False:
-            delete_dir(nn_param.file_paths.work_dir)
+            delete_tree(nn_param.file_paths.work_dir)
 
 def gen_nn_feature(input_json: json, cmd:str):
     nn_param = DpParam(input_json, cmd) 
-    nn_param.print_input_params()
+    nn_param.print_input_params(json_file_save_name="nn_test_final.json")
     nn_trainer = nn_network(nn_param)
     feature_path = nn_trainer.generate_data()
     print("feature generated done, the dir path is: \n{}".format(feature_path))
@@ -62,4 +62,39 @@ def nn_test(input_json: json, cmd:str):
     if os.path.realpath(nn_param.file_paths.json_dir) != os.path.realpath(nn_param.file_paths.work_dir) :
         post_process_test(nn_param.file_paths.json_dir, nn_param.file_paths.test_dir)
         if nn_param.file_paths.reserve_work_dir is False:
-            delete_dir(nn_param.file_paths.work_dir)
+            delete_tree(nn_param.file_paths.work_dir)
+
+'''
+description: 
+    copy model dir under workdir to target_dir
+    copy forcefild dir under workdir to target_dir
+    delete feature files under workdir
+param {*} target_dir
+param {*} model_store_dir
+param {*} forcefield_dir
+param {*} train_dir
+return {*}
+author: wuxingxing
+'''
+def post_process_train(target_dir, model_store_dir, forcefield_dir, train_dir):
+    # copy model
+    target_model_path = os.path.join(target_dir, os.path.basename(model_store_dir))
+    copy_tree(model_store_dir, target_model_path)
+    # copy forcefild
+    target_forcefield_dir = os.path.join(target_dir, os.path.basename(forcefield_dir))
+    copy_tree(forcefield_dir, target_forcefield_dir)
+    # delete feature data
+    delete_tree(train_dir)
+
+'''
+description: 
+    copy inference dir under work dir to target_dir
+param {*} test_dir
+param {*} json_dir
+return {*}
+author: wuxingxing
+'''
+def post_process_test(target_dir, test_dir):
+    # copy inference result
+    target_test_dir = os.path.join(target_dir, os.path.basename(test_dir))
+    copy_tree(test_dir, target_test_dir)
