@@ -93,6 +93,25 @@ class nn_network:
         pm.nNodes = np.array(tmp) 
         # feature set feature type 
         pm.use_Ftype = sorted(self.dp_params.descriptor.feature_type)
+        for ftype  in pm.use_Ftype:
+            ftype_key = "{}".format(ftype)
+            if ftype_key == '1':
+                pm.Ftype1_para = self.dp_params.descriptor.feature_dict[ftype_key]
+            elif ftype_key == '2':
+                pm.Ftype2_para = self.dp_params.descriptor.feature_dict[ftype_key]
+            elif ftype_key == '3':
+                pm.Ftype3_para = self.dp_params.descriptor.feature_dict[ftype_key]
+            elif ftype_key == '4':
+                pm.Ftype4_para = self.dp_params.descriptor.feature_dict[ftype_key]
+            elif ftype_key == '5':
+                pm.Ftype5_para = self.dp_params.descriptor.feature_dict[ftype_key]
+            elif ftype_key == '6':
+                pm.Ftype6_para = self.dp_params.descriptor.feature_dict[ftype_key]
+            elif ftype_key == '7':
+                pm.Ftype7_para = self.dp_params.descriptor.feature_dict[ftype_key]
+            elif ftype_key == '8':
+                pm.Ftype8_para = self.dp_params.descriptor.feature_dict[ftype_key]
+
         # update nfeat_type 
         pm.nfeat_type = len(pm.use_Ftype)
         # self.feat_mod = feat_modifier() 

@@ -26,6 +26,15 @@ def calc_feat():
     pp.writeGenFeatInput()
     
     os.system('cp '+ pm.fbinListPath +' ./input/')
+    
+    if pm.isFitVdw:
+        print('fitting vdw')
+        ff.fit_vdw()
+    else:
+        if hasattr(pm, 'vdwInput'):
+            print("vdwInput found; use diy vdw parameters in parameters.py")
+            pp.writeVdwInput(pm.fitModelDir, pm.vdwInput)
+        pp.prepare_novdw()    # create 0 vdw
 
     calFeatGrid=False
 
@@ -81,7 +90,7 @@ if pm.isCalcFeat:
     pp.writeGenFeatInput()
     
     os.system('cp '+ pm.fbinListPath +' ./input/')
-    
+
     calFeatGrid=False
 
     for i in range(pm.atomTypeNum):
@@ -104,16 +113,13 @@ else:
     pp.writeGenFeatInput()
     pp.collectAllSourceFiles(pm.trainSetDir)
 
-
-
-
 if pm.isFitVdw:
     print('fitting vdw')
     ff.fit_vdw()
 else:
     if hasattr(pm, 'vdwInput'):
         print("vdwInput found; use diy vdw parameters in parameters.py")
-        pp.writeVdwInput(pm.fitModelDir, vdw_input)
+        pp.writeVdwInput(pm.fitModelDir, pm.vdwInput)
     pp.prepare_novdw()    # create 0 vdw
 
 if pm.isFitLinModel:
