@@ -398,8 +398,8 @@ contains
       if(exist_velocity .or. Ek.le.1.d-10) then
          scaling = 1.d0
       else
-         !    scaling = sqrt(dabs(mymd.T1*Hdt*dble(mymd.num_degree)/Ek))
-         scaling = sqrt(2*dabs(mymd.T1*Hdt*dble(mymd.num_degree)/Ek))
+         scaling = sqrt(dabs(mymd.T1*Hdt*dble(mymd.num_degree)/Ek))
+         ! scaling = sqrt(2*dabs(mymd.T1*Hdt*dble(mymd.num_degree)/Ek))
          ! the factor of 2 is for the expectation that, hald of the initial
          ! kinetic energy will be given to potential energy when start from
          ! ground state geometry

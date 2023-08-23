@@ -112,6 +112,9 @@ subroutine find_feature_deepMD1(natom,itype_atom,Rc,RC2,Rm,weight_rterm, &
             x=pi*(d-Rc2(itype))/(Rc(itype0)-Rc2(itype))
             f2=0.5*(cos(x)+1)
             df2=-0.5*sin(x)*pi/(Rc(itype0)-Rc2(itype))   ! need to add dx/d
+            ! x=(d-Rc2(itype))/(Rc(itype0)-Rc2(itype))
+            ! f2=x*x*x*(-6*x*x+15*x-10)+1
+            ! df2=3*x*x*(-6*x*x+15*x-10)+x*x*x*(-12*x+15)
         endif
 
         s=f2/d
