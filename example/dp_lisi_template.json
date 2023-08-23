@@ -7,7 +7,7 @@
     "reserve_work_dir": false,
     "_reserve_work_dir": "whether to keep the working path file",
 
-    "model_load_path":"/data/home/wuxingxing/datas/pwmat_mlff_workdir/lisi/ref_nn/model_record_lkf_eivkf/checkpoint.pth.tar",
+    "model_load_path":"./model_record_lkf_ef/checkpoint.pth.tar",
     "__model_load_path":"when specify this value, inference will use this checkpoint model, otherwise, inference use the checkpoint at work dir",
     
     "train_movement_path":["MOVEMENT_2", "MOVEMENT_3"],
@@ -16,17 +16,16 @@
     "forcefield_dir": "forcefield",
     "_forcefield":"forcefield_name is the name of the forcefield file extracted from the model, forcefield_dir is the parent directory name of forcefield_name", 
 
-    "test_movement_path":["/data/home/wuxingxing/datas/pwmat_mlff_workdir/lisi/ref_nn/test/MOVEMENT", 
-                            "./test/MOVEMENT_2", "./test/MOVEMENT_3"],
+    "test_movement_path":["./test/MOVEMENT", "./test/MOVEMENT_2", "./test/MOVEMENT_3"],
     "test_dir_name":"test_dir",
     "_test_dir_name":"The directory name where the inference result is located", 
 
     "model_name": "checkpoint.pth.tar",
-    "model_store_dir":"model_record_lkf_eivkf",
+    "model_store_dir":"model_record_lkf_ef",
     "_model_store_dir":"model_name is the name of the trained model file name, model_store_dir is the parent directory name of model_name file",
 
     "train_valid_ratio":0.8,
-    "seed":2023,
+    "_seed":2023,
 
     "precision":"float64",
 
@@ -71,9 +70,9 @@
 
         "train_energy":true,
         "train_force":true,
-        "train_ei":true,
-        "train_virial":true,
-        "train_egroup":true,
+        "train_ei":false,
+        "train_virial":false,
+        "train_egroup":false,
     
         "pre_fac_force":2.0,
         "pre_fac_etot":1.0, 
@@ -101,9 +100,9 @@
 
         "train_energy":true,
         "train_force":true,
-        "train_ei":true,
-        "train_virial":true,
-        "train_egroup":true,
+        "train_ei":false,
+        "train_virial":false,
+        "train_egroup":false,
     
         "start_pre_fac_force":1000,
         "start_pre_fac_etot":0.02, 
