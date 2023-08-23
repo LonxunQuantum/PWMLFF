@@ -4,7 +4,7 @@ import json
 from src.user.model_param import DpParam
 from src.PWMLFF.nn_param_extract import extract_force_field
 from src.PWMLFF.nn_network import nn_network
-from utils.file_operation import delete_tree, copy_tree
+from utils.file_operation import delete_tree, copy_tree, copy_file
 
 '''
 description: do nn training
@@ -97,4 +97,6 @@ author: wuxingxing
 def post_process_test(target_dir, test_dir):
     # copy inference result
     target_test_dir = os.path.join(target_dir, os.path.basename(test_dir))
-    copy_tree(test_dir, target_test_dir)
+    for file in os.listdir(test_dir):
+        if file.endswith(".txt") or file.endswith('.csv'):
+            copy_file(os.path.join(test_dir, file), os.path.join(target_test_dir, os.path.basename(file)))

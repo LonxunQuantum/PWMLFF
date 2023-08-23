@@ -62,7 +62,7 @@
         "groupsize":6,
         
         "batch_size": 4,
-        "epochs":4,
+        "epochs":40,
         "start_epoch":1,
 
         "print_freq":10,
@@ -89,7 +89,7 @@
         "momentum":0.9,
 
         "batch_size": 4,
-        "epochs":5,
+        "epochs":40,
         "start_epoch":1,
         
         "print_freq":10,

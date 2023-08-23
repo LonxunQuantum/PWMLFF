@@ -1197,7 +1197,7 @@ class nn_network:
 
         inference_cout += "\nMore details can be found under the file directory:\n{}\n".format(inf_dir)
         print(inference_cout)
-        with open(os.path.join(inference_path, "inference_summary.txt"), 'w') as wf:
+        with open(inference_path, 'w') as wf:
             wf.writelines(inference_cout)
         return  
 

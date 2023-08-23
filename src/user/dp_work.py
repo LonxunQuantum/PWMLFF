@@ -4,7 +4,7 @@ import json
 from src.user.model_param import DpParam
 from src.PWMLFF.dp_param_extract import extract_force_field
 from src.PWMLFF.dp_network import dp_network
-from utils.file_operation import delete_tree, copy_tree
+from utils.file_operation import delete_tree, copy_tree, copy_file
 '''
 description: do dp training
     step1. generate feature from MOVEMENTs
@@ -86,7 +86,8 @@ def post_process_train(target_dir, model_store_dir, forcefield_dir, train_dir):
 
 '''
 description: 
-    copy inference dir under work dir to target_dir
+    copy inference result under work dir to target_dir
+
 param {*} test_dir
 param {*} json_dir
 return {*}
@@ -95,5 +96,7 @@ author: wuxingxing
 def post_process_test(target_dir, test_dir):
     # copy inference result
     target_test_dir = os.path.join(target_dir, os.path.basename(test_dir))
-    copy_tree(test_dir, target_test_dir)
-
+    for file in os.listdir(test_dir):
+        if file.endswith(".txt") or file.endswith('.csv'):
+            copy_file(os.path.join(test_dir, file), os.path.join(target_test_dir, os.path.basename(file)))
+    

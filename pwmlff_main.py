@@ -14,8 +14,8 @@ if __name__ == "__main__":
         json_path = sys.argv[2]
         # cmd_type = "test".upper()
         
-        # os.chdir("/data/home/wuxingxing/datas/pwmat_mlff_workdir/lisi/ref_linear")
-        # json_path = "linear_lisi.json"
+        # os.chdir("/data/home/wuxingxing/datas/pwmat_mlff_workdir/cu/nn/nn_34")
+        # json_path = "nn_cu.json"
         json_file = json.load(open(json_path))
         model_type = get_required_parameter("model_type", json_file).upper()  # model type : dp or nn or linear
         

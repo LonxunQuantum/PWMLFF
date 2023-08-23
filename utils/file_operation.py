@@ -23,13 +23,12 @@ description: copy file from souce to target dir:
     if target_file is exist, replace it by source file
 param {*} source_file_path
 param {*} target_file_path
-param {*} target_dir
 return {*}
 author: wuxingxing
 '''
-def copy_file(source_file_path, target_file_path, target_dir):
-    if os.path.exists(target_dir) is False:
-        os.makedirs(target_dir)
+def copy_file(source_file_path, target_file_path):
+    if os.path.exists(os.path.dirname(target_file_path)) is False:
+        os.makedirs(os.path.dirname(target_file_path))
     if os.path.exists(target_file_path):
         os.remove(target_file_path)
     shutil.copy(source_file_path, target_file_path)
@@ -69,7 +68,7 @@ def copy_movements_to_work_dir(source_movement_paths, target_dir, trainSetDir, m
     for i, mvm in enumerate(source_movement_paths):
         mvm_dir = os.path.join(pwdata_work_dir, "{}_{}".format(os.path.basename(mvm), i))
         target_mvm = os.path.join(mvm_dir, movement_name)
-        copy_file(mvm, target_mvm, mvm_dir)
+        copy_file(mvm, target_mvm)
     return pwdata_work_dir
 
 '''

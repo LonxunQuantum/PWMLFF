@@ -104,8 +104,8 @@
         "nselect":24,
         "groupsize":6,
         
-        "batch_size": 4,
-        "epochs":4,
+        "batch_size": 1,
+        "epochs":30,
         "start_epoch":1,
 
         "print_freq":10,
@@ -131,8 +131,8 @@
         "weight_decay":1e-4,
         "momentum":0.9,
 
-        "batch_size": 4,
-        "epochs":5,
+        "batch_size": 1,
+        "epochs":30,
         "start_epoch":1,
         
         "print_freq":10,
