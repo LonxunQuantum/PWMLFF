@@ -1,5 +1,7 @@
+#!/usr/bin/env python
 import json
 import os, sys
+
 from src.user.dp_work import dp_train, gen_dp_feature, dp_test
 from src.user.nn_work import nn_train, gen_nn_feature, nn_test
 from src.user.linear_work import linear_train, linear_test
