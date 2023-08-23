@@ -120,7 +120,7 @@ class DpParam(object):
 
     def _set_file_paths(self, json_input:dict):
         json_dir = os.getcwd()
-        work_dir = os.path.abspath(get_parameter("work_dir", json_input, json_dir))
+        work_dir = os.path.abspath(get_parameter("work_dir", json_input, "work_dir"))
         reserve_work_dir = get_parameter("reserve_work_dir", json_input, False)
         file_paths = TrainFileStructure(json_dir=json_dir, work_dir=work_dir, reserve_work_dir=reserve_work_dir)
         # model paths
@@ -220,9 +220,8 @@ class DpParam(object):
         print_freq = get_parameter("print_freq", json_input, 10)
         # the start epoch could be reset at the resume model code block
         start_epoch = get_parameter("start_epoch", json_input, 1)
-        best_loss = get_parameter("best_loss", json_input, 1e10)    #may be not need
         optimizer_param = OptimizerParam(optimizer_type, start_epoch=start_epoch, epochs=epochs, batch_size=batch_size, \
-                                         print_freq=print_freq, best_loss=best_loss)
+                                         print_freq=print_freq)
 
         if "KF" in optimizer_param.opt_name.upper():  #set Kalman Filter Optimizer params
             kalman_lambda = get_parameter("kalman_lambda", json_input, 0.98)

@@ -12,7 +12,7 @@
     
     "train_movement_path":["MOVEMENT_2", "MOVEMENT_3"],
 
-    "forcefield_name": "forcefield_ff",
+    "forcefield_name": "forcefield.ff",
     "forcefield_dir": "forcefield",
     "_forcefield":"forcefield_name is the name of the forcefield file extracted from the model, forcefield_dir is the parent directory name of forcefield_name", 
 
@@ -41,14 +41,14 @@
             
             "network_size":[25, 25, 25],
             "bias":true,
-            "resnet_dt":true,
+            "resnet_dt":false,
             "activation":"tanh"
         },
         
         "fitting_net": {
             "network_size": [50, 50, 50, 1],
             "bias": true,
-            "resnet_dt": false,
+            "resnet_dt": true,
             "activation": "tanh"
         }
     },
@@ -66,7 +66,6 @@
         "start_epoch":1,
 
         "print_freq":10,
-        "best_loss":1e10,
 
         "train_energy":true,
         "train_force":true,
@@ -93,7 +92,6 @@
         "start_epoch":1,
         
         "print_freq":10,
-        "best_loss":1e10,
         "stop_lr":3.51e-8,
         "stop_step":1000000,
         "decay_step":5000,

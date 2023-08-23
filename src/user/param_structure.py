@@ -138,14 +138,13 @@ class ModelParam(object):
 
 class OptimizerParam(object):
     def __init__(self, optimizer:str, start_epoch:int, epochs:int, batch_size:int, \
-                 print_freq:int, best_loss:int) -> None:
+                 print_freq:int) -> None:
         self.opt_name = optimizer.upper()
         self.start_epoch = start_epoch
         self.epochs = epochs
         self.batch_size = batch_size
 
         self.print_freq = print_freq
-        self.best_loss=best_loss
 
     def set_kf_params(self, block_size:int, kalman_lambda:float, kalman_nue:float, \
                    nselect:int, groupsize:int):
@@ -250,7 +249,6 @@ class OptimizerParam(object):
         opt_dict["epochs"] = self.epochs
         opt_dict["batch_size"] = self.batch_size
         opt_dict["print_freq"] = self.print_freq
-        opt_dict["best_loss"] = self.best_loss
 
         opt_dict["train_energy"] = self.train_energy
         opt_dict["train_force"] = self.train_force

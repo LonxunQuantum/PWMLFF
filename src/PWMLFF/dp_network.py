@@ -102,7 +102,6 @@ class dp_network:
         return os.path.dirname(pwdata_work_dir)
 
     def load_and_train(self):
-        best_loss = self.dp_params.optimizer_param.best_loss
         if self.dp_params.seed is not None:
             random.seed(self.dp_params.seed)
             torch.manual_seed(self.dp_params.seed)
@@ -210,7 +209,6 @@ class dp_network:
                     checkpoint = torch.load(model_path, map_location=loc)
                 # start afresh
                 self.dp_params.optimizer_param.start_epoch = checkpoint["epoch"] + 1
-                best_loss = checkpoint["best_loss"]
                 model.load_state_dict(checkpoint["state_dict"])
                 if "optimizer" in checkpoint:
                     optimizer.load_state_dict(checkpoint["optimizer"])
@@ -423,10 +421,6 @@ class dp_network:
                 f_train_log.close()
                 f_valid_log.close()
             
-            # remember best loss and save checkpoint
-            is_best = vld_loss < best_loss
-            best_loss = min(loss, best_loss)
-            
             # should include dstd.npy and davg.npy 
             
             if not self.dp_params.hvd or (self.dp_params.hvd and hvd.rank() == 0):
@@ -435,14 +429,12 @@ class dp_network:
                         {
                         "epoch": epoch,
                         "state_dict": model.state_dict(),
-                        "best_loss": best_loss,
                         "davg":davg, 
                         "dstd":dstd, 
                         "energy_shift":ener_shift,
                         "atom_type_order": atom_map,    #atom type order of davg/dstd/energy_shift
                         "optimizer":optimizer.state_dict()
                         },
-                        is_best,
                         self.dp_params.file_paths.model_name,
                         self.dp_params.file_paths.model_store_dir,
                     )
@@ -451,13 +443,11 @@ class dp_network:
                         {
                         "epoch": epoch,
                         "state_dict": model.state_dict(),
-                        "best_loss": best_loss,
                         "davg":davg, 
                         "dstd":dstd, 
                         "energy_shift":ener_shift,
                         "atom_type_order": atom_map,    #atom type order of davg/dstd/energy_shift
                         },
-                        is_best,
                         self.dp_params.file_paths.model_name,
                         self.dp_params.file_paths.model_store_dir,
                     )

@@ -564,7 +564,6 @@ class nn_network:
         """ 
         iter = 0 
         iter_valid = 0 
-        best_loss = self.dp_params.optimizer_param.best_loss
 
         # set the log files
         iter_train_log = os.path.join(self.dp_params.file_paths.model_store_dir, "iter_loss.dat")
@@ -840,10 +839,6 @@ class nn_network:
             f_epoch_valid_log.write("%s\n" % (epoch_valid_log_line))
             f_epoch_valid_log.close()
 
-            
-            # remember best loss and save checkpoint
-            is_best = valid_loss < best_loss
-            best_loss = min(loss, best_loss)
             # save model
             if not self.dp_params.hvd or (self.dp_params.hvd and hvd.rank() == 0):
                 if self.dp_params.file_paths.save_p_matrix:
@@ -851,11 +846,9 @@ class nn_network:
                         {
                         "epoch": epoch,
                         "state_dict": self.model.state_dict(),
-                        "best_loss": best_loss,
                         "optimizer":self.optimizer.state_dict(),
                         "scaler": self.scaler
                         },
-                        is_best,
                         self.dp_params.file_paths.model_name,
                         self.dp_params.file_paths.model_store_dir,
                     )
@@ -864,10 +857,8 @@ class nn_network:
                         {
                         "epoch": epoch,
                         "state_dict": self.model.state_dict(),
-                        "best_loss": best_loss,
                         "scaler": self.scaler
                         },
-                        is_best,
                         self.dp_params.file_paths.model_name,
                         self.dp_params.file_paths.model_store_dir,
                     )
@@ -875,11 +866,9 @@ class nn_network:
             timeEpochEnd = time.time()
             print("time of epoch %d: %f s" %(epoch, timeEpochEnd - timeEpochStart))
 
-    def save_checkpoint(self, state, is_best, filename, prefix):
+    def save_checkpoint(self, state, filename, prefix):
         filename = os.path.join(prefix, filename)
         torch.save(state, filename)
-        if is_best:
-            shutil.copyfile(filename, os.path.join(prefix, "best.pth.tar"))
 
     def load_and_train(self):
         # transform data

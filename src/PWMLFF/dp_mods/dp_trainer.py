@@ -835,11 +835,9 @@ def predict(val_loader, model, criterion, device, args:DpParam):
     
     return res_pd, etot_label_list, etot_predict_list, ei_label_list, ei_predict_list, force_label_list, force_predict_list
 
-def save_checkpoint(state, is_best, filename, prefix):
+def save_checkpoint(state, filename, prefix):
     filename = os.path.join(prefix, filename)
     torch.save(state, filename)
-    if is_best:
-        shutil.copyfile(filename, os.path.join(prefix, "best.pth.tar"))
 
 class Summary(Enum):
     NONE = 0
