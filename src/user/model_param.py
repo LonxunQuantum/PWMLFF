@@ -109,6 +109,9 @@ class DpParam(object):
             test_feature_path = [os.path.abspath(_) for _ in test_feature_path]
             test_movement_path = [os.path.abspath(_) for _ in test_movement_path]
 
+            if os.path.exists(self.file_paths.model_load_path) is False:
+                raise Exception("the model_load_path is not exist: {}".format(self.file_paths.model_load_path))
+            
             self.file_paths._set_inference_paths(test_movement_path, test_dir)
         else:
             error_info = "error! The command {} does not exist and currently only includes the following commands:\
@@ -121,7 +124,7 @@ class DpParam(object):
         reserve_work_dir = get_parameter("reserve_work_dir", json_input, False)
         file_paths = TrainFileStructure(json_dir=json_dir, work_dir=work_dir, reserve_work_dir=reserve_work_dir)
         # model paths
-        model_load_path = get_parameter("model_load_path", json_input, "")
+        model_load_path = os.path.abspath(get_parameter("model_load_path", json_input, ""))
         # if self.recover_train is True and os.path.isfile(model_load_path):
         #     raise Exception("Error! The recover_train and model_load_path are simultaneously specified, please set recover_train to False or remove param model_load_path")
         
