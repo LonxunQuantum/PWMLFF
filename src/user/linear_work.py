@@ -3,7 +3,7 @@ import json
 
 from src.user.model_param import DpParam
 from src.PWMLFF.linear_regressor import linear_regressor
-from utils.file_operation import post_process_train, post_process_test, delete_tree, copy_tree
+from utils.file_operation import delete_tree, copy_tree
 
 '''
 description: do linear training
