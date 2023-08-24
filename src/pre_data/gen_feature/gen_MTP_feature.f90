@@ -1,17 +1,20 @@
 PROGRAM gen_MTP_feature
+   USE LeastSquaresSolver
+   USE CountsATOMS
    IMPLICIT NONE
    INTEGER :: ierr
    integer :: move_file=1101
-   real*8 AL(3,3),Etotp
-   real*8,allocatable,dimension (:,:) :: xatom,fatom
-   real*8,allocatable,dimension (:,:) :: xatom0
-   real*8,allocatable,dimension (:) :: Eatom
+   real(8) :: AL(3,3),Etotp,Ep
+   real(8),allocatable,dimension (:,:) :: xatom,fatom
+   real(8),allocatable,dimension (:,:) :: xatom0
+   real(8),allocatable,dimension (:) :: Eatom
+   real(8),allocatable,dimension (:) :: Ep_tmp
    integer,allocatable,dimension (:) :: iatom
-   logical nextline
+   logical :: nextline,found_atomic_energy
    character(len=200) :: the_line
-   integer num_step, natom, i, j
-   integer num_step0,num_step1,natom0,max_neigh
-   real*8 Etotp_ave,E_tolerance
+   integer :: num_step, natom, i, j
+   integer :: num_step0,num_step1,natom0,max_neigh,max_step
+   real(8) :: Etotp_ave,E_tolerance
    character(len=50) char_tmp(20)
    character(len=200) trainSetFileDir(5000)
    character(len=200) trainSetDir
@@ -62,14 +65,16 @@ PROGRAM gen_MTP_feature
 
    real*8 Rc_type(100), Rm_type(100)
 
-   integer, parameter :: n = 63  ! Total number of elements
+   integer,allocatable,dimension (:) :: iatom_type_num ! the number of atoms for each type
+
+   integer, parameter :: num_elems = 63  ! Total number of elements
 
    type dictionary_type
       integer :: order
       real :: atomic_E
    end type dictionary_type
 
-   type(dictionary_type), dimension(n) :: dictionary
+   type(dictionary_type), dimension(num_elems) :: dictionary
    integer :: o
 
 !cccccccccccccccccccccccccccccccccccccccccccccccc
@@ -100,10 +105,22 @@ PROGRAM gen_MTP_feature
    END INTERFACE
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+   !!> this part is for the least square solver
+   DOUBLE PRECISION, ALLOCATABLE :: A(:,:), B(:), X(:)
+   INTEGER :: M, N, NRHS, INFO
+   !!!> above is for the least square solver
+
    open(10,file="input/gen_MTP_feature.in",status="old",action="read")
    rewind(10)
    read(10,*) Rc_M,m_neigh
    read(10,*) ntype
+
+   !!>>
+   M = 1       ! A 的行数
+   N = ntype       ! A 的列数
+   NRHS = 1    ! B 的列数
+   allocate(A(M,N), B(M), X(N))
+   !!!>>
 
    do 100  itype=1,ntype
       read(10,*) iat_type(itype)
@@ -237,18 +254,7 @@ PROGRAM gen_MTP_feature
    trainDataDir=trim(trainSetDir)//"/trainData.txt.Ftype5"
    inquirepos1=trim(trainSetDir)//"/inquirepos5.txt"
 !cccccccccccccccccccccccccccccccccccccccc
-
-
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-
-!cccccccccccccccccccccccccccccccccccccccccccccccccccc
 !  FInish the initial grid treatment
-
 !cccccccccccccccccccccccccccccccccccccccccccccccccccc
 
    do 2333 sys=1,sys_num
@@ -263,6 +269,11 @@ PROGRAM gen_MTP_feature
 
       num_step0=0
       Etotp_ave=0.d0
+
+      ! First, check if "ATOMIC-ENERGY" exists anywhere in the file
+      CALL scan_title(move_file, "ATOMIC-ENERGY", if_find=found_atomic_energy)
+      rewind(move_file)
+
 1001  continue
       call scan_title (move_file,"ITERATION",if_find=nextline)
       if(.not.nextline) goto 1002
@@ -275,21 +286,25 @@ PROGRAM gen_MTP_feature
       endif
       natom=natom0
 
-      CALL scan_title (move_file, "ATOMIC-ENERGY",if_find=nextline)
-      if(.not.nextline) then
-         write(6,*) "Atomic-energy not found, stop",num_step0
-         stop
+      if (found_atomic_energy) then
+         call scan_title (move_file, "ATOMIC-ENERGY",if_find=nextline)
+         if(nextline) then
+            backspace(move_file)
+            read(move_file,*) char_tmp(1:4),Etotp
+            Etotp_ave=Etotp_ave+Etotp
+         endif
       endif
-
-      backspace(move_file)
-      read(move_file,*) char_tmp(1:4),Etotp
-      Etotp_ave=Etotp_ave+Etotp
       goto 1001
 1002  continue
       close(move_file)
 
-      Etotp_ave=Etotp_ave/num_step0
-      write(6,*) "num_step,natom,Etotp_ave=",num_step0,natom,Etotp_ave
+      if (found_atomic_energy) then
+         Etotp_ave=Etotp_ave/num_step0
+         write(6,*) "num_step,natom,Etotp_ave=",num_step0,natom,Etotp_ave
+      else
+         write(6,*) "Atomic-energy not found, skipping"
+         write(6,*) "num_step,natom=",num_step0,natom
+      endif
 !cccccccccccccccccccccccccccccccccccccccccccccccccccc
       ALLOCATE (iatom(natom),xatom(3,natom),fatom(3,natom),Eatom(natom))
 !cccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -297,29 +312,46 @@ PROGRAM gen_MTP_feature
       rewind(move_file)
 
       num_step1=0
+
+      ! First, check if "ATOMIC-ENERGY" exists anywhere in the file
+      CALL scan_title(move_file, "ATOMIC-ENERGY", if_find=found_atomic_energy)
+      rewind(move_file)
+
 1003  continue
       call scan_title (move_file,"ITERATION",if_find=nextline)
       if(.not.nextline) goto 1004
+      num_step1=num_step1+1
 
       CALL scan_title (move_file, "POSITION")
       DO j = 1, natom
          READ(move_file, *) iatom(j),xatom(1,j),xatom(2,j),xatom(3,j)
       ENDDO
 
-      CALL scan_title (move_file, "ATOMIC-ENERGY",if_find=nextline)
-
-      backspace(move_file)
-      read(move_file,*) char_tmp(1:4),Etotp
-
-      if(abs(Etotp-Etotp_ave).le.E_tolerance) then
-         num_step1=num_step1+1
+      if (found_atomic_energy) then
+         call scan_title(move_file, "ATOMIC-ENERGY",if_find=nextline)
+         if (nextline) then
+            backspace(move_file)
+            read(move_file,*) char_tmp(1:4),Etotp
+            if(abs(Etotp-Etotp_ave).gt.E_tolerance) then
+               write(6,*) "Etotp-Etotp_ave > E_tolerance, stop", num_step1
+               stop
+            endif
+         endif
       endif
+
       goto 1003
+
 1004  continue
       close(move_file)
 
       write(6,*) "nstep0,nstep1(used)",num_step0,num_step1
+      max_step = max(num_step0,num_step1)
 
+      allocate(Ep_tmp(max_step))
+      !!> we need to counts the elements with atom type first
+      allocate(iatom_type_num(ntype))
+      call num_elem_type(natom,ntype,iatom,max_step,iat_type,iatom_type_num)
+      write(6,*) "iatom_type_num=",iatom_type_num
 !cccccccccccccccccccccccccccccccccccccccccccccccccccc
 !cccccccccccccccccccccccccccccccccccccccccccccccccccc
       open(333,file=infoDir)
@@ -347,6 +379,11 @@ PROGRAM gen_MTP_feature
       max_neigh=-1
       num_step=0
       num_step1=0
+
+      ! First, check if "ATOMIC-ENERGY" exists anywhere in the file
+      CALL scan_title(move_file, "ATOMIC-ENERGY", if_find=found_atomic_energy)
+      rewind(move_file)
+
 1000  continue
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -356,7 +393,13 @@ PROGRAM gen_MTP_feature
       num_step=num_step+1
 
       backspace(move_file)
-      read(move_file, *) natom
+      read(move_file, *) natom,char_tmp(2:12),Ep
+      if (num_step.gt.0) then
+         Ep_tmp(num_step)=Ep
+      endif
+      open(2233, file='./PWdata/Etot.dat', access='append')
+      write(2233,"(E18.10)") Ep
+      close(2233)
       ALLOCATE (iatom(natom),xatom(3,natom),fatom(3,natom),Eatom(natom))
 
       CALL scan_title (move_file, "LATTICE")
@@ -393,35 +436,66 @@ PROGRAM gen_MTP_feature
 
       !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
-      CALL scan_title (move_file, "ATOMIC-ENERGY",if_find=nextline)
-      if(.not.nextline) then
-         write(6,*) "Atomic-energy not found, stop",num_step
-         stop
-      endif
+      !!> here start the least square solver
 
-      backspace(move_file)
-      read(move_file,*) char_tmp(1:4),Etotp
+      ! A(1,1) = 1.D0
+      ! A(1,2) = 2.D0
+      ! A(1,3) = 6.D0
+      ! B(1) = -0.8409734170E+03
 
-      DO j = 1, natom
-         READ(move_file, *) iatom(j),Eatom(j)
-         do o = 1, n
-            if (iatom(j) == dictionary(o)%order) then
-               if (Eatom(j) > 0) then
-                  Eatom(j) = dictionary(o)%atomic_E + Eatom(j)
-               else
-                  exit
-               end if
-            end if
-         end do
-      ENDDO
+      B(1) = Ep_tmp(num_step)
+      DO i = 1, ntype
+         A(1,i) = iatom_type_num(i)
+      END DO
+      CALL SolveLeastSquares(A, B, X, M, N, NRHS, INFO)
 
-      write(6,"('num_step',2(i4,1x),2(E15.7,1x),i5)") num_step,natom,Etotp,Etotp-Etotp_ave,max_neigh
+      IF (INFO == 0) THEN
+         ! Do not display output
+         ! PRINT *, "Ei, calcualted by SolveLeastSquares: ", X
+      ELSE
+         PRINT *, "Error in dgels, INFO = ", INFO
+      END IF
+      !!!> above is for the least square solver
 
-      if(abs(Etotp-Etotp_ave).gt.E_tolerance) then
-         write(6,*) "escape this step, dE too large"
-         write(333,*) num_step
-         deallocate(iatom,xatom,fatom,Eatom)
-         goto 1000
+      if (found_atomic_energy) then
+         call scan_title (move_file, "ATOMIC-ENERGY",if_find=nextline)
+         if(nextline) then
+            backspace(move_file)
+            read(move_file,*) char_tmp(1:4),Etotp
+
+            do j = 1, natom
+               read(move_file, *) iatom(j),Eatom(j)
+               do o = 1, num_elems
+                  if (iatom(j) == dictionary(o)%order) then
+                     if (Eatom(j) > 0) then
+                        Eatom(j) = dictionary(o)%atomic_E + Eatom(j)
+                     else
+                        exit
+                     endif
+                  endif
+               enddo
+            enddo
+
+            write(6,"('num_step',2(i4,1x),2(E15.7,1x),i5)") num_step,natom,Etotp,Etotp-Etotp_ave,max_neigh
+
+            if(abs(Etotp-Etotp_ave).gt.E_tolerance) then
+               write(6,*) "escape this step, dE too large"
+               write(333,*) num_step
+               deallocate(iatom,xatom,fatom,Eatom)
+               goto 1000
+            endif
+         endif
+      else
+         Etotp = 0.d0
+         do i = 1, natom
+            do j = 1, ntype
+               if (iatom(i) == iat_type(j)) then
+                  Eatom(i) = X(j)
+               endif
+            enddo
+            Etotp = Etotp + Eatom(i)
+         enddo
+         write(6,"('num_step,natom',2(i4,1x),1(E18.10,1x))") num_step,natom,Etotp
       endif
 
       num_step1=num_step1+1
@@ -602,7 +676,7 @@ PROGRAM gen_MTP_feature
 
       open(55,file=trainDataDir,position="append")
       do i=1,natom
-         write(55,"(i5,',',i3,',',E22.16,',', i3,<nfeat0m>(',',E23.16))")  &
+         write(55,"(i5,',',i3,',',E18.10,',', i3,<nfeat0m>(',',E23.16))")  &
             i,iatom(i),Eatom(i),nfeat_atom(i),(feat(j,i),j=1,nfeat_atom(i))
       enddo
       close(55)
@@ -648,9 +722,10 @@ PROGRAM gen_MTP_feature
       !   write(333,*) "num_step1,num_step0",num_step1,num_step0
       close(333)
       close(25)
-
+      deallocate(A, B, X)
+      deallocate(iatom_type_num)
+      deallocate(Ep_tmp)
 
 2333 continue
-
    stop
 end

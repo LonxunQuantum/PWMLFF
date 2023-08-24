@@ -5,10 +5,10 @@ PROGRAM gen_dR
    real*8,allocatable,dimension (:,:) :: xatom,fatom
    real*8,allocatable,dimension (:) :: Eatom
    integer,allocatable,dimension (:) :: iatom
-   logical nextline
-   integer num_step, natom, i, j, k
-   integer num_step0,num_step1,natom0,max_neigh
-   real*8 Etotp_ave,E_tolerance
+   logical :: nextline,found_atomic_energy
+   integer :: num_step, natom, i, j, k
+   integer :: num_step0,num_step1,natom0,max_neigh
+   real(8) :: Etotp_ave,E_tolerance
    character(len=50) char_tmp(20)
    character(len=200) trainSetFileDir(5000)
    character(len=200) trainSetDir
@@ -31,14 +31,14 @@ PROGRAM gen_dR
 
    real*8 Rc_type(100), Rc2_type(100), Rm_type(100),weight_rterm(100)
 
-   integer, parameter :: n = 63  ! Total number of elements
+   integer, parameter :: num_elems = 63  ! Total number of elements
 
    type dictionary_type
       integer :: order
       real :: atomic_E
    end type dictionary_type
 
-   type(dictionary_type), dimension(n) :: dictionary
+   type(dictionary_type), dimension(num_elems) :: dictionary
    integer :: o
 
    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -87,6 +87,11 @@ PROGRAM gen_dR
 
       num_step0=0
       Etotp_ave=0.d0
+
+      ! First, check if "ATOMIC-ENERGY" exists anywhere in the file
+      CALL scan_title(move_file, "ATOMIC-ENERGY", if_find=found_atomic_energy)
+      rewind(move_file)
+
 1001  continue
       call scan_title (move_file,"ITERATION",if_find=nextline)
       if(.not.nextline) goto 1002
@@ -99,21 +104,25 @@ PROGRAM gen_dR
       endif
       natom=natom0
 
-      CALL scan_title (move_file, "ATOMIC-ENERGY",if_find=nextline)
-      if(.not.nextline) then
-         write(6,*) "Atomic-energy not found, stop",num_step0
-         stop
+      if (found_atomic_energy) then
+         call scan_title (move_file, "ATOMIC-ENERGY",if_find=nextline)
+         if(nextline) then
+            backspace(move_file)
+            read(move_file,*) char_tmp(1:4),Etotp
+            Etotp_ave=Etotp_ave+Etotp
+         endif
       endif
-
-      backspace(move_file)
-      read(move_file,*) char_tmp(1:4),Etotp
-      Etotp_ave=Etotp_ave+Etotp
       goto 1001
 1002  continue
       close(move_file)
 
-      Etotp_ave=Etotp_ave/num_step0
-      write(6,*) "num_step,natom,Etotp_ave=",num_step0,natom,Etotp_ave
+      if (found_atomic_energy) then
+         Etotp_ave=Etotp_ave/num_step0
+         write(6,*) "num_step,natom,Etotp_ave=",num_step0,natom,Etotp_ave
+      else
+         write(6,*) "Atomic-energy not found, skipping"
+         write(6,*) "num_step,natom=",num_step0,natom
+      endif
       !cccccccccccccccccccccccccccccccccccccccccccccccccccc
       ALLOCATE (iatom(natom),xatom(3,natom),fatom(3,natom),Eatom(natom))
       !cccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -121,24 +130,35 @@ PROGRAM gen_dR
       rewind(move_file)
 
       num_step1=0
+
+      ! First, check if "ATOMIC-ENERGY" exists anywhere in the file
+      CALL scan_title(move_file, "ATOMIC-ENERGY", if_find=found_atomic_energy)
+      rewind(move_file)
+
 1003  continue
       call scan_title (move_file,"ITERATION",if_find=nextline)
       if(.not.nextline) goto 1004
+      num_step1=num_step1+1
 
       CALL scan_title (move_file, "POSITION")
       DO j = 1, natom
          READ(move_file, *) iatom(j),xatom(1,j),xatom(2,j),xatom(3,j)
       ENDDO
 
-      CALL scan_title (move_file, "ATOMIC-ENERGY",if_find=nextline)
-
-      backspace(move_file)
-      read(move_file,*) char_tmp(1:4),Etotp
-
-      if(abs(Etotp-Etotp_ave).le.E_tolerance) then
-         num_step1=num_step1+1
+      if (found_atomic_energy) then
+         call scan_title(move_file, "ATOMIC-ENERGY",if_find=nextline)
+         if (nextline) then
+            backspace(move_file)
+            read(move_file,*) char_tmp(1:4),Etotp
+            if(abs(Etotp-Etotp_ave).gt.E_tolerance) then
+               write(6,*) "Etotp-Etotp_ave > E_tolerance, stop", num_step1
+               stop
+            endif
+         endif
       endif
+
       goto 1003
+
 1004  continue
       close(move_file)
 
@@ -153,6 +173,11 @@ PROGRAM gen_dR
       max_neigh=-1
       num_step=0
       num_step1=0
+
+      ! First, check if "ATOMIC-ENERGY" exists anywhere in the file
+      CALL scan_title(move_file, "ATOMIC-ENERGY", if_find=found_atomic_energy)
+      rewind(move_file)
+
 1000  continue
 
       !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -186,11 +211,14 @@ PROGRAM gen_dR
       endif
 
       open(1315, file='./PWdata/Force.dat', access='append')
+      open(1320, file='./PWdata/AtomType.dat', access='append')
       DO j = 1, natom
          READ(move_file, *) iatom(j),fatom(1,j),fatom(2,j),fatom(3,j)
          write(1315, "(3(F24.15, 1x))") fatom(1,j),fatom(2,j),fatom(3,j)
+         write(1320, "(I6)") iatom(j)
       ENDDO
       close(1315)
+      close(1320)
 
       !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       ! Initializes the element's Ei dictionary
@@ -207,43 +235,44 @@ PROGRAM gen_dR
 
       !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
-      CALL scan_title (move_file, "ATOMIC-ENERGY",if_find=nextline)
-      if(.not.nextline) then
-         write(6,*) "Atomic-energy not found, stop",num_step
-         stop
-      endif
+      if (found_atomic_energy) then
+         CALL scan_title (move_file, "ATOMIC-ENERGY",if_find=nextline)
+         if(nextline) then
+            backspace(move_file)
+            read(move_file,*) char_tmp(1:4),Etotp
 
-      backspace(move_file)
-      read(move_file,*) char_tmp(1:4),Etotp
+            open(1316, file='./PWdata/Ei.dat', access='append')
+            ! open(1320, file='./PWdata/AtomType.dat', access='append')
 
-      open(1316, file='./PWdata/Ei.dat', access='append')
-      open(1320, file='./PWdata/AtomType.dat', access='append')
+            DO j = 1, natom
+               READ(move_file, *) iatom(j),Eatom(j)
+               do o = 1, num_elems
+                  if (iatom(j) == dictionary(o)%order) then
+                     if (Eatom(j) > 0) then
+                        Eatom(j) = dictionary(o)%atomic_E + Eatom(j)
+                     else
+                        exit
+                     endif
+                  endif
+               enddo
+               write(1316, "(E20.10)") Eatom(j)
+               ! write(1320, "(I6)") iatom(j)
+            ENDDO
 
-      DO j = 1, natom
-         READ(move_file, *) iatom(j),Eatom(j)
-         do o = 1, n
-            if (iatom(j) == dictionary(o)%order) then
-               if (Eatom(j) > 0) then
-                  Eatom(j) = dictionary(o)%atomic_E + Eatom(j)
-               else
-                  exit
-               end if
-            end if
-         end do
-         write(1316, "(E20.10)") Eatom(j)
-         write(1320, "(I6)") iatom(j)
-      ENDDO
+            close(1316)
+            ! close(1320)
 
-      close(1316)
-      close(1320)
+            write(6,"('num_step',2(i4,1x),2(E15.7,1x),i5)") num_step,natom,Etotp,Etotp-Etotp_ave,max_neigh
 
-      write(6,"('num_step',2(i4,1x),2(E15.7,1x),i5)") num_step,natom,Etotp,Etotp-Etotp_ave,max_neigh
-
-      if(abs(Etotp-Etotp_ave).gt.E_tolerance) then
-         write(6,*) "escape this step, dE too large"
-         write(333,*) num_step
-         deallocate(iatom,xatom,fatom,Eatom)
-         goto 1000
+            if(abs(Etotp-Etotp_ave).gt.E_tolerance) then
+               write(6,*) "escape this step, dE too large"
+               write(333,*) num_step
+               deallocate(iatom,xatom,fatom,Eatom)
+               goto 1000
+            endif
+         endif
+      else
+         write(6,"('num_step,natom',2(i4,1x))") num_step,natom
       endif
 
       num_step1=num_step1+1
