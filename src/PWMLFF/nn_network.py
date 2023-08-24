@@ -1,7 +1,3 @@
-"""
-    module for Deep Neural Network 
-    2022.8
-"""
 import os,sys
 import shutil
 import subprocess
@@ -22,8 +18,8 @@ sys.path.append(codepath+'/../lib')
 sys.path.append(codepath+'/../..')
 
 import torch
+import horovod.torch as hvd
 
-import random
 import time
 import numpy as np
 import pandas as pd
@@ -39,379 +35,167 @@ from optimizer.KFWrapper import KFOptimizerWrapper
 from sklearn.preprocessing import MinMaxScaler
 from joblib import dump, load
 
-# src/aux 
-from src.aux.opts import opt_values 
-from src.aux.feat_modifier import feat_modifier
-
 import pickle
 
-"""
-    customized modules 
-"""
-
 from model.MLFF import MLFFNet
-
-# from optimizer.kalmanfilter import GKalmanFilter, LKalmanFilter, SKalmanFilter
-from optimizer.GKF import GKFOptimizer
-from optimizer.LKF import LKFOptimizer
-
 import default_para as pm
 
 # get_torch_data for nn single system training
 from src.pre_data.data_loader_2type import get_torch_data
 #get_torch_data_hybrid for nn multi hybrid systems training
-from pre_data.data_loader_2type_nn_hybrid import MovementHybridDataset, get_torch_data_hybrid
-
+from src.pre_data.data_loader_2type_nn_hybrid import MovementHybridDataset, get_torch_data_hybrid
 from src.pre_data.dfeat_sparse import dfeat_raw 
+from src.pre_data.nn_mlff_hybrid import get_cluster_dirs, make_work_dir, mv_featrues, copy_file
 
-from pre_data.nn_mlff_hybrid import get_cluster_dirs, make_work_dir, mv_featrues, mv_file
-
+from src.PWMLFF.nn_param_extract import load_scaler_from_checkpoint
 from utils.file_operation import write_line_to_file
+from src.user.model_param import DpParam
+
+# from optimizer.kalmanfilter import GKalmanFilter, LKalmanFilter, SKalmanFilter
+from src.optimizer.GKF import GKFOptimizer
+from src.optimizer.LKF import LKFOptimizer
+
+"""
+    class that wraps the training model and the data
+    network/network parameters 
+    training/validation data
+    training method 
+    Using default_para is purely a legacy problem
+"""  
 class nn_network:
-    
-    """
-        class that wraps the training model and the data
-
-        network/network parameters 
-        training/validation data
-        training method 
-        
-        Using default_para is purely a legacy problem
-
-    """        
-
-    def __init__(   self,
-                    # some must-haves
-                    # model related argument
-                    nn_layer_config = None,
-                    atom_type = None, 
-                    num_feature = None, 
-                    feature_type = None, 
-                    # data related arguments    
-                    scale = True,
-                    store_scaler = True,
-                    device = "cpu", 
-                    # optimizer related arguments 
-                    
-                    # Rcuts 
-                    Rmax = 5.0,
-                    Rmin = 0.5, 
-                
-                    max_neigh_num = 100, 
-                    precision = "float64", 
-                    kalman_type = "GKF",      # or: "LKF", "layerwise", "selected"  
-                    session_dir = "record",  # directory that saves the model
-                    
-                    # for force update
-                    nselect = 24,
-                    distributed = False, 
-                    group_size = 6,
-                    
-                    # for LKF
-                    block_size = 5120, 
-                    # training label related arguments
-
-                    batch_size = 1, 
-                    is_movement_weighted = False,
-                    is_dfeat_sparse = True,
-
-                    n_epoch = None, 
-                    
-                    recover = False,
-                    
-                    is_trainEtot = True,
-                    is_trainForce = True, 
-                    is_trainEi = False,
-                    is_trainEgroup = False,
-                    is_trainViral = False,  #not realilzed
-
-                    kf_prefac_etot = 1.0,
-                    kf_prefac_force = 2.0,
-                    kf_prefac_Ei = 1.0,
-                    kf_prefac_Egroup = 0.1,
-                    kf_prefac_virial = 1.0, 
-
-                    # custom feature parameters
-                    custom_feat_1 = None, 
-                    custom_feat_2 = None, 
-                    custom_feat_7 = None, 
-
-                    dbg = False, 
-                    hybrid = False,
-                    inference = False
-                ):
+    def __init__(self, dp_params: DpParam):
         self.workers = 1
-        """
-            Global parameters of the class.  
-            Some member data are only "declared" here, and assignment requires further operations 
-            Frequently used control parameter can be reset by class.set_xx() functions
-        """
+        # Global parameters of the class.  
+        # Some member data are only "declared" here, and assignment requires further operations 
+        # Frequently used control parameter can be reset by class.set_xx() functions
         
-        """
-            Frequently-used control parameters that are directly passed in as arguments:        
-        """     
-        
-        # for hybrid training
-        self.hybrid = hybrid
-        self.inference = inference
-        if self.inference is True:
-            # pm.test_ratio = 0
-            store_scaler = False
-            batch_size = 1
-            recover = True
-
+        # Frequently-used control parameters that are directly passed in as arguments:        
         # initializing the opt class 
-        self.opts = opt_values() 
-        self.dbg = dbg
-
+        # self.opts = opt_values()
+        self.dp_params = dp_params
         # passing some input arguments to default_para.py
         # at the end of the day, one no longer needs parameters.py
-
-        pm.atomType = atom_type
-        self.atom_type = atom_type
-        # scaling options. 
-        pm.is_scale = scale 
-        pm.storage_scaler = store_scaler
-
-        # recover training. Need to load both scaler and model 
-        pm.use_storage_scaler = recover  
-        self.opts.opt_recover_mode = recover
-
-        pm.maxNeighborNum = max_neigh_num 
-        
-        # setting NN network configuration 
-        if nn_layer_config == None: 
-            #node of each layer
-            pm.nodeDim = [15,15,1]
-            #raise Exception("network configuration of NN is missing")
-        else:
-            #node of each layer
-            pm.nodeDim = nn_layer_config
-        
-        if atom_type == None:
-            raise Exception("atom types not specifed")
-
+        pm.atomType = self.dp_params.atom_type
+        self.atom_type = self.dp_params.atom_type
+        pm.maxNeighborNum = self.dp_params.max_neigh_num 
+        pm.nodeDim = self.dp_params.model_param.fitting_net.network_size
         pm.atomTypeNum = len(pm.atomType)       #this step is important. Unexpected error
         pm.ntypes = len(pm.atomType)
-        
         #number of layer
-        pm.nLayer = len(pm.nodeDim)    
-        # passing working_dir to opts.session_name 
-        self.set_session_dir(session_dir)
-
+        pm.nLayer = len(pm.nodeDim)
         # pm.is_dfeat_sparse is True as default
-        if not is_dfeat_sparse:
-            pm.is_dfeat_sparse = False 
-
+        pm.is_dfeat_sparse = self.dp_params.is_dfeat_sparse 
         # network for each type of element
         tmp = []
-        
         for layer in range(pm.nLayer):
             tmp_layer = [pm.nodeDim[layer] for atom in pm.atomType]
             tmp.append(tmp_layer.copy()) 
-
         pm.nNodes = np.array(tmp) 
-        
-        ########################
         # feature set feature type 
-        pm.use_Ftype = sorted(feature_type)
+        pm.use_Ftype = sorted(self.dp_params.descriptor.feature_type)
+        for ftype  in pm.use_Ftype:
+            ftype_key = "{}".format(ftype)
+            if ftype_key == '1':
+                pm.Ftype1_para = self.dp_params.descriptor.feature_dict[ftype_key]
+            elif ftype_key == '2':
+                pm.Ftype2_para = self.dp_params.descriptor.feature_dict[ftype_key]
+            elif ftype_key == '3':
+                pm.Ftype3_para = self.dp_params.descriptor.feature_dict[ftype_key]
+            elif ftype_key == '4':
+                pm.Ftype4_para = self.dp_params.descriptor.feature_dict[ftype_key]
+            elif ftype_key == '5':
+                pm.Ftype5_para = self.dp_params.descriptor.feature_dict[ftype_key]
+            elif ftype_key == '6':
+                pm.Ftype6_para = self.dp_params.descriptor.feature_dict[ftype_key]
+            elif ftype_key == '7':
+                pm.Ftype7_para = self.dp_params.descriptor.feature_dict[ftype_key]
+            elif ftype_key == '8':
+                pm.Ftype8_para = self.dp_params.descriptor.feature_dict[ftype_key]
 
         # update nfeat_type 
         pm.nfeat_type = len(pm.use_Ftype)
-        
-        self.feat_mod = feat_modifier()     
-        
-        """
-            usage:
-            traienr.f_mdfr.set_feat1_xxxx([])
-        """ 
-        
-        # set final layer bias for NN. 
-        # ##################################
-        #        UNDER CONSTRUCTION 
-        # pm.itype_Ei_mean = self.get_b_init()   
-        
-        # label to be trained 
-        self.is_trainForce = is_trainForce
-        self.is_trainEi = is_trainEi
-        self.is_trainEgroup = is_trainEgroup
-        self.is_trainEtot = is_trainEtot
-        self.is_trainViral = is_trainViral # not relized
-        #prefactors in kfnn
-        self.kf_prefac_Etot = kf_prefac_etot
-        self.kf_prefac_Ei = kf_prefac_Ei
-        self.kf_prefac_F  = kf_prefac_force
-        self.kf_prefac_Egroup  = kf_prefac_Egroup
-        self.kf_prefac_virial = kf_prefac_virial
-        
-        # decay rate of kf prefactor
-        #self.kf_decay_rate = kf_decay_rate
+        # self.feat_mod = feat_modifier() 
 
-        # set the kind of KF
-        self.kalman_type = kalman_type 
-
-        # parameters for KF
-        self.kalman_lambda = 0.98                    
-        self.kalman_nue =  0.99870
-
-        self.precision = precision
-        
-        # set feature precision 
-        pm.feature_dtype = self.precision
-        
+        pm.feature_dtype = self.dp_params.precision
         # set training precision. Overarching 
-        if (self.precision == 'float64'):
+        if (self.dp_params.precision == 'float64'):
             print("Training: set default dtype to double")
             torch.set_default_dtype(torch.float64)
-
-        elif (self.precision == 'float32'):
+        elif (self.dp_params.precision == 'float32'):
             print("Training: set default dtype to single")
             torch.set_default_dtype(torch.float32)
-
         else:
-            #self.opts.error("Training: unsupported dtype: %s" %self.opts.opt_dtype)
-            raise RuntimeError("Training: unsupported dtype: %s" %self.opts.opt_dtype)  
+            raise RuntimeError("Training: unsupported dtype: %s" %self.dp_params.precision)  
+
+        if self.dp_params.hvd:
+            hvd.init()
+            self.dp_params.gpu = hvd.local_rank()
 
         # set training device
-        self.device = None 
-
-        if device == "cpu":
-            self.device = torch.device('cpu')
-        elif device == "cuda":
-            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        if torch.cuda.is_available():
+            if self.dp_params.gpu:
+                print("Use GPU: {} for training".format(self.dp_params.gpu))
+                self.device = torch.device("cuda:{}".format(self.dp_params.gpu))
+            else:
+                self.device = torch.device("cuda")
         else:
-            raise Exception("device type not supported")
-        
-        print ("device used",self.device)
+            self.device = torch.device("cpu")
 
+        print ("device used",self.device)
         # set random seed
-        torch.manual_seed(self.opts.opt_rseed)
-        torch.cuda.manual_seed(self.opts.opt_rseed)
-        
+        if self.dp_params.seed is not None:
+            torch.manual_seed(self.dp_params.seed)
+            torch.cuda.manual_seed(self.dp_params.seed)
         # set print precision
         torch.set_printoptions(precision = 12)
-        
-        self.patience = 100000 
-        # movement-wise weight in training
-        self.is_movement_weighted = is_movement_weighted 
-        self.movement_weights = None
-        self.movement_idx = [] 
 
-        if self.is_movement_weighted: 
-            self.set_movement_weights() 
-        else:
-            self.movement_weights = {} 
-        
-        # common training parameters 
-        if n_epoch is None:
-            self.n_epoch = 25
-        else:
-            self.n_epoch = n_epoch
-        
-        self.batch_size = batch_size
-        
-        self.min_loss = np.inf
-        self.epoch_print = 1 
-        self.iter_print = 1 
-        
-        """
-            for torch built-in optimizers and schedulers 
-        """
-        self.momentum = self.opts.opt_momentum
-        self.REGULAR_wd = self.opts.opt_regular_wd
-        self.LR_base = self.opts.opt_lr
-        self.LR_gamma = self.opts.opt_gamma
-        self.LR_step = self.opts.opt_step
-        
-        """
-        if (self.opts.opt_follow_mode == True):
-            self.opts.opt_model_file = self.opts.opt_model_dir+self.opts.opt_net_cfg+'.pt'
-        """ 
-
-        """
-            training data. 
-            Below are placeholders
-        """ 
         # anything other than dfeat
         self.loader_train = None
         self.loader_valid = None
 
         #sparse dfeat from fortran 
         self.dfeat = None 
-        #self.dfeat_train = None
-        #self.dfeat_valid = None
-        #
         self.scaler = None
 
-        """   
-            models 
-        """
         self.optimizer = None 
         self.model = None
         self.scheduler = None
 
-        # starting epoch 
-        self.start_epoch = 1
-
-        # path for loading previous model 
-        self.load_model_path = self.opts.opt_model_dir+'latest.pt' 
-
-        self.nselect = nselect 
-        self.distributed = distributed
-        self.group_size = group_size
-        
-        self.block_size = block_size 
-        
         # R cut for feature 
-        pm.Rc_M = Rmax
-        pm.Rc_min = Rmin
+        pm.Rc_M = self.dp_params.descriptor.Rmax
+        pm.Rc_min = self.dp_params.descriptor.Rmin
 
-        # load custom feature 
-        if custom_feat_7 is not None:
-            pm.Ftype7_para = custom_feat_7.copy()
-        
-        if custom_feat_1 is not None: 
-            pm.Ftype1_para = custom_feat_1.copy()
-        
-        if custom_feat_2 is not None:
-            pm.Ftype2_para = custom_feat_2.copy()
+        # # load custom feature 
+        # if custom_feat_7 is not None:
+        #     pm.Ftype7_para = custom_feat_7.copy()
+        # if custom_feat_1 is not None: 
+        #     pm.Ftype1_para = custom_feat_1.copy()
+        # if custom_feat_2 is not None:
+        #     pm.Ftype2_para = custom_feat_2.copy()
             
-            
-    def generate_data(self,chunk_size=1, shuffle=False):
-        if self.hybrid:
-            self.do_hybord_feat_generate(chunk_size=1, shuffle=False)
+    def generate_data(self, chunk_size=1, shuffle=False):
+        if self.dp_params.inference:
+            gen_feature_data = self.dp_params.file_paths.test_dir
+            movement_path = self.dp_params.file_paths.test_movement_path
         else:
-            self.generate_data_single(chunk_size=chunk_size, shuffle=shuffle)
-
-    def do_hybord_feat_generate(self, chunk_size=10, shuffle=True):
-        root_dir = os.getcwd()
-        tmp_work_dir = os.path.join(root_dir, "PWdata/tmp_gen_feat_dir")
-        final_data_dir = os.path.join(root_dir, "train_data")
-
-        if os.path.exists(tmp_work_dir) is True:
-            shutil.rmtree(tmp_work_dir)
-        if os.path.exists(final_data_dir) is True:
-            shutil.rmtree(final_data_dir)
-
-        # 对所有的MOVEMENT文件根据元素类型、原子数进行分类
-        work_dir_list = get_cluster_dirs(root_dir)
-        # 对同类型的MOVEMENT 构建临时目录，用于生成该类型的MOVEMENT的feature
-        sub_work_dir = make_work_dir(tmp_work_dir, work_dir_list)
+            gen_feature_data = self.dp_params.file_paths.train_dir
+            movement_path = self.dp_params.file_paths.train_movement_path
+            
+        if os.path.exists(gen_feature_data) is True: # work_dir/feature dir
+            shutil.rmtree(gen_feature_data)
+        # classify all MOVEMENT files based on atom type and atom type nums
+        work_dir_list = get_cluster_dirs(movement_path)
+        # copy the movement files to the working path by cluster result
+        sub_work_dir = make_work_dir(gen_feature_data, 
+                                    self.dp_params.file_paths.trainSetDir, #'PWdata'
+                                    self.dp_params.file_paths.movement_name, #"MOVEMENT"
+                                    work_dir_list)
+        
         for index, sub_dir in enumerate(sub_work_dir):
             os.chdir(sub_dir)
             # reset pm parameters
             atom_type = work_dir_list[os.path.basename(sub_dir)]['types']
             self._reset_pm_params(sub_dir, atom_type)
-
-            # clean old .dat files otherwise will be appended 
-            if os.path.exists("PWdata/MOVEMENTall"):
-                print ("cleaning old data")
-                subprocess.run([
-                    "rm -rf fread_dfeat output input train_data plot_data PWdata/*.txt PWdata/trainData.* PWdata/location PWdata/Egroup_weight PWdata/MOVEMENTall"
-                    ],shell=True)
-                subprocess.run(["find PWdata/ -name 'dfeat*' | xargs rm -rf"],shell=True)
-                subprocess.run(["find PWdata/ -name 'info*' | xargs rm -rf"],shell=True)
-
             # calculating feature 
             from src.pre_data.mlff import calc_feat
             calc_feat()
@@ -421,24 +205,24 @@ class nn_network:
             # save as .npy
             import src.pre_data.gen_data as gen_data
             gen_data.write_data()
-
-            # move features 
-            mv_file(os.path.dirname(pm.train_data_path), os.path.join(final_data_dir, os.path.basename(sub_dir)))
-        
+    
         # copy feat_info and vdw_fitB.ntype
-        fread_dfeat_dir = os.path.join(root_dir, "fread_dfeat")
-        if os.path.exists(fread_dfeat_dir) is False:
-            os.makedirs(fread_dfeat_dir)
-        if os.path.exists(os.path.join(fread_dfeat_dir, "feat.info")) is False:
-            mv_file(os.path.join(sub_work_dir[0], "fread_dfeat/feat.info"), os.path.join(fread_dfeat_dir, "feat.info"))
-            mv_file(os.path.join(sub_work_dir[0], "fread_dfeat/vdw_fitB.ntype"), os.path.join(fread_dfeat_dir, "vdw_fitB.ntype"))
+        fread_dfeat_dir = os.path.join(gen_feature_data, "fread_dfeat") #target dir
+        if os.path.exists(fread_dfeat_dir):
+            shutil.rmtree(fread_dfeat_dir)
+        os.makedirs(fread_dfeat_dir)
+        copy_file(os.path.join(sub_work_dir[0], "fread_dfeat/feat.info"), os.path.join(fread_dfeat_dir, "feat.info"))
+        copy_file(os.path.join(sub_work_dir[0], "fread_dfeat/vdw_fitB.ntype"), os.path.join(fread_dfeat_dir, "vdw_fitB.ntype"))
         # copy input dir 
-        input_dir = os.path.join(root_dir, "input")
+        input_dir = os.path.join(gen_feature_data, "input") #target dir
         source_input_dir = os.path.join(sub_work_dir[0], "input")
         if os.path.exists(input_dir) is False:
             shutil.copytree(source_input_dir, input_dir)
-        os.chdir(root_dir)
-        self._reset_pm_params(root_dir, self.atom_type)
+        os.chdir(self.dp_params.file_paths.work_dir)
+        self._reset_pm_params(self.dp_params.file_paths.work_dir, self.atom_type)
+        
+        return gen_feature_data
+
 
     '''
     description: reset PM paramters
@@ -511,12 +295,6 @@ class nn_network:
         pm.f_data_scaler = pm.d_nnFi+'data_scaler.npy'
         pm.f_Wij_np  = pm.d_nnFi+'Wij.npy'
 
-
-    """
-        ============================================================
-        =================data preparation functions=================
-        ============================================================ 
-    """
     def generate_data_single(self, chunk_size = 10, shuffle=False):
         """
             defualt chunk size set to 10 
@@ -529,64 +307,16 @@ class nn_network:
                 ],shell=True)
             subprocess.run(["find PWdata/ -name 'dfeat*' | xargs rm -rf"],shell=True)
             subprocess.run(["find PWdata/ -name 'info*' | xargs rm -rf"],shell=True)
-
         # calculating feature 
         from src.pre_data.mlff import calc_feat
         calc_feat()
-
         # seperate training set and valid set
         import src.pre_data.seper as seper 
         seper.seperate_data(chunk_size = chunk_size, shuffle=shuffle)
-        
         # save as .npy
         import src.pre_data.gen_data as gen_data
         gen_data.write_data()
         
-    """
-        ============================================================
-        =================training related functions=================
-        ============================================================ 
-    """ 
-
-    # def set_epoch_num(self, input_num):
-    #     self.n_epoch = input_num    
-
-    def set_movement_weights(self, input_mvt_w): 
-
-        """
-            setting movement weight. Can be used as a initializer.
-            A MAP: 
-            absolute image index in MOVEMENTall -> the corresponding prefactor             
-        """  
-        mvmt_idx = [] 
-
-        # dfeat file that contains the MOVEMENT dir the img index 
-        tgt_file = pm.f_train_dfeat + str(pm.use_Ftype[0])
-        values = pd.read_csv(tgt_file, header=None, encoding= 'unicode_escape').values
-
-        get_mvt_name = lambda x: x[0].split('/')[-2]  
-
-        st_idx = 0 
-        mvt_name_prev = get_mvt_name(values[0])
-
-        for idx, line in enumerate(values):
-
-            # movement name 
-            mvt_name = get_mvt_name(line) 
-
-            # encounter a new movement file
-            if mvt_name != mvt_name_prev:
-
-                mvmt_idx.append([(st_idx,idx), mvt_name])
-                st_idx = idx 
-                mvt_name_prev = mvt_name 
-
-        mvmt_idx.append([(st_idx,idx+1), mvt_name])
-        self.movement_idx = mvmt_idx  
-
-        #the map of movement name (i.e. the name of directory) and its weight
-        self.movement_weights = input_mvt_w
-
     def scale_hybrid(self, train_data:MovementHybridDataset, valid_data:MovementHybridDataset, data_num:int):
         feat_train, feat_valid = None, None
         shape_train, shape_valid = [0], [0]
@@ -597,11 +327,7 @@ class nn_network:
             shape_valid.append(valid_data.feat[data_index].shape[0] + sum(shape_valid))
 
         # scale feat
-        if pm.use_storage_scaler:
-            scaler_path = self.opts.opt_session_dir + 'scaler.pkl'
-            print("loading scaler from file",scaler_path)
-            self.scaler = load(scaler_path)
-            print("transforming feat with loaded scaler")
+        if  self.scaler is not None:
             feat_train = self.scaler.transform(feat_train)
             feat_valid = self.scaler.transform(feat_valid)
         else:
@@ -618,22 +344,17 @@ class nn_network:
                 trans = lambda x : x.transpose(0, 1, 3, 2) 
                 train_data.dfeat[data_index] = trans(trans(train_data.dfeat[data_index]) * self.scaler.scale_) 
                 valid_data.dfeat[data_index] = trans(trans(valid_data.dfeat[data_index]) * self.scaler.scale_)           
-    
-        if pm.storage_scaler:
-            pickle.dump(self.scaler, open(self.opts.opt_session_dir+"scaler.pkl",'wb'))
-            print ("scaler.pkl saved to:",self.opts.opt_session_dir)
+
+        if os.path.exists(self.dp_params.file_paths.model_store_dir) is False:
+            os.makedirs(self.dp_params.file_paths.model_store_dir)
+        pickle.dump(self.scaler, open(os.path.join(self.dp_params.file_paths.model_store_dir, "scaler.pkl"),'wb'))
+        print ("scaler.pkl saved to:",self.dp_params.file_paths.model_store_dir)
 
         return train_data, valid_data
     
     def scale(self,train_data,valid_data):
-
-        """
-            if pm.is_scale = True
-        """
-        
         if pm.use_storage_scaler:
-            
-            scaler_path = self.opts.opt_session_dir + 'scaler.pkl'
+            scaler_path = self.dp_params.file_paths.model_store_dir + 'scaler.pkl'
             print("loading scaler from file",scaler_path)
             self.scaler = load(scaler_path) 
 
@@ -644,7 +365,6 @@ class nn_network:
         else:
             # generate new scaler 
             print("using new scaler")
-            
             self.scaler = MinMaxScaler()
 
             train_data.feat = self.scaler.fit_transform(train_data.feat)
@@ -656,111 +376,70 @@ class nn_network:
 
         #atom index within this image, neighbor index, feature index, spatial dimension   
         if pm.is_dfeat_sparse == False: 
-            
             trans = lambda x : x.transpose(0, 1, 3, 2) 
 
             print("transforming dense dfeat with loaded scaler")
-
             train_data.dfeat = trans(trans(train_data.dfeat) * self.scaler.scale_) 
             valid_data.dfeat = trans(trans(valid_data.dfeat) * self.scaler.scale_)
 
-    def load_data(self):
-
-        """
-            In default, training data is not shuffled, and should not be.
-        """
-        # load anything other than dfeat
-        
-        self.set_nFeature()  
-
-        torch_train_data = get_torch_data(pm.train_data_path)
-        torch_valid_data = get_torch_data(pm.test_data_path)
-
-        # scaler saved to self.scaler
-        if pm.is_scale:
-            self.scale(torch_train_data, torch_valid_data)
-        
-        assert self.scaler != None, "scaler is not correctly saved"
-
-        """
-            Note! When using sparse dfeat, shuffle must be False. 
-            sparse dfeat class only works under the batch order before calling Data.DataLoader
-        """
-        self.loader_train = Data.DataLoader(torch_train_data, batch_size=self.batch_size, shuffle = True)
-        self.loader_valid = Data.DataLoader(torch_valid_data, batch_size=self.batch_size, shuffle = False)
-
-        assert self.loader_train != None, "training data (except dfeat) loading fails"
-        assert self.loader_valid != None, "validation data (except dfeat) loading fails"
-
-        # load sparse dfeat. This is the default setting 
-        if pm.is_dfeat_sparse == True:     
-
-            self.dfeat = dfeat_raw( input_dfeat_record_path_train = pm.f_train_dfeat, 
-                                    input_feat_path_train = pm.f_train_feat,
-                                    input_natoms_path_train = pm.f_train_natoms,
-
-                                    input_dfeat_record_path_valid = pm.f_test_dfeat, 
-                                    input_feat_path_valid = pm.f_test_feat,
-                                    input_natoms_path_valid = pm.f_test_natoms,
-
-                                    scaler = self.scaler)
-
-            self.dfeat.load() 
-
     def load_data_hybrid(self, data_shuffle=False):
-
-        """
-            In default, training data is not shuffled, and should not be.
-        """
         # load anything other than dfeat
-        
-        self.set_nFeature()
-        train_data_path = os.path.dirname(pm.train_data_path)
-        data_dirs = os.listdir(train_data_path)
+         
+        if self.dp_params.inference:
+            feature_paths = self.dp_params.file_paths.test_feature_path
+        else:
+            feature_paths = self.dp_params.file_paths.train_feature_path
+        self.set_nFeature(feature_paths)
+        data_list = []
+        for feature_path in feature_paths:
+            data_dirs = os.listdir(feature_path)
+            for data_dir in data_dirs:
+                if os.path.exists(os.path.join(feature_path, data_dir, "train_data", "final_train")):
+                    data_list.append(os.path.join(feature_path, data_dir, "train_data"))
         # data_dirs = sorted(data_dirs, key=lambda x: len(x.split('_')), reverse = True)
-        torch_train_data = get_torch_data_hybrid(train_data_path, data_dirs, data_type = os.path.basename(pm.train_data_path), \
+        torch_train_data = get_torch_data_hybrid(data_list, "final_train", \
                                                  atom_type = pm.atomType, is_dfeat_sparse=pm.is_dfeat_sparse)
         self.energy_shift = torch_train_data.energy_shift
 
-        torch_valid_data = get_torch_data_hybrid(train_data_path, data_dirs, data_type = os.path.basename(pm.test_data_path), \
+        torch_valid_data = get_torch_data_hybrid(data_list, "final_test", \
                                                  atom_type = pm.atomType, is_dfeat_sparse=pm.is_dfeat_sparse)
         
-        # scaler saved to self.scaler
-        if pm.is_scale:
-            torch_train_data, torch_valid_data = self.scale_hybrid(torch_train_data, torch_valid_data, len(data_dirs))
+        if self.dp_params.inference:
+            if os.path.exists(self.dp_params.file_paths.model_load_path):
+                self.scaler = load_scaler_from_checkpoint(self.dp_params.file_paths.model_load_path)
+            elif os.path.exists(self.dp_params.file_paths.model_save_path):
+                self.scaler = load_scaler_from_checkpoint(self.dp_params.file_paths.model_save_path)
+            else:
+                raise Exception("Error! Load scaler from checkpoint: {}".format(self.dp_params.file_paths.model_load_path))
+
+        torch_train_data, torch_valid_data = self.scale_hybrid(torch_train_data, torch_valid_data, len(data_list))
         
         assert self.scaler != None, "scaler is not correctly saved"
 
-        #************************add by wuxing for LKF optimizer******************
         train_sampler = None
         val_sampler = None
 
         self.loader_train = torch.utils.data.DataLoader(
             torch_train_data,
-            batch_size=self.batch_size,
+            batch_size=self.dp_params.optimizer_param.batch_size,
             shuffle=data_shuffle, #(train_sampler is None)
-            num_workers=self.workers, 
+            num_workers=self.dp_params.workers, 
             pin_memory=True,
             sampler=train_sampler,
         )
 
         self.loader_valid = torch.utils.data.DataLoader(
             torch_valid_data,
-            batch_size=self.batch_size,
+            batch_size=self.dp_params.optimizer_param.batch_size,
             shuffle=False,
-            num_workers=self.workers, 
+            num_workers=self.dp_params.workers, 
             pin_memory=True,
             sampler=val_sampler,
         )
-        
         """
             Note! When using sparse dfeat, shuffle must be False. 
             sparse dfeat class only works under the batch order before calling Data.DataLoader
         """
-        #commit by wuxing
-        # self.loader_train = Data.DataLoader(torch_train_data, batch_size=self.batch_size, shuffle = False)
-        # self.loader_valid = Data.DataLoader(torch_valid_data, batch_size=self.batch_size, shuffle = False)
-        #************end ***************#
         assert self.loader_train != None, "training data (except dfeat) loading fails"
         assert self.loader_valid != None, "validation data (except dfeat) loading fails"
 
@@ -769,156 +448,112 @@ class nn_network:
             self.dfeat = dfeat_raw( input_dfeat_record_path_train = pm.f_train_dfeat, 
                                     input_feat_path_train = pm.f_train_feat,
                                     input_natoms_path_train = pm.f_train_natoms,
-
                                     input_dfeat_record_path_valid = pm.f_test_dfeat, 
                                     input_feat_path_valid = pm.f_test_feat,
                                     input_natoms_path_valid = pm.f_test_natoms,
-
                                     scaler = self.scaler)
-
             self.dfeat.load() 
 
-
-    def set_model(self, start_epoch = 1, model_name = None):
-        """
-            set the model 
-        """ 
-        # automatically calculate mean atomic energy
-        if self.hybrid is True:
-            pm.itype_Ei_mean = self.energy_shift
-        else:
-            pm.itype_Ei_mean = self.set_b_init()
+    def set_model_optimizer(self, start_epoch = 1, model_name = None):
+        # initialize model 
+        pm.itype_Ei_mean = self.energy_shift
         self.model = MLFFNet(device = self.device)
-        
         self.model.to(self.device)
 
-        # THIS IS IMPORTANT
-        self.start_epoch = start_epoch
-
-        # load previous model if needed 
-        if (self.opts.opt_recover_mode == True):
-            
-            if (self.opts.opt_session_name == ''):
-                raise RuntimeError("session not specified for the recover mode. Use     _dir")
-            
-            if model_name is None:
-                # use lattest.pt as default 
-                load_model_path = self.opts.opt_model_dir+'latest.pt' 
-            else:
-                load_model_path = self.opts.opt_model_dir + model_name
-
-            print ("load model from:",load_model_path)
-
-            #self.load_model_path = self.opts.opt_model_dir+'better.pt'
-
-            checkpoint = torch.load(load_model_path, map_location = self.device)
-
-            self.model.load_state_dict(checkpoint['model'])
-
-            self.start_epoch = checkpoint['epoch'] + 1 
-        
-        print("network initialized")
-        
-    def set_optimizer(self):
-
-        """
-            initialize optimzer 
-        """
-
-        #if self.use_GKalman or self.use_LKalman or self.use_SKalman:
-        if self.kalman_type is not None: 
-            """     
-                use Kalman filter 
-            """
-            #if self.use_GKalman == True:
-            if self.kalman_type == "GKF": 
-                # self.optimizer = GKalmanFilter( self.model, 
-                #                                 kalman_lambda = self.kalman_lambda, 
-                #                                 kalman_nue = self.kalman_nue, 
-                #                                 device = self.device)
-                self.optimizer = GKFOptimizer(
-                    self.model.parameters(), self.kalman_lambda, self.kalman_nue, self.device, self.precision
-                )
-
-            elif self.kalman_type == "LKF": 
-                # self.optimizer = LKalmanFilter( 
-                #                                 self.model, 
-                #                                 kalman_lambda = self.kalman_lambda, 
-                #                                 kalman_nue = self.kalman_nue, 
-                #                                 device = self.device, 
-                #                                 nselect = self.nselect, 
-                #                                 groupsize = self.group_size, 
-                #                                 blocksize = self.block_size, 
-                #                                 fprefactor = self.opts.opt_fprefactor)
-                self.optimizer = LKFOptimizer(
-                    self.model.parameters(), self.kalman_lambda, self.kalman_nue, self.block_size
-                )
-            
-            # elif self.kalman_type == "selected": 
-            #     self.optimizer = SKalmanFilter( self.model, 
-            #                                     kalman_lambda = self.kalman_lambda,
-            #                                     kalman_nue = self.kalman_nue, 
-            #                                     device = self.device)
-
-            else: 
-                raise Exception("input Kalman filter type is not supported")
-        else:   
-            """   
-                use torch's built-in optimizer 
-            """
+        # initialize optimzer 
+        opt_optimizer = self.dp_params.optimizer_param.opt_name
+        # if self.use_GKalman or self.use_LKalman or self.use_SKalman:
+        if opt_optimizer == "LKF":
+            self.optimizer = LKFOptimizer(
+                self.model.parameters(),
+                self.dp_params.optimizer_param.kalman_lambda,
+                self.dp_params.optimizer_param.kalman_nue,
+                self.dp_params.optimizer_param.block_size
+            )
+        elif opt_optimizer == "GKF":
+            self.optimizer = GKFOptimizer(
+                self.model.parameters(),
+                self.dp_params.optimizer_param.kalman_lambda,
+                self.dp_params.optimizer_param.kalman_nue
+            )
+        else: #use torch's built-in optimizer 
             model_parameters = self.model.parameters()
-
-            if (self.opts.opt_optimizer == 'SGD'):
+            self.momentum = self.dp_params.optimizer_param.momentum
+            self.REGULAR_wd = self.dp_params.optimizer_param.weight_decay
+            self.LR_base = self.dp_params.optimizer_param.learning_rate
+            self.LR_gamma = self.dp_params.optimizer_param.gamma
+            self.LR_step = self.dp_params.optimizer_param.step
+            if (opt_optimizer == 'SGD'):
                 self.optimizer = optim.SGD(model_parameters, lr=self.LR_base, momentum=self.momentum, weight_decay=self.REGULAR_wd)
-
-            elif (self.opts.opt_optimizer == 'ASGD'):
+            elif (opt_optimizer == 'ASGD'):
                 self.optimizer = optim.ASGD(model_parameters, lr=self.LR_base, weight_decay=self.REGULAR_wd)
-
-            elif (self.opts.opt_optimizer == 'RPROP'):
+            elif (opt_optimizer == 'RPROP'):
                 self.optimizer = optim.Rprop(model_parameters, lr=self.LR_base, weight_decay = self.REGULAR_wd)
-
-            elif (self.opts.opt_optimizer == 'RMSPROP'):
+            elif (opt_optimizer == 'RMSPROP'):
                 self.optimizer = optim.RMSprop(model_parameters, lr=self.LR_base, weight_decay = self.REGULAR_wd, momentum = self.momentum)
-
-            elif (self.opts.opt_optimizer == 'ADAG'):
+            elif (opt_optimizer == 'ADAG'):
                 self.optimizer = optim.Adagrad(model_parameters, lr = self.LR_base, weight_decay = self.REGULAR_wd)
-
-            elif (self.opts.opt_optimizer == 'ADAD'):
+            elif (opt_optimizer == 'ADAD'):
                 self.optimizer = optim.Adadelta(model_parameters, lr = self.LR_base, weight_decay = self.REGULAR_wd)
-
-            elif (self.opts.opt_optimizer == 'ADAM'):
+            elif (opt_optimizer == 'ADAM'):
                 self.optimizer = optim.Adam(model_parameters, lr = self.LR_base, weight_decay = self.REGULAR_wd)
-            elif (self.opts.opt_optimizer == 'ADAMW'):
+            elif (opt_optimizer == 'ADAMW'):
                 self.optimizer = optim.AdamW(model_parameters, lr = self.LR_base)
-
-            elif (self.opts.opt_optimizer == 'ADAMAX'):
+            elif (opt_optimizer == 'ADAMAX'):
                 self.optimizer = optim.Adamax(model_parameters, lr = self.LR_base, weight_decay = self.REGULAR_wd)
-
-            elif (self.opts.opt_optimizer == 'LBFGS'):
+            elif (opt_optimizer == 'LBFGS'):
                 self.optimizer = optim.LBFGS(self.model.parameters(), lr = self.LR_base)
-
             else:
-                raise RuntimeError("unsupported optimizer: %s" %self.opts.opt_optimizer)  
-
+                raise RuntimeError("unsupported optimizer: %s" %opt_optimizer)  
             # set scheduler
             self.set_scheduler() 
-        
+
+        # optionally resume from a checkpoint
+        if self.dp_params.recover_train or os.path.exists(self.dp_params.file_paths.model_load_path):
+            if self.dp_params.recover_train:    #recover from last training
+                model_path = self.dp_params.file_paths.model_save_path  # .../checkpoint.pth.tar
+                print("model recover from the checkpoint: {}".format(model_path))
+            else: # resume model specified by user
+                model_path = self.dp_params.file_paths.model_load_path
+                print("model resume from the checkpoint: {}".format(model_path))
+            if os.path.isfile(model_path):
+                print("=> loading checkpoint '{}'".format(model_path))
+                if not torch.cuda.is_available():
+                    checkpoint = torch.load(model_path,map_location=torch.device('cpu') )
+                elif self.dp_params.gpu is None:
+                    checkpoint = torch.load(model_path)
+                elif torch.cuda.is_available():
+                    # Map model to be loaded to specified single gpu.
+                    loc = "cuda:{}".format(self.dp_params.gpu)
+                    checkpoint = torch.load(model_path, map_location=loc)
+                # start afresh
+                self.dp_params.optimizer_param.start_epoch = checkpoint["epoch"] + 1
+                self.model.load_state_dict(checkpoint["state_dict"])
+                if "optimizer" in checkpoint:
+                    self.optimizer.load_state_dict(checkpoint["optimizer"])
+                # scheduler.load_state_dict(checkpoint["scheduler"])
+                print("=> loaded checkpoint '{}' (epoch {})"\
+                      .format(model_path, checkpoint["epoch"]))
+            else:
+                print("=> no checkpoint found at '{}'".format(model_path))
+        print("network initialized")
+
     def set_scheduler(self):
 
         # user specific LambdaLR lambda function
         lr_lambda = lambda epoch: self.LR_gamma ** epoch
 
-        opt_scheduler = self.opts.opt_scheduler 
+        opt_scheduler = self.dp_params.optimizer_param.scheduler
 
-        if (opt_scheduler == 'LAMBDA'):
+        if opt_scheduler == 'LAMBDA':
             self.scheduler = optim.lr_scheduler.LambdaLR(self.optimizer, lr_lambda = lr_lambda)
-        elif (opt_scheduler == 'STEP'):
+        elif opt_scheduler == 'STEP':
             self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size = self.LR_step, gamma = self.LR_gamma)
-        elif (opt_scheduler == 'MSTEP'):
-            self.scheduler = optim.lr_scheduler.MultiStepLR(self.ptimizer, milestones = self.opts.opt_LR_milestones, gamma = self.LR_gamma)
-        elif (opt_scheduler == 'EXP'):
+        elif opt_scheduler == 'MSTEP':
+            self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones = None, gamma = self.LR_gamma)
+        elif opt_scheduler == 'EXP':
             self.scheduler = optim.lr_scheduler.ExponentialLR(self.optimizer, gamma= self.LR_gamma)
-        elif (opt_scheduler == 'NONE'):
+        elif opt_scheduler is None:
             pass
         else:   
             raise RuntimeError("unsupported scheduler: %s" %opt_scheduler)
@@ -931,13 +566,13 @@ class nn_network:
         iter_valid = 0 
 
         # set the log files
-        iter_train_log = self.opts.opt_session_dir+'iter_loss.dat'
+        iter_train_log = os.path.join(self.dp_params.file_paths.model_store_dir, "iter_loss.dat")
         f_iter_train_log = open(iter_train_log, 'w')
-        epoch_train_log = self.opts.opt_session_dir+'epoch_loss.dat'
+        epoch_train_log = os.path.join(self.dp_params.file_paths.model_store_dir, "epoch_loss.dat")
         f_epoch_train_log = open(epoch_train_log, 'w')
-        iter_valid_log = self.opts.opt_session_dir+'iter_loss_valid.dat'
+        iter_valid_log = os.path.join(self.dp_params.file_paths.model_store_dir, "iter_loss_valid.dat")
         f_iter_valid_log = open(iter_valid_log, 'w')
-        epoch_valid_log =  self.opts.opt_session_dir + 'epoch_loss_valid.dat'
+        epoch_valid_log =  os.path.join(self.dp_params.file_paths.model_store_dir, "epoch_loss_valid.dat")
         f_epoch_valid_log = open(epoch_valid_log, 'w')
         
         # Define the lists based on the training type
@@ -946,28 +581,28 @@ class nn_network:
         epoch_train_lists = ["epoch", "loss"]
         epoch_valid_lists = ["epoch", "loss"]
 
-        if self.is_trainEtot:
+        if self.dp_params.optimizer_param.train_energy:
             iter_train_lists.append("RMSE_Etot")
             epoch_train_lists.append("RMSE_Etot")
             iter_valid_lists.append("RMSE_Etot")
             epoch_valid_lists.append("RMSE_Etot")
-        if self.is_trainEi:
+        if self.dp_params.optimizer_param.train_ei:
             iter_train_lists.append("RMSE_Ei")
             epoch_train_lists.append("RMSE_Ei")
             iter_valid_lists.append("RMSE_Ei")
             epoch_valid_lists.append("RMSE_Ei")
-        if self.is_trainEgroup:
+        if self.dp_params.optimizer_param.train_egroup:
             iter_train_lists.append("RMSE_Egroup")
             epoch_train_lists.append("RMSE_Egroup")
             iter_valid_lists.append("RMSE_Egroup")
             epoch_valid_lists.append("RMSE_Egroup")
-        if self.is_trainForce:
+        if self.dp_params.optimizer_param.train_force:
             iter_train_lists.append("RMSE_F")
             epoch_train_lists.append("RMSE_F")
             iter_valid_lists.append("RMSE_F")
             epoch_valid_lists.append("RMSE_F")
 
-        if self.kalman_type is None:
+        if "KF" not in self.dp_params.optimizer_param.opt_name:# adam or sgd optimizer need learning rate
             iter_valid_lists.extend(["lr"])
 
         print_width = {
@@ -992,21 +627,10 @@ class nn_network:
         f_epoch_train_log.write("%s\n" % (epoch_train_format % tuple(epoch_train_lists)))
         f_epoch_valid_log.write("%s\n" % (epoch_valid_format % tuple(epoch_valid_lists)))
 
-        for epoch in range(self.start_epoch, self.n_epoch + 1):
-            
+        for epoch in range(self.dp_params.optimizer_param.start_epoch, self.dp_params.optimizer_param.epochs + 1):
             timeEpochStart = time.time()
-
-            if (epoch == self.n_epoch):
-                last_epoch = True
-            else:
-                last_epoch = False
-            
+            last_epoch = True if epoch == self.dp_params.optimizer_param.epochs else False
             print("<-------------------------  epoch %d  ------------------------->" %(epoch))
-            
-            """
-                ========== training starts ==========
-            """ 
-            
             nr_total_sample = 0
             loss = 0.
             loss_Etot = 0.
@@ -1015,7 +639,9 @@ class nn_network:
             loss_Egroup = 0.0 
             # this line code should go out?
             KFOptWrapper = KFOptimizerWrapper(
-                self.model, self.optimizer, self.nselect, self.group_size, self.distributed, "torch"
+                self.model, self.optimizer, 
+                self.dp_params.optimizer_param.nselect, self.dp_params.optimizer_param.groupsize, 
+                self.dp_params.hvd, "hvd"
              )
             
             self.model.train()
@@ -1023,14 +649,11 @@ class nn_network:
             for i_batch, sample_batches in enumerate(self.loader_train):
                 
                 nr_batch_sample = sample_batches['input_feat'].shape[0]
-
-                global_step = (epoch - 1) * len(self.loader_train) + i_batch * nr_batch_sample
-                
-                real_lr = self.adjust_lr(iter_num = global_step)
-
-                if self.not_KF():
+                if "KF" not in self.dp_params.optimizer_param.opt_name:
+                    global_step = (epoch - 1) * len(self.loader_train) + i_batch * nr_batch_sample
+                    real_lr = self.adjust_lr(iter_num = global_step)
                     for param_group in self.optimizer.param_groups:
-                        param_group['lr'] = real_lr * (self.batch_size ** 0.5)
+                        param_group['lr'] = real_lr * (self.dp_params.optimizer_param.batch_size ** 0.5)
                 natoms_sum = sample_batches['natoms_img'][0, 0].item()  
                 # use sparse feature 
                 if pm.is_dfeat_sparse == True:
@@ -1038,45 +661,32 @@ class nn_network:
                     #sample_batches['input_dfeat']  = dfeat_train.transform(i_batch)
                     sample_batches['input_dfeat']  = self.dfeat.transform(i_batch,"train")
 
-                if self.not_KF():
+                if "KF" not in self.dp_params.optimizer_param.opt_name:
                     # non-KF t
                     batch_loss, batch_loss_Etot, batch_loss_Ei, batch_loss_F = \
                         self.train_img(sample_batches, self.model, self.optimizer, nn.MSELoss(), last_epoch, real_lr)
                 else:
                     # KF 
                     batch_loss, batch_loss_Etot, batch_loss_Ei, batch_loss_F, batch_loss_Egroup = \
-                        self.train_kalman_img(sample_batches, self.model, KFOptWrapper, nn.MSELoss(), last_epoch, 0.001)
+                        self.train_kalman_img(sample_batches, self.model, KFOptWrapper, nn.MSELoss())
                                 
                 iter += 1
 
                 f_iter_train_log = open(iter_train_log, 'a')
 
                 # Write the training log line to the log file
-                iter_train_log_line = "%5d%18.10e" % (
-                    iter,
-                    batch_loss,
-                )
+                iter_train_log_line = "%5d%18.10e" % (iter, batch_loss)
 
-                if self.is_trainEtot:
-                    iter_train_log_line += "%18.10e" % (
-                        math.sqrt(batch_loss_Etot)/natoms_sum
-                    )
-                if self.is_trainEi:
-                    iter_train_log_line += "%18.10e" % (
-                        math.sqrt(batch_loss_Ei)
-                    )
-                if self.is_trainEgroup:
-                    iter_train_log_line += "%18.10e" % (
-                        math.sqrt(batch_loss_Egroup)
-                    )
-                if self.is_trainForce:
-                    iter_train_log_line += "%18.10e" % (
-                        math.sqrt(batch_loss_F)
-                    )
-                if self.kalman_type is None:
-                    iter_train_log_line += "%18.10e" % (
-                        real_lr,
-                    )
+                if self.dp_params.optimizer_param.train_energy:
+                    iter_train_log_line += "%18.10e" % (math.sqrt(batch_loss_Etot)/natoms_sum)
+                if self.dp_params.optimizer_param.train_ei:
+                    iter_train_log_line += "%18.10e" % (math.sqrt(batch_loss_Ei))
+                if self.dp_params.optimizer_param.train_egroup:
+                    iter_train_log_line += "%18.10e" % (math.sqrt(batch_loss_Egroup))
+                if self.dp_params.optimizer_param.train_force:
+                    iter_train_log_line += "%18.10e" % ( math.sqrt(batch_loss_F))
+                if "KF" not in self.dp_params.optimizer_param.opt_name:
+                    iter_train_log_line += "%18.10e" % (real_lr)
 
                 f_iter_train_log.write("%s\n" % (iter_train_log_line))
                 f_iter_train_log.close()
@@ -1103,51 +713,29 @@ class nn_network:
 
             print("epoch_loss = %.10f (RMSE_Etot = %.12f, RMSE_Ei = %.12f, RMSE_F = %.12f, RMSE_Eg = %.12f)" \
                 %(loss, RMSE_Etot, RMSE_Ei, RMSE_F, RMSE_Egroup))
-            """
-            epoch_err_log = self.opts.opt_session_dir+'epoch_loss.dat'
 
-            if epoch == 1:
-                f_epoch_err_log = open(epoch_err_log, 'w')
-                f_epoch_err_log.write('epoch\t loss\t RMSE_Etot\t RMSE_Ei\t RMSE_F\t RMSE_Eg\n')
-                f_epoch_err_log.close()
-                
-            f_epoch_err_log = open(epoch_err_log, 'a')
-            f_epoch_err_log.write('%d %e %e %e %e %e \n'%(epoch, loss, RMSE_Etot, RMSE_Ei, RMSE_F, RMSE_Egroup))
-            f_epoch_err_log.close() 
-            """
             f_epoch_train_log = open(epoch_train_log, 'a')
 
             # Write the training log line to the log file
-            epoch_train_log_line = "%5d%18.10e" % (
-                epoch,
-                loss,
-            )
+            epoch_train_log_line = "%5d%18.10e" % (epoch, loss,)
 
-            if self.is_trainEtot:
-                epoch_train_log_line += "%18.10e" % (
-                    RMSE_Etot
-                )
-            if self.is_trainEi:
-                epoch_train_log_line += "%18.10e" % (
-                    RMSE_Ei
-                )
-            if self.is_trainEgroup:
-                epoch_train_log_line += "%18.10e" % (
-                    RMSE_Egroup
-                )
-            if self.is_trainForce:
-                epoch_train_log_line += "%18.10e" % (
-                    RMSE_F
-                )
+            if self.dp_params.optimizer_param.train_energy:
+                epoch_train_log_line += "%18.10e" % (RMSE_Etot)
+            if self.dp_params.optimizer_param.train_ei:
+                epoch_train_log_line += "%18.10e" % (RMSE_Ei)
+            if self.dp_params.optimizer_param.train_egroup:
+                epoch_train_log_line += "%18.10e" % (RMSE_Egroup)
+            if self.dp_params.optimizer_param.train_force:
+                epoch_train_log_line += "%18.10e" % (RMSE_F)
             
             f_epoch_train_log.write("%s\n" % (epoch_train_log_line))
             f_epoch_train_log.close()
             
-            if self.not_KF():
+            if "KF" not in self.dp_params.optimizer_param.opt_name:
                 """
                     for built-in optimizer only 
                 """
-                opt_scheduler = self.opts.opt_scheduler  
+                opt_scheduler = self.dp_params.optimizer_param.scheduler
 
                 if (opt_scheduler == 'OC'):
                     pass 
@@ -1155,10 +743,10 @@ class nn_network:
                     self.scheduler.step(loss)
 
                 elif (opt_scheduler == 'LR_INC'):
-                    self.LinearLR(optimizer=self.optimizer, base_lr=self.LR_base, target_lr=pm.opt_LR_max_lr, total_epoch=self.n_epoch, cur_epoch=epoch)
+                    self.LinearLR(optimizer=self.optimizer, base_lr=self.LR_base, target_lr=pm.opt_LR_max_lr, total_epoch=self.dp_params.optimizer_param.epochs, cur_epoch=epoch)
 
                 elif (opt_scheduler == 'LR_DEC'):
-                    self.LinearLR(optimizer=self.optimizer, base_lr=self.LR_base, target_lr=pm.opt_LR_min_lr, total_epoch=self.n_epoch, cur_epoch=epoch)
+                    self.LinearLR(optimizer=self.optimizer, base_lr=self.LR_base, target_lr=pm.opt_LR_min_lr, total_epoch=self.dp_params.optimizer_param.epochs, cur_epoch=epoch)
 
                 elif (opt_scheduler == 'NONE'):
                     pass
@@ -1192,7 +780,6 @@ class nn_network:
 
                 valid_error_iter, batch_loss_Etot, batch_loss_Ei, batch_loss_F, batch_loss_Egroup = self.valid_img(sample_batches, self.model, nn.MSELoss())
 
-                # n_iter = (epoch - 1) * len(loader_valid) + i_batch + 1
                 valid_loss += valid_error_iter * nr_batch_sample
 
                 valid_loss_Etot += batch_loss_Etot * nr_batch_sample
@@ -1201,51 +788,24 @@ class nn_network:
                 valid_loss_Egroup += batch_loss_Egroup * nr_batch_sample
                 
                 nr_total_sample += nr_batch_sample
-                """
-                f_err_log = self.opts.opt_session_dir+'iter_loss_valid.dat'
-
-                if iter_valid == 1:
-                    fid_err_log = open(f_err_log, 'w')
-                    fid_err_log.write('iter\t loss\t RMSE_Etot\t RMSE_Ei\t RMSE_F\t lr\n')
-                    fid_err_log.close() 
-
-                fid_err_log = open(f_err_log, 'a')
-                fid_err_log.write('%d %e %e %e %e %e \n'%(iter, batch_loss, math.sqrt(batch_loss_Etot)/natoms_sum, math.sqrt(batch_loss_Ei), math.sqrt(batch_loss_F), real_lr))
-                fid_err_log.close() 
-                """
                 f_iter_valid_log = open(iter_valid_log, 'a')
 
                 # Write the valid log line to the log file
-                iter_valid_log_line = "%5d%18.10e" % (
-                    iter,
-                    batch_loss,
-                )
+                iter_valid_log_line = "%5d%18.10e" % (iter, batch_loss,)
 
-                if self.is_trainEtot:
-                    iter_valid_log_line += "%18.10e" % (
-                        math.sqrt(batch_loss_Etot)/natoms_sum
-                    )
-                if self.is_trainEi:
-                    iter_valid_log_line += "%18.10e" % (
-                        math.sqrt(batch_loss_Ei)
-                    )
-                if self.is_trainEgroup:
-                    iter_valid_log_line += "%18.10e" % (
-                        math.sqrt(batch_loss_Egroup)
-                    )
-                if self.is_trainForce:
-                    iter_valid_log_line += "%18.10e" % (
-                        math.sqrt(batch_loss_F)
-                    )
-                if self.kalman_type is None:
-                    iter_train_log_line += "%18.10e" % (
-                        real_lr,
-                    )
+                if self.dp_params.optimizer_param.train_energy:
+                    iter_valid_log_line += "%18.10e" % (math.sqrt(batch_loss_Etot)/natoms_sum)
+                if self.dp_params.optimizer_param.train_ei:
+                    iter_valid_log_line += "%18.10e" % (math.sqrt(batch_loss_Ei))
+                if self.dp_params.optimizer_param.train_egroup:
+                    iter_valid_log_line += "%18.10e" % (math.sqrt(batch_loss_Egroup))
+                if self.dp_params.optimizer_param.train_force:
+                    iter_valid_log_line += "%18.10e" % (math.sqrt(batch_loss_F))
+                if "KF" not in self.dp_params.optimizer_param.opt_name:
+                    iter_train_log_line += "%18.10e" % (real_lr)
 
                 f_iter_valid_log.write("%s\n" % (iter_valid_log_line))
                 f_iter_valid_log.close()
-
-            #end for
 
             # epoch loss update
             valid_loss /= nr_total_sample
@@ -1261,99 +821,71 @@ class nn_network:
                 
             print("valid_loss = %.10f (valid_RMSE_Etot = %.12f, valid_RMSE_Ei = %.12f, valid_RMSE_F = %.12f, valid_RMSE_Egroup = %.12f)" \
                      %(valid_loss, valid_RMSE_Etot, valid_RMSE_Ei, valid_RMSE_F, valid_RMSE_Egroup))
-            """
-            f_err_log =  self.opts.opt_session_dir + 'epoch_loss_valid.dat'
-            
-            if not os.path.exists(f_err_log):
-                fid_err_log = open(f_err_log, 'w')
-                fid_err_log.write('epoch\t valid_RMSE_Etot\t valid_RMSE_Ei\t valid_RMSE_F\t valid_RMSE_Eg \n')
-                fid_err_log.close() 
-
-            fid_err_log = open(f_err_log, 'a')
-            fid_err_log.write('%d %e %e %e %e\n'%(epoch, valid_RMSE_Etot, valid_RMSE_Ei, valid_RMSE_F, valid_RMSE_Egroup))
-            fid_err_log.close() 
-            """
+   
             f_epoch_valid_log = open(epoch_valid_log, 'a')
 
             # Write the valid log line to the log file
-            epoch_valid_log_line = "%5d%18.10e" % (
-                epoch,
-                valid_loss,
-            )
+            epoch_valid_log_line = "%5d%18.10e" % (epoch, valid_loss)
 
-            if self.is_trainEtot:
-                epoch_valid_log_line += "%18.10e" % (
-                    valid_RMSE_Etot
-                )
-            if self.is_trainEi:
-                epoch_valid_log_line += "%18.10e" % (
-                    valid_RMSE_Ei
-                )
-            if self.is_trainEgroup:
-                epoch_valid_log_line += "%18.10e" % (
-                    valid_RMSE_Egroup
-                )
-            if self.is_trainForce:
-                epoch_valid_log_line += "%18.10e" % (
-                    valid_RMSE_F
-                )
+            if self.dp_params.optimizer_param.train_energy:
+                epoch_valid_log_line += "%18.10e" % (valid_RMSE_Etot)
+            if self.dp_params.optimizer_param.train_ei:
+                epoch_valid_log_line += "%18.10e" % (valid_RMSE_Ei)
+            if self.dp_params.optimizer_param.train_egroup:
+                epoch_valid_log_line += "%18.10e" % (valid_RMSE_Egroup)
+            if self.dp_params.optimizer_param.train_force:
+                epoch_valid_log_line += "%18.10e" % (valid_RMSE_F)
 
             f_epoch_valid_log.write("%s\n" % (epoch_valid_log_line))
             f_epoch_valid_log.close()
 
-            """  
-                save model 
-            """
-
-            if self.not_KF():
-                state = {'model': self.model.state_dict(),'optimizer':optimizer.state_dict(),'epoch':epoch}
-            else:
-                state = {'model': self.model.state_dict(), 'epoch': epoch}
-            
-            latest_path = self.opts.opt_model_dir + "latest.pt"
-            torch.save(state, latest_path) 
-
-            if self.not_KF():
-                if epoch % 10 == 0: 
-                    current_model_path = self.opts.opt_model_dir + str(epoch) + '.pt'
-                    torch.save(state, current_model_path)
-            else:
-                current_model_path = self.opts.opt_model_dir + str(epoch) + '.pt'
-                torch.save(state, current_model_path)
-
+            # save model
+            if not self.dp_params.hvd or (self.dp_params.hvd and hvd.rank() == 0):
+                if self.dp_params.file_paths.save_p_matrix:
+                    self.save_checkpoint(
+                        {
+                        "epoch": epoch,
+                        "state_dict": self.model.state_dict(),
+                        "optimizer":self.optimizer.state_dict(),
+                        "scaler": self.scaler
+                        },
+                        self.dp_params.file_paths.model_name,
+                        self.dp_params.file_paths.model_store_dir,
+                    )
+                else: 
+                    self.save_checkpoint(
+                        {
+                        "epoch": epoch,
+                        "state_dict": self.model.state_dict(),
+                        "scaler": self.scaler
+                        },
+                        self.dp_params.file_paths.model_name,
+                        self.dp_params.file_paths.model_store_dir,
+                    )
+                
             timeEpochEnd = time.time()
-
             print("time of epoch %d: %f s" %(epoch, timeEpochEnd - timeEpochStart))
 
-    def load_and_train(self, data_shuffle=False):
-        
+    def save_checkpoint(self, state, filename, prefix):
+        filename = os.path.join(prefix, filename)
+        torch.save(state, filename)
+
+    def load_and_train(self):
         # transform data
-        if self.hybrid:
-            self.load_data_hybrid(data_shuffle=data_shuffle)
-        else:
-            self.load_data()
+        self.load_data_hybrid(data_shuffle=self.dp_params.data_shuffle)
+        # else:
+        #     self.load_data()
         # initialize the network
-        self.set_model()
-        
+        self.set_model_optimizer()
         # initialize the optimizer and related scheduler
-        self.set_optimizer()
-
-        # set epoch number for training
-        # self.set_epoch_num()
-
-        # start training
-        if self.inference is True:
+        if self.dp_params.inference:
             self.do_inference()
-            return
-        
-        self.train()
-
+        else:
+            self.train()
 
     def train_img(self, sample_batches, model, optimizer, criterion, last_epoch, real_lr):
-        """   
-            single image traing for non-Kalman 
-        """
-        if (self.precision == 'float64'):
+        # single image traing for non-Kalman 
+        if (self.dp_params.precision == 'float64'):
             Ei_label = Variable(sample_batches['output_energy'][:,:,:].double().to(self.device))
             Force_label = Variable(sample_batches['output_force'][:,:,:].double().to(self.device))   #[40,108,3]
             Egroup_label = Variable(sample_batches['input_egroup'].double().to(self.device))
@@ -1362,8 +894,7 @@ class nn_network:
             egroup_weight = Variable(sample_batches['input_egroup_weight'].double().to(self.device))
             divider = Variable(sample_batches['input_divider'].double().to(self.device))
             # Ep_label = Variable(sample_batches['output_ep'][:,:,:].double().to(device))
-            
-        elif (self.precision == 'float32'):
+        elif (self.dp_params.precision == 'float32'):
             Ei_label = Variable(sample_batches['output_energy'][:,:,:].float().to(self.device))
             Force_label = Variable(sample_batches['output_force'][:,:,:].float().to(self.device))   #[40,108,3]
             Egroup_label = Variable(sample_batches['input_egroup'].float().to(self.device))
@@ -1372,11 +903,9 @@ class nn_network:
             egroup_weight = Variable(sample_batches['input_egroup_weight'].float().to(self.device))
             divider = Variable(sample_batches['input_divider'].float().to(self.device))
             # Ep_label = Variable(sample_batches['output_ep'][:,:,:].float().to(device))
-
         else:
             #error("train(): unsupported opt_dtype %s" %self.opts.opt_dtype)
-            raise RuntimeError("train(): unsupported opt_dtype %s" %self.precision)  
-
+            raise RuntimeError("train(): unsupported opt_dtype %s" %self.dp_params.precision)  
 
         atom_number = Ei_label.shape[1]
         Etot_label = torch.sum(Ei_label, dim=1)
@@ -1394,18 +923,18 @@ class nn_network:
         loss_Egroup = 0
 
         # update loss with repsect to the data used
-        if self.is_trainEi:
+        if self.dp_params.optimizer_param.train_ei:
             loss_Ei = criterion(Ei_predict, Ei_label)
-        if self.is_trainEtot:
+        if self.dp_params.optimizer_param.train_energy:
             loss_Etot = criterion(Etot_predict, Etot_label)
-        if self.is_trainForce:
+        if self.dp_params.optimizer_param.train_force:
             loss_F = criterion(Force_predict, Force_label)
 
-        start_lr = self.opts.opt_lr
+        start_lr = self.dp_params.optimizer_param.learning_rate
         
-        w_f = 1 if self.is_trainForce == True else 0
-        w_e = 1 if self.is_trainEtot == True else 0
-        w_ei = 1 if self.is_trainEi == True else 0
+        w_f = 1 if self.dp_params.optimizer_param.train_force == True else 0
+        w_e = 1 if self.dp_params.optimizer_param.train_energy == True else 0
+        w_ei = 1 if self.dp_params.optimizer_param.train_ei == True else 0
         w_eg = 0 
 
         loss, pref_f, pref_e = self.get_loss_func(start_lr, real_lr, w_f, loss_F, w_e, loss_Etot, w_eg, loss_Egroup, w_ei, loss_Ei, natoms_img[0, 0].item())
@@ -1417,12 +946,9 @@ class nn_network:
         
         return loss, loss_Etot, loss_Ei, loss_F
 
-    def train_kalman_img(self,sample_batches, model, KFOptWrapper :KFOptimizerWrapper, criterion, last_epoch, real_lr):
+    def train_kalman_img(self,sample_batches, model, KFOptWrapper :KFOptimizerWrapper, criterion):
         """
             why setting precision again? 
-        """
-        """
-            **********************************************************************
         """
         Ei_label = Variable(sample_batches['output_energy'][:,:,:].to(self.device))
         Force_label = Variable(sample_batches['output_force'][:,:,:].to(self.device))   #[40,108,3]
@@ -1440,53 +966,29 @@ class nn_network:
         #ind_img = Variable(sample_batches['ind_image'].int().to(self.device))
         natoms_img = Variable(sample_batches['natoms_img'].int().to(self.device))
         atom_type = Variable(sample_batches['atom_type'].int().to(self.device))
-        """
-            **********************************************************************
-        """
-        if self.is_trainEgroup:
+
+        if self.dp_params.optimizer_param.train_egroup:
             kalman_inputs = [input_data, dfeat, neighbor, natoms_img, atom_type, egroup_weight, divider]
         else:
             kalman_inputs = [input_data, dfeat, neighbor, natoms_img, atom_type, None, None]
-        #        KFOptWrapper.update_energy(kalman_inputs, Etot_label)
-        #        KFOptWrapper.update_force(kalman_inputs, Force_label, 2)
-        # choosing what data are used for W update. Defualt are Etot and Force
-        if self.is_trainEtot: 
-            # kalman.update_energy(kalman_inputs, Etot_label, update_prefactor = self.kf_prefac_Etot)
-            Etot_predict = KFOptWrapper.update_energy(kalman_inputs, Etot_label, self.kf_prefac_Etot, train_type = "NN")
 
-        if self.is_trainEi:
-            Ei_predict = KFOptWrapper.update_ei(kalman_inputs,Ei_label, update_prefactor = self.kf_prefac_Ei, train_type = "NN")     
+        if self.dp_params.optimizer_param.train_energy: 
+            # kalman.update_energy(kalman_inputs, Etot_label, update_prefactor = self.dp_params.optimizer_param.pre_fac_etot)
+            Etot_predict = KFOptWrapper.update_energy(kalman_inputs, Etot_label, self.dp_params.optimizer_param.pre_fac_etot, train_type = "NN")
+            
+        if self.dp_params.optimizer_param.train_ei:
+            Ei_predict = KFOptWrapper.update_ei(kalman_inputs,Ei_label, update_prefactor = self.dp_params.optimizer_param.pre_fac_ei, train_type = "NN")     
 
-        if self.is_trainEgroup:
+        if self.dp_params.optimizer_param.train_egroup:
             # kalman.update_egroup(kalman_inputs, Egroup_label)
-            Egroup_predict = KFOptWrapper.update_egroup(kalman_inputs, Egroup_label, self.kf_prefac_Egroup, train_type = "NN")
+            Egroup_predict = KFOptWrapper.update_egroup(kalman_inputs, Egroup_label, self.dp_params.optimizer_param.pre_fac_egroup, train_type = "NN")
 
         # if Egroup does not participate in training, the output of Egroup_predict will be None
-        if self.is_trainForce:
+        if self.dp_params.optimizer_param.train_force:
             Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = KFOptWrapper.update_force(
-                    kalman_inputs, Force_label, self.kf_prefac_F, train_type = "NN")
+                    kalman_inputs, Force_label, self.dp_params.optimizer_param.pre_fac_force, train_type = "NN")
 
-        # if self.is_trainForce is True:
-        #     if self.is_trainEgroup is True:
-        #         Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = KFOptWrapper.update_force(
-        #             kalman_inputs, Force_label, self.kf_prefac_F)
-        #     else:
-        #         Etot_predict, Ei_predict, Force_predict, Virial_predict = KFOptWrapper.update_force(
-        #             kalman_inputs, Force_label, self.kf_prefac_F)
-
-        # if self.is_trainEi:
-        #     kalman.update_ei(kalman_inputs,Ei_label, update_prefactor = self.kf_prefac_Ei)     
-        # if self.is_trainForce:
-        #     kalman.update_force(kalman_inputs, Force_label, update_prefactor = self.kf_prefac_F)
-
-        #kalman.update_ei_and_force(kalman_inputs,Ei_label,Force_label,update_prefactor = 0.1)
-        
-        # Etot_predict, Ei_predict, Force_predict, _, _ = model(input_data, dfeat, neighbor, natoms_img, egroup_weight, divider)
         Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(kalman_inputs[0], kalman_inputs[1], kalman_inputs[2], kalman_inputs[3], kalman_inputs[4], kalman_inputs[5], kalman_inputs[6])
-
-        # if self.is_trainEgroup:
-        #     Egroup_predict = torch.zeros_like(Ei_predict)
-        #     Egroup_predict = model.get_egroup(Ei_predict,egroup_weight,divider) 
 
         # dtype same as torch.default
         loss_Etot = torch.zeros([1,1],device = self.device)
@@ -1494,21 +996,18 @@ class nn_network:
         loss_F = torch.zeros([1,1],device = self.device)
         loss_egroup = torch.zeros([1,1],device = self.device)
 
-        """
-            update loss only for used labels  
-            At least 2 flags should be true. 
-        """
-
-        if self.is_trainEi:
+        # update loss only for used labels  
+        # At least 2 flags should be true. 
+        if self.dp_params.optimizer_param.train_ei:
             loss_Ei = criterion(Ei_predict, Ei_label)
         
-        if self.is_trainEtot:
+        if self.dp_params.optimizer_param.train_energy:
             loss_Etot = criterion(Etot_predict, Etot_label)
 
-        if self.is_trainForce:
+        if self.dp_params.optimizer_param.train_force:
             loss_F = criterion(Force_predict, Force_label)
 
-        if self.is_trainEgroup:
+        if self.dp_params.optimizer_param.train_egroup:
             loss_egroup = criterion(Egroup_label,Egroup_predict)
 
         loss = loss_F + loss_Etot + loss_Ei + loss_egroup 
@@ -1550,32 +1049,12 @@ class nn_network:
         
         # model.train()
         self.model.eval()
-        if self.is_trainEgroup:
+        if self.dp_params.optimizer_param.train_egroup:
             kalman_inputs = [input_data, dfeat, neighbor, natoms_img, atom_type, egroup_weight, divider]
         else:
             kalman_inputs = [input_data, dfeat, neighbor, natoms_img, atom_type, None, None]
 
         Etot_predict, Ei_predict, Force_predict, Egroup_predict, _ = model(kalman_inputs[0], kalman_inputs[1], kalman_inputs[2], kalman_inputs[3], kalman_inputs[4], kalman_inputs[5], kalman_inputs[6])
-        
-        if self.dbg is True:
-            print("Etot predict")
-            print(Etot_predict)
-            
-            print("Force predict")
-            print(Force_predict)
-
-        # Egroup_predict = torch.zeros_like(Ei_predict)
-
-        # if self.is_trainEgroup:
-        #     Egroup_predict = self.model.get_egroup(Ei_predict,egroup_weight,divider)
-
-        # Egroup_predict = model.get_egroup(Ei_predict, egroup_weight, divider) 
-
-        """
-        loss_F = criterion(Force_predict, Force_label)
-        loss_Etot = criterion(Etot_predict, Etot_label)
-        loss_Ei = criterion(Ei_predict, Ei_label)
-        """
         
         loss_Etot = torch.zeros([1,1],device=self.device)
         loss_Ei = torch.zeros([1,1],device=self.device)
@@ -1583,16 +1062,16 @@ class nn_network:
         loss_egroup = torch.zeros([1,1],device = self.device)
         
         # update loss with repsect to the data used
-        if self.is_trainEi:
+        if self.dp_params.optimizer_param.train_ei:
             loss_Ei = criterion(Ei_predict, Ei_label)
         
-        if self.is_trainEtot:
+        if self.dp_params.optimizer_param.train_energy:
             loss_Etot = criterion(Etot_predict, Etot_label)
 
-        if self.is_trainForce:
+        if self.dp_params.optimizer_param.train_force:
             loss_F = criterion(Force_predict, Force_label)
 
-        if self.is_trainEgroup:
+        if self.dp_params.optimizer_param.train_egroup:
             loss_egroup = criterion(Egroup_label,Egroup_predict)
 
         error = float(loss_F.item()) + float(loss_Etot.item()) + float(loss_Ei.item()) + float(loss_egroup.item())
@@ -1611,23 +1090,23 @@ class nn_network:
 
     def do_inference(self):
 
-        train_lists = ["img_idx", "Etot_lab", "Etot_pre", "Ei_lab", "Ei_pre", "Force_lab", "Force_pre"]
-        train_lists.extend(["RMSE_Etot", "RMSE_Etot_per_atom", "RMSE_Ei", "RMSE_F"])
-        if self.is_trainEgroup:
+        train_lists = ["img_idx", "RMSE_Etot", "RMSE_Etot_per_atom", "RMSE_Ei", "RMSE_F"]
+        if self.dp_params.optimizer_param.train_egroup:
             train_lists.append("RMSE_Egroup")
         res_pd = pd.DataFrame(columns=train_lists)
 
-        inf_dir = os.path.join(self.opts.opt_session_dir, "inference")
+        inf_dir = self.dp_params.file_paths.test_dir
         if os.path.exists(inf_dir) is True:
             shutil.rmtree(inf_dir)
         os.mkdir(inf_dir)
-        res_pd_save_path = os.path.join(inf_dir, "inference_info.csv")
+        res_pd_save_path = os.path.join(inf_dir, "inference_loss.csv")
         inf_force_save_path = os.path.join(inf_dir,"inference_force.txt")
-        lab_force_save_path = os.path.join(inf_dir,"label_force.txt")
-        inf_energy_save_path = os.path.join(inf_dir,"inference_energy.txt")
-        lab_energy_save_path = os.path.join(inf_dir,"label_energy.txt")
-        inf_Ei_save_path = os.path.join(inf_dir,"inference_Ei.txt")
-        lab_Ei_save_path = os.path.join(inf_dir,"label_Ei.txt")
+        lab_force_save_path = os.path.join(inf_dir,"dft_force.txt")
+        inf_energy_save_path = os.path.join(inf_dir,"inference_total_energy.txt")
+        lab_energy_save_path = os.path.join(inf_dir,"dft_total_energy.txt")
+        inf_Ei_save_path = os.path.join(inf_dir,"inference_atomic_energy.txt")
+        lab_Ei_save_path = os.path.join(inf_dir,"dft_atomic_energy.txt")
+        inference_path = os.path.join(inf_dir,"inference_summary.txt") 
 
         for i_batch, sample_batches in enumerate(self.loader_train):
             if pm.is_dfeat_sparse == True:
@@ -1649,7 +1128,7 @@ class nn_network:
             Etot_label = torch.sum(Ei_label, dim=1)
             
             self.model.eval()
-            if self.is_trainEgroup:
+            if self.dp_params.optimizer_param.train_egroup:
                 kalman_inputs = [input_data, dfeat, neighbor, natoms_img, atom_type, egroup_weight, divider]
             else:
                 kalman_inputs = [input_data, dfeat, neighbor, natoms_img, atom_type, None, None]
@@ -1661,7 +1140,7 @@ class nn_network:
             loss_Etot_val = criterion(Etot_predict, Etot_label)
             loss_F_val = criterion(Force_predict, Force_label)
             loss_Ei_val = criterion(Ei_predict, Ei_label)
-            if self.is_trainEgroup is True:
+            if self.dp_params.optimizer_param.train_egroup is True:
                 loss_Egroup_val = criterion(Egroup_predict, Egroup_label)
             # rmse
             Etot_rmse = loss_Etot_val ** 0.5
@@ -1669,10 +1148,9 @@ class nn_network:
             Ei_rmse = loss_Ei_val ** 0.5
             F_rmse = loss_F_val ** 0.5
 
-            res_list = [i_batch, float(Etot_label), float(Etot_predict), \
-                        float(Ei_label.abs().mean()), float(Ei_predict.abs().mean()), \
-                        float(Force_label.abs().mean()), float(Force_predict.abs().mean()),\
-                        float(Etot_rmse), float(etot_atom_rmse), float(Ei_rmse), float(F_rmse)]
+            res_list = [i_batch, float(Etot_rmse), float(etot_atom_rmse), float(Ei_rmse), float(F_rmse)]
+            if self.dp_params.optimizer_param.train_egroup:
+                res_list.append(float(loss_Egroup_val))
             res_pd.loc[res_pd.shape[0]] = res_list
            
             #''.join(map(str, list(np.array(Force_predict.flatten().cpu().data))))
@@ -1700,15 +1178,17 @@ class nn_network:
         inference_cout += "Avarage REMSE of Etot per atom: {} \n".format(res_pd['RMSE_Etot_per_atom'].mean())
         inference_cout += "Avarage REMSE of Ei: {} \n".format(res_pd['RMSE_Ei'].mean())
         inference_cout += "Avarage REMSE of RMSE_F: {} \n".format(res_pd['RMSE_F'].mean())
-        if self.is_trainEgroup:
+        if self.dp_params.optimizer_param.train_egroup:
             inference_cout += "Avarage REMSE of RMSE_Egroup: {} \n".format(res_pd['RMSE_Egroup'].mean())
-        if self.is_trainViral:  #not realized
-            inference_cout += "Avarage REMSE of RMSE_virial: {} \n".format(res_pd['RMSE_virial'].mean())
-            inference_cout += "Avarage REMSE of RMSE_virial_per_atom: {} \n".format(res_pd['RMSE_virial_per_atom'].mean())
+        # if self.dp_params.optimizer_param.train_virial:  #not realized
+        #     inference_cout += "Avarage REMSE of RMSE_virial: {} \n".format(res_pd['RMSE_virial'].mean())
+        #     inference_cout += "Avarage REMSE of RMSE_virial_per_atom: {} \n".format(res_pd['RMSE_virial_per_atom'].mean())
 
         inference_cout += "\nMore details can be found under the file directory:\n{}\n".format(inf_dir)
         print(inference_cout)
-        return
+        with open(inference_path, 'w') as wf:
+            wf.writelines(inference_cout)
+        return  
 
     """ 
         ============================================================
@@ -1724,36 +1204,6 @@ class nn_network:
         import poscar2lammps
         poscar2lammps.p2l() 
         
-
-    def extract_model_para(self, model_name = None):
-        """
-            extracting network parameters and scaler values for fortran MD routine
-        """
-        from src.aux.extract_nn import read_wij, read_scaler 
-
-        if model_name is None:  
-            load_model_path = self.opts.opt_model_dir + 'latest.pt' 
-        else:
-            load_model_path = model_name
-
-        print ("extracting parameters from:", load_model_path)
-
-        read_wij(load_model_path)
-
-        load_scaler_path = self.opts.opt_session_dir + "scaler.pkl"
-
-        print ("extracting scaler values from:", load_scaler_path) 
-
-        read_scaler(load_scaler_path)
-        
-    def extract_force_field(self, name= "myforcefield.ff", model_name = None):
-        
-        from extract_ff import extract_ff
-
-        self.extract_model_para(model_name= model_name)
-        extract_ff(name = name, model_type = 3)
-                
-
     def run_md(self, init_config = "atom.config", md_details = None, num_thread = 1,follow = False):
         
         mass_table = {  1:1.007,2:4.002,3:6.941,4:9.012,5:10.811,6:12.011,
@@ -1805,193 +1255,29 @@ class nn_network:
         command = r'mpirun -n ' + str(num_thread) + r' main_MD.x'
         print (command)
         subprocess.run(command, shell=True) 
-        
-    """
-        ============================================================
-        ===================auxiliary functions======================
-        ============================================================ 
-    """
-
-    def use_global_kalman(self):
-        self.kalman_type = "GKF"
-
-    def use_layerwise_kalman(self):
-        self.kalman_type = "LKF"
-
-    def set_kalman_lambda(self,val):
-        self.kalman_lambda = val  
-    # set prefactor 
-    def set_kalman_nue(self,val):
-        self.kalman_nue = val
-
-    def set_kf_prefac_Etot(self,val):
-        self.kf_prefac_Etot = val
-
-    def set_kf_prefac_Ei(self,val):
-        self.kf_prefac_Ei = val 
-
-    def set_kf_prefac_F(self,val):
-        self.kf_prefac_F = val 
-
-    def set_kf_prefac_Egroup(self,val):
-        self.kf_prefac_Egroup = val 
-
-    # set label to train 
-    def set_train_force(self,val):
-        self.is_trainForce = val 
-
-    def set_train_Ei(self,val):
-        self.is_trainEi = val
-
-    def set_train_Etot(self,val):
-        self.is_trainEtot = val 
-
-    def set_train_Egroup(self,val):
-        self.is_trainEgroup = val   
-
-    def set_load_model_path(self,val): 
-        self.load_model_path = val 
-
-    def set_max_neigh_num(self,val):
-        pm.maxNeighborNum = val 
-
-    def not_KF(self):
-
-        if self.kalman_type is None: 
-            return True
-        else:
-            return False
     
-    def set_b_init(self):
-
-        """
-            get mean atomic energy (Ei) for each type automatically
-
-        """
-        type_dict = {} 
-        result = []
-
-        tgt_dir = os.getcwd() + r"/train_data/final_train/"        
-        
-        num_atom = np.load(tgt_dir+"ind_img.npy")[1]
-
-        # atom type list of a image
-        type_list = np.load(tgt_dir+"itypes.npy")[0:num_atom]
-        atomic_energy_list = np.load(tgt_dir+"engy_scaled.npy")[0:num_atom]
-        
-        for atom, energy in zip(type_list, atomic_energy_list):
-            if atom not in type_dict:
-                type_dict[atom] = [energy]
-            else:
-                type_dict[atom].append(energy)
-        
-        for atom in pm.atomType:
-            result.append(np.mean(type_dict[atom]))
-
-        print ("initial bias for atoms:", result)
-
-        return result.copy()         
-        
-    def set_session_dir(self,session_dir):
-
-        print("models and other information will be saved in:",'/'+session_dir)
-
-        self.opts.opt_session_name = session_dir
-        self.opts.opt_session_dir = './'+self.opts.opt_session_name+'/'
-        self.opts.opt_logging_file = self.opts.opt_session_dir+'train.log'
-        self.opts.opt_model_dir = self.opts.opt_session_dir+'model/'
-
-        if not os.path.exists(self.opts.opt_session_dir):
-            os.makedirs(self.opts.opt_session_dir) 
-        if not os.path.exists(self.opts.opt_model_dir):
-            os.makedirs(self.opts.opt_model_dir)
-
-    def set_nFeature(self):
-        """    
-            obtain number of feature from fread_dfeat/feat.info
-        """
-        from os import path
-        
-        tgt = "fread_dfeat/feat.info" 
-
-        if not path.exists(tgt):
-            raise Exception("feature information file feat.info is not generated")
-
-        f = open(tgt,'r')
-
+    def set_nFeature(self, feature_path):
+        # obtain number of feature from fread_dfeat/feat.info
+        if self.dp_params.inference:
+            feat_info = os.path.join(feature_path[0], "fread_dfeat/feat.info")
+        else:
+            feat_info = os.path.join(feature_path[0], "fread_dfeat/feat.info")
+        f = open(feat_info,'r')
         raw = f.readlines()[-1].split()
-
         pm.nFeatures = sum([int(item) for item in raw])
-
         print("number of features:",pm.nFeatures)
     
-    def print_feat_para(self):
-        # print feature parameter 
-        
-        for feat_idx in pm.feature_type:
-            name  = "" 
-            
-            print(name)
-            print(getattr(pm,name))
-            
-        pass 
-
-    # print starting info
-    def print_parameters(self):
-
-        """
-            print all infos at the beginning 
-        """
-        self.opts.summary("")
-        self.opts.summary("#########################################################################################")
-        self.opts.summary("#            ___          __                         __      __  ___       __  ___      #")
-        self.opts.summary("#      |\ | |__  |  |    |__) |  | |\ | |\ | | |\ | / _`    /__`  |   /\  |__)  |       #")
-        self.opts.summary("#      | \| |___ |/\|    |  \ \__/ | \| | \| | | \| \__>    .__/  |  /~~\ |  \  |       #")
-        self.opts.summary("#                                                                                       #")
-        self.opts.summary("#########################################################################################")
-        self.opts.summary("") 
-
-        print("Training: set default dtype to float64: %s" %self.opts.opt_dtype)
-        print("Training: rseed = %s" %self.opts.opt_rseed) 
-        print("Training: session = %s" %self.opts.opt_session_name)
-        print("Training: run_id = %s" %self.opts.opt_run_id)
-        print("Training: journal_cycle = %d" %self.opts.opt_journal_cycle)
-        print("Training: follow_mode = %s" %self.opts.opt_follow_mode)
-        print("Training: recover_mode = %s" %self.opts.opt_recover_mode)
-        print("Training: network = %s" %self.opts.opt_net_cfg)
-        print("Training: model_dir = %s" %self.opts.opt_model_dir)
-        print("Training: model_file = %s" %self.opts.opt_model_file)
-        print("Training: activation = %s" %self.opts.opt_act)
-        print("Training: optimizer = %s" %self.opts.opt_optimizer)
-        print("Training: momentum = %.16f" %self.opts.opt_momentum)
-        print("Training: REGULAR_wd = %.16f" %self.opts.opt_regular_wd)
-        print("Training: scheduler = %s" %self.opts.opt_scheduler)
-        print("Training: n_epoch = %d" %self.opts.opt_epochs)
-        print("Training: LR_base = %.16f" %self.opts.opt_lr)
-        print("Training: LR_gamma = %.16f" %self.opts.opt_gamma)
-        print("Training: LR_step = %d" %self.opts.opt_step)
-        print("Training: batch_size = %d" %self.opts.opt_batch_size)
-
-        # scheduler specific options
-        print("Scheduler: opt_LR_milestones = %s" %self.opts.opt_LR_milestones)
-        print("Scheduler: opt_LR_patience = %s" %self.opts.opt_LR_patience)
-        print("Scheduler: opt_LR_cooldown = %s" %self.opts.opt_LR_cooldown)
-        print("Scheduler: opt_LR_total_steps = %s" %self.opts.opt_LR_total_steps)
-        print("Scheduler: opt_LR_max_lr = %s" %self.opts.opt_LR_max_lr)
-        print("Scheduler: opt_LR_min_lr = %s" %self.opts.opt_LR_min_lr)
-        print("Scheduler: opt_LR_T_max = %s" %self.opts.opt_LR_T_max)
-        print("scheduler: opt_autograd = %s" %self.opts.opt_autograd)
-
     # calculate loss 
     def get_loss_func(self,start_lr, real_lr, has_fi, lossFi, has_etot, loss_Etot, has_egroup, loss_Egroup, has_ei, loss_Ei, natoms_sum):
-        start_pref_egroup = 0.02
-        limit_pref_egroup = 1.0
-        start_pref_F = 1000  #1000
-        limit_pref_F = 1.0
-        start_pref_etot = 0.02   
-        limit_pref_etot = 1.0
-        start_pref_ei = 0.02
-        limit_pref_ei = 1.0
+        start_pref_egroup =self.dp_params.optimizer_param.start_pre_fac_egroup  # 0.02
+        start_pref_F =self.dp_params.optimizer_param.start_pre_fac_force  # 1000  #1000
+        start_pref_etot =self.dp_params.optimizer_param.start_pre_fac_etot # 0.02   
+        start_pref_ei =self.dp_params.optimizer_param.start_pre_fac_ei # 0.02
+
+        limit_pref_egroup =self.dp_params.optimizer_param.end_pre_fac_egroup  # 1.0
+        limit_pref_F =self.dp_params.optimizer_param.end_pre_fac_force # 1.0
+        limit_pref_etot =self.dp_params.optimizer_param.end_pre_fac_etot # 1.0
+        limit_pref_ei =self.dp_params.optimizer_param.end_pre_fac_ei # 1.0
 
         pref_fi = has_fi * (limit_pref_F + (start_pref_F - limit_pref_F) * real_lr / start_lr)
         pref_etot = has_etot * (limit_pref_etot + (start_pref_etot - limit_pref_etot) * real_lr / start_lr)
@@ -2012,67 +1298,44 @@ class nn_network:
         return l2_loss, pref_fi, pref_etot
 
     #update learning rate at iter_num
-    def adjust_lr(self,iter_num,  stop_lr=3.51e-8):
-
-        start_lr = self.opts.opt_lr 
-
-        stop_step = 1000000
-        decay_step=5000
+    def adjust_lr(self,iter_num):
+        stop_lr= self.dp_params.optimizer_param.stop_lr #3.51e-8
+        start_lr = self.dp_params.optimizer_param.learning_rate 
+        stop_step = self.dp_params.optimizer_param.stop_step # 1000000
+        decay_step= self.dp_params.optimizer_param.decay_step # 5000
         decay_rate = np.exp(np.log(stop_lr/start_lr) / (stop_step/decay_step)) #0.9500064099092085
         real_lr = start_lr * np.power(decay_rate, (iter_num//decay_step))
         return real_lr  
 
     # implement a linear scheduler
     def LinearLR(self,optimizer, base_lr, target_lr, total_epoch, cur_epoch):
-
         lr = base_lr - (base_lr - target_lr) * (float(cur_epoch) / float(total_epoch))
-
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr
 
-    
     def evaluate(self,num_thread = 1):
         """
             evaluate a model w.r.t AIMD
             put a MOVEMENT in /MD and run MD100 
         """
-        # features input for main_MD.x
-        
         if not os.path.exists("input"):
             os.mkdir("input")
-            
         import prepare as pp
         pp.writeGenFeatInput()
-
         os.system('rm -f MOVEMENT')
-
         if not os.path.exists("MD/MOVEMENT"):
             raise Exception("MD/MOVEMENT not found")
-
         import md100
         md100.run_md100(imodel = 3, atom_type = pm.atomType, num_process = num_thread)
 
     def plot_evaluation(self, plot_elem, save_data):
-                
         if not os.path.exists("MOVEMENT"):
             raise Exception("MOVEMENT not found. It should be force field MD result")
-
         import plot_evaluation
         # plot_evaluation.plot()
-
-        if self.is_trainEi or self.is_trainEgroup:
+        if self.dp_params.optimizer_param.train_ei or self.dp_params.optimizer_param.train_egroup:
             plot_ei = True
         else:
             plot_ei = False
-
         plot_evaluation.plot_new(atom_type = pm.atomType, plot_elem = plot_elem, save_data = save_data, plot_ei = plot_ei)
-    
-    """
-        ======================================================================
-        ===================user-defined debugging functions===================
-        ======================================================================  
-    """
 
-
-    def mydebug():
-        return "hahaha"

@@ -1,0 +1,157 @@
+{   
+    "_attention":"The variable starting with an underline '_' is a comment, explaining the variable",
+
+    "recover_train":false,
+    "_recover":"recovering from last training",
+    "work_dir":"./work_train_dir",
+    "reserve_work_dir": false,
+    "_reserve_work_dir": "whether to keep the working path file",
+
+    "model_load_path":"./model_record_lkf_ef/checkpoint.pth.tar",
+    "__model_load_path":"when specify this value, inference will use this checkpoint model, otherwise, inference use the checkpoint at work dir",
+    
+    "train_movement_path":["MOVEMENT_2", "MOVEMENT_3"],
+
+    "forcefield_name": "forcefield.ff",
+    "forcefield_dir": "forcefield",
+    "_forcefield":"forcefield_name is the name of the forcefield file extracted from the model, forcefield_dir is the parent directory name of forcefield_name", 
+
+    "test_movement_path":["./test/MOVEMENT", "./test/MOVEMENT_2", "./test/MOVEMENT_3"],
+    "test_dir_name":"test_dir",
+    "_test_dir_name":"The directory name where the inference result is located", 
+
+    "model_name": "checkpoint.pth.tar",
+    "model_store_dir":"model_record_lkf_ef",
+    "_model_store_dir":"model_name is the name of the trained model file name, model_store_dir is the parent directory name of model_name file",
+
+    "train_valid_ratio":0.8,
+    "_seed":2023,
+
+    "precision":"float64",
+
+    "model_type": "NN",
+    "atom_type":[3,14],
+    "max_neigh_num":100, 
+    "model":{
+        "fitting_net": {
+            "network_size": [15, 15, 1],
+            "bias": true,
+            "activation": "tanh"
+        },
+        "descriptor": {
+            "Rmax":6.0, 
+            "Rmin":0.5,
+            "E_tolerance":9999999.99,
+            
+            "feature_type":[3,4],
+            
+            "1":{
+                "numOf2bfeat": 24,
+                "iflag_grid": 3,
+                "fact_base": 0.2,
+                "dR1": 0.5,
+                "iflag_ftype": 3
+            },
+            "2":{
+                "numOf3bfeat1" : 3,
+                "numOf3bfeat2" : 3,
+                "iflag_grid" : 3,
+                "fact_base" : 0.2,
+                "dR1" : 0.5,
+                "dR2" : 0.5,
+                "iflag_ftype" : 3
+            },
+            "3":{
+                "n2b": 6,
+                "w": [1.0, 1.5, 2.0]
+            },
+            "4":{
+                "n3b": 20,
+                "zeta": 2.0,
+                "w": [0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0]
+            },
+            "5":{
+                "n_MTP_line":5
+            },
+            "6":{
+                "J":3.0,
+                "n_w_line":2,
+                "w1":[0.9, 0.1, 0.8, 0.2, 0.7, 0.3, 0.6, 0.4],
+                "w2":[0.1, 0.9, 0.2, 0.8, 0.3, 0.7, 0.3, 0.6]
+            },
+            "7":{
+                "M":25,
+                "M2":4,
+                "weight_r":1.0
+            },
+            "8": {
+                "M":8,
+                "weight_r":1.0,
+                "w":[1.0, 1.5, 2.0, 2.5]
+            }
+        }
+    },
+
+    "optimizer":{
+        "optimizer":"LKF",
+        "block_size":5120, 
+        "kalman_lambda":0.98, 
+        "kalman_nue":0.99870,
+        "nselect":24,
+        "groupsize":6,
+        
+        "batch_size": 1,
+        "epochs":30,
+        "start_epoch":1,
+
+        "print_freq":10,
+
+        "train_energy":true,
+        "train_force":true,
+        "train_ei":false,
+        "train_virial":false,
+        "train_egroup":false,
+    
+        "pre_fac_force":2.0,
+        "pre_fac_etot":1.0, 
+        "pre_fac_ei":1.0,
+        "pre_fac_virial":1.0, 
+        "pre_fac_egroup":0.1
+        
+        },
+
+    "_optimizer":{
+        "optimizer":"ADAM",
+        "learning_rate": 0.001,
+        
+        "weight_decay":1e-4,
+        "momentum":0.9,
+
+        "batch_size": 1,
+        "epochs":30,
+        "start_epoch":1,
+        
+        "print_freq":10,
+        "stop_lr":3.51e-8,
+        "stop_step":1000000,
+        "decay_step":5000,
+
+        "train_energy":true,
+        "train_force":true,
+        "train_ei":false,
+        "train_virial":false,
+        "train_egroup":false,
+    
+        "start_pre_fac_force":1000,
+        "start_pre_fac_etot":0.02, 
+        "start_pre_fac_ei":0.1,
+        "start_pre_fac_virial":50.0, 
+        "start_pre_fac_egroup":0.02,
+
+        "end_pre_fac_force":1.0,
+        "end_pre_fac_etot":1.0, 
+        "end_pre_fac_ei":2.0,
+        "end_pre_fac_virial":1.0, 
+        "end_pre_fac_egroup":1.0
+        }
+}

@@ -29,10 +29,6 @@ def collect_all_sourcefiles(workDir, sourceFileName="MOVEMENT"):
     for path, dirList, fileList in os.walk(workDir, followlinks=True):
         if sourceFileName in fileList:
             movement_dir.append(os.path.abspath(path))
-    
-    for dir in movement_dir:
-        atom_type = get_movement_atomtype(os.path.join(dir, "MOVEMENT"))
-        
     return movement_dir
 
 '''
@@ -811,16 +807,10 @@ def sepper_data_main(config, is_egroup = True, stat_add = None):
 
     if stat_add is not None:
         # load from prescribed path
-        print ("using exsiting stat files:")
-        print (stat_add+"/davg.npy")
-        davg = np.load(stat_add+"/davg.npy")
-        print (stat_add+"/dstd.npy")
-        dstd = np.load(stat_add+"/dstd.npy")
-        print( stat_add+"/energy_shift.raw")
-        energy_shift = np.loadtxt(stat_add+"/energy_shift.raw")
-        atom_type_order = list(np.loadtxt(stat_add+"/atom_map.raw"))
-        if energy_shift.size == 1:
-            energy_shift = [energy_shift]
+        print("davg and dstd are from model checkpoint")
+        davg, dstd, atom_type_order, energy_shift = stat_add
+        # if energy_shift.size == 1: #
+        #     energy_shift = [energy_shift]
     else:
         # calculate davg and dstd from first category of movement_classify
         davg, dstd = None, None
@@ -868,7 +858,7 @@ def sepper_data_main(config, is_egroup = True, stat_add = None):
         # else:
         #     atom_type_order = _get_atom_type_order(_atom_types, _atom_num_per_image)
         # reorder davg and dstd to consistent with atom type order of current movement
-        _davg, _dstd = _reorder_davg_dstd(davg, dstd, atom_type_order, mvm['types'])
+        _davg, _dstd = _reorder_davg_dstd(davg, dstd, list(atom_type_order), mvm['types'])
 
         accum_train_num, accum_valid_num= sepper_data(config, _Etot, _Ei, _Force, _dR, \
                     _atom_num_per_image, _atom_types, _img_per_mvmt, \
@@ -882,8 +872,8 @@ def sepper_data_main(config, is_egroup = True, stat_add = None):
         np.save(os.path.join(valid_data_path, "davg.npy"), davg)
         np.save(os.path.join(train_data_path, "dstd.npy"), dstd)
         np.save(os.path.join(valid_data_path, "dstd.npy"), dstd)
-        np.savetxt(os.path.join(train_data_path, "atom_map.raw"), atom_type_list)
-        np.savetxt(os.path.join(valid_data_path, "atom_map.raw"), atom_type_list)
+        np.savetxt(os.path.join(train_data_path, "atom_map.raw"), atom_type_list, fmt="%d")
+        np.savetxt(os.path.join(valid_data_path, "atom_map.raw"), atom_type_list, fmt="%d")
         np.savetxt(os.path.join(train_data_path, "energy_shift.raw"), energy_shift)
         np.savetxt(os.path.join(valid_data_path, "energy_shift.raw"), energy_shift)
                 

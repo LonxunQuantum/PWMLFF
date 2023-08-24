@@ -178,7 +178,7 @@ def plot():
 def plot_new(atom_type, plot_elem = False, save_data = False, plot_ei = False):
 
     import os    
-
+    inference_summary_str = ""
     print("Plotting of evaluation starts. Make sure MD/MOVEMENT and MOVEMENT are of EXACTLY THE SAME LENGTH")
     
     num_atoms, num_iters, dft_total_energy, dft_atomic_energy, dft_force, dft_atomic_energy_per_elem, dft_atomic_force_per_elem = read_dft_movement(file_dft="MD/MOVEMENT", atom_type=atom_type)
@@ -217,6 +217,10 @@ def plot_new(atom_type, plot_elem = False, save_data = False, plot_ei = False):
     print('E_tot, e_rmse: %.3E' % e_tot_rms)
     print('E_tot/N_atom, e_rmse: %.3E' % (e_tot_rms/num_atoms))
 
+    inference_summary_str += 'E_atomic, e_rmse: %.3E\n' % e_atomic_rms
+    inference_summary_str += 'E_tot, e_rmse: %.3E\n' % e_tot_rms
+    inference_summary_str += 'E_tot/N_atom, e_rmse: %.3E\n' % (e_tot_rms/num_atoms)
+
     # calculate force
     f_dft_plot = dft_force.reshape(3*num_atoms*num_iters)
     f_nn_plot = nn_force.reshape(3*num_atoms*num_iters)
@@ -227,7 +231,7 @@ def plot_new(atom_type, plot_elem = False, save_data = False, plot_ei = False):
 
     f_rms = LA.norm(f_dft_plot - f_nn_plot) / np.sqrt(3*num_atoms*num_iters)
     print('f_rmse: %.3E' % f_rms)
-
+    inference_summary_str += 'f_rmse: %.3E\n' % f_rms
     # Set up matplotlib parameters for better-looking plots
     # plt.rcParams['figure.figsize'] = (19, 5) # Increase figure size 
     plt.rcParams['font.size'] = 12  # Increase font size 
@@ -289,11 +293,12 @@ def plot_new(atom_type, plot_elem = False, save_data = False, plot_ei = False):
     if save_data:
         if plot_ei:
             np.savetxt('plot_data/dft_atomic_energy.txt', dft_atomic_energy)
-            np.savetxt('plot_data/pre_atomic_energy.txt', nn_atomic_energy)
+            np.savetxt('plot_data/inference_atomic_energy.txt', nn_atomic_energy)
         np.savetxt('plot_data/dft_total_energy.txt', dft_total_energy)
-        np.savetxt('plot_data/pre_total_energy.txt', nn_total_energy)
+        np.savetxt('plot_data/inference_total_energy.txt', nn_total_energy)
         np.savetxt('plot_data/dft_force.txt', f_dft_plot)
-        np.savetxt('plot_data/pre_force.txt', f_nn_plot)
+        np.savetxt('plot_data/inference_force.txt', f_nn_plot)
+        # res_pd_save_path = os.path.join(inf_dir, "inference_loss.csv")
 
     if plot_elem:
 
@@ -359,14 +364,13 @@ def plot_new(atom_type, plot_elem = False, save_data = False, plot_ei = False):
             if save_data:
                 if plot_ei:
                     np.savetxt(f'plot_data/dft_atomic_energy_{elem_type}.txt', dft_atomic_energy_per_elem[atom])
-                    np.savetxt(f'plot_data/pre_atomic_energy_{elem_type}.txt', nn_atomic_energy_per_elem[atom])
+                    np.savetxt(f'plot_data/inference_atomic_energy_{elem_type}.txt', nn_atomic_energy_per_elem[atom])
                 np.savetxt(f'plot_data/dft_atomic_force_{elem_type}.txt', dft_atomic_force_per_elemx)
-                np.savetxt(f'plot_data/pre_atomic_force_{elem_type}.txt', nn_atomic_force_per_elemy)
+                np.savetxt(f'plot_data/inference_atomic_force_{elem_type}.txt', nn_atomic_force_per_elemy)
         
         for i, fig in enumerate(figs):
             fig.savefig(f'plot_data/evaluation_plots_{atom_type[i]}.png', dpi=300, bbox_inches='tight', format='png')
 
-    
-if __name__ == '__main__':
-
-    main()
+    with open(f"plot_data/inference_summary.txt", 'w') as wf:
+        wf.writelines(inference_summary_str)
+        

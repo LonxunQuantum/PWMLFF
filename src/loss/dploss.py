@@ -1,5 +1,5 @@
 import numpy as np
-
+from src.user.model_param import DpParam
 # def dp_loss(
 #     start_lr,
 #     real_lr,
@@ -15,7 +15,7 @@ import numpy as np
 #     loss_Ei,
 #     natoms_sum,
 # ):
-def dp_loss(start_lr, real_lr, stat, *args):
+def dp_loss(dp_param:DpParam, start_lr, real_lr, stat, *args):
 
     if stat == 1:   
         has_fi, lossFi, has_etot, loss_Etot, has_virial, loss_Virial, has_egroup, loss_Egroup, has_ei, loss_Ei, natoms_sum = args
@@ -26,11 +26,12 @@ def dp_loss(start_lr, real_lr, stat, *args):
     else:   # no virial and egroup
         has_fi, lossFi, has_etot, loss_Etot, has_ei, loss_Ei, natoms_sum = args
 
-    start_pref_egroup, limit_pref_egroup = 0.02, 1.0
-    start_pref_F, limit_pref_F = 1000, 1.0
-    start_pref_etot, limit_pref_etot = 0.02, 1.0
-    start_pref_virial, limit_pref_virial = 50.0, 1
-    start_pref_ei, limit_pref_ei = 0.1, 2.0
+    start_pref_egroup, limit_pref_egroup = dp_param.optimizer_param.start_pre_fac_egroup, dp_param.optimizer_param.end_pre_fac_egroup
+    start_pref_F, limit_pref_F = dp_param.optimizer_param.start_pre_fac_force, dp_param.optimizer_param.end_pre_fac_force # 1000, 1.0
+    start_pref_etot, limit_pref_etot = dp_param.optimizer_param.start_pre_fac_etot, dp_param.optimizer_param.end_pre_fac_etot # 0.02, 1.0
+    start_pref_virial, limit_pref_virial = dp_param.optimizer_param.start_pre_fac_virial, dp_param.optimizer_param.end_pre_fac_virial # 50.0, 1
+    start_pref_ei, limit_pref_ei =dp_param.optimizer_param.start_pre_fac_ei, dp_param.optimizer_param.end_pre_fac_ei # 0.1, 2.0
+
     pref_fi = has_fi * (
         limit_pref_F + (start_pref_F - limit_pref_F) * real_lr / start_lr
     )
@@ -65,9 +66,9 @@ def dp_loss(start_lr, real_lr, stat, *args):
     return l2_loss, pref_fi, pref_etot
 
 
-def adjust_lr(iter, start_lr, stop_lr=3.51e-8):
-    stop_step = 1000000
-    decay_step = 5000
+def adjust_lr(iter, start_lr, stop_step, decay_step, stop_lr=3.51e-8):
+    # stop_step = 1000000
+    # decay_step = 5000
     decay_rate = np.exp(
         np.log(stop_lr / start_lr) / (stop_step / decay_step)
     )  # 0.9500064099092085
