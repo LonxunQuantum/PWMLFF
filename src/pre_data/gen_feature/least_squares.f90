@@ -8,8 +8,8 @@ MODULE LeastSquaresSolver
    !       CHARACTER, INTENT(IN) :: TRANS
    !       INTEGER, INTENT(IN) :: M, N, NRHS, LDA, LDB, LWORK
    !       INTEGER, INTENT(OUT) :: INFO
-   !       DOUBLE PRECISION, INTENT(INOUT) :: A(LDA, *)
-   !       DOUBLE PRECISION, INTENT(INOUT) :: B(LDB, *)
+   !       DOUBLE PRECISION, INTENT(IN) :: A(LDA, *)
+   !       DOUBLE PRECISION, INTENT(IN) :: B(LDB, *)
    !       DOUBLE PRECISION, INTENT(INOUT) :: WORK(LWORK)
    !    END SUBROUTINE dgels
    ! END INTERFACE
@@ -49,7 +49,7 @@ CONTAINS
       !!> @note If INFO = -i, the i-th diagonal element of the triangular factor of A is zero, so that A does not have full rank.
       !!> @note If INFO = i, the i-th row of A and/or the i-th element of b is invalid.
       !!>
-      !   CALL dgels('N', M, N, NRHS, A, M, B, N, WORK, LWORK, INFO)
+      !   CALL dgels('N', M, N, NRHS, A, LDA, B, LDB, WORK, LWORK, INFO)
       CALL dgels('N', M, N, NRHS, A, M, B, MAX(M,N), WORK, LWORK, INFO)
       X(1:N) = B(1:N)
    END SUBROUTINE SolveLeastSquares

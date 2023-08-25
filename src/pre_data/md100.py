@@ -325,7 +325,14 @@ def run_md100(imodel, atom_type, num_process=1):
     result = subprocess.run(command, stdout=subprocess.PIPE, encoding='utf-8', shell=True)
     nskip1 = int(result.stdout.split('\n')[0].split(':')[0])
 
-    #
+    # if pressure alive, then nskip2 + 4 lines.
+    command = 'grep -ni pressure  ' + in_movement + ' | head -n 40'
+    print('running-shell-command: ' + command)
+    result = subprocess.run(command, stdout=subprocess.PIPE, encoding='utf-8', shell=True)
+    if 'Pressure' in result.stdout:
+        nskip2 += 4
+
+    # to next iteration
     nskip3 = line_iter2 - 1 - nskip1 - 3 - nskip2 - natom
 
     # create xatom.config

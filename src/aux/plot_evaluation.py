@@ -46,7 +46,7 @@ def read_dft_movement(file_dft=r'MD/MOVEMENT', atom_type=[22,8]):
                     force_per_elem[atype].append([-float(tmp[1]), -float(tmp[2]), -float(tmp[3])])
         
     
-    return num_atoms, num_iters, np.array(ep), np.array(atomic_energy), np.array(f_atom), atomic_energy_per_elem, force_per_elem
+    return num_atoms, num_iters, np.array(ep), np.array(atomic_energy), np.array(f_atom), atomic_energy_per_elem, force_per_elem, is_atomic
 
 def read_nn_movement(file_nn='MOVEMENT'):
     f = open(file_nn, 'r')
@@ -176,13 +176,21 @@ def plot():
     plt.title('force')
     '''
 def plot_new(atom_type, plot_elem = False, save_data = False, plot_ei = False):
+    """
+        Plots the evaluation of the MLFF model against DFT data.
 
+        Args:
+            atom_type (str): The type of atom to plot.
+            plot_elem (bool): Whether to plot the atomic energy per element.
+            save_data (bool): Whether to save the plotted data.
+            plot_ei (bool): Whether to plot the atomic energy. Only plot if it has been trained. But someone may put a new movement file without atomic energy for evaluation.
+    """
     import os    
     inference_summary_str = ""
     print("Plotting of evaluation starts. Make sure MD/MOVEMENT and MOVEMENT are of EXACTLY THE SAME LENGTH")
     
-    num_atoms, num_iters, dft_total_energy, dft_atomic_energy, dft_force, dft_atomic_energy_per_elem, dft_atomic_force_per_elem = read_dft_movement(file_dft="MD/MOVEMENT", atom_type=atom_type)
-    tmp_atoms, tmp_iters, nn_total_energy,  nn_atomic_energy,  nn_force, nn_atomic_energy_per_elem, nn_atomic_force_per_elem  = read_dft_movement(file_dft='MOVEMENT', atom_type=atom_type)
+    num_atoms, num_iters, dft_total_energy, dft_atomic_energy, dft_force, dft_atomic_energy_per_elem, dft_atomic_force_per_elem, dft_is_atomic = read_dft_movement(file_dft="MD/MOVEMENT", atom_type=atom_type)
+    tmp_atoms, tmp_iters, nn_total_energy,  nn_atomic_energy,  nn_force, nn_atomic_energy_per_elem, nn_atomic_force_per_elem, _  = read_dft_movement(file_dft='MOVEMENT', atom_type=atom_type)
     
     if num_atoms != tmp_atoms:
         raise Exception("number of atoms in two files does not match")
@@ -190,34 +198,35 @@ def plot_new(atom_type, plot_elem = False, save_data = False, plot_ei = False):
     if num_iters != tmp_iters:
         raise Exception("number of images in two files does not match")
 
-    e_min = min(min(dft_atomic_energy), min(nn_atomic_energy))
-    e_max = max(max(dft_atomic_energy), max(nn_atomic_energy))
+    if dft_is_atomic:    
+        dft_total_energy = np.zeros(num_iters, dtype=float)
+        nn_total_energy = np.zeros(num_iters, dtype=float)
         
-    lim_min = e_min - (e_max - e_min) * 0.1
-    lim_max = e_max + (e_max - e_min) * 0.1
-    
-    dft_total_energy = np.zeros(num_iters, dtype=float)
-    nn_total_energy = np.zeros(num_iters, dtype=float)
-    
-    for i in range(num_iters):
-        dft_total_energy[i] = dft_atomic_energy[i*num_atoms:(i+1)*num_atoms].sum()
-        nn_total_energy[i] = nn_atomic_energy[i*num_atoms:(i+1)*num_atoms].sum()
+        for i in range(num_iters):
+            dft_total_energy[i] = dft_atomic_energy[i*num_atoms:(i+1)*num_atoms].sum()
+            nn_total_energy[i] = nn_atomic_energy[i*num_atoms:(i+1)*num_atoms].sum()
         
     e_tot_min = min(min(dft_total_energy), min(nn_total_energy))
     e_tot_max = max(max(dft_total_energy), max(nn_total_energy))
 
     lim_tot_min = e_tot_min - (e_tot_max - e_tot_min) * 0.1
     lim_tot_max = e_tot_max + (e_tot_max - e_tot_min) * 0.1
-    
 
-    e_atomic_rms = LA.norm(dft_atomic_energy - nn_atomic_energy) / np.sqrt(len(dft_atomic_energy))
-    print('E_atomic, e_rmse: %.3E' % e_atomic_rms)
+    if plot_ei and dft_is_atomic:
+        e_min = min(min(dft_atomic_energy), min(nn_atomic_energy))
+        e_max = max(max(dft_atomic_energy), max(nn_atomic_energy))
+            
+        lim_min = e_min - (e_max - e_min) * 0.1
+        lim_max = e_max + (e_max - e_min) * 0.1
+
+        e_atomic_rms = LA.norm(dft_atomic_energy - nn_atomic_energy) / np.sqrt(len(dft_atomic_energy))
+        print('E_atomic, e_rmse: %.3E' % e_atomic_rms)
+        inference_summary_str += 'E_atomic, e_rmse: %.3E\n' % e_atomic_rms
     
     e_tot_rms = LA.norm(dft_total_energy - nn_total_energy) / np.sqrt(len(dft_total_energy))
     print('E_tot, e_rmse: %.3E' % e_tot_rms)
     print('E_tot/N_atom, e_rmse: %.3E' % (e_tot_rms/num_atoms))
 
-    inference_summary_str += 'E_atomic, e_rmse: %.3E\n' % e_atomic_rms
     inference_summary_str += 'E_tot, e_rmse: %.3E\n' % e_tot_rms
     inference_summary_str += 'E_tot/N_atom, e_rmse: %.3E\n' % (e_tot_rms/num_atoms)
 
@@ -239,13 +248,13 @@ def plot_new(atom_type, plot_elem = False, save_data = False, plot_ei = False):
     plt.rcParams["lines.linewidth"] = 2.5  # Increase lines linewidth 
 
     # Create figure and axes objects
-    if plot_ei:
+    if plot_ei and dft_is_atomic :
         fig, axs = plt.subplots(1, 3, figsize=(19, 5))
     else:
-        fig, axs = plt.subplots(1, 2, figsize=(10, 6))
+        fig, axs = plt.subplots(1, 2, figsize=(12, 6))
 
     # Plot atomic energy
-    if plot_ei:
+    if plot_ei and dft_is_atomic:
         ax = axs[0]
         ax.set_title('Atomic energy')
         ax.scatter(dft_atomic_energy, nn_atomic_energy, s=30, label="MLFF data")
@@ -259,7 +268,7 @@ def plot_new(atom_type, plot_elem = False, save_data = False, plot_ei = False):
         ax.text(0.02, 0.82, horizontalalignment='left', verticalalignment='top', s='Ei, rmse: %.3E' % (e_atomic_rms), transform=ax.transAxes)
 
     # Plot total energy
-    ax = axs[1 if plot_ei else 0]
+    ax = axs[1 if plot_ei and dft_is_atomic else 0]
     ax.set_title('Total energy')
     ax.scatter(dft_total_energy, nn_total_energy, s=30, label="MLFF data")
     ax.plot((lim_tot_min, lim_tot_max), (lim_tot_min, lim_tot_max), ls='--', color='red', label="DFT data")
@@ -272,7 +281,7 @@ def plot_new(atom_type, plot_elem = False, save_data = False, plot_ei = False):
     ax.text(0.02, 0.75, horizontalalignment='left', verticalalignment='top', s='Etot, rmse: %.3E' % (e_tot_rms), transform=ax.transAxes)
 
     # Plot force
-    ax = axs[2 if plot_ei else 1]
+    ax = axs[2 if plot_ei and dft_is_atomic else 1]
     ax.set_title('Force')
     ax.scatter(f_dft_plot, f_nn_plot, s=2, label="MLFF data")
     ax.plot((lim_f_min, lim_f_max), (lim_f_min, lim_f_max), ls='--', color='red', label="DFT data")
@@ -291,7 +300,7 @@ def plot_new(atom_type, plot_elem = False, save_data = False, plot_ei = False):
     #    plt.show()
     
     if save_data:
-        if plot_ei:
+        if plot_ei and dft_is_atomic:
             np.savetxt('plot_data/dft_atomic_energy.txt', dft_atomic_energy)
             np.savetxt('plot_data/inference_atomic_energy.txt', nn_atomic_energy)
         np.savetxt('plot_data/dft_total_energy.txt', dft_total_energy)
@@ -310,16 +319,17 @@ def plot_new(atom_type, plot_elem = False, save_data = False, plot_ei = False):
         
         for i, atom in enumerate(atom_type):
 
-            if plot_ei:
+            if plot_ei and dft_is_atomic:
                 fig, axs = plt.subplots(1, 2, figsize=(9, 6))
+                
+                e_min = min(min(dft_atomic_energy_per_elem[atom]), min(nn_atomic_energy_per_elem[atom]))
+                e_max = max(max(dft_atomic_energy_per_elem[atom]), max(nn_atomic_energy_per_elem[atom]))
+                lim_min = e_min - (e_max - e_min) * 0.1
+                lim_max = e_max + (e_max - e_min) * 0.1
             else:
                 fig, axs = plt.subplots(1, 1, figsize=(5, 4))
                 axs = [axs]     # Convert to list for consistent indexing
 
-            e_min = min(min(dft_atomic_energy_per_elem[atom]), min(nn_atomic_energy_per_elem[atom]))
-            e_max = max(max(dft_atomic_energy_per_elem[atom]), max(nn_atomic_energy_per_elem[atom]))
-            lim_min = e_min - (e_max - e_min) * 0.1
-            lim_max = e_max + (e_max - e_min) * 0.1
 
             dft_atomic_force_per_elemx = np.array(dft_atomic_force_per_elem[atom])
             nn_atomic_force_per_elemy = np.array(nn_atomic_force_per_elem[atom])
@@ -335,7 +345,7 @@ def plot_new(atom_type, plot_elem = False, save_data = False, plot_ei = False):
             elem_type = [elem for elem, idx in idx_tabel.items() if idx == atom][0]            
 
             # Plot atomic energy
-            if plot_ei:
+            if plot_ei and dft_is_atomic:
                 ax = axs[0]
                 ax.set_title(f'Atomic energy ({elem_type})')
                 ax.scatter(dft_atomic_energy_per_elem[atom], nn_atomic_energy_per_elem[atom], s=30, label="MLFF data")
@@ -348,7 +358,7 @@ def plot_new(atom_type, plot_elem = False, save_data = False, plot_ei = False):
                 # ax.text(0.02, 0.82, horizontalalignment='left', verticalalignment='top', s=f'Ei ({atom}), rmse: %.3E' % (e_atomic_rms), transform=ax.transAxes)
 
             # Plot force
-            ax = axs[1 if plot_ei else 0]
+            ax = axs[1 if plot_ei and dft_is_atomic else 0]
             ax.set_title(f'Force ({elem_type})')
             ax.scatter(dft_atomic_force_per_elemx, nn_atomic_force_per_elemy, s=2, label="MLFF data")
             ax.plot((lim_f_min, lim_f_max), (lim_f_min, lim_f_max), ls='--', color='red', label="DFT data")
@@ -362,7 +372,7 @@ def plot_new(atom_type, plot_elem = False, save_data = False, plot_ei = False):
             axes.append(ax)
 
             if save_data:
-                if plot_ei:
+                if plot_ei and dft_is_atomic:
                     np.savetxt(f'plot_data/dft_atomic_energy_{elem_type}.txt', dft_atomic_energy_per_elem[atom])
                     np.savetxt(f'plot_data/inference_atomic_energy_{elem_type}.txt', nn_atomic_energy_per_elem[atom])
                 np.savetxt(f'plot_data/dft_atomic_force_{elem_type}.txt', dft_atomic_force_per_elemx)

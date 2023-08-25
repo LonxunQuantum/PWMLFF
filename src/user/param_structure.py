@@ -1,7 +1,7 @@
 import json
 import os
 import numpy as np
-from varname import nameof
+# from varname import nameof
 
 class TrainFileStructure(object):
     '''

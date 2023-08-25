@@ -1,9 +1,8 @@
 import os
 import json
-
 from src.user.model_param import DpParam
 from src.PWMLFF.linear_regressor import linear_regressor
-from utils.file_operation import delete_tree, copy_tree
+from utils.file_operation import delete_tree, copy_tree, copy_file
 
 '''
 description: do linear training
@@ -23,6 +22,7 @@ def linear_train(input_json: json, cmd:str):
         feature_path = linear_trainer.generate_data()
     # linear_param.file_paths.set_train_feature_path([feature_path])
     linear_trainer.train()
+    linear_trainer.extract_force_field(linear_param.file_paths.forcefield_name)
     # copy fread_dfeat, input, output dir to model_record
     source_fread_dir = os.path.join(linear_param.file_paths.train_dir, "fread_dfeat")
     target_fread_dir = os.path.join(linear_param.file_paths.json_dir, 
@@ -32,11 +32,13 @@ def linear_train(input_json: json, cmd:str):
               os.path.join(os.path.dirname(target_fread_dir), "input"))
     copy_tree(os.path.join(os.path.dirname(source_fread_dir), "output"),
               os.path.join(os.path.dirname(target_fread_dir), "output"))
+    # copy forcefield files to forcefield dir
+    copy_file(os.path.join(os.path.dirname(source_fread_dir), linear_param.file_paths.forcefield_name),
+              os.path.join(os.path.dirname(target_fread_dir), linear_param.file_paths.forcefield_name))
 
     if linear_param.recover_train is False:
         if os.path.realpath(linear_param.file_paths.json_dir) != os.path.realpath(linear_param.file_paths.work_dir) :
             delete_tree(linear_param.file_paths.work_dir)
-            
 '''
 description: 
     do linear inference:
