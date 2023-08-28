@@ -46,7 +46,7 @@ from src.pre_data.dp_data_loader import MovementDataset
 from src.PWMLFF.dp_mods.dp_trainer import train_KF, train, valid, save_checkpoint, predict
 from src.PWMLFF.dp_param_extract import load_davg_dstd_from_checkpoint, load_davg_dstd_from_feature_path
 from src.user.model_param import DpParam
-from utils.file_operation import write_arrays_to_file, copy_movements_to_work_dir
+from utils.file_operation import write_arrays_to_file, copy_movements_to_work_dir, smlink_file
 #from data_loader_2type_dp import MovementDataset, get_torch_data
 
 class dp_network:
@@ -108,6 +108,7 @@ class dp_network:
 
         if not os.path.exists(self.dp_params.file_paths.model_store_dir):
             os.mkdir(self.dp_params.file_paths.model_store_dir)
+        smlink_file(self.dp_params.file_paths.model_store_dir, os.path.join(self.dp_params.file_paths.json_dir, os.path.basename(self.dp_params.file_paths.model_store_dir)))
 
         if self.dp_params.hvd:
             import horovod.torch as hvd

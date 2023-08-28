@@ -10,6 +10,7 @@ from utils.json_operation import get_parameter, get_required_parameter
 
 if __name__ == "__main__":
     cmd_type = sys.argv[1].upper()
+
     if cmd_type == "help".upper():
         help_info()
     else:
@@ -17,7 +18,7 @@ if __name__ == "__main__":
         # cmd_type = "test".upper()
         
         # os.chdir("/data/home/wuxingxing/datas/pwmat_mlff_workdir/cu/nn/nn_34")
-        # json_path = "nn_cu.json"
+        os.chdir(os.path.abspath(os.path.dirname(json_path)))
         json_file = json.load(open(json_path))
         model_type = get_required_parameter("model_type", json_file).upper()  # model type : dp or nn or linear
         
