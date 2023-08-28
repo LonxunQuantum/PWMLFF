@@ -48,7 +48,7 @@ from src.pre_data.dfeat_sparse import dfeat_raw
 from src.pre_data.nn_mlff_hybrid import get_cluster_dirs, make_work_dir, mv_featrues, copy_file
 
 from src.PWMLFF.nn_param_extract import load_scaler_from_checkpoint
-from utils.file_operation import write_line_to_file
+from utils.file_operation import write_line_to_file, smlink_file
 from src.user.model_param import DpParam
 from src.aux.plot_nn_inference import plot
 # from optimizer.kalmanfilter import GKalmanFilter, LKalmanFilter, SKalmanFilter
@@ -564,15 +564,16 @@ class nn_network:
         """ 
         iter = 0 
         iter_valid = 0 
-
+        smlink_file(self.dp_params.file_paths.model_store_dir, \
+                    os.path.join(self.dp_params.file_paths.json_dir, os.path.basename(self.dp_params.file_paths.model_store_dir)))
         # set the log files
-        iter_train_log = os.path.join(self.dp_params.file_paths.model_store_dir, "iter_loss.dat")
+        iter_train_log = os.path.join(self.dp_params.file_paths.model_store_dir, "iter_train.dat")
         f_iter_train_log = open(iter_train_log, 'w')
-        epoch_train_log = os.path.join(self.dp_params.file_paths.model_store_dir, "epoch_loss.dat")
+        epoch_train_log = os.path.join(self.dp_params.file_paths.model_store_dir, "epoch_train.dat")
         f_epoch_train_log = open(epoch_train_log, 'w')
-        iter_valid_log = os.path.join(self.dp_params.file_paths.model_store_dir, "iter_loss_valid.dat")
+        iter_valid_log = os.path.join(self.dp_params.file_paths.model_store_dir, "iter_valid.dat")
         f_iter_valid_log = open(iter_valid_log, 'w')
-        epoch_valid_log =  os.path.join(self.dp_params.file_paths.model_store_dir, "epoch_loss_valid.dat")
+        epoch_valid_log =  os.path.join(self.dp_params.file_paths.model_store_dir, "epoch_valid.dat")
         f_epoch_valid_log = open(epoch_valid_log, 'w')
         
         # Define the lists based on the training type
@@ -582,10 +583,10 @@ class nn_network:
         epoch_valid_lists = ["epoch", "loss"]
 
         if self.dp_params.optimizer_param.train_energy:
-            iter_train_lists.append("RMSE_Etot")
-            epoch_train_lists.append("RMSE_Etot")
-            iter_valid_lists.append("RMSE_Etot")
-            epoch_valid_lists.append("RMSE_Etot")
+            iter_train_lists.append("RMSE_Etot_per_atom")
+            epoch_train_lists.append("RMSE_Etot_per_atom")
+            iter_valid_lists.append("RMSE_Etot_per_atom")
+            epoch_valid_lists.append("RMSE_Etot_per_atom")
         if self.dp_params.optimizer_param.train_ei:
             iter_train_lists.append("RMSE_Ei")
             epoch_train_lists.append("RMSE_Ei")
@@ -609,7 +610,7 @@ class nn_network:
             "iter": 5,
             "epoch": 5,
             "loss": 18,
-            "RMSE_Etot": 18,
+            "RMSE_Etot_per_atom": 21,
             "RMSE_Ei": 18,
             "RMSE_Egroup": 18,
             "RMSE_F": 18,
@@ -634,6 +635,7 @@ class nn_network:
             nr_total_sample = 0
             loss = 0.
             loss_Etot = 0.
+            loss_Etot_per_atom = 0.
             loss_Ei = 0.
             loss_F = 0.
             loss_Egroup = 0.0 
@@ -694,6 +696,8 @@ class nn_network:
                 loss += batch_loss.item() * nr_batch_sample
 
                 loss_Etot += batch_loss_Etot.item() * nr_batch_sample
+                loss_Etot_per_atom += math.sqrt(batch_loss_Etot)/natoms_sum * nr_batch_sample
+
                 loss_Ei += batch_loss_Ei.item() * nr_batch_sample
                 loss_F += batch_loss_F.item() * nr_batch_sample
                 loss_Egroup += batch_loss_Egroup.item() * nr_batch_sample 
@@ -702,6 +706,7 @@ class nn_network:
                  
             loss /= nr_total_sample
             loss_Etot /= nr_total_sample
+            loss_Etot_per_atom /= nr_total_sample
             loss_Ei /= nr_total_sample
             loss_F /= nr_total_sample
             loss_Egroup /= nr_total_sample  
@@ -711,8 +716,8 @@ class nn_network:
             RMSE_F = loss_F ** 0.5
             RMSE_Egroup = loss_Egroup ** 0.5 
 
-            print("epoch_loss = %.10f (RMSE_Etot = %.12f, RMSE_Ei = %.12f, RMSE_F = %.12f, RMSE_Eg = %.12f)" \
-                %(loss, RMSE_Etot, RMSE_Ei, RMSE_F, RMSE_Egroup))
+            print("epoch_loss = %.10f (RMSE_Etot_per_atom = %.12f, RMSE_Ei = %.12f, RMSE_F = %.12f, RMSE_Eg = %.12f)" \
+                %(loss, loss_Etot_per_atom, RMSE_Ei, RMSE_F, RMSE_Egroup))
 
             f_epoch_train_log = open(epoch_train_log, 'a')
 
@@ -720,7 +725,7 @@ class nn_network:
             epoch_train_log_line = "%5d%18.10e" % (epoch, loss,)
 
             if self.dp_params.optimizer_param.train_energy:
-                epoch_train_log_line += "%18.10e" % (RMSE_Etot)
+                epoch_train_log_line += "%18.10e" % (loss_Etot_per_atom)
             if self.dp_params.optimizer_param.train_ei:
                 epoch_train_log_line += "%18.10e" % (RMSE_Ei)
             if self.dp_params.optimizer_param.train_egroup:
@@ -761,6 +766,7 @@ class nn_network:
             nr_total_sample = 0
             valid_loss = 0.
             valid_loss_Etot = 0.
+            valid_loss_Etot_pre_atom = 0.
             valid_loss_Ei = 0.
             valid_loss_F = 0.
             valid_loss_Egroup = 0.0
@@ -783,6 +789,7 @@ class nn_network:
                 valid_loss += valid_error_iter * nr_batch_sample
 
                 valid_loss_Etot += batch_loss_Etot * nr_batch_sample
+                valid_loss_Etot_pre_atom += math.sqrt(batch_loss_Etot)/natoms_sum  * nr_batch_sample
                 valid_loss_Ei += batch_loss_Ei * nr_batch_sample
                 valid_loss_F += batch_loss_F * nr_batch_sample
                 valid_loss_Egroup += batch_loss_Egroup * nr_batch_sample
@@ -810,6 +817,7 @@ class nn_network:
             # epoch loss update
             valid_loss /= nr_total_sample
             valid_loss_Etot /= nr_total_sample
+            valid_loss_Etot_pre_atom /= nr_total_sample
             valid_loss_Ei /= nr_total_sample
             valid_loss_F /= nr_total_sample
             valid_loss_Egroup /= nr_total_sample
@@ -819,8 +827,8 @@ class nn_network:
             valid_RMSE_F = valid_loss_F ** 0.5
             valid_RMSE_Egroup = valid_loss_Egroup ** 0.5
                 
-            print("valid_loss = %.10f (valid_RMSE_Etot = %.12f, valid_RMSE_Ei = %.12f, valid_RMSE_F = %.12f, valid_RMSE_Egroup = %.12f)" \
-                     %(valid_loss, valid_RMSE_Etot, valid_RMSE_Ei, valid_RMSE_F, valid_RMSE_Egroup))
+            print("valid_loss = %.10f (valid_RMSE_Etot_pre_atom = %.12f, valid_RMSE_Ei = %.12f, valid_RMSE_F = %.12f, valid_RMSE_Egroup = %.12f)" \
+                     %(valid_loss, valid_loss_Etot_pre_atom, valid_RMSE_Ei, valid_RMSE_F, valid_RMSE_Egroup))
    
             f_epoch_valid_log = open(epoch_valid_log, 'a')
 
@@ -828,7 +836,7 @@ class nn_network:
             epoch_valid_log_line = "%5d%18.10e" % (epoch, valid_loss)
 
             if self.dp_params.optimizer_param.train_energy:
-                epoch_valid_log_line += "%18.10e" % (valid_RMSE_Etot)
+                epoch_valid_log_line += "%18.10e" % (valid_loss_Etot_pre_atom)
             if self.dp_params.optimizer_param.train_ei:
                 epoch_valid_log_line += "%18.10e" % (valid_RMSE_Ei)
             if self.dp_params.optimizer_param.train_egroup:
@@ -1012,7 +1020,7 @@ class nn_network:
 
         loss = loss_F + loss_Etot + loss_Ei + loss_egroup 
         
-        print("RMSE_Etot = %.12f, RMSE_Ei = %.12f, RMSE_Force = %.12f, RMSE_Egroup = %.12f" %(loss_Etot ** 0.5, loss_Ei ** 0.5, loss_F ** 0.5, loss_egroup**0.5))
+        print("RMSE_Etot_per_atom = %.12f, RMSE_Ei = %.12f, RMSE_Force = %.12f, RMSE_Egroup = %.12f" %(loss_Etot ** 0.5 / natoms_img[0, 0].item() , loss_Ei ** 0.5, loss_F ** 0.5, loss_egroup**0.5))
         
         del Ei_label
         del Force_label

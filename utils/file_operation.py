@@ -42,12 +42,18 @@ author: wuxingxing
 '''
 def copy_tree(souce_dir, target_dir):
     if os.path.exists(target_dir):
-        shutil.rmtree(target_dir)
+        if os.path.islink(target_dir):
+            os.remove(target_dir)
+        else:
+            shutil.rmtree(target_dir)
     shutil.copytree(souce_dir, target_dir)
 
 def delete_tree(dir):
     if os.path.exists(dir):
-        shutil.rmtree(dir)
+        if os.path.islink(dir):
+            os.remove(dir)
+        else:
+            shutil.rmtree(dir)
 
 '''
 description: 
@@ -81,6 +87,15 @@ def delete_tree(dir):
     if os.path.isdir(dir):
         shutil.rmtree(dir)
 
+'''
+description: 
+    reset the file's path in pm.py, the work_dir is root dir
+    this is used in NN hrybrid training
+param {*} pm
+param {*} work_dir
+return {*}
+author: wuxingxing
+'''
 def reset_pm_params(pm, work_dir):
     pm.sourceFileList = []
     # pm.atomType = atom_type
@@ -143,6 +158,14 @@ def reset_pm_params(pm, work_dir):
     pm.f_data_scaler = pm.d_nnFi+'data_scaler.npy'
     pm.f_Wij_np  = pm.d_nnFi+'Wij.npy'
 
+'''
+description: 
+    write multi movement files to one file
+param {*} sourceFileList
+param {*} save_path
+return {*}
+author: wuxingxing
+'''
 def combine_movement(sourceFileList, save_path):
     #with open(os.path.join(os.path.abspath(pm.trainSetDir),'MOVEMENTall'), 'w') as outfile:     
     with open(os.path.join(save_path), 'w') as outfile:     
@@ -156,3 +179,15 @@ def combine_movement(sourceFileList, save_path):
             # Add '\n' to enter data of file2 
             # from next line 
             outfile.write("\n")
+
+'''
+description: 
+    smlink souce file to target file
+param {*} source_file
+param {*} target_fie
+return {*}
+author: wuxingxing
+'''
+def smlink_file(source_file, target_fie):
+    if os.path.exists(target_fie) is False:
+        os.symlink(source_file, target_fie)
