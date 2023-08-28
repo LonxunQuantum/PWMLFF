@@ -50,7 +50,7 @@ from src.pre_data.nn_mlff_hybrid import get_cluster_dirs, make_work_dir, mv_feat
 from src.PWMLFF.nn_param_extract import load_scaler_from_checkpoint
 from utils.file_operation import write_line_to_file
 from src.user.model_param import DpParam
-
+from src.aux.plot_nn_inference import plot
 # from optimizer.kalmanfilter import GKalmanFilter, LKalmanFilter, SKalmanFilter
 from src.optimizer.GKF import GKFOptimizer
 from src.optimizer.LKF import LKFOptimizer
@@ -1186,9 +1186,17 @@ class nn_network:
 
         inference_cout += "\nMore details can be found under the file directory:\n{}\n".format(inf_dir)
         print(inference_cout)
+
+        if self.dp_params.optimizer_param.train_ei or self.dp_params.optimizer_param.train_egroup:
+            plot_ei = True
+        else:
+            plot_ei = False
+            
+        plot(inf_dir, plot_ei = plot_ei)
+
         with open(inference_path, 'w') as wf:
             wf.writelines(inference_cout)
-        return  
+        return        
 
     """ 
         ============================================================
