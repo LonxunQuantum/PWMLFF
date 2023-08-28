@@ -10,6 +10,7 @@ import subprocess as sp
 import random
 import time
 
+is_real_Ep = False
 '''
 description: 
  get all movement files under the dir 'workDir', and class movements with same atomtype
@@ -97,7 +98,7 @@ def gen_config_inputfile(config):
             f.writelines(str(config["atomType"][i]["b_init"]) + "\n")
 
 
-def get_real_Ep(movement_files,train_set_dir):
+def get_real_Ep(movement_files,train_set_dir,classify):
     
     # make Etot label the real Etot(one with minus sign)
     for movement_file in movement_files:
@@ -115,14 +116,15 @@ def get_real_Ep(movement_files,train_set_dir):
                     Ep = float(raw[-5])
                     
                     print(num_atom, Ep)
-                    # write Ep / natom 
+
+                    tmp_Ep_shift, _, _, _ = np.linalg.lstsq(classify, np.array([Ep]), rcond=1e-3)
+                    # print (tmp_Ep_shift)
                     with open(os.path.join(train_set_dir, "Ei.dat"), "a") as Ei_out:
-                        for i in range(num_atom):
-                            Ei_out.write(str(Ep/num_atom)+"\n")
+                        for i in range(len(classify[0])):
+                            for j in range(classify[0][i]):
+                                Ei_out.write(str(tmp_Ep_shift[i]) + "\n")               
 
-                
-
-def gen_train_data(config, is_egroup = True, is_virial = True, is_real_Ep = False):
+def gen_train_data(config, is_egroup = True, is_virial = True):
     trainset_dir = config["trainSetDir"]
     dRFeatureInputDir = config["dRFeatureInputDir"]
     dRFeatureOutputDir = config["dRFeatureOutputDir"]
@@ -142,7 +144,6 @@ def gen_train_data(config, is_egroup = True, is_virial = True, is_real_Ep = Fals
     # directories that contain MOVEMENT 
     movement_files = collect_all_sourcefiles(trainset_dir, "MOVEMENT")
     
-    # Virial.dat
     for movement_file in movement_files:
         with open(os.path.join(movement_file, "MOVEMENT"), "r") as mov:
             lines = mov.readlines()
@@ -150,6 +151,7 @@ def gen_train_data(config, is_egroup = True, is_virial = True, is_real_Ep = Fals
             for idx, line in enumerate(lines):
                 
                 if "Lattice vector" in line and "stress" in lines[idx + 1]:
+                    # Virial.dat
                     if is_virial:
                         print (line)
 
@@ -205,6 +207,12 @@ def gen_train_data(config, is_egroup = True, is_virial = True, is_real_Ep = Fals
                     else:
                         Virial = None
 
+                global is_real_Ep       # Declare is_real_Ep as a global variable
+                if "Atomic-Energy" in line:
+                    is_real_Ep = False
+                else:
+                    is_real_Ep = True
+
                 # Etot.dat
                 if "Etot,Ep,Ek" in line:
                     etot_tmp.append(line.split()[9])
@@ -230,21 +238,17 @@ def gen_train_data(config, is_egroup = True, is_virial = True, is_real_Ep = Fals
         for movement_path in movement_files:
             location_writer.write(movement_path + "\n")
 
-    if is_real_Ep is True:
-        command = "gen_dR_nonEi.x | tee ./output/out"
-    else:
-        command = "gen_dR.x | tee ./output/out"
+    # if is_real_Ep is True:
+    #     command = "gen_dR_nonEi.x | tee ./output/out"
+    # else:
+    command = "gen_dR.x | tee ./output/out"
     print("==============Start generating data==============")
     os.system(command)
     command = "gen_egroup.x | tee ./output/out_write_egroup"
     if is_egroup is True:
         print("==============Start generating egroup==============")
         os.system(command)
-
-    # Ei.dat with respect to the real Etot
-    if is_real_Ep is True:
-        get_real_Ep(movement_files,trainset_dir)
-    
+  
     print("==============Success==============")
     
 
@@ -761,11 +765,13 @@ param {*} stat_add
 return {*}
 author: wuxingxing
 '''
-def sepper_data_main(config, is_egroup = True, stat_add = None):
+def sepper_data_main(config, is_egroup = True, stat_add = None): 
     trainset_dir = config["trainSetDir"]
     train_data_path = config["trainDataPath"] 
     valid_data_path = config["validDataPath"]
     max_neighbor_num = config["maxNeighborNum"]
+    # directories that contain MOVEMENT 
+    _movement_files = collect_all_sourcefiles(trainset_dir, "MOVEMENT")
     ntypes = len(config["atomType"])
     atom_type_list = [int(_['type']) for _ in config["atomType"]] # get atom types,the order is consistent with user input order
     # image number in each movement 
@@ -776,9 +782,14 @@ def sepper_data_main(config, is_egroup = True, stat_add = None):
     # atom nums in each image
     atom_num_per_image = np.loadtxt(os.path.join(trainset_dir, "ImageAtomNum.dat"), dtype=int)    
     # atom type of each atom in the image
-    atom_types = np.loadtxt(os.path.join(trainset_dir, "AtomType.dat"), dtype=int)
+    atom_types = np.loadtxt(os.path.join(trainset_dir, "AtomType.dat"), dtype=int) 
     movement_classify = _classify_systems(img_per_mvmt, atom_num_per_image, atom_types, max_neighbor_num, ntypes)
-    
+    # Ei.dat with respect to the real Ep
+    if is_real_Ep is True:
+        for _, classify in movement_classify.items():
+            classify = np.array([classify[0]["type_nums"]])
+        get_real_Ep(_movement_files,trainset_dir,classify)
+        
     dR_neigh = np.loadtxt(os.path.join(trainset_dir, "dRneigh.dat"))
     Etot = np.loadtxt(os.path.join(trainset_dir, "Etot.dat"))
     Ei = np.loadtxt(os.path.join(trainset_dir, "Ei.dat"))

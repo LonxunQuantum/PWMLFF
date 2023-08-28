@@ -19,6 +19,7 @@ ln -s ../../utils/plot_mlff_inference.py .
 ln -s ../../utils/read_torch_wij_dp.py . 
 ln -s ../../utils/outcar2movement . 
 ln -s ../md/fortran_code/main_MD.x .
+ln -s ../../pwmlff_main.py ./PWMLFF
 
 chmod +x ./mlff.py
 chmod +x ./seper.py
