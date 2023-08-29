@@ -116,9 +116,9 @@ class NetParam(object):
         return \
             {
             "network_size": self.network_size, 
-            # "bias": self.bias, 
-            # "resnet_dt": self. resnet_dt, 
-            # "activation": self.activation
+            "bias": self.bias, 
+            "resnet_dt": self. resnet_dt, 
+            "activation": self.activation
             }
 
 class ModelParam(object):

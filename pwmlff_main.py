@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import json
 import os, sys
-
 from src.user.dp_work import dp_train, gen_dp_feature, dp_test
 from src.user.nn_work import nn_train, gen_nn_feature, nn_test
 from src.user.linear_work import linear_train, linear_test
@@ -10,15 +9,16 @@ from utils.json_operation import get_parameter, get_required_parameter
 
 if __name__ == "__main__":
     cmd_type = sys.argv[1].upper()
-
+    # cmd_type = "test".upper()
+    # cmd_type = "train".upper()
     if cmd_type == "help".upper():
         help_info()
     else:
         json_path = sys.argv[2]
         # cmd_type = "test".upper()
         
-        # os.chdir("/data/home/wuxingxing/datas/pwmat_mlff_workdir/cu/nn/nn_34")
-        os.chdir(os.path.abspath(os.path.dirname(json_path)))
+        # os.chdir("/data/home/hfhuang/2_MLFF/1-NN/4-CH4")
+        # json_path = "nn_lisi_template.json"
         json_file = json.load(open(json_path))
         model_type = get_required_parameter("model_type", json_file).upper()  # model type : dp or nn or linear
         
