@@ -13,9 +13,10 @@ class Descriptor(object):
         self.E_tolerance = get_parameter("E_tolerance", json_input, 9999999.99)
         self.feature_type = [int(_) for _ in get_parameter("feature_type", json_input, [3,4])]
 
+        # dp params
         self.network_size = get_parameter("network_size", json_input, [25, 25, 25])
         self.bias = get_parameter("bias", json_input, True)
-        self.resnet_dt = get_parameter("resnet_dt", json_input, True) # resnet in embedding net is true.
+        self.resnet_dt = get_parameter("resnet_dt", json_input, False) # resnet in embedding net is False.
         self.activation = get_parameter("activation", json_input, "tanh")
 
         if self.feature_type not in self.supported_feature_group:
@@ -181,13 +182,13 @@ class Descriptor(object):
         dicts["Rmax"] = self.Rmax
         dicts["Rmin"] = self.Rmin
         dicts["M2"] = self.M2
-        dicts["E_tolerance"] = self.E_tolerance
+        # dicts["E_tolerance"] = self.E_tolerance
 
         if self.model_type == "DP".upper():
             dicts["network_size"] = self.network_size
-            dicts["bias"] = self.bias
-            dicts["resnet_dt"] = self. resnet_dt 
-            dicts["activation"] = self.activation
+            # dicts["bias"] = self.bias
+            # dicts["resnet_dt"] = self. resnet_dt 
+            # dicts["activation"] = self.activation
 
         elif self.model_type == "NN".upper():
             dicts["feature_type"] = self.feature_type

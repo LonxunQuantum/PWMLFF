@@ -93,7 +93,7 @@ class DpParam(object):
             self.optimizer_param.batch_size = 1     # set batch size to 1, so that each image inference info will be saved
             self.train_valid_ratio = 1
             self.data_shuffle = False
-            test_movement_path = get_required_parameter("test_movement_path", json_input)
+            test_movement_path = get_required_parameter("test_movement_file", json_input)
             if isinstance(test_movement_path, list) is False:
                 test_movement_path = [test_movement_path]
             for mvm in test_movement_path:
@@ -122,20 +122,22 @@ class DpParam(object):
         json_dir = os.getcwd()
         work_dir = os.path.abspath(get_parameter("work_dir", json_input, "work_dir"))
         reserve_work_dir = get_parameter("reserve_work_dir", json_input, False)
-        file_paths = TrainFileStructure(json_dir=json_dir, work_dir=work_dir, reserve_work_dir=reserve_work_dir)
+        file_paths = TrainFileStructure(json_dir=json_dir, work_dir=work_dir, reserve_work_dir=reserve_work_dir, model_type=self.model_type, cmd=self.cmd)
         # model paths
-        model_load_path = os.path.abspath(get_parameter("model_load_path", json_input, ""))
+        model_load_path = os.path.abspath(get_parameter("model_load_file", json_input, ""))
         # if self.recover_train is True and os.path.isfile(model_load_path):
         #     raise Exception("Error! The recover_train and model_load_path are simultaneously specified, please set recover_train to False or remove param model_load_path")
-        
-        model_name = get_parameter("model_name", json_input, "checkpoint.pth.tar")
+        if self.model_type == "NN":
+            model_name = get_parameter("model_name", json_input, "nn_model.ckpt")
+        else:
+            model_name = get_parameter("model_name", json_input, "dp_model.ckpt")
         model_store_dir = get_parameter("model_store_dir", json_input, "model_record")
         model_store_dir = os.path.join(file_paths.work_dir, model_store_dir)
         file_paths._set_model_paths(model_store_dir = model_store_dir, model_load_path=model_load_path, \
                                     model_name = model_name, best_model_path=os.path.join(work_dir, "best.pth.tar"))
 
         # set trian movement file path
-        train_movement_path = get_parameter("train_movement_path", json_input, [])
+        train_movement_path = get_parameter("train_movement_file", json_input, [])
         for mvm in train_movement_path:
             if os.path.exists(mvm) is False:
                 raise Exception("Error! train movement: {} file not exist!".format(mvm))
@@ -180,7 +182,7 @@ class DpParam(object):
         embedding_json = get_parameter("descriptor", json_input, {})
         network_size = get_parameter("network_size", embedding_json, [25, 25, 25])
         bias = get_parameter("bias", embedding_json, True)
-        resnet_dt = get_parameter("resnet_dt", embedding_json, True) # resnet in embedding net is true.
+        resnet_dt = get_parameter("resnet_dt", embedding_json, False) # resnet in embedding net is False.
         activation = get_parameter("activation", embedding_json, "tanh")
         embedding_net = NetParam("embedding_net")
         embedding_net.set_params(network_size, bias, resnet_dt, activation)
@@ -189,7 +191,7 @@ class DpParam(object):
         fitting_net_dict = get_parameter("fitting_net",json_input, {})
         network_size = get_parameter("network_size", fitting_net_dict, [50, 50, 50, 1])
         bias = get_parameter("bias", fitting_net_dict, True)
-        resnet_dt = get_parameter("resnet_dt", fitting_net_dict, False)
+        resnet_dt = get_parameter("resnet_dt", fitting_net_dict, True)
         activation = get_parameter("activation", fitting_net_dict, "tanh")
         fitting_net = NetParam("fitting_net")
         fitting_net.set_params(network_size, bias, resnet_dt, activation)
@@ -327,10 +329,12 @@ class DpParam(object):
         # params_dict["Rmax"] = self.descriptor.Rmax
         # params_dict["Rmin"] = self.Rmin
         # params_dict["M2"] = self.descriptor.M2
-        params_dict["data_shuffle"] = self.data_shuffle
-        params_dict["train_valid_ratio"] = self.train_valid_ratio
-        params_dict["dwidth"] = self.dwidth
-        params_dict["precision"] = self.precision
+        # params_dict["data_shuffle"] = self.data_shuffle
+        if self.cmd == "train".upper():
+            params_dict["train_valid_ratio"] = self.train_valid_ratio
+            
+        # params_dict["dwidth"] = self.dwidth
+        # params_dict["precision"] = self.precision
 
         # params_dict["profiling"] = self.profiling
         # params_dict["workers"] = self.workers
@@ -341,14 +345,16 @@ class DpParam(object):
         # params_dict["dist_backend"] = self.dist_backend
         # params_dict["distributed"] = self.distributed
 
-        params_dict["inference"] = self.inference
+        # params_dict["inference"] = self.inference
+        if self.cmd == "train".upper() and self.model_type != "Linear".upper():
+            params_dict["recover_train"] = self.recover_train
+
         params_dict["model"] = {}
         params_dict["model"]["descriptor"] = self.descriptor.to_dict()
+
         if self.model_type == "Linear".upper():
             params_dict["optimizer"] = self.optimizer_param.to_linear_dict()
         else:
-            if self.cmd == "train".upper():
-                params_dict["recover_train"] = self.recover_train
             params_dict["model"]["fitting_net"] = self.model_param.to_dict()
             params_dict["optimizer"] = self.optimizer_param.to_dict()
         

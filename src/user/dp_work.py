@@ -21,7 +21,7 @@ def dp_train(input_json: json, cmd:str):
     dp_trainer = dp_network(dp_param)
     if len(dp_param.file_paths.train_movement_path) > 0:
         feature_path = dp_trainer.generate_data()
-    dp_param.file_paths.set_train_feature_path([feature_path])
+        dp_param.file_paths.set_train_feature_path([feature_path])
     dp_trainer.load_and_train()
     extract_force_field(dp_param)
 

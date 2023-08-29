@@ -22,7 +22,7 @@ def nn_train(input_json: json, cmd:str):
     nn_trainer = nn_network(nn_param)
     if len(nn_param.file_paths.train_movement_path) > 0:
         feature_path = nn_trainer.generate_data()
-    nn_param.file_paths.set_train_feature_path([feature_path])
+        nn_param.file_paths.set_train_feature_path([feature_path])
     nn_trainer.load_and_train()
     extract_force_field(nn_param)
     

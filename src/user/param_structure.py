@@ -13,7 +13,9 @@ class TrainFileStructure(object):
     return {*}
     author: wuxingxing
     '''    
-    def __init__(self, json_dir:str, work_dir:str, reserve_work_dir:bool) -> None:
+    def __init__(self, json_dir:str, work_dir:str, reserve_work_dir:bool, model_type:str, cmd:str) -> None:
+        self.model_type = model_type
+        self.cmd = cmd
         self.json_dir = json_dir
         self.work_dir = work_dir
         self.reserve_work_dir = reserve_work_dir
@@ -85,18 +87,18 @@ class TrainFileStructure(object):
         dicts["reserve_work_dir"] = self.reserve_work_dir
 
         if os.path.exists(self.model_load_path):
-            dicts["model_load_path"] = self.model_load_path
-        if len(self.train_movement_path) > 0:
-            dicts["train_movement_path"] = self.train_movement_path
+            dicts["model_load_file"] = self.model_load_path
+        if len(self.train_movement_path) > 0 and self.cmd == "train".upper():
+            dicts["train_movement_file"] = self.train_movement_path
             # dicts["model_store_dir"] = self.model_store_dir
         
-        if len(self.train_feature_path) > 0:
-            dicts["train_feature_path"] = self.train_feature_path
+        # if len(self.train_feature_path) > 0:
+        #     dicts["train_feature_path"] = self.train_feature_path
             # dicts["train_dir_name"] = self.train_dir
 
-        if len(self.test_movement_path) > 0:
-            dicts["test_movement_path"] = self.test_movement_path
-            dicts["test_dir_name"] = self.test_dir
+        if len(self.test_movement_path) > 0 and self.cmd == "test".upper():
+            dicts["test_movement_file"] = self.test_movement_path
+            # dicts["test_dir_name"] = self.test_dir
 
         return dicts
 
@@ -114,9 +116,9 @@ class NetParam(object):
         return \
             {
             "network_size": self.network_size, 
-            "bias": self.bias, 
-            "resnet_dt": self. resnet_dt, 
-            "activation": self.activation
+            # "bias": self.bias, 
+            # "resnet_dt": self. resnet_dt, 
+            # "activation": self.activation
             }
 
 class ModelParam(object):
@@ -248,6 +250,10 @@ class OptimizerParam(object):
         opt_dict["epochs"] = self.epochs
         opt_dict["batch_size"] = self.batch_size
         opt_dict["print_freq"] = self.print_freq
+        if "KF" in self.opt_name:
+            opt_dict["block_size"] = self.block_size 
+            opt_dict["kalman_lambda"] = self.kalman_lambda
+            opt_dict["kalman_nue"] = self.kalman_nue
 
         opt_dict["train_energy"] = self.train_energy
         opt_dict["train_force"] = self.train_force
@@ -256,10 +262,6 @@ class OptimizerParam(object):
         opt_dict["train_egroup"] = self.train_egroup
     
         if "KF" in self.opt_name:
-            opt_dict["block_size"] = self.block_size 
-            opt_dict["kalman_lambda"] = self.kalman_lambda
-            opt_dict["kalman_nue"] = self.kalman_nue
-            #prefect:
             opt_dict["pre_fac_force"] = self.pre_fac_force
             opt_dict["pre_fac_etot"] = self.pre_fac_etot
             opt_dict["pre_fac_ei"] = self.pre_fac_ei
