@@ -13,7 +13,7 @@ def get_cluster_dirs(movement_list:list):
     # read movement dir from root_dir
     cluster_dir_list = {}
     for mvm_path in movement_list:
-        types, nums, key = get_atom_info_from_movement(mvm_path)
+        types, nums, key, atom_num = get_atom_info_from_movement(mvm_path)
         if key not in cluster_dir_list.keys():
             cluster_dir_list[key] = {"mvm_path":[os.path.abspath(mvm_path)], "types":types, "type_nums":nums}
         else:
@@ -22,7 +22,7 @@ def get_cluster_dirs(movement_list:list):
     tmp_cluster = sorted(cluster_dir_list.items(), key = lambda x: len(x[1]['types']), reverse=True)
     for tmp in tmp_cluster:
         cluster_dir_list[tmp[0]] = tmp[1]
-    return cluster_dir_list
+    return cluster_dir_list, atom_num
 
 '''
 description: 
@@ -86,7 +86,7 @@ def get_atom_info_from_movement(file_path):
         key += "{}_".format(len(v))
         nums.append(len(v))
         
-    return types, nums, key[:-1]
+    return types, nums, key[:-1], atom_num
 
 def mv_featrues(source_dir, dest_dir, index):
     if os.path.exists(dest_dir) is False:

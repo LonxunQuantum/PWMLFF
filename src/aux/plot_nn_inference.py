@@ -14,10 +14,6 @@ def plot(dir = "./", plot_ei = False):
     nn_total_energy = np.loadtxt(os.path.join(dir,"inference_total_energy.txt"))
     dft_force = np.loadtxt(os.path.join(dir,"dft_force.txt"))
     nn_force = np.loadtxt(os.path.join(dir,"inference_force.txt"))
-    dft_atomic_energy = np.loadtxt(os.path.join(dir,"dft_atomic_energy.txt"))
-    nn_atomic_energy = np.loadtxt(os.path.join(dir,"inference_atomic_energy.txt"))
-    dft_atomic_energy = dft_atomic_energy.reshape(-1)
-    nn_atomic_energy = nn_atomic_energy.reshape(-1)
 
     e_tot_min = min(min(dft_total_energy), min(nn_total_energy))
     e_tot_max = max(max(dft_total_energy), max(nn_total_energy))
@@ -26,6 +22,10 @@ def plot(dir = "./", plot_ei = False):
     lim_tot_max = e_tot_max + (e_tot_max - e_tot_min) * 0.1
 
     if plot_ei:
+        dft_atomic_energy = np.loadtxt(os.path.join(dir,"dft_atomic_energy.txt"))
+        nn_atomic_energy = np.loadtxt(os.path.join(dir,"inference_atomic_energy.txt"))
+        dft_atomic_energy = dft_atomic_energy.reshape(-1)
+        nn_atomic_energy = nn_atomic_energy.reshape(-1)
         e_min = min(min(dft_atomic_energy), min(nn_atomic_energy))
         e_max = max(max(dft_atomic_energy), max(nn_atomic_energy))
             

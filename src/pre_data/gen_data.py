@@ -12,9 +12,29 @@ import pandas as pd
 
 from read_all import read_allnn
 
-def process_data(f_train_feat, f_train_dfeat, f_train_dR_neigh,
-                 f_train_natoms, f_train_egroup, nn_data_path): # f_train_ep):
+# def process_data(f_train_feat, f_train_dfeat, f_train_dR_neigh,
+#                  f_train_natoms, f_train_egroup, nn_data_path): # f_train_ep):
+
+def process_data(inputs:list): # f_train_ep):
     
+    if len(inputs) == 6:
+        f_train_feat, f_train_dfeat, f_train_dR_neigh, f_train_natoms, f_train_egroup, nn_data_path = \
+        inputs[0], \
+        inputs[1], \
+        inputs[2], \
+        inputs[3], \
+        inputs[4], \
+        inputs[5]
+        alive_atomic_energy = True
+    else:
+        f_train_feat, f_train_dfeat, f_train_dR_neigh, f_train_natoms, nn_data_path = \
+        inputs[0], \
+        inputs[1], \
+        inputs[2], \
+        inputs[3], \
+        inputs[4]
+        alive_atomic_energy = False
+
     """
         Lines below only involves converting DENSE dfeat. 
         Not used when is_dfeat_sparse = True 
@@ -74,11 +94,12 @@ def process_data(f_train_feat, f_train_dfeat, f_train_dR_neigh,
     feat_scaled = feat
     engy_scaled = engy
 
-    egroup, divider, egroup_weight = prepare.r_egroup_csv(f_train_egroup)
+    if alive_atomic_energy:
+        egroup, divider, egroup_weight = prepare.r_egroup_csv(f_train_egroup)
 
     if os.path.exists(os.path.join(pm.dir_work, 'weight_for_cases')):
         weight_all = pd.read_csv(os.path.join(pm.dir_work, 'weight_for_cases'),
-                                 header=None, encoding= 'unicode_escape').values[:, 0].astype(pm.feature_dtype).reshape(-1, 1)
+                                header=None, encoding= 'unicode_escape').values[:, 0].astype(pm.feature_dtype).reshape(-1, 1)
     else:
         weight_all = np.ones((engy_scaled.shape[0], 1))
 
@@ -299,10 +320,11 @@ def process_data(f_train_feat, f_train_dfeat, f_train_dR_neigh,
     print("nblist shape" + str(nblist.shape))
     print("engy_scaled shape" + str(engy_scaled.shape))
     print("itypes shape" + str(itypes.shape))
-    print("egroup_weight shape" + str(egroup_weight.shape))
     print("weight_all shape" + str(weight_all.shape))
-    print("egroup shape" + str(egroup.shape))
-    print("divider shape" + str(egroup.shape))
+    if alive_atomic_energy:
+        print("egroup_weight shape" + str(egroup_weight.shape))
+        print("egroup shape" + str(egroup.shape))
+        print("divider shape" + str(egroup.shape))
 
     if pm.is_dfeat_sparse==False:
         print("dfeat_scaled shape" + str(dfeat_scaled.shape))
@@ -349,11 +371,12 @@ def process_data(f_train_feat, f_train_dfeat, f_train_dR_neigh,
     np.save(nn_data_path + "/nblist.npy", nblist)
     np.save(nn_data_path + "/engy_scaled.npy", engy_scaled.astype(pm.feature_dtype))
     np.save(nn_data_path + "/itypes.npy", itypes)
-    np.save(nn_data_path + "/egroup_weight.npy", egroup_weight.astype(pm.feature_dtype))
     np.save(nn_data_path + "/weight_all.npy", weight_all.astype(pm.feature_dtype))
-    np.save(nn_data_path + "/egroup.npy", egroup.astype(pm.feature_dtype))
-    np.save(nn_data_path + "/divider.npy", divider)
-    
+    if alive_atomic_energy:
+        np.save(nn_data_path + "/egroup_weight.npy", egroup_weight.astype(pm.feature_dtype))
+        np.save(nn_data_path + "/egroup.npy", egroup.astype(pm.feature_dtype))
+        np.save(nn_data_path + "/divider.npy", divider)
+        
     if pm.is_dfeat_sparse==False:
         np.save(nn_data_path + "/dfeat_scaled.npy", dfeat_scaled.astype(pm.feature_dtype))
     
@@ -361,7 +384,7 @@ def process_data(f_train_feat, f_train_dfeat, f_train_dR_neigh,
     np.save(nn_data_path + "/natoms_img.npy", natoms_img)
     # np.save(nn_data_path + "/ep.npy", ep)
     
-def write_data():
+def write_data(alive_atomic_energy):
 
     print("")
     print("<================ Start of feature data file generation ================>")
@@ -371,23 +394,43 @@ def write_data():
     # data_scalers = DataScalers(f_ds=pm.f_data_scaler,
                                 #    f_feat=pm.f_train_feat)
     # scalers_train = get_scalers(pm.f_train_feat, pm.f_data_scaler, True)
+
     if pm.test_ratio != 1:
         print(read_allnn.wp_atom)
-        process_data(pm.f_train_feat,
-                    pm.f_train_dfeat,
-                    pm.f_train_dR_neigh,
-                    pm.f_train_natoms,
-                    pm.f_train_egroup,
-                    pm.train_data_path)        
-    # scalers_test = get_scalers(pm.f_test_feat, pm.f_data_scaler, False)
-    # data_scalers = DataScalers(f_ds=pm.f_data_scaler,
-    #                                f_feat=pm.f_test_feat)
-    process_data(pm.f_test_feat,
-                 pm.f_test_dfeat,
-                 pm.f_test_dR_neigh,
-                 pm.f_test_natoms,
-                 pm.f_test_egroup,
-                 pm.test_data_path)
+        if alive_atomic_energy:
+            process_list = [pm.f_train_feat,
+                            pm.f_train_dfeat,
+                            pm.f_train_dR_neigh,
+                            pm.f_train_natoms,
+                            pm.f_train_egroup,
+                            pm.train_data_path]
+            process_data(process_list)
+        else:
+            process_list = [pm.f_train_feat,
+                            pm.f_train_dfeat,
+                            pm.f_train_dR_neigh,
+                            pm.f_train_natoms,
+                            pm.train_data_path]
+            process_data(process_list)
+   
+    # # scalers_test = get_scalers(pm.f_test_feat, pm.f_data_scaler, False)
+    # # data_scalers = DataScalers(f_ds=pm.f_data_scaler,
+    # #                                f_feat=pm.f_test_feat)
+    if alive_atomic_energy:
+        process_list = [pm.f_test_feat,
+                        pm.f_test_dfeat,
+                        pm.f_test_dR_neigh,
+                        pm.f_test_natoms,
+                        pm.f_test_egroup,
+                        pm.test_data_path]
+        process_data(process_list)
+    else:
+        process_list = [pm.f_test_feat,
+                        pm.f_test_dfeat,
+                        pm.f_test_dR_neigh,
+                        pm.f_test_natoms,
+                        pm.test_data_path]
+        process_data(process_list)
 
     print("")
     print("<=============== Summary of feature data file generation  ===============>")

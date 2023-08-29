@@ -13,12 +13,13 @@ sys.path.append(os.getcwd())
 
 class MovementHybridDataset(Dataset):
 
-    def __init__(self, feat_path, dfeat_path,
-                 egroup_path, egroup_weight_path, divider_path,
-                 itype_path, nblist_path, weight_all_path,
-                 energy_path, force_path, ind_img_path, natoms_img_path, data_num, atom_type, is_dfeat_sparse=False
-                 ):  # , natoms_path
+    # def __init__(self, feat_path, dfeat_path,
+    #              egroup_path, egroup_weight_path, divider_path,
+    #              itype_path, nblist_path, weight_all_path,
+    #              energy_path, force_path, ind_img_path, natoms_img_path, data_num, atom_type, is_dfeat_sparse=False
+    #              ):  # , natoms_path
 
+    def __init__(self, inputs: list, data_num, atom_type, is_dfeat_sparse=False, alive_atomic_energy=False):  # , natoms_path
         """
             pm.is_dfeat_sparse is True, self.dfeat will not be generated
         """
@@ -26,6 +27,7 @@ class MovementHybridDataset(Dataset):
         self.atom_type_input =atom_type  
         self.ntypes = len(atom_type)
         self.is_dfeat_sparse = is_dfeat_sparse
+        self.alive_atomic_energy = alive_atomic_energy
         self.max_atom_nums = 0
         super(MovementHybridDataset, self).__init__()
         self.device = torch.device(
@@ -37,15 +39,24 @@ class MovementHybridDataset(Dataset):
         self.energy, self.force, self.natoms_img = [], [], []
         self.atom_type = []
         self.energy_shift = []
+
+        if self.alive_atomic_energy:
+            feat_path, dfeat_path, egroup_path, egroup_weight_path, divider_path, itype_path, \
+            nblist_path, weight_all_path, ind_img_path, natoms_img_path, energy_path, force_path = inputs
+        else:
+            feat_path, dfeat_path, itype_path, nblist_path, weight_all_path, \
+            ind_img_path, natoms_img_path, energy_path, force_path = inputs
+
         for i in range(data_num):
             self.feat.append(np.load(feat_path[i]))
 
             if self.is_dfeat_sparse==False:
                 self.dfeat.append(np.load(dfeat_path[i]))
         
-            self.egroup.append(np.load(egroup_path[i]))
-            self.egroup_weight.append(np.load(egroup_weight_path[i]))
-            self.divider.append(np.load(divider_path[i]))
+            if self.alive_atomic_energy:
+                self.egroup.append(np.load(egroup_path[i]))
+                self.egroup_weight.append(np.load(egroup_weight_path[i]))
+                self.divider.append(np.load(divider_path[i]))
 
             # self.natoms_sum = natoms
             # self.natoms = pd.read_csv(natoms_path)   #/fread_dfeat/NN_output/natoms_train.csv
@@ -96,9 +107,9 @@ class MovementHybridDataset(Dataset):
 
         dic = {
             'input_feat': self.feat[data_index][start_index:end_index],
-            'input_egroup': self.egroup[data_index][start_index:end_index],
-            'input_egroup_weight': self.egroup_weight[data_index][start_index:end_index],
-            'input_divider': self.divider[data_index][start_index:end_index],
+            # 'input_egroup': self.egroup[data_index][start_index:end_index],
+            # 'input_egroup_weight': self.egroup_weight[data_index][start_index:end_index],
+            # 'input_divider': self.divider[data_index][start_index:end_index],
             'input_itype': self.itype[data_index][start_index:end_index],
             'input_nblist': self.nblist[data_index][start_index:end_index],
             'atom_type': self.atom_type[data_index],
@@ -113,6 +124,15 @@ class MovementHybridDataset(Dataset):
             dic['input_dfeat'] = self.dfeat[data_index][start_index:end_index]
         else:
             dic['input_dfeat'] = []
+
+        if self.alive_atomic_energy:
+            dic['input_egroup'] = self.egroup[data_index][start_index:end_index]
+            dic['input_egroup_weight'] = self.egroup_weight[data_index][start_index:end_index]
+            dic['input_divider'] = self.divider[data_index][start_index:end_index]
+        else:
+            dic['input_egroup'] = []
+            dic['input_egroup_weight'] = []
+            dic['input_divider'] = []
         return dic
     
     def get_atom_type(self, atom_type_list):
@@ -158,7 +178,7 @@ class MovementHybridDataset(Dataset):
     examplespath : npy_file_dir
     data_file_frompwmat : read train_data.csv or test_data.csv
     '''
-def get_torch_data_hybrid(data_list, data_type = "final_train", atom_type = None, is_dfeat_sparse=False):
+def get_torch_data_hybrid(data_list, data_type = "final_train", alive_atomic_energy = False, atom_type = None, is_dfeat_sparse=False):
     # examplespath='./train_data/final_train'   # for example
 
     f_feat, f_dfeat, f_egroup, f_egroup_weight, f_divider, \
@@ -170,9 +190,10 @@ def get_torch_data_hybrid(data_list, data_type = "final_train", atom_type = None
         f_feat.append(os.path.join(dir, 'feat_scaled.npy'))
         f_dfeat.append(os.path.join(dir, 'dfeat_scaled.npy'))
 
-        f_egroup.append(os.path.join(dir, 'egroup.npy'))
-        f_egroup_weight.append(os.path.join(dir, 'egroup_weight.npy'))
-        f_divider.append(os.path.join(dir, 'divider.npy'))
+        if alive_atomic_energy:
+            f_egroup.append(os.path.join(dir, 'egroup.npy'))
+            f_egroup_weight.append(os.path.join(dir, 'egroup_weight.npy'))
+            f_divider.append(os.path.join(dir, 'divider.npy'))
 
         f_itype.append(os.path.join(dir, 'itypes.npy'))
         f_nblist.append(os.path.join(dir, 'nblist.npy'))
@@ -184,8 +205,15 @@ def get_torch_data_hybrid(data_list, data_type = "final_train", atom_type = None
         f_force.append(os.path.join(dir, 'fors_scaled.npy'))
         # f_force = os.path.join(examplespath+'/force.npy')
 
-    torch_data = MovementHybridDataset(f_feat, f_dfeat,
-                                 f_egroup, f_egroup_weight, f_divider,
-                                 f_itype, f_nblist, f_weight_all,
-                                 f_energy, f_force, ind_img, natoms_img, len(data_list), atom_type, is_dfeat_sparse)
+        if alive_atomic_energy:
+            Dataset_list = [f_feat, f_dfeat, f_egroup, f_egroup_weight, f_divider,
+                            f_itype, f_nblist, f_weight_all, ind_img, natoms_img, f_energy, f_force]
+        else:
+            Dataset_list = [f_feat, f_dfeat, f_itype, f_nblist, f_weight_all, ind_img, natoms_img, f_energy, f_force]
+
+    torch_data = MovementHybridDataset(Dataset_list, len(data_list), atom_type, is_dfeat_sparse, alive_atomic_energy)
+    # torch_data = MovementHybridDataset(f_feat, f_dfeat,
+    #                              f_egroup, f_egroup_weight, f_divider,
+    #                              f_itype, f_nblist, f_weight_all,
+    #                              f_energy, f_force, ind_img, natoms_img, len(data_list), atom_type, is_dfeat_sparse)
     return torch_data
