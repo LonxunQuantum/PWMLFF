@@ -181,7 +181,7 @@ class Descriptor(object):
         dicts = {}
         dicts["Rmax"] = self.Rmax
         dicts["Rmin"] = self.Rmin
-        dicts["M2"] = self.M2
+        # dicts["M2"] = self.M2
         # dicts["E_tolerance"] = self.E_tolerance
 
         if self.model_type == "DP".upper():

@@ -265,17 +265,17 @@ class DpParam(object):
                         pre_fac_ei = pre_fac_ei, pre_fac_virial = pre_fac_virial, pre_fac_egroup = pre_fac_egroup
                     )
         else:
-            start_pre_fac_force = get_parameter("start_pre_fac_force", json_input, 2.0) 
-            start_pre_fac_etot = get_parameter("start_pre_fac_etot", json_input, 1.0) 
-            start_pre_fac_ei = get_parameter("start_pre_fac_ei", json_input, 1.0) 
-            start_pre_fac_virial = get_parameter("start_pre_fac_virial", json_input, 1.0) 
-            start_pre_fac_egroup = get_parameter("start_pre_fac_egroup", json_input, 0.1) 
+            start_pre_fac_force = get_parameter("start_pre_fac_force", json_input, 1000) 
+            start_pre_fac_etot = get_parameter("start_pre_fac_etot", json_input, 0.02) 
+            start_pre_fac_ei = get_parameter("start_pre_fac_ei", json_input, 0.1) 
+            start_pre_fac_virial = get_parameter("start_pre_fac_virial", json_input, 50.0) 
+            start_pre_fac_egroup = get_parameter("start_pre_fac_egroup", json_input, 0.02) 
 
-            end_pre_fac_force = get_parameter("end_pre_fac_force", json_input, 2.0) 
+            end_pre_fac_force = get_parameter("end_pre_fac_force", json_input, 1.0) 
             end_pre_fac_etot = get_parameter("end_pre_fac_etot", json_input, 1.0) 
-            end_pre_fac_ei = get_parameter("end_pre_fac_ei", json_input, 1.0) 
+            end_pre_fac_ei = get_parameter("end_pre_fac_ei", json_input, 2.0) 
             end_pre_fac_virial = get_parameter("end_pre_fac_virial", json_input, 1.0) 
-            end_pre_fac_egroup = get_parameter("end_pre_fac_egroup", json_input, 0.1) 
+            end_pre_fac_egroup = get_parameter("end_pre_fac_egroup", json_input, 1.0) 
 
             optimizer_param.set_adam_sgd_train_pref(
                     train_energy = train_energy, train_force = train_force, 

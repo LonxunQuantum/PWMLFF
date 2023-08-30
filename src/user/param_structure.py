@@ -246,34 +246,42 @@ class OptimizerParam(object):
     def to_dict(self):
         opt_dict = {}
         opt_dict["optimizer"]=self.opt_name
-        opt_dict["start_epoch"] = self.start_epoch
+        # opt_dict["start_epoch"] = self.start_epoch
         opt_dict["epochs"] = self.epochs
         opt_dict["batch_size"] = self.batch_size
         opt_dict["print_freq"] = self.print_freq
         if "KF" in self.opt_name:
-            opt_dict["block_size"] = self.block_size 
+            if "LKF" in self.opt_name:
+                opt_dict["block_size"] = self.block_size 
             opt_dict["kalman_lambda"] = self.kalman_lambda
             opt_dict["kalman_nue"] = self.kalman_nue
 
-        opt_dict["train_energy"] = self.train_energy
-        opt_dict["train_force"] = self.train_force
-        opt_dict["train_ei"] = self.train_ei
-        opt_dict["train_virial"] = self.train_virial
-        opt_dict["train_egroup"] = self.train_egroup
+            opt_dict["train_energy"] = self.train_energy
+            opt_dict["train_force"] = self.train_force
+            opt_dict["train_ei"] = self.train_ei
+            opt_dict["train_virial"] = self.train_virial
+            opt_dict["train_egroup"] = self.train_egroup
     
-        if "KF" in self.opt_name:
             opt_dict["pre_fac_force"] = self.pre_fac_force
             opt_dict["pre_fac_etot"] = self.pre_fac_etot
             opt_dict["pre_fac_ei"] = self.pre_fac_ei
             opt_dict["pre_fac_virial"] = self.pre_fac_virial
             opt_dict["pre_fac_egroup"] = self.pre_fac_egroup
         else:
+            if "SGD" in self.opt_name:
+                opt_dict["weight_decay"]= self.weight_decay
+                opt_dict["momentum"]= self.momentum
+
             opt_dict["learning_rate"]= self.learning_rate
-            opt_dict["weight_decay"]= self.weight_decay
-            opt_dict["momentum"]= self.momentum
             opt_dict["stop_lr"] = self.stop_lr
             opt_dict["stop_step"] = self.stop_step
             opt_dict["decay_step"] = self.decay_step
+
+            opt_dict["train_energy"] = self.train_energy
+            opt_dict["train_force"] = self.train_force
+            opt_dict["train_ei"] = self.train_ei
+            opt_dict["train_virial"] = self.train_virial
+            opt_dict["train_egroup"] = self.train_egroup
 
             opt_dict["start_pre_fac_force"] = self.start_pre_fac_force
             opt_dict["start_pre_fac_etot"] = self.start_pre_fac_etot
@@ -286,4 +294,5 @@ class OptimizerParam(object):
             opt_dict["end_pre_fac_ei"] = self.end_pre_fac_ei
             opt_dict["end_pre_fac_virial"] = self.end_pre_fac_virial
             opt_dict["end_pre_fac_egroup"] = self.end_pre_fac_egroup
+            
         return opt_dict
