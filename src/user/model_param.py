@@ -4,7 +4,7 @@ from numpy import Inf
 from utils.json_operation import get_parameter, get_required_parameter
 from src.user.nn_feature_type import Descriptor
 from src.user.param_structure import TrainFileStructure, ModelParam, NetParam, OptimizerParam
-
+from utils.file_operation import is_alive_atomic_energy
 '''
 description: 
     covert the input json file to class
@@ -99,6 +99,7 @@ class DpParam(object):
             for mvm in test_movement_path:
                 if os.path.exists(mvm) is False:
                     raise Exception("{} file is not exists, please check!".format(mvm))
+            
             test_dir_name = get_parameter("test_dir_name", json_input, "test_result")
             test_dir = os.path.join(self.file_paths.work_dir, test_dir_name)
 
@@ -113,6 +114,10 @@ class DpParam(object):
                 raise Exception("the model_load_path is not exist: {}".format(self.file_paths.model_load_path))
             
             self.file_paths._set_inference_paths(test_movement_path, test_dir)
+
+            alive_atomic_energy = is_alive_atomic_energy(test_movement_path)
+            self.file_paths._set_alive_atomic_energy(alive_atomic_energy)
+
         else:
             error_info = "error! The command {} does not exist and currently only includes the following commands:\
                 train\t gen_feat\t inference\n".format(self.cmd)
@@ -122,7 +127,9 @@ class DpParam(object):
         json_dir = os.getcwd()
         work_dir = os.path.abspath(get_parameter("work_dir", json_input, "work_dir"))
         reserve_work_dir = get_parameter("reserve_work_dir", json_input, False)
-        file_paths = TrainFileStructure(json_dir=json_dir, work_dir=work_dir, reserve_work_dir=reserve_work_dir, model_type=self.model_type, cmd=self.cmd)
+        reserve_feature = get_parameter("reserve_feature", json_input, False)
+
+        file_paths = TrainFileStructure(json_dir=json_dir, work_dir=work_dir, reserve_work_dir=reserve_work_dir, reserve_feature = reserve_feature, model_type=self.model_type, cmd=self.cmd)
         # model paths
         model_load_path = os.path.abspath(get_parameter("model_load_file", json_input, ""))
         # if self.recover_train is True and os.path.isfile(model_load_path):
@@ -153,6 +160,11 @@ class DpParam(object):
         file_paths._set_training_path(train_movement_path=train_movement_path, 
                                       train_feature_path=train_feature_path,
                                       train_dir=os.path.join(file_paths.work_dir, "feature"))
+        
+        alive_atomic_energy = get_parameter("alive_atomic_energy", json_input, False)
+        alive_atomic_energy = is_alive_atomic_energy(train_movement_path)
+        file_paths._set_alive_atomic_energy(alive_atomic_energy)
+
         # set Pwdata dir file structure, they are used in feature generation
         trainSetDir = get_parameter("trainSetDir", json_input, 'PWdata')
         dRFeatureInputDir = get_parameter("dRFeatureInputDir", json_input, 'input')
@@ -175,6 +187,7 @@ class DpParam(object):
             file_paths._set_p_matrix_paths(Pmatrix_path, True)
         else:
             file_paths._set_p_matrix_paths(None, False)
+            
         return file_paths
     
     def _set_dp_model_params(self, json_input:dict):

@@ -20,12 +20,17 @@ if __name__ == "__main__":
         json_path = sys.argv[2]
         # cmd_type = "test".upper()
         
-        # os.chdir("/data/home/hfhuang/2_MLFF/2-DP/19-json-version/3-Si/01.Iter1/00.train")
-        # json_path = "dp.json"
+        os.chdir(os.path.dirname(os.path.abspath(json_path)))
+        # json_path = "nn_lisi_template.json"
         json_file = json.load(open(json_path))
         model_type = get_required_parameter("model_type", json_file).upper()  # model type : dp or nn or linear
+        model_num = get_parameter("model_num", json_file, 1)
         # model_num = get_parameter("model_num", json_file, 1)
-        
+        if model_num > 1 and cmd_type == "train".upper():
+            # for multi train, need to input slurm file
+            slurm_file = sys.argv[3]
+            multi_train(json_path, cmd_type, slurm_file)
+
         if cmd_type == "train".upper():
             if model_type == "DP".upper():
                 dp_train(json_file, cmd_type)
@@ -54,10 +59,10 @@ if __name__ == "__main__":
             else:
                 raise Exception("Error! the model_type param in json file does not existent, you could use DP or NN or Linear")
         
-        elif cmd_type == "multi_train".upper():
-            # for multi train, need to input slurm file
-            slurm_file = sys.argv[3]
-            multi_train(json_path,slurm_file)
+        # elif cmd_type == "multi_train".upper():
+        #     # for multi train, need to input slurm file
+        #     slurm_file = sys.argv[3]
+        #     multi_train(json_path,slurm_file)
 
         else:
             raise Exception("Error! the cmd type {} does not existent, you could use train or test!".format(cmd_type))

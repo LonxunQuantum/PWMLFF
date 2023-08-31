@@ -1,4 +1,4 @@
-import os
+import os, subprocess
 import shutil
 
 import numpy as np
@@ -180,6 +180,19 @@ def combine_movement(sourceFileList, save_path):
             # from next line 
             outfile.write("\n")
 
+def is_alive_atomic_energy(movement_list:list):
+    if len(movement_list) < 1:
+        return False
+    # Declare is_real_Ep as a global variable
+    command = 'grep Atomic-Energy ' + movement_list[0] + ' | head -n 1'
+    print('running-shell-command: ' + command)
+    result = subprocess.run(command, stdout=subprocess.PIPE, encoding='utf-8', shell=True)
+    if 'Atomic-Energy' in result.stdout:
+        alive_atomic_energy = True
+    else:
+        alive_atomic_energy = False
+    return alive_atomic_energy
+        
 '''
 description: 
     smlink souce file to target file

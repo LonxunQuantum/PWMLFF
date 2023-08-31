@@ -18,7 +18,7 @@ author: wuxingxing
 '''
 def nn_train(input_json: json, cmd:str):
     nn_param = DpParam(input_json, cmd) 
-    nn_param.print_input_params(json_file_save_name="nn_train_final.json")
+    nn_param.print_input_params(json_file_save_name="std_input.json")
     nn_trainer = nn_network(nn_param)
     if len(nn_param.file_paths.train_movement_path) > 0:
         feature_path = nn_trainer.generate_data()
@@ -27,17 +27,22 @@ def nn_train(input_json: json, cmd:str):
     extract_force_field(nn_param)
     
     if os.path.realpath(nn_param.file_paths.json_dir) != os.path.realpath(nn_param.file_paths.work_dir) :
-        post_process_train(nn_param.file_paths.json_dir, \
-                    nn_param.file_paths.model_store_dir, nn_param.file_paths.forcefield_dir, nn_param.file_paths.train_dir)
+        copy_train_result(nn_param.file_paths.json_dir, \
+                    nn_param.file_paths.model_store_dir, nn_param.file_paths.forcefield_dir)
+        
+        if nn_param.file_paths.reserve_feature is False:
+            delete_tree(nn_param.file_paths.train_dir)
+
         if nn_param.file_paths.reserve_work_dir is False:
             delete_tree(nn_param.file_paths.work_dir)
 
 def gen_nn_feature(input_json: json, cmd:str):
     nn_param = DpParam(input_json, cmd) 
-    nn_param.print_input_params(json_file_save_name="nn_test_final.json")
+    nn_param.print_input_params(json_file_save_name="std_input.json")
     nn_trainer = nn_network(nn_param)
     feature_path = nn_trainer.generate_data()
     print("feature generated done, the dir path is: \n{}".format(feature_path))
+    return feature_path
 
 '''
 description: 
@@ -52,7 +57,7 @@ author: wuxingxing
 '''
 def nn_test(input_json: json, cmd:str):
     nn_param = DpParam(input_json, cmd)
-    nn_param.print_input_params()
+    nn_param.print_input_params(json_file_save_name="std_input.json")
     nn_trainer = nn_network(nn_param)
     if len(nn_param.file_paths.test_movement_path) > 0:
         gen_feat_dir = nn_trainer.generate_data()
@@ -60,7 +65,7 @@ def nn_test(input_json: json, cmd:str):
     nn_trainer.load_and_train()
 
     if os.path.realpath(nn_param.file_paths.json_dir) != os.path.realpath(nn_param.file_paths.work_dir) :
-        post_process_test(nn_param.file_paths.json_dir, nn_param.file_paths.test_dir)
+        copy_test_result(nn_param.file_paths.json_dir, nn_param.file_paths.test_dir)
         if nn_param.file_paths.reserve_work_dir is False:
             delete_tree(nn_param.file_paths.work_dir)
 
@@ -76,15 +81,13 @@ param {*} train_dir
 return {*}
 author: wuxingxing
 '''
-def post_process_train(target_dir, model_store_dir, forcefield_dir, train_dir):
+def copy_train_result(target_dir, model_store_dir, forcefield_dir):
     # copy model
     target_model_path = os.path.join(target_dir, os.path.basename(model_store_dir))
     copy_tree(model_store_dir, target_model_path)
     # copy forcefild
     target_forcefield_dir = os.path.join(target_dir, os.path.basename(forcefield_dir))
     copy_tree(forcefield_dir, target_forcefield_dir)
-    # delete feature data
-    delete_tree(train_dir)
 
 '''
 description: 
@@ -94,7 +97,7 @@ param {*} json_dir
 return {*}
 author: wuxingxing
 '''
-def post_process_test(target_dir, test_dir):
+def copy_test_result(target_dir, test_dir):
     # copy inference result
     target_test_dir = os.path.join(target_dir, os.path.basename(test_dir))
     for file in os.listdir(test_dir):

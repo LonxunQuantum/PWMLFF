@@ -13,12 +13,13 @@ class TrainFileStructure(object):
     return {*}
     author: wuxingxing
     '''    
-    def __init__(self, json_dir:str, work_dir:str, reserve_work_dir:bool, model_type:str, cmd:str) -> None:
+    def __init__(self, json_dir:str, work_dir:str, reserve_work_dir:bool, reserve_feature:bool, model_type:str, cmd:str) -> None:
         self.model_type = model_type
         self.cmd = cmd
         self.json_dir = json_dir
         self.work_dir = work_dir
         self.reserve_work_dir = reserve_work_dir
+        self.reserve_feature = reserve_feature
         self.movement_name = "MOVEMENT"
         self.test_movement_path = []
         self.train_movement_path = []
@@ -29,6 +30,9 @@ class TrainFileStructure(object):
         self.train_movement_path = train_movement_path
         self.train_feature_path = train_feature_path
         self.train_dir = os.path.join(self.work_dir, train_dir)
+
+    def _set_alive_atomic_energy(self, alive_atomic_energy:bool):
+        self.alive_atomic_energy = alive_atomic_energy
 
     def _set_data_file_paths(self, trainSetDir:str, dRFeatureInputDir:str, dRFeatureOutputDir:str,\
                         trainDataPath:str, validDataPath:str):

@@ -184,17 +184,6 @@ class nn_network:
         if os.path.exists(gen_feature_data) is True: # work_dir/feature dir
             shutil.rmtree(gen_feature_data)
 
-        global alive_atomic_energy      # Declare is_real_Ep as a global variable
-        command = 'grep Atomic-Energy ' + movement_path[0] + ' | head -n 1'
-        print('running-shell-command: ' + command)
-        result = subprocess.run(command, stdout=subprocess.PIPE, encoding='utf-8', shell=True)
-        if 'Atomic-Energy' in result.stdout:
-            alive_atomic_energy = True
-        else:
-            alive_atomic_energy = False
-            if self.dp_params.optimizer_param.train_ei or self.dp_params.optimizer_param.train_egroup:
-                raise Exception("Error! Atomic-Energy not found in movement file, please check!")
-
         # classify all MOVEMENT files based on atom type and atom type nums
         work_dir_list, atom_num = get_cluster_dirs(movement_path)
         # copy the movement files to the working path by cluster result
@@ -213,10 +202,10 @@ class nn_network:
             calc_feat()
             # seperate training set and valid set
             import src.pre_data.seper as seper 
-            seper.seperate_data(chunk_size = chunk_size, shuffle = shuffle, atom_num = atom_num, alive_atomic_energy = alive_atomic_energy)
+            seper.seperate_data(chunk_size = chunk_size, shuffle = shuffle, atom_num = atom_num, alive_atomic_energy = self.dp_params.file_paths.alive_atomic_energy)
             # save as .npy
             import src.pre_data.gen_data as gen_data
-            gen_data.write_data(alive_atomic_energy = alive_atomic_energy)
+            gen_data.write_data(alive_atomic_energy = self.dp_params.file_paths.alive_atomic_energy)
     
         # copy feat_info and vdw_fitB.ntype
         fread_dfeat_dir = os.path.join(gen_feature_data, "fread_dfeat") #target dir
@@ -394,7 +383,7 @@ class nn_network:
             train_data.dfeat = trans(trans(train_data.dfeat) * self.scaler.scale_) 
             valid_data.dfeat = trans(trans(valid_data.dfeat) * self.scaler.scale_)
 
-    def load_data_hybrid(self, data_shuffle=False, alive_atomic_energy=False):
+    def load_data_hybrid(self, data_shuffle=True, alive_atomic_energy=False):
         # load anything other than dfeat
          
         if self.dp_params.inference:
@@ -830,7 +819,7 @@ class nn_network:
 
     def load_and_train(self):
         # transform data
-        self.load_data_hybrid(data_shuffle=self.dp_params.data_shuffle, alive_atomic_energy=True)
+        self.load_data_hybrid(data_shuffle=self.dp_params.data_shuffle, alive_atomic_energy=self.dp_params.file_paths.alive_atomic_energy)
         # else:
         #     self.load_data()
         # initialize the network
@@ -914,7 +903,7 @@ class nn_network:
 
         dfeat = Variable(sample_batches['input_dfeat'].to(self.device))  #[40,108,100,42,3]
         
-        if alive_atomic_energy:
+        if self.dp_params.file_paths.alive_atomic_energy:
             Egroup_label = Variable(sample_batches['input_egroup'].to(self.device))
             egroup_weight = Variable(sample_batches['input_egroup_weight'].to(self.device))
             divider = Variable(sample_batches['input_divider'].to(self.device))
@@ -977,7 +966,7 @@ class nn_network:
         del Force_label
         del input_data
         del dfeat
-        if alive_atomic_energy:
+        if self.dp_params.file_paths.alive_atomic_energy:
             del Egroup_label
             del egroup_weight
             del divider
@@ -995,7 +984,7 @@ class nn_network:
         Force_label = Variable(sample_batches['output_force'][:,:,:].to(self.device))   #[40,108,3]
         input_data = Variable(sample_batches['input_feat'].to(self.device), requires_grad=True)
         dfeat = Variable(sample_batches['input_dfeat'].to(self.device))  #[40,108,100,42,3]
-        if alive_atomic_energy:
+        if self.dp_params.file_paths.alive_atomic_energy:
             Egroup_label = Variable(sample_batches['input_egroup'].to(self.device))
             egroup_weight = Variable(sample_batches['input_egroup_weight'].to(self.device))
             divider = Variable(sample_batches['input_divider'].to(self.device))
@@ -1065,7 +1054,7 @@ class nn_network:
         lab_force_save_path = os.path.join(inf_dir,"dft_force.txt")
         inf_energy_save_path = os.path.join(inf_dir,"inference_total_energy.txt")
         lab_energy_save_path = os.path.join(inf_dir,"dft_total_energy.txt")
-        if alive_atomic_energy:
+        if self.dp_params.file_paths.alive_atomic_energy:
             inf_Ei_save_path = os.path.join(inf_dir,"inference_atomic_energy.txt")
             lab_Ei_save_path = os.path.join(inf_dir,"dft_atomic_energy.txt")
         inference_path = os.path.join(inf_dir,"inference_summary.txt") 
@@ -1080,7 +1069,7 @@ class nn_network:
             Force_label = Variable(sample_batches['output_force'][:,:,:].to(self.device))   #[40,108,3]
             input_data = Variable(sample_batches['input_feat'].to(self.device), requires_grad=True)
             dfeat = Variable(sample_batches['input_dfeat'].to(self.device))  #[40,108,100,42,3]
-            if alive_atomic_energy:
+            if self.dp_params.file_paths.alive_atomic_energy:
                 Egroup_label = Variable(sample_batches['input_egroup'].to(self.device))
                 egroup_weight = Variable(sample_batches['input_egroup_weight'].to(self.device))
                 divider = Variable(sample_batches['input_divider'].to(self.device))
@@ -1122,7 +1111,7 @@ class nn_network:
                                ' '.join(np.array(Force_predict.flatten().cpu().data).astype('str')), "a")
             write_line_to_file(lab_force_save_path, \
                                ' '.join(np.array(Force_label.flatten().cpu().data).astype('str')), "a")
-            if alive_atomic_energy:
+            if self.dp_params.file_paths.alive_atomic_energy:
                 write_line_to_file(inf_Ei_save_path, \
                                 ' '.join(np.array(Ei_predict.flatten().cpu().data).astype('str')), "a")
                 write_line_to_file(lab_Ei_save_path, \
@@ -1139,7 +1128,7 @@ class nn_network:
         inference_cout += "For {} images: \n".format(res_pd.shape[0])
         inference_cout += "Avarage REMSE of Etot: {} \n".format(res_pd['RMSE_Etot'].mean())
         inference_cout += "Avarage REMSE of Etot per atom: {} \n".format(res_pd['RMSE_Etot_per_atom'].mean())
-        if alive_atomic_energy:
+        if self.dp_params.file_paths.alive_atomic_energy:
             inference_cout += "Avarage REMSE of Ei: {} \n".format(res_pd['RMSE_Ei'].mean())
         inference_cout += "Avarage REMSE of RMSE_F: {} \n".format(res_pd['RMSE_F'].mean())
         if self.dp_params.optimizer_param.train_egroup:
@@ -1151,7 +1140,7 @@ class nn_network:
         inference_cout += "\nMore details can be found under the file directory:\n{}\n".format(inf_dir)
         print(inference_cout)
 
-        if alive_atomic_energy:
+        if self.dp_params.file_paths.alive_atomic_energy:
             if self.dp_params.optimizer_param.train_ei or self.dp_params.optimizer_param.train_egroup:
                 plot_ei = True
             else:
