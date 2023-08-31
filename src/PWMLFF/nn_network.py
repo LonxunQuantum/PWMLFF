@@ -488,37 +488,17 @@ class nn_network:
                 self.dp_params.optimizer_param.kalman_lambda,
                 self.dp_params.optimizer_param.kalman_nue
             )
-        else: #use torch's built-in optimizer 
-            model_parameters = self.model.parameters()
-            self.momentum = self.dp_params.optimizer_param.momentum
-            self.REGULAR_wd = self.dp_params.optimizer_param.weight_decay
-            self.LR_base = self.dp_params.optimizer_param.learning_rate
-            self.LR_gamma = self.dp_params.optimizer_param.gamma
-            self.LR_step = self.dp_params.optimizer_param.step
-            if (opt_optimizer == 'SGD'):
-                self.optimizer = optim.SGD(model_parameters, lr=self.LR_base, momentum=self.momentum, weight_decay=self.REGULAR_wd)
-            elif (opt_optimizer == 'ASGD'):
-                self.optimizer = optim.ASGD(model_parameters, lr=self.LR_base, weight_decay=self.REGULAR_wd)
-            elif (opt_optimizer == 'RPROP'):
-                self.optimizer = optim.Rprop(model_parameters, lr=self.LR_base, weight_decay = self.REGULAR_wd)
-            elif (opt_optimizer == 'RMSPROP'):
-                self.optimizer = optim.RMSprop(model_parameters, lr=self.LR_base, weight_decay = self.REGULAR_wd, momentum = self.momentum)
-            elif (opt_optimizer == 'ADAG'):
-                self.optimizer = optim.Adagrad(model_parameters, lr = self.LR_base, weight_decay = self.REGULAR_wd)
-            elif (opt_optimizer == 'ADAD'):
-                self.optimizer = optim.Adadelta(model_parameters, lr = self.LR_base, weight_decay = self.REGULAR_wd)
-            elif (opt_optimizer == 'ADAM'):
-                self.optimizer = optim.Adam(model_parameters, lr = self.LR_base, weight_decay = self.REGULAR_wd)
-            elif (opt_optimizer == 'ADAMW'):
-                self.optimizer = optim.AdamW(model_parameters, lr = self.LR_base)
-            elif (opt_optimizer == 'ADAMAX'):
-                self.optimizer = optim.Adamax(model_parameters, lr = self.LR_base, weight_decay = self.REGULAR_wd)
-            elif (opt_optimizer == 'LBFGS'):
-                self.optimizer = optim.LBFGS(self.model.parameters(), lr = self.LR_base)
-            else:
-                raise RuntimeError("unsupported optimizer: %s" %opt_optimizer)  
-            # set scheduler
-            self.set_scheduler() 
+        elif opt_optimizer == "ADAM":
+            self.optimizer = optim.Adam(self.model.parameters(), self.dp_params.optimizer_param.learning_rate)
+        elif opt_optimizer == "SGD":
+            self.optimizer = optim.SGD(
+                self.model.parameters(),
+                self.dp_params.optimizer_param.learning_rate,
+                momentum=self.dp_params.optimizer_param.momentum,
+                weight_decay=self.dp_params.optimizer_param.weight_decay
+            )
+        else:
+            print("Unsupported optimizer!")
 
         # optionally resume from a checkpoint
         if self.dp_params.recover_train or os.path.exists(self.dp_params.file_paths.model_load_path):
@@ -549,27 +529,7 @@ class nn_network:
             else:
                 print("=> no checkpoint found at '{}'".format(model_path))
         print("network initialized")
-
-    def set_scheduler(self):
-
-        # user specific LambdaLR lambda function
-        lr_lambda = lambda epoch: self.LR_gamma ** epoch
-
-        opt_scheduler = self.dp_params.optimizer_param.scheduler
-
-        if opt_scheduler == 'LAMBDA':
-            self.scheduler = optim.lr_scheduler.LambdaLR(self.optimizer, lr_lambda = lr_lambda)
-        elif opt_scheduler == 'STEP':
-            self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size = self.LR_step, gamma = self.LR_gamma)
-        elif opt_scheduler == 'MSTEP':
-            self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones = None, gamma = self.LR_gamma)
-        elif opt_scheduler == 'EXP':
-            self.scheduler = optim.lr_scheduler.ExponentialLR(self.optimizer, gamma= self.LR_gamma)
-        elif opt_scheduler is None:
-            pass
-        else:   
-            raise RuntimeError("unsupported scheduler: %s" %opt_scheduler)
-    
+   
     def train(self):
         """    
             trianing method for the class 
@@ -652,11 +612,12 @@ class nn_network:
             loss_F = 0.
             loss_Egroup = 0.0 
             # this line code should go out?
-            KFOptWrapper = KFOptimizerWrapper(
-                self.model, self.optimizer, 
-                self.dp_params.optimizer_param.nselect, self.dp_params.optimizer_param.groupsize, 
-                self.dp_params.hvd, "hvd"
-             )
+            if "KF" in self.dp_params.optimizer_param.opt_name:
+                KFOptWrapper = KFOptimizerWrapper(
+                    self.model, self.optimizer, 
+                    self.dp_params.optimizer_param.nselect, self.dp_params.optimizer_param.groupsize, 
+                    self.dp_params.hvd, "hvd"
+                )
             
             self.model.train()
             # 重写一下训练这部分
@@ -677,7 +638,7 @@ class nn_network:
 
                 if "KF" not in self.dp_params.optimizer_param.opt_name:
                     # non-KF t
-                    batch_loss, batch_loss_Etot, batch_loss_Ei, batch_loss_F = \
+                    batch_loss, batch_loss_Etot, batch_loss_Ei, batch_loss_F, batch_loss_Egroup = \
                         self.train_img(sample_batches, self.model, self.optimizer, nn.MSELoss(), last_epoch, real_lr)
                 else:
                     # KF 
@@ -748,29 +709,6 @@ class nn_network:
             f_epoch_train_log.write("%s\n" % (epoch_train_log_line))
             f_epoch_train_log.close()
             
-            if "KF" not in self.dp_params.optimizer_param.opt_name:
-                """
-                    for built-in optimizer only 
-                """
-                opt_scheduler = self.dp_params.optimizer_param.scheduler
-
-                if (opt_scheduler == 'OC'):
-                    pass 
-                elif (opt_scheduler == 'PLAT'):
-                    self.scheduler.step(loss)
-
-                elif (opt_scheduler == 'LR_INC'):
-                    self.LinearLR(optimizer=self.optimizer, base_lr=self.LR_base, target_lr=pm.opt_LR_max_lr, total_epoch=self.dp_params.optimizer_param.epochs, cur_epoch=epoch)
-
-                elif (opt_scheduler == 'LR_DEC'):
-                    self.LinearLR(optimizer=self.optimizer, base_lr=self.LR_base, target_lr=pm.opt_LR_min_lr, total_epoch=self.dp_params.optimizer_param.epochs, cur_epoch=epoch)
-
-                elif (opt_scheduler == 'NONE'):
-                    pass
-
-                else:
-                    self.scheduler.step()
-
             """
                 ========== validation starts ==========
             """ 
@@ -892,7 +830,7 @@ class nn_network:
 
     def load_and_train(self):
         # transform data
-        self.load_data_hybrid(data_shuffle=self.dp_params.data_shuffle, alive_atomic_energy=alive_atomic_energy)
+        self.load_data_hybrid(data_shuffle=self.dp_params.data_shuffle, alive_atomic_energy=True)
         # else:
         #     self.load_data()
         # initialize the network
@@ -932,15 +870,14 @@ class nn_network:
         neighbor = Variable(sample_batches['input_nblist'].int().to(self.device))  # [40,108,100]
         ind_img = Variable(sample_batches['ind_image'].int().to(self.device))
         natoms_img = Variable(sample_batches['natoms_img'].int().to(self.device))    
-
-        Etot_predict, Ei_predict, Force_predict, Egroup_predict = self.model(input_data, dfeat, neighbor, natoms_img, egroup_weight, divider)
-        
+        atom_type = Variable(sample_batches['atom_type'].int().to(self.device))
+        Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = self.model(input_data, dfeat, neighbor, natoms_img, atom_type, egroup_weight, divider)
         optimizer.zero_grad()
 
         loss_Etot = torch.zeros([1,1],device = self.device)
         loss_Ei = torch.zeros([1,1],device = self.device)
         loss_F = torch.zeros([1,1],device = self.device)
-        loss_Egroup = 0
+        loss_Egroup = torch.zeros([1,1],device = self.device)
 
         # update loss with repsect to the data used
         if self.dp_params.optimizer_param.train_ei:
@@ -949,22 +886,23 @@ class nn_network:
             loss_Etot = criterion(Etot_predict, Etot_label)
         if self.dp_params.optimizer_param.train_force:
             loss_F = criterion(Force_predict, Force_label)
-
+        if self.dp_params.optimizer_param.train_egroup:
+            loss_Egroup = criterion(Egroup_predict, Egroup_label)
         start_lr = self.dp_params.optimizer_param.learning_rate
         
         w_f = 1 if self.dp_params.optimizer_param.train_force == True else 0
         w_e = 1 if self.dp_params.optimizer_param.train_energy == True else 0
         w_ei = 1 if self.dp_params.optimizer_param.train_ei == True else 0
-        w_eg = 0 
+        w_eg = 1 if self.dp_params.optimizer_param.train_egroup == True else 0 
 
-        loss, pref_f, pref_e = self.get_loss_func(start_lr, real_lr, w_f, loss_F, w_e, loss_Etot, w_eg, loss_Egroup, w_ei, loss_Ei, natoms_img[0, 0].item())
+        loss, pref_f, pref_e, pref_egroup = self.get_loss_func(start_lr, real_lr, w_f, loss_F, w_e, loss_Etot, w_eg, loss_Egroup, w_ei, loss_Ei, natoms_img[0, 0].item())
 
         # using a total loss to update weights 
         loss.backward()
 
         self.optimizer.step()
         
-        return loss, loss_Etot, loss_Ei, loss_F
+        return loss, loss_Etot, loss_Ei, loss_F, loss_Egroup
 
     def train_kalman_img(self,sample_batches, model, KFOptWrapper :KFOptimizerWrapper, criterion):
         """
@@ -1314,7 +1252,7 @@ class nn_network:
         limit_pref_egroup =self.dp_params.optimizer_param.end_pre_fac_egroup  # 1.0
         limit_pref_F =self.dp_params.optimizer_param.end_pre_fac_force # 1.0
         limit_pref_etot =self.dp_params.optimizer_param.end_pre_fac_etot # 1.0
-        limit_pref_ei =self.dp_params.optimizer_param.end_pre_fac_ei # 1.0
+        limit_pref_ei =self.dp_params.optimizer_param.end_pre_fac_ei # 2.0
 
         pref_fi = has_fi * (limit_pref_F + (start_pref_F - limit_pref_F) * real_lr / start_lr)
         pref_etot = has_etot * (limit_pref_etot + (start_pref_etot - limit_pref_etot) * real_lr / start_lr)
@@ -1332,7 +1270,7 @@ class nn_network:
         if has_ei==1:
             l2_loss += pref_ei * loss_Ei
         
-        return l2_loss, pref_fi, pref_etot
+        return l2_loss, pref_fi, pref_etot, pref_egroup
 
     #update learning rate at iter_num
     def adjust_lr(self,iter_num):
