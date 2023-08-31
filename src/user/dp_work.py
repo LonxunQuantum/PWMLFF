@@ -19,23 +19,34 @@ def dp_train(input_json: json, cmd:str):
     dp_param = DpParam(input_json, cmd) 
     dp_param.print_input_params(json_file_save_name="dp_train_final.json")
     dp_trainer = dp_network(dp_param)
-    if len(dp_param.file_paths.train_movement_path) > 0:
-        feature_path = dp_trainer.generate_data()
+    # if len(dp_param.file_paths.train_movement_path) > 0:
+        # feature_path = dp_trainer.generate_data()
+        # dp_param.file_paths.set_train_feature_path([feature_path])
+    feature_path = dp_param.file_paths.train_dir
+    if os.path.exists(feature_path):
         dp_param.file_paths.set_train_feature_path([feature_path])
-    dp_trainer.load_and_train()
+        dp_trainer.load_and_train()
+    else:
+        if len(dp_param.file_paths.train_movement_path) > 0:
+            feature_path = dp_trainer.generate_data()
+            dp_param.file_paths.set_train_feature_path([feature_path])
+        dp_trainer.load_and_train()
     extract_force_field(dp_param)
 
     if os.path.realpath(dp_param.file_paths.json_dir) != os.path.realpath(dp_param.file_paths.work_dir) :
         post_process_train(dp_param.file_paths.json_dir, \
                        dp_param.file_paths.model_store_dir, dp_param.file_paths.forcefield_dir, dp_param.file_paths.train_dir)
         if dp_param.file_paths.reserve_work_dir is False:
-            delete_tree(dp_param.file_paths.work_dir)
+            if dp_param.model_num == 1:
+                delete_tree(dp_param.file_paths.work_dir)
 
 def gen_dp_feature(input_json: json, cmd:str):
     dp_param = DpParam(input_json, cmd) 
-    dp_param.print_input_params()
+    dp_param.print_input_params(json_file_save_name="dp_train_final.json")
     dp_trainer = dp_network(dp_param)
-    feature_path = dp_trainer.generate_data()
+    if len(dp_param.file_paths.train_movement_path) > 0:
+        feature_path = dp_trainer.generate_data()
+    dp_param.file_paths.set_train_feature_path([feature_path])
     print("feature generated done, the dir path is: \n{}".format(feature_path))
 
 '''

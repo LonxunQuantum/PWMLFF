@@ -108,7 +108,8 @@ class dp_network:
 
         if not os.path.exists(self.dp_params.file_paths.model_store_dir):
             os.mkdir(self.dp_params.file_paths.model_store_dir)
-        smlink_file(self.dp_params.file_paths.model_store_dir, os.path.join(self.dp_params.file_paths.json_dir, os.path.basename(self.dp_params.file_paths.model_store_dir)))
+        if self.dp_params.model_num == 1:
+            smlink_file(self.dp_params.file_paths.model_store_dir, os.path.join(self.dp_params.file_paths.json_dir, os.path.basename(self.dp_params.file_paths.model_store_dir)))
 
         if self.dp_params.hvd:
             import horovod.torch as hvd

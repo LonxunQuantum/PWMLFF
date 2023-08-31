@@ -23,7 +23,7 @@ class DpParam(object):
     def __init__(self, json_input:dict, cmd) -> None:
         self.cmd = cmd
         self.model_type = get_required_parameter("model_type", json_input).upper()
-        
+        self.model_num = get_parameter("model_num", json_input, 1)
         # set fitting net, embeding net
         self.recover_train = get_parameter("recover_train", json_input, False)
         model_dict = get_parameter("model", json_input, {})
@@ -131,6 +131,7 @@ class DpParam(object):
             model_name = get_parameter("model_name", json_input, "nn_model.ckpt")
         else:
             model_name = get_parameter("model_name", json_input, "dp_model.ckpt")
+        
         model_store_dir = get_parameter("model_store_dir", json_input, "model_record")
         model_store_dir = os.path.join(file_paths.work_dir, model_store_dir)
         file_paths._set_model_paths(model_store_dir = model_store_dir, model_load_path=model_load_path, \
@@ -161,7 +162,7 @@ class DpParam(object):
         file_paths._set_data_file_paths(trainSetDir, dRFeatureInputDir, dRFeatureOutputDir, trainDataPath, validDataPath)
         
         # set 
-        forcefield_name = get_parameter("forcefield_name", json_input, "forcefield_ff")
+        forcefield_name = get_parameter("forcefield_name", json_input, "forcefield.ff")
         forcefield_dir = get_parameter("forcefield_dir", json_input, "forcefield")
         file_paths.set_forcefield_path(forcefield_dir, forcefield_name)
         
@@ -324,7 +325,8 @@ class DpParam(object):
         params_dict["model_type"] = self.model_type
         params_dict["atom_type"] = self.atom_type
         params_dict["max_neigh_num"] = self.max_neigh_num
-       
+        params_dict["seed"] = self.seed
+        params_dict["model_num"] = self.model_num
         # params_dict["E_tolerance"] = self.descriptor.E_tolerance
         # params_dict["Rmax"] = self.descriptor.Rmax
         # params_dict["Rmin"] = self.Rmin
