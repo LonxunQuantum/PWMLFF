@@ -1,11 +1,14 @@
 import json
+import os 
 
 from utils.json_operation import get_parameter, get_required_parameter
 
 class LmpParam(object):
     def __init__(self, lmp_json:json, working_dir:str) -> None:
+        self.json_dir = os.getcwd()
         self.working_dir = get_parameter("working_dir", lmp_json,  working_dir)
         self.model_num = get_parameter("model_num", lmp_json,  4)
+        self.model_type = get_required_parameter("model_type", lmp_json).upper()
         self.num_cand_per_cfg = get_parameter("num_cand_per_cfg", lmp_json, 10)
         self.process_num = get_parameter("process_num", lmp_json,  1)
         self.iter_num = get_parameter("iter_num", lmp_json,  1)
@@ -19,8 +22,8 @@ class LmpParam(object):
         self.silent_mode = get_parameter("silent_mode", lmp_json,  True)
         self.num_select_per_group = get_parameter("num_select_per_group", lmp_json,  20)
         self.psp_dir = get_parameter("psp_dir", lmp_json,  "/share/psp/NCPP-SG15-PBE")
-        self.etot_path = get_parameter("etot_path", lmp_json,  None)
-        self.struct_dir = get_parameter("struct_dir", lmp_json,  './')
+        self.etot_file = get_parameter("etot_file", lmp_json,  './')
+        self.struct_dir = get_parameter("struct_dir", lmp_json,  None)
         self.ff_dir = get_parameter("ff_dir", lmp_json,  [])
         self.node_num = get_parameter("node_num", lmp_json,  1)
         self.atom_type = get_parameter("atom_type", lmp_json,  [])
@@ -51,7 +54,7 @@ class LmpParam(object):
         dicts["silent_mode"] = self.silent_mode
         dicts["num_select_per_group"] = self.num_select_per_group
         dicts["psp_dir"] = self.psp_dir
-        dicts["etot_path"] = self.etot_path
+        dicts["etot_file"] = self.etot_file
         dicts["struct_dir"] = self.struct_dir
         dicts["ff_dir"] = self.ff_dir
         dicts["node_num"] = self.node_num

@@ -5,6 +5,7 @@ from src.user.dp_work import dp_train, gen_dp_feature, dp_test
 from src.user.nn_work import nn_train, gen_nn_feature, nn_test
 from src.user.linear_work import linear_train, linear_test
 from src.user.model_param import help_info
+from src.user.active_work import ff2lmps_explore
 from utils.json_operation import get_parameter, get_required_parameter
 from utils.gen_multi_train import multi_train
 
@@ -14,6 +15,7 @@ if __name__ == "__main__":
     # cmd_type = "train".upper()
     # cmd_type = "gen_feat".upper()
     # cmd_type = "multi_train".upper()
+    # cmd_type = "explore".upper()
     if cmd_type == "help".upper():
         help_info()
     else:
@@ -63,6 +65,10 @@ if __name__ == "__main__":
         #     # for multi train, need to input slurm file
         #     slurm_file = sys.argv[3]
         #     multi_train(json_path,slurm_file)
+
+        elif cmd_type == "explore".upper():
+            # for now, only support explore for DP model
+            ff2lmps_explore(json_file)
 
         else:
             raise Exception("Error! the cmd type {} does not existent, you could use train or test!".format(cmd_type))

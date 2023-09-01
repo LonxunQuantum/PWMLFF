@@ -1,14 +1,11 @@
-#!/usr/bin/env python
 import json
-import os, sys
+import os
+
 from src.mods.adaptive_trainer import adaptive_trainer
 from src.user.lmps_param import LmpParam
-if __name__ == "__main__":
-    # cmd_type = sys.argv[1].upper()
-    json_file = sys.argv[1]
-    os.chdir(os.path.dirname(os.path.abspath(json_file)))
-    json_file = json.load(open(json_file))
-    lmps_param = LmpParam(json_file, os.getcwd())
+
+def ff2lmps_explore(input_json: json):
+    lmps_param = LmpParam(input_json, os.getcwd())
     adpt_trainer = adaptive_trainer(lmps_param)
     #adpt_trainer.initialize() 
     adpt_trainer.explore()

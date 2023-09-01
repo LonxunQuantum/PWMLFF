@@ -100,9 +100,9 @@ class adaptive_trainer():
         self.ksapcing  = lmp_param.kspacing
         self.model_num = lmp_param.model_num
 
-        self.working_dir = lmp_param.working_dir
+        self.working_dir = lmp_param.json_dir
         self.psp_dir = lmp_param.psp_dir
-        self.etot_path = lmp_param.etot_path
+        self.etot_file = lmp_param.etot_file
         self.struct_dir = lmp_param.struct_dir
 
         self.train_path = os.path.dirname(self.working_dir)+"/00.train"
@@ -116,8 +116,8 @@ class adaptive_trainer():
             
         self.ff_dir = lmp_param.ff_dir
 
-        self.explore_path = self.working_dir+"/explore"
-        self.seed_path = self.working_dir+"/seed"
+        self.explore_path = os.path.abspath(os.path.join(self.working_dir,"explore"))
+        self.seed_path = os.path.abspath(os.path.join(self.working_dir,"seed"))
 
         self.explore_model_dir  = self.explore_path + "/model"
         self.explore_result_dir = self.explore_path + "/result"
@@ -487,16 +487,11 @@ class adaptive_trainer():
 
             i = 0
             for file_path in self.ff_dir:
-                if not os.path.isdir(file_path):
-                    continue
+                i += 1
+                os.symlink(os.path.abspath(file_path), self.explore_model_dir+"/"+str(i)+".ff")
 
-                for ff_name in os.listdir(file_path):
-                    if ff_name.endswith('.ff'):
-                        i += 1
-                        os.symlink(os.path.abspath(os.path.join(file_path, ff_name)), self.explore_model_dir+"/"+str(i)+".ff")
-
-                    if i == self.model_num:
-                        break
+                if i == self.model_num:
+                    break
         else:
             raise ValueError("the number of force field files is not equal to the number of models")
 

@@ -40,7 +40,8 @@ def gen_nn_feature(input_json: json, cmd:str):
     nn_param = DpParam(input_json, cmd) 
     nn_param.print_input_params(json_file_save_name="std_input.json")
     nn_trainer = nn_network(nn_param)
-    feature_path = nn_trainer.generate_data()
+    if len(nn_param.file_paths.train_movement_path) > 0:
+        feature_path = nn_trainer.generate_data()
     print("feature generated done, the dir path is: \n{}".format(feature_path))
     return feature_path
 
