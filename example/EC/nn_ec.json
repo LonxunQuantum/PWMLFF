@@ -2,10 +2,5 @@
     "train_movement_file":["./EC_MOVEMENT"],
 
     "model_type": "NN",
-    "atom_type":[8,6,1],
-    "max_neigh_num":100,
-    "optimizer":{
-        "optimizer":"LKF",
-        "epochs":3
-        }
+    "atom_type":[8,6,1]
 }
