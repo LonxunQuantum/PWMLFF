@@ -24,7 +24,7 @@ class LmpParam(object):
         self.psp_dir = get_parameter("psp_dir", lmp_json,  "/share/psp/NCPP-SG15-PBE")
         self.etot_file = get_parameter("etot_file", lmp_json,  './')
         self.struct_dir = get_parameter("struct_dir", lmp_json,  None)
-        self.ff_dir = get_parameter("ff_dir", lmp_json,  [])
+        self.ff_file = get_parameter("ff_file", lmp_json,  [])
         self.node_num = get_parameter("node_num", lmp_json,  1)
         self.atom_type = get_parameter("atom_type", lmp_json,  [])
         self.success_bar = get_parameter("success_bar", lmp_json,  0.15)
@@ -56,7 +56,7 @@ class LmpParam(object):
         dicts["psp_dir"] = self.psp_dir
         dicts["etot_file"] = self.etot_file
         dicts["struct_dir"] = self.struct_dir
-        dicts["ff_dir"] = self.ff_dir
+        dicts["ff_file"] = self.ff_file
         dicts["node_num"] = self.node_num
         dicts["atom_type"] = self.atom_type
         dicts["success_bar"] = self.success_bar
