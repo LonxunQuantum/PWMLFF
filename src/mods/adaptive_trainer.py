@@ -28,36 +28,7 @@ from slice import slice
 
 class adaptive_trainer():
     
-    def __init__(
-                    self, lmp_param:LmpParam
-                    # model_num = 4, 
-                    # process_num = 1,     # num of process for trajectory generation
-                    # iter_num = 1,        # num of meta iteration 
-                    # temp = [], 
-                    # pressure = [1],
-                    # traj_step = 500, 
-                    # md_dt = 0.001, 
-                    # ensemble = "nvt",  # npt, nvt 
-                    # lmp_iso = "tri",
-                    # kspacing = 0.16, 
-                    # silent_mode = True, 
-                    # num_select_per_group = 20,
-                    # psp_dir = "/share/psp/NCPP-SG15-PBE", 
-                    # etot_path = None,
-                    # struct_dir = './',
-                    # ff_dir = [],
-                    # node_num = 1,   
-                    # atom_type = [],
-                    # success_bar = 0.15,
-                    # candidate_bar = 0.35,         
-                    # lmp_damp = 25,
-                    # lmp_nprocs = 1,
-                    # is_single_node = True,       
-                    # lmp_partition_name = None,
-                    # lmp_ntask_per_node = None, 
-                    # lmp_wall_time = 7200,          
-                    # lmp_custom_lines = [],
-                ):  
+    def __init__(self, lmp_param:LmpParam):  
         """
             DIR: train
                 All the training stuff
@@ -106,15 +77,8 @@ class adaptive_trainer():
         self.struct_dir = lmp_param.struct_dir
 
         self.train_path = os.path.dirname(self.working_dir)+"/00.train"
-
-        # if not ff_dir:
-        #     self.ff_dir = lmp_param.[]
-        #     for i in range(self.model_num):
-        #         ff_path = os.path.join(self.train_path, f"{i:03d}")
-        #         self.ff_dir.append(ff_path)
-        # else:
-            
-        self.ff_dir = lmp_param.ff_dir
+           
+        self.ff_file = lmp_param.ff_file
 
         self.explore_path = os.path.abspath(os.path.join(self.working_dir,"explore"))
         self.seed_path = os.path.abspath(os.path.join(self.working_dir,"seed"))
@@ -478,7 +442,7 @@ class adaptive_trainer():
         if not os.path.exists(self.explore_model_dir):
             os.makedirs(self.explore_model_dir)
 
-        if len(self.ff_dir) == self.model_num:
+        if len(self.ff_file) == self.model_num:
             # Delete the old link file (if existence)
             for file in os.listdir(self.explore_model_dir):
                 ff_name = os.path.join(self.explore_model_dir, file)
@@ -486,7 +450,7 @@ class adaptive_trainer():
                     os.unlink(ff_name)
 
             i = 0
-            for file_path in self.ff_dir:
+            for file_path in self.ff_file:
                 i += 1
                 os.symlink(os.path.abspath(file_path), self.explore_model_dir+"/"+str(i)+".ff")
 
