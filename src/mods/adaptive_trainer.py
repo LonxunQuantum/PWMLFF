@@ -11,7 +11,7 @@ import multiprocessing as mp
 import numpy as np 
 import random 
 import time
-
+from src.user.lmps_param import LmpParam
 codepath = str(pathlib.Path(__file__).parent.resolve())
 sys.path.append(codepath)
 
@@ -29,34 +29,34 @@ from slice import slice
 class adaptive_trainer():
     
     def __init__(
-                    self, 
-                    model_num = 4, 
-                    process_num = 1,     # num of process for trajectory generation
-                    iter_num = 1,        # num of meta iteration 
-                    temp = [], 
-                    pressure = [1],
-                    traj_step = 500, 
-                    md_dt = 0.001, 
-                    ensemble = "nvt",  # npt, nvt 
-                    lmp_iso = "tri",
-                    kspacing = 0.16, 
-                    silent_mode = True, 
-                    num_select_per_group = 20,
-                    psp_dir = "/share/psp/NCPP-SG15-PBE", 
-                    etot_path = None,
-                    struct_dir = './',
-                    ff_dir = [],
-                    node_num = 1,   
-                    atom_type = [],
-                    success_bar = 0.15,
-                    candidate_bar = 0.35,         
-                    lmp_damp = 25,
-                    lmp_nprocs = 1,
-                    is_single_node = True,       
-                    lmp_partition_name = None,
-                    lmp_ntask_per_node = None, 
-                    lmp_wall_time = 7200,          
-                    lmp_custom_lines = [],
+                    self, lmp_param:LmpParam
+                    # model_num = 4, 
+                    # process_num = 1,     # num of process for trajectory generation
+                    # iter_num = 1,        # num of meta iteration 
+                    # temp = [], 
+                    # pressure = [1],
+                    # traj_step = 500, 
+                    # md_dt = 0.001, 
+                    # ensemble = "nvt",  # npt, nvt 
+                    # lmp_iso = "tri",
+                    # kspacing = 0.16, 
+                    # silent_mode = True, 
+                    # num_select_per_group = 20,
+                    # psp_dir = "/share/psp/NCPP-SG15-PBE", 
+                    # etot_path = None,
+                    # struct_dir = './',
+                    # ff_dir = [],
+                    # node_num = 1,   
+                    # atom_type = [],
+                    # success_bar = 0.15,
+                    # candidate_bar = 0.35,         
+                    # lmp_damp = 25,
+                    # lmp_nprocs = 1,
+                    # is_single_node = True,       
+                    # lmp_partition_name = None,
+                    # lmp_ntask_per_node = None, 
+                    # lmp_wall_time = 7200,          
+                    # lmp_custom_lines = [],
                 ):  
         """
             DIR: train
@@ -75,45 +75,46 @@ class adaptive_trainer():
                 *** which contian sys1, sys2, sys3, ...         
                 *** in each of them, generate trajectory, and  
         """
-        self.num_cand_per_cfg = 10                 #  number of candidate per config
-        self.silent_mode = silent_mode
-        self.process_num = process_num
+        self.num_cand_per_cfg =lmp_param.num_cand_per_cfg                #  number of candidate per config
+        self.silent_mode = lmp_param.silent_mode
+        self.process_num = lmp_param.process_num
 
-        self.success_bar = success_bar 
-        self.candidate_bar = candidate_bar
+        self.success_bar = lmp_param.success_bar 
+        self.candidate_bar = lmp_param.candidate_bar
 
-        self.num_select_per_group = num_select_per_group
-        self.is_single_node = is_single_node
+        self.num_select_per_group = lmp_param.num_select_per_group
+        self.is_single_node = lmp_param.is_single_node
 
-        self.iter_num = iter_num
+        self.iter_num = lmp_param.iter_num
         # lammps related
-        self.temperature = temp
-        self.pressure = pressure
-        self.ensemble = ensemble
-        self.lmp_iso = lmp_iso
-        self.traj_step = traj_step
-        self.md_dt = md_dt
+        self.temperature = lmp_param.temp
+        self.pressure = lmp_param.pressure
+        self.ensemble = lmp_param.ensemble
+        self.lmp_iso = lmp_param.lmp_iso
+        self.traj_step = lmp_param.traj_step
+        self.md_dt = lmp_param.md_dt
         # dir for sub systems explore
         # ./subsys/***
         
         # for traj generation
-        self.ksapcing  = kspacing
-        self.model_num = model_num
+        self.ksapcing  = lmp_param.kspacing
+        self.model_num = lmp_param.model_num
 
-        self.working_dir = os.getcwd() 
-        self.psp_dir = psp_dir
-        self.etot_path = etot_path
-        self.struct_dir = struct_dir
+        self.working_dir = lmp_param.working_dir
+        self.psp_dir = lmp_param.psp_dir
+        self.etot_path = lmp_param.etot_path
+        self.struct_dir = lmp_param.struct_dir
 
         self.train_path = os.path.dirname(self.working_dir)+"/00.train"
 
-        if not ff_dir:
-            self.ff_dir = []
-            for i in range(self.model_num):
-                ff_path = os.path.join(self.train_path, f"{i:03d}")
-                self.ff_dir.append(ff_path)
-        else:
-            self.ff_dir = ff_dir
+        # if not ff_dir:
+        #     self.ff_dir = lmp_param.[]
+        #     for i in range(self.model_num):
+        #         ff_path = os.path.join(self.train_path, f"{i:03d}")
+        #         self.ff_dir.append(ff_path)
+        # else:
+            
+        self.ff_dir = lmp_param.ff_dir
 
         self.explore_path = self.working_dir+"/explore"
         self.seed_path = self.working_dir+"/seed"
@@ -138,16 +139,16 @@ class adaptive_trainer():
         # list of trainer instance 
         self.trainer_list = []
          
-        self.atom_type = atom_type
+        self.atom_type = lmp_param.atom_type
         
-        self.node_num = node_num
+        self.node_num = lmp_param.node_num
 
-        self.lmp_damp = lmp_damp
-        self.lmp_nprocs = lmp_nprocs
-        self.lmp_partition_name = lmp_partition_name
-        self.lmp_wall_time = lmp_wall_time
-        self.lmp_custom_lines = lmp_custom_lines 
-        self.lmp_ntask_per_node = lmp_ntask_per_node
+        self.lmp_damp = lmp_param.lmp_damp
+        self.lmp_nprocs = lmp_param.lmp_nprocs
+        self.lmp_partition_name = lmp_param.lmp_partition_name
+        self.lmp_wall_time = lmp_param.lmp_wall_time
+        self.lmp_custom_lines = lmp_param.lmp_custom_lines 
+        self.lmp_ntask_per_node = lmp_param.lmp_ntask_per_node
 
         if self.is_single_node is False:
             if self.lmp_partition_name is None:
@@ -1031,7 +1032,7 @@ class adaptive_trainer():
         self.trainer_list[idx].extract_force_field(name = str(idx+1)+".ff")
 
     def train(self):
-        from PWmatMLFF.dp_network import dp_network
+        from PWMLFF.dp_network import dp_network
         import time
         """
             a self-contained training process
