@@ -124,6 +124,15 @@ class NetParam(object):
             "resnet_dt": self. resnet_dt, 
             "activation": self.activation
             }
+    
+    def to_dict_std(self):
+        return \
+            {
+            "network_size": self.network_size
+            # "bias": self.bias, 
+            # "resnet_dt": self. resnet_dt, 
+            # "activation": self.activation
+            }
 
 class ModelParam(object):
     def __init__(self) -> None:
@@ -139,7 +148,7 @@ class ModelParam(object):
         #     dicts[self.embedding_net.net_type] = self.embedding_net.to_dict()
         # if self.fitting_net is not None:
         #     dicts[self.fitting_net.net_type] = self.fitting_net.to_dict()
-        return self.fitting_net.to_dict()
+        return self.fitting_net.to_dict_std()
 
 class OptimizerParam(object):
     def __init__(self, optimizer:str, start_epoch:int, epochs:int, batch_size:int, \

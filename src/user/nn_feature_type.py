@@ -22,30 +22,40 @@ class Descriptor(object):
         if self.feature_type not in self.supported_feature_group:
             raise Exception("the input feature type group {} is not support, \
                             we currently support the following combinations:\n {}".format(self.feature_type, self.supported_feature_group))
-        self.feature_dict = {}
+        self.feature_dict = {}  # for feature generating
+        self.feature_dict_out = {}  # for std output json
         for ftype in self.feature_type:
             ftype = "{}".format(ftype)
             ftype_dict = get_parameter("{}".format(ftype), json_input, {})
             # self.feature_dict[ftype] = getattr(self, "set_ftype{}_para".format(ftype), ftype_dict)
             if '1' == ftype:
-                self.feature_dict[ftype] = self.set_ftype1_para(ftype_dict)
+                self.feature_dict[ftype], self.feature_dict_out[ftype] = self.set_ftype1_para(ftype_dict)
             elif '2' == ftype:
-                self.feature_dict[ftype] = self.set_ftype2_para(ftype_dict)
+                self.feature_dict[ftype], self.feature_dict_out[ftype] = self.set_ftype2_para(ftype_dict)
             elif '3' == ftype:
-                self.feature_dict[ftype] = self.set_ftype3_para(ftype_dict)
+                self.feature_dict[ftype], self.feature_dict_out[ftype] = self.set_ftype3_para(ftype_dict)
             elif '4' == ftype:
-                self.feature_dict[ftype] = self.set_ftype4_para(ftype_dict)
+                self.feature_dict[ftype], self.feature_dict_out[ftype] = self.set_ftype4_para(ftype_dict)
             elif '5' == ftype:
-                self.feature_dict[ftype] = self.set_ftype5_para(ftype_dict)
+                self.feature_dict[ftype], self.feature_dict_out[ftype] = self.set_ftype5_para(ftype_dict)
             elif '6' == ftype:
-                self.feature_dict[ftype] = self.set_ftype6_para(ftype_dict)
+                self.feature_dict[ftype], self.feature_dict_out[ftype] = self.set_ftype6_para(ftype_dict)
             elif '7' == ftype:
-                self.feature_dict[ftype] = self.set_ftype7_para(ftype_dict)
+                self.feature_dict[ftype], self.feature_dict_out[ftype] = self.set_ftype7_para(ftype_dict)
             elif '8' == ftype:
-                self.feature_dict[ftype] = self.set_ftype8_para(ftype_dict)
+                self.feature_dict[ftype], self.feature_dict_out[ftype] = self.set_ftype8_para(ftype_dict)
 
+    '''
+    description: 
+    the return dict is used to assignment for value Ftype1_para in dfault_param.py
+        the 'n2b' from json file is 'numOf2bfeat' value in Ftype1_para
+    param {*} self
+    param {dict} ftype_dict
+    return {*}
+    author: wuxingxing
+    '''
     def set_ftype1_para(self, ftype_dict:dict):
-        numOf2bfeat = get_parameter("numOf2bfeat", ftype_dict, 24)
+        numOf2bfeat = get_parameter("n2b", ftype_dict, 24)
         iflag_grid = get_parameter("iflag_grid", ftype_dict, 3)
         fact_base = get_parameter("fact_base", ftype_dict, 0.2)
         dR1 = get_parameter("dR1", ftype_dict, 0.5)
@@ -58,11 +68,30 @@ class Descriptor(object):
             "fact_base": [fact_base for tmp in range(10)],
             "dR1": [dR1 for tmp in range(10)],
             "iflag_ftype": iflag_ftype  
-        }
+        },  \
+        {
+            "n2b":numOf2bfeat,
+            "iflag_grid": iflag_grid,   # 1 or 2 or 3
+            "fact_base": fact_base,
+            "dR1": dR1,
+            "iflag_ftype": iflag_ftype  
+        } 
+
+
+    '''
+    description: 
+    the return dict is used to assignment for value Ftype2_para in dfault_param.py
+        the 'n3b1' from json file is 'numOf3bfeat1' value in Ftype2_para
+        the 'n3b2' from json file is 'numOf3bfeat2' value in Ftype2_para
+    param {*} self
+    param {dict} ftype_dict
+    return {*}
+    author: wuxingxing
+    '''
 
     def set_ftype2_para(self, ftype_dict:dict):
-        numOf3bfeat1 = get_parameter("numOf3bfeat1", ftype_dict, 3)
-        numOf3bfeat2 = get_parameter("numOf3bfeat2", ftype_dict, 3)
+        numOf3bfeat1 = get_parameter("n3b1", ftype_dict, 3)
+        numOf3bfeat2 = get_parameter("n3b2", ftype_dict, 3)
         iflag_grid = get_parameter("iflag_grid", ftype_dict, 3)
         fact_base = get_parameter("fact_base", ftype_dict, 0.2)
         dR1 = get_parameter("dR1", ftype_dict, 0.5)
@@ -80,6 +109,15 @@ class Descriptor(object):
             "dR1":[dR1 for tmp in range(10)],
             "dR2":[dR2 for tmp in range(10)],
             "iflag_ftype":iflag_ftype   # same value for different types, iflag_ftype:1,2,3 when 3, iflag_grid must be 3
+        }, \
+         {
+            "n3b1":numOf3bfeat1,
+            "n3b2":numOf3bfeat1,
+            "dR1":dR1,
+            "dR2":dR2,
+            "iflag_grid":iflag_grid,    # 1 or 2 or 3
+            "fact_base":fact_base,
+            "iflag_ftype":iflag_ftype   # same value for different types, iflag_ftype:1,2,3 when 3, iflag_grid must be 3
         }
 
     def set_ftype3_para(self, ftype_dict:dict):
@@ -90,6 +128,10 @@ class Descriptor(object):
             "Rc":[self.Rmax for tmp in range(10)],     # 5.4 number of elements in Rc = num atom type
             "n2b":[n2b for tmp in range(10)],       # 6 number of elements in n2b = num atom type
             "w": w #[1.0, 1.5, 2.0],
+        }, \
+        {
+            "n2b":n2b,
+            "w": w
         }
         # 1/w^2 is the \eta in formula, and w is the width of gaussian fuction
 
@@ -97,7 +139,6 @@ class Descriptor(object):
         n3b = get_parameter("n3b", ftype_dict, 20)
         zeta = get_parameter("zeta", ftype_dict, 2.0)
         w = get_parameter("w", ftype_dict, [0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0])
-        
         return {
             "Rc":[self.Rmax for tmp in range(10)],     # 5.4 number of elements in Rc = num atom type
             "n3b":[n3b for tmp in range(10)],   # 20
@@ -107,12 +148,16 @@ class Descriptor(object):
             "w":    [ w for tmp in range(10)],  # [0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0] feature changed
             # 1/w^2 is the \eta in formula, and w is the width of gaussian fuction
             # 'lambda':[ [1.0,-1.0] for tmp in range(10)], # lambda === [1.0, -1.0]
+        },\
+        {
+            "n3b":n3b, 
+            "zeta": zeta, 
+            "w": w 
         }
         # 1/w^2 is the \eta in formula, and w is the width of gaussian fuction
 
     def set_ftype5_para(self, ftype_dict:dict):
         n_MTP_line = get_parameter("n_MTP_line", ftype_dict, 5)
-
         return {
             "Rc":[self.Rmax for tmp in range(10)],     # number of elements in Rc = num atom type
             "Rm":[self.Rmin  for tmp in range(10)],     # number of elements in Rc = num atom type
@@ -136,6 +181,9 @@ class Descriptor(object):
                         '4, 3,3,3,3 4,2,1,1 ( 21, 22, 31, 41 ), ( 11, 12 ), ( 13 ), ( 14 )',
                         ] for tmp in range(10)
                     ],
+            }, \
+            {
+            "n_MTP_line": n_MTP_line # 5~14
             }
 
     def set_ftype6_para(self, ftype_dict:dict):
@@ -150,6 +198,12 @@ class Descriptor(object):
             'n_w_line': [n_w_line for tmp in range(10)],#2
             'w1':[ w1 for tmp in range(10)],  # shape(w1) = (ntype, n_w_line) [0.9, 0.1, 0.8, 0.2, 0.7, 0.3, 0.6, 0.4]
             'w2':[ w2 for tmp in range(10) ], # [0.1, 0.9, 0.2, 0.8, 0.3, 0.7, 0.3, 0.6] 
+        }, \
+            {
+            'J' :J,
+            'n_w_line': n_w_line,
+            'w1':w1,
+            'w2':w2
         }
 
     def set_ftype7_para(self, ftype_dict:dict):
@@ -164,6 +218,11 @@ class Descriptor(object):
             'M': [M for tmp in range(10)],#25
             'M2': [M2  for tmp in range(10)],#4
             'weight_r': [weight_r  for tmp in range(10)], #1.0
+        }, \
+         {
+            'M': M,#25
+            'M2': M2,#4
+            'weight_r': weight_r #1.0
         }
 
     def set_ftype8_para(self, ftype_dict:dict):
@@ -174,7 +233,12 @@ class Descriptor(object):
             'Rc':[self.Rmax for tmp in range(10)],     # number of elements in Rc = num atom type
             'M':[M for tmp in range(10)], # 8
             'weight_r':[weight_r for tmp in range(10)], #1.0
-            'w':[1.0, 1.5, 2.0, 2.5 ]
+            'w':w
+        }, \
+        {
+            'M':M, # 8
+            'weight_r':weight_r, #1.0
+            'w':w
         }
     
     def to_dict(self):
@@ -190,13 +254,11 @@ class Descriptor(object):
             # dicts["resnet_dt"] = self. resnet_dt 
             # dicts["activation"] = self.activation
 
-        elif self.model_type == "NN".upper():
+        elif self.model_type == "NN".upper() or self.model_type == "Linear".upper():
             dicts["feature_type"] = self.feature_type
-            # for feature in self.feature_type:
-            #     feature = "{}".format(feature)
-            #     dicts[feature] = self.feature_dict[feature]
-        elif self.model_type == "Linear".upper():
-            dicts["feature_type"] = self.feature_type
+            for feature in self.feature_type:
+                feature = "{}".format(feature)
+                dicts[feature] = self.feature_dict_out[feature]
             
         else:
             raise Exception("descriptor to dict: the model type not realized:{}".format(self.model_type))

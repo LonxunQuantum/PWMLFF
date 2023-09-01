@@ -61,7 +61,7 @@ class DpParam(object):
             #the last 4 param used in function gen_config_inputfile()
             single_dict = {'type': idx, 'Rc': self.descriptor.Rmax, 'Rm': self.descriptor.Rmin, 'iflag_grid': 3, 'fact_base': 0.2, 'dR1': 0.5, "b_init":166.0}    
             self.atom_type_dict.append(single_dict)
-        self.max_neigh_num = get_required_parameter("max_neigh_num", json_input)
+        self.max_neigh_num = get_parameter("max_neigh_num", json_input, 100)
 
 
         self.profiling = get_parameter("profiling", json_input, False)#not realized
@@ -338,7 +338,8 @@ class DpParam(object):
         params_dict["model_type"] = self.model_type
         params_dict["atom_type"] = self.atom_type
         params_dict["max_neigh_num"] = self.max_neigh_num
-        params_dict["seed"] = self.seed
+        if self.seed is not None:
+            params_dict["seed"] = self.seed
         params_dict["model_num"] = self.model_num
         # params_dict["E_tolerance"] = self.descriptor.E_tolerance
         # params_dict["Rmax"] = self.descriptor.Rmax

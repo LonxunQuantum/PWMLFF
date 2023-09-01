@@ -7,16 +7,16 @@
     "reserve_work_dir": false,
     "_reserve_work_dir": "whether to keep the working path file",
 
-    "model_load_path":"./model_record_lkf_ef/checkpoint.pth.tar",
-    "__model_load_path":"when specify this value, inference will use this checkpoint model, otherwise, inference use the checkpoint at work dir",
+    "model_load_file":"./model_record_lkf_ef/checkpoint.pth.tar",
+    "__model_load_file":"when specify this value, inference will use this checkpoint model, otherwise, inference use the checkpoint at work dir",
     
-    "train_movement_path":["MOVEMENT_2", "MOVEMENT_3"],
+    "train_movement_file":["MOVEMENT_2", "MOVEMENT_3"],
 
     "forcefield_name": "forcefield.ff",
     "forcefield_dir": "forcefield",
     "_forcefield":"forcefield_name is the name of the forcefield file extracted from the model, forcefield_dir is the parent directory name of forcefield_name", 
 
-    "test_movement_path":["./test/MOVEMENT", "./test/MOVEMENT_2", "./test/MOVEMENT_3"],
+    "test_movement_file":["./test/MOVEMENT", "./test/MOVEMENT_2", "./test/MOVEMENT_3"],
     "test_dir_name":"test_dir",
     "_test_dir_name":"The directory name where the inference result is located", 
 
@@ -46,15 +46,15 @@
             "feature_type":[3,4],
             
             "1":{
-                "numOf2bfeat": 24,
+                "n2b": 24,
                 "iflag_grid": 3,
                 "fact_base": 0.2,
                 "dR1": 0.5,
                 "iflag_ftype": 3
             },
             "2":{
-                "numOf3bfeat1" : 3,
-                "numOf3bfeat2" : 3,
+                "n3b1" : 3,
+                "n3b2" : 3,
                 "iflag_grid" : 3,
                 "fact_base" : 0.2,
                 "dR1" : 0.5,

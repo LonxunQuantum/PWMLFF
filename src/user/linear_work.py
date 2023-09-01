@@ -16,7 +16,7 @@ author: wuxingxing
 '''
 def linear_train(input_json: json, cmd:str):
     linear_param = DpParam(input_json, cmd) 
-    linear_param.print_input_params("linear_train_final.json")
+    linear_param.print_input_params("std_input.json")
     linear_trainer = linear_regressor(linear_param)
     if len(linear_param.file_paths.train_movement_path) > 0:
         feature_path = linear_trainer.generate_data()
@@ -52,7 +52,7 @@ author: wuxingxing
 '''
 def linear_test(input_json: json, cmd:str):
     linear_param = DpParam(input_json, cmd)
-    linear_param.print_input_params("linear_test_final.json")
+    linear_param.print_input_params("std_input.json")
     linear_trainer = linear_regressor(linear_param)
     
     if len(linear_param.file_paths.test_movement_path) > 0:
