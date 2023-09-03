@@ -139,7 +139,7 @@ def write_feat_grid(outfile,num_atom_type):
                 outfile.writelines(line)
     """
 
-def extract_ff( name = "myforcefield.ff",
+def extract_ff( ff_name = "myforcefield.ff",
                 model_type = 3, 
                 atom_type = None, 
                 max_neigh_num = 100, 
@@ -152,8 +152,6 @@ def extract_ff( name = "myforcefield.ff",
 			iii. output/grid_info 
             iv. fread_dfeat/feat.info 
     """ 
-    ff_name = name 
-    
     with open(ff_name,"w") as outfile:
 
         if model_type == 1:
@@ -179,8 +177,8 @@ def extract_ff( name = "myforcefield.ff",
 
             # The feature is then shifted and scaled
             for idx in range(1, len(atom_type)+1):
-                name = "fread_dfeat/feat_shift."+str(idx)
-                fin = open(name,"r")
+                ff_name = "fread_dfeat/feat_shift."+str(idx)
+                fin = open(ff_name,"r")
                 raw = fin.readlines()
                 fin.close() 
                 
@@ -247,14 +245,14 @@ def extract_ff( name = "myforcefield.ff",
             # nn parameters
             name_list = ["fread_dfeat/Wij.txt", "fread_dfeat/data_scaler.txt"] 
 
-            for name in name_list:
-                fin = open(name,"r")
+            for ff_name in name_list:
+                fin = open(ff_name,"r")
                 raw = fin.readlines()
                 fin.close()     
 
                 max_node_num = 0 
                 # max node num. 
-                if name == "fread_dfeat/Wij.txt":
+                if ff_name == "fread_dfeat/Wij.txt":
                     for line in raw:
                         
                         line_tmp = line.split()
@@ -356,4 +354,4 @@ def extract_ff( name = "myforcefield.ff",
             
 if __name__ =="__main__":
 
-    extract_ff(name = "Li-Ta-O.ff", model_type=5)
+    extract_ff(ff_name = "Li-Ta-O.ff", model_type=5)

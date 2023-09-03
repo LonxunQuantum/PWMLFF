@@ -3,12 +3,8 @@
 # run this code in working dir, it will read the file ./fread_dfeat/NN_output/NNFi/Wij.npy and output txt to fread_dfeat/Wij.txt
 
 import os
-import sys
 import numpy as np
 import torch
-import joblib
-
-
 '''
 codepath=os.path.abspath(sys.path[0])
 sys.path.append(codepath+'/../src/lib')
@@ -19,7 +15,6 @@ parse_input.parse_input()
 # every py file in git_version/bin/ should be invoke directly from shell, and must parse parameters.
 '''
 
-import default_para as pm
 import os
 
 #f_npfile='data_scaler.npy'
@@ -31,29 +26,29 @@ import os
 # Wij.txt structure: w0, b0, w1, b1, w2, b2
 #   [42,60], [60], [60,30], [30], [30,1], [1]
 
-def read_wij(model_path):
+def read_wij(model_path, ntype):
     #first argument as input file path
     model_checkpoint = torch.load(model_path, map_location=torch.device("cpu"))
     nn_model = model_checkpoint['state_dict']
-    nlayers = len(nn_model) // pm.ntypes // 2
+    nlayers = len(nn_model) // ntype // 2
     #print('nlayers %d' % (nlayers))
 
     info_net = []
     for i in range(nlayers):
         info_net.append(np.array(nn_model[r'models.0.weights.'+str(i)].shape))
 
-    wij_all = [ [ np.zeros((info_net[ilayer]),dtype=float) for ilayer in range(nlayers) ] for itype in range(pm.ntypes)]
-    bij_all = [ [ np.zeros((info_net[ilayer]),dtype=float) for ilayer in range(nlayers) ] for itype in range(pm.ntypes)]
+    wij_all = [ [ np.zeros((info_net[ilayer]),dtype=float) for ilayer in range(nlayers) ] for itype in range(ntype)]
+    bij_all = [ [ np.zeros((info_net[ilayer]),dtype=float) for ilayer in range(nlayers) ] for itype in range(ntype)]
     
     with open(os.path.join('fread_dfeat/Wij.txt'),'w') as f:
         f.write('test ' + str(model_path) + '  \n')
-        f.write('shape '+str(nlayers*2*pm.ntypes)+'\n')
+        f.write('shape '+str(nlayers*2*ntype)+'\n')
         f.write('dim 1'+'\n')
-        f.write('size '+str(nlayers*2*pm.ntypes)+'\n')
+        f.write('size '+str(nlayers*2*ntype)+'\n')
 
         count = 0
 
-        for itype in range(pm.ntypes):
+        for itype in range(ntype):
             for ilayer in range(nlayers):
                 wij_all[itype][ilayer] = nn_model[r'models.'+str(itype)+r'.weights.'+str(ilayer)]
                 bij_all[itype][ilayer] = nn_model[r'models.'+str(itype)+r'.bias.'+str(ilayer)]
@@ -75,16 +70,16 @@ def read_wij(model_path):
                     f.write(str(j)+',  0  '+str(float(bij[j]))+'\n')
 
 
-def read_scaler(src_name):
+def read_scaler(src_name, ntype):
     model_checkpoint = torch.load(src_name, map_location=torch.device("cpu"))
     scaler = model_checkpoint['scaler']
 
     fout = open('fread_dfeat/data_scaler.txt', 'w')
     fout.write('test\n')
     fout.write('shape, ignored\n')
-    fout.write('dim, %d  ignored\n' % (pm.ntypes))
-    fout.write('size, %d ignored\n' % (pm.ntypes*2))
-    for i in range(pm.ntypes):
+    fout.write('dim, %d  ignored\n' % (ntype))
+    fout.write('size, %d ignored\n' % (ntype*2))
+    for i in range(ntype):
         fout.write('m12= %d, 0, 1\n' % (scaler.scale_.shape[0]))
         for j in range(scaler.scale_.shape[0]):
             fout.write('%5d  %5d   %.12f\n' % (j, 0, scaler.scale_[j]))

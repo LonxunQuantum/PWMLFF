@@ -429,6 +429,7 @@ class dp_network:
                 if self.dp_params.file_paths.save_p_matrix:
                     save_checkpoint(
                         {
+                        "json_file":self.dp_params.to_dict(),
                         "epoch": epoch,
                         "state_dict": model.state_dict(),
                         "davg":davg, 
@@ -443,12 +444,13 @@ class dp_network:
                 else: 
                     save_checkpoint(
                         {
+                        "json_file":self.dp_params.to_dict(),
                         "epoch": epoch,
                         "state_dict": model.state_dict(),
                         "davg":davg, 
                         "dstd":dstd, 
                         "energy_shift":ener_shift,
-                        "atom_type_order": atom_map,    #atom type order of davg/dstd/energy_shift
+                        "atom_type_order": atom_map    #atom type order of davg/dstd/energy_shift
                         },
                         self.dp_params.file_paths.model_name,
                         self.dp_params.file_paths.model_store_dir,

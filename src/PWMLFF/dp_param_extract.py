@@ -17,7 +17,7 @@ def extract_force_field(dp_params:DpParam):
     extract_model_para(config, dp_params)
 
     mk = config["net_cfg"]["fitting_net"]["resnet_dt"]
-    extract_ff.extract_ff(name = dp_params.file_paths.forcefield_name, model_type = 5, atom_type = dp_params.atom_type, is_fitting_recon = mk)
+    extract_ff.extract_ff(ff_name = dp_params.file_paths.forcefield_name, model_type = 5, atom_type = dp_params.atom_type, is_fitting_recon = mk)
     os.chdir(cwd)
     
 def extract_model_para(config:dict, dp_params:DpParam):

@@ -120,7 +120,7 @@ class DpParam(object):
 
         else:
             error_info = "error! The command {} does not exist and currently only includes the following commands:\
-                train\t gen_feat\t inference\n".format(self.cmd)
+                train\t gen_feat\t test\n".format(self.cmd)
             raise Exception(error_info) 
 
     def _set_file_paths(self, json_input:dict):

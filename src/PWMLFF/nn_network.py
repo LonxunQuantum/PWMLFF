@@ -47,7 +47,8 @@ from src.pre_data.data_loader_2type_nn_hybrid import MovementHybridDataset, get_
 from src.pre_data.dfeat_sparse import dfeat_raw 
 from src.pre_data.nn_mlff_hybrid import get_cluster_dirs, make_work_dir, mv_featrues, copy_file
 
-from src.PWMLFF.nn_param_extract import load_scaler_from_checkpoint
+from src.PWMLFF.nn_param_extract import load_scaler_from_checkpoint, load_dfeat_input
+
 from utils.file_operation import write_line_to_file, smlink_file
 from src.user.model_param import DpParam
 from src.aux.plot_nn_inference import plot
@@ -385,12 +386,14 @@ class nn_network:
 
     def load_data_hybrid(self, data_shuffle=True, alive_atomic_energy=False):
         # load anything other than dfeat
-         
         if self.dp_params.inference:
             feature_paths = self.dp_params.file_paths.test_feature_path
         else:
             feature_paths = self.dp_params.file_paths.train_feature_path
         self.set_nFeature(feature_paths)
+        self.dfread_dfeat_input = load_dfeat_input(os.path.join(feature_paths[0], "fread_dfeat"),
+                                                         os.path.join(feature_paths[0], "input"))
+
         data_list = []
         for feature_path in feature_paths:
             data_dirs = os.listdir(feature_path)
@@ -794,7 +797,9 @@ class nn_network:
                         "epoch": epoch,
                         "state_dict": self.model.state_dict(),
                         "optimizer":self.optimizer.state_dict(),
-                        "scaler": self.scaler
+                        "scaler": self.scaler,
+                        "dfread_dfeat_input": self.dfread_dfeat_input,
+                        "json_file":self.dp_params.to_dict()
                         },
                         self.dp_params.file_paths.model_name,
                         self.dp_params.file_paths.model_store_dir,
@@ -804,7 +809,9 @@ class nn_network:
                         {
                         "epoch": epoch,
                         "state_dict": self.model.state_dict(),
-                        "scaler": self.scaler
+                        "scaler": self.scaler,
+                        "dfread_dfeat_input": self.dfread_dfeat_input,
+                        "json_file":self.dp_params.to_dict()
                         },
                         self.dp_params.file_paths.model_name,
                         self.dp_params.file_paths.model_store_dir,

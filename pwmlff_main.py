@@ -8,6 +8,7 @@ from src.user.model_param import help_info
 from src.user.active_work import ff2lmps_explore
 from utils.json_operation import get_parameter, get_required_parameter
 from utils.gen_multi_train import multi_train
+from src.user.ckpt_extract import extract_force_field
 
 if __name__ == "__main__":
     cmd_type = sys.argv[1].upper()
@@ -18,6 +19,9 @@ if __name__ == "__main__":
     # cmd_type = "explore".upper()
     if cmd_type == "help".upper():
         help_info()
+    elif cmd_type == "extract_ff".upper():
+        ckpt_file = sys.argv[2]
+        extract_force_field(ckpt_file, cmd_type)
     else:
         json_path = sys.argv[2]
         # cmd_type = "test".upper()
