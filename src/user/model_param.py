@@ -204,6 +204,8 @@ class DpParam(object):
         # set dp fitting net params
         fitting_net_dict = get_parameter("fitting_net",json_input, {})
         network_size = get_parameter("network_size", fitting_net_dict, [50, 50, 50, 1])
+        if network_size[-1] != 1:
+            raise Exception("Error: The last layer of the fitting network should have a size of 1 for etot energy, but the input size is {}!".format(network_size[-1]))
         bias = get_parameter("bias", fitting_net_dict, True)
         resnet_dt = get_parameter("resnet_dt", fitting_net_dict, True)
         activation = get_parameter("activation", fitting_net_dict, "tanh")
@@ -220,6 +222,9 @@ class DpParam(object):
         model_param = ModelParam()
         fitting_net_dict = get_parameter("fitting_net",json_input, {})
         network_size = get_parameter("network_size", fitting_net_dict,[15,15,1])
+        if network_size[-1] != 1:
+            raise Exception("Error: The last layer of the fitting network should have a size of 1 for etot energy, but the input size is {}!".format(network_size[-1]))
+
         bias = True # get_parameter("bias", fitting_net_dict, True)
         resnet_dt = False # get_parameter("resnet_dt", fitting_net_dict, False)
         activation = "tanh" #get_parameter("activation", fitting_net_dict, )
