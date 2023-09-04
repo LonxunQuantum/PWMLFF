@@ -32,7 +32,6 @@ def extract_force_field(dp_params:DpParam):
         shutil.rmtree(forcefield_dir)
     os.makedirs(forcefield_dir)
     cwd = os.getcwd()
-    print("\n\n\n\n {}\n\n\n\n ".format(forcefield_dir))
     os.chdir(forcefield_dir)
 
     extract_dreat_input(dp_params.file_paths.model_save_path, forcefield_dir)
