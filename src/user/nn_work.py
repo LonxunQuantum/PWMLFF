@@ -24,6 +24,10 @@ def nn_train(input_json: json, cmd:str):
         feature_path = nn_trainer.generate_data()
         nn_param.file_paths.set_train_feature_path([feature_path])
     nn_trainer.load_and_train()
+    # if the input epochs to the end, model will not be trained and will not be saved at work_dir
+    if os.path.exists(nn_param.file_paths.model_save_path) is False:
+        if os.path.exists(nn_param.file_paths.model_load_path):
+            nn_param.file_paths.model_save_path = nn_param.file_paths.model_load_path
     extract_force_field(nn_param)
     
     if os.path.realpath(nn_param.file_paths.json_dir) != os.path.realpath(nn_param.file_paths.work_dir) :
