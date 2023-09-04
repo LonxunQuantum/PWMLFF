@@ -17,7 +17,7 @@ def extract_force_field(dp_params:DpParam):
     extract_model_para(config, dp_params)
 
     mk = config["net_cfg"]["fitting_net"]["resnet_dt"]
-    extract_ff.extract_ff(name = dp_params.file_paths.forcefield_name, model_type = 5, atom_type = dp_params.atom_type, max_neigh_num = dp_params.max_neigh_num, is_fitting_recon = mk)
+    extract_ff.extract_ff(ff_name = dp_params.file_paths.forcefield_name, model_type = 5, atom_type = dp_params.atom_type, max_neigh_num = dp_params.max_neigh_num, is_fitting_recon = mk)
     os.chdir(cwd)
     
 def extract_model_para(config:dict, dp_params:DpParam):
@@ -225,8 +225,8 @@ def extract_model_para(config:dict, dp_params:DpParam):
     # in default_para.py, Rc is the max cut, beyond which S(r) = 0 
     # Rm is the min cut, below which S(r) = 1
 
-    f_out.write(str(config["Rc_M"]) + ' ') 
-    f_out.write(str(config["maxNeighborNum"])+"\n")
+    f_out.write(str(config["Rc_M"]) + '\n') 
+    # f_out.write(str(config["maxNeighborNum"])+"\n")
     f_out.write(str(config["M2"])+"\n")
     f_out.write(str(dstd_size)+"\n")
     

@@ -141,7 +141,7 @@ class linear_regressor:
     def extract_force_field(self, name= "myforcefield.ff"):
 
         from extract_ff import extract_ff
-        extract_ff(name = name, model_type = 1, atom_type = pm.atomType)
+        extract_ff(ff_name = name, model_type = 1, atom_type = pm.atomType)
         
     def run_md(self, init_config = "atom.config", md_details = None, num_thread = 1, follow = False):
 

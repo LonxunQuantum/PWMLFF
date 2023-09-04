@@ -26,8 +26,8 @@ if __name__ == "__main__":
         json_path = sys.argv[2]
         # cmd_type = "test".upper()
         
+        # json_path = "./nn.json"
         os.chdir(os.path.dirname(os.path.abspath(json_path)))
-        # json_path = "nn_lisi_template.json"
         json_file = json.load(open(json_path))
         model_type = get_required_parameter("model_type", json_file).upper()  # model type : dp or nn or linear
         model_num = get_parameter("model_num", json_file, 1)
