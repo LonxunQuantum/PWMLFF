@@ -18,10 +18,10 @@ gen_dR.x:
         find_neighbore00.f90 find_neighbore.f90 gen_dR.f90  \
 		-o $@
 
-gen_dR_nonEi.x: 
-	ifort -O3 scan_title.f90 transform_to_upper.f90 \
-        find_neighbore00.f90 find_neighbore.f90 gen_dR_nonEi.f90  \
-		-o $@
+# gen_dR_nonEi.x: 
+# 	ifort -O3 scan_title.f90 transform_to_upper.f90 \
+#         find_neighbore00.f90 find_neighbore.f90 gen_dR_nonEi.f90  \
+# 		-o $@
 
 gen_2b_feature.x: 
 	ifort least_squares.f90 counts_atom.f90 scan_title.f90 transform_to_upper.f90 get_grid2b_type1.f90 get_grid2b_type2.f90  \
