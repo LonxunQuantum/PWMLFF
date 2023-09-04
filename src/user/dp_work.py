@@ -23,6 +23,9 @@ def dp_train(input_json: json, cmd:str):
         feature_path = dp_trainer.generate_data()
         dp_param.file_paths.set_train_feature_path([feature_path])
     dp_trainer.load_and_train()
+    if os.path.exists(dp_param.file_paths.model_save_path) is False:
+        if os.path.exists(dp_param.file_paths.model_load_path):
+            dp_param.file_paths.model_save_path = dp_param.file_paths.model_load_path
     extract_force_field(dp_param)
 
     if os.path.realpath(dp_param.file_paths.json_dir) != os.path.realpath(dp_param.file_paths.work_dir) :
