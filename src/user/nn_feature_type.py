@@ -2,16 +2,22 @@ import numpy as np
 from utils.json_operation import get_parameter, get_required_parameter
 
 class Descriptor(object):
-    def __init__(self, json_input:dict, model_type:str, cmd:str) -> None:
+    def __init__(self, json_input:dict, model_type:str, cmd:str, feature_type:list=None) -> None:
         self.model_type = model_type
         self.cmd = cmd
-
+        self.feature_type = feature_type
         self.supported_feature_group = [[1, 2], [3, 4], [5], [6], [7], [8]]
         self.Rmax = get_parameter("Rmax", json_input, 6.0)
         self.Rmin = get_parameter("Rmin", json_input, 0.5)
         self.M2 = get_parameter("M2", json_input, 16)
         self.E_tolerance = get_parameter("E_tolerance", json_input, 9999999.99)
-        self.feature_type = [int(_) for _ in get_parameter("feature_type", json_input, [3,4])]
+        if self.feature_type is not None:   #if feature type specified at first layer of json 
+            if "feature_type" in json_input.keys(): # if feature type sepcified at descriptor layer of json
+                if self.feature_type != json_input["feature_type"]: # if this two values are different, show WARNING info.
+                    print("\n\nWARNNING: feature_type is specified twice with inconsistent values. \nThe program will prioritize the value specified within the Descriptor.\n\n")
+                    self.feature_type = json_input["feature_type"]
+        else:   # the first layer not specified in both first layer and descriptor layer, use default value
+            self.feature_type = [int(_) for _ in get_parameter("feature_type", json_input, [3,4])]
 
         # dp params
         self.network_size = get_parameter("network_size", json_input, [25, 25, 25])
@@ -20,7 +26,7 @@ class Descriptor(object):
         self.activation = get_parameter("activation", json_input, "tanh")
 
         if self.feature_type not in self.supported_feature_group:
-            raise Exception("the input feature type group {} is not support, \
+            raise Exception("ERROR: The input feature type group {} is not support, \
                             we currently support the following combinations:\n {}".format(self.feature_type, self.supported_feature_group))
         self.feature_dict = {}  # for feature generating
         self.feature_dict_out = {}  # for std output json

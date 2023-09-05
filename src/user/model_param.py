@@ -23,11 +23,13 @@ class DpParam(object):
     def __init__(self, json_input:dict, cmd) -> None:
         self.cmd = cmd
         self.model_type = get_required_parameter("model_type", json_input).upper()
+        # if feature_type specified at first layer of JSON, use this value as feature type in descriptor
+        self.feature_type = get_parameter("feature_type", json_input, None) 
         self.model_num = get_parameter("model_num", json_input, 1)
         # set fitting net, embeding net
         self.recover_train = get_parameter("recover_train", json_input, False)
         model_dict = get_parameter("model", json_input, {})
-        self.descriptor = Descriptor(get_parameter("descriptor", model_dict, {}), self.model_type, self.cmd)
+        self.descriptor = Descriptor(get_parameter("descriptor", model_dict, {}), self.model_type, self.cmd, self.feature_type)
 
         if self.model_type == "DP":
             self.model_param = self._set_dp_model_params(model_dict)
@@ -131,7 +133,9 @@ class DpParam(object):
 
         file_paths = TrainFileStructure(json_dir=json_dir, work_dir=work_dir, reserve_work_dir=reserve_work_dir, reserve_feature = reserve_feature, model_type=self.model_type, cmd=self.cmd)
         # model paths
-        model_load_path = os.path.abspath(get_parameter("model_load_file", json_input, ""))
+        model_load_path = get_parameter("model_load_file", json_input, " ")
+        if os.path.exists(model_load_path):
+            model_load_path = os.path.abspath(model_load_path)
         # if self.recover_train is True and os.path.isfile(model_load_path):
         #     raise Exception("Error! The recover_train and model_load_path are simultaneously specified, please set recover_train to False or remove param model_load_path")
         if self.model_type == "NN":

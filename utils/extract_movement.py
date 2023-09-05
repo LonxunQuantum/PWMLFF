@@ -152,8 +152,9 @@ class MOVEMENT(object):
                         wf.write(line)
 
 if __name__ == "__main__":
-    movement_file = "/data/home/wuxingxing/datas/pwmat_mlff_workdir/liotie/liofe_20/20_json_code/20/MOVEMENT"
-    mvm = MOVEMENT(movement_file)
-    save_file = "/data/home/wuxingxing/datas/pwmat_mlff_workdir/liotie/liofe_20/20_json_code/20/500_MOVEMENT"
-    mvm.save_image_interval(save_file, interval=6)
+    source_movement_file = sys.argv[1]
+    save_movement_file = sys.argv[2]
+    interval = int(sys.argv[3])
+    mvm = MOVEMENT(source_movement_file)
+    mvm.save_image_interval(save_movement_file, interval=interval)
 
