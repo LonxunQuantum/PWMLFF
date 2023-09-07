@@ -46,17 +46,12 @@ class Labelsystem():
             os.makedirs(self.directory, exist_ok=True)
         np.savetxt(os.path.join(self.directory, 'type_map.raw'), self.atom_types, fmt='%d')
         np.savetxt(os.path.join(self.directory, 'atom_name.raw'), self.atom_names, fmt='%s')
-        np.savetxt(os.path.join(self.directory, 'box.raw'), np.reshape(self.cells, [self.ionic_step
-, 9]))
-        np.savetxt(os.path.join(self.directory, 'coord.raw'), np.reshape(self.coords, [self.ionic_step
-,self.atom_numbs*3]))
-        np.savetxt(os.path.join(self.directory, 'energy.raw'), np.reshape(self.energys, [self.ionic_step
-, 1]))
-        np.savetxt(os.path.join(self.directory, 'force.raw'), np.reshape(self.forces, [self.ionic_step
-,self.atom_numbs*3]))
+        np.savetxt(os.path.join(self.directory, 'box.raw'), np.reshape(self.cells, [self.ionic_step, 9]))
+        np.savetxt(os.path.join(self.directory, 'coord.raw'), np.reshape(self.coords, [self.ionic_step, self.atom_numbs*3]))
+        np.savetxt(os.path.join(self.directory, 'energy.raw'), np.reshape(self.energys, [self.ionic_step, 1]))
+        np.savetxt(os.path.join(self.directory, 'force.raw'), np.reshape(self.forces, [self.ionic_step, self.atom_numbs*3]))
         if self.virial is not None:
-            np.savetxt(os.path.join(self.directory, 'virial.raw'), np.reshape(self.virial, [self.ionic_step
-,9]))
+            np.savetxt(os.path.join(self.directory, 'virial.raw'), np.reshape(self.virial, [self.ionic_step, 9]))
    
     def read_outcar(self, filename, num):
         f = open(filename, 'r')
