@@ -1,3 +1,14 @@
+import numpy as np
+
+def get_normalized_data(atom_type=30):
+    dicts = {}
+    # atomic_number
+    type_list = [atomic_number, atom_mass, atom_radius, molar_vol, melting_point, boiling_point, electron_affin, pauling]
+    for typ in type_list:
+        min_value = np.min(data)
+        max_value = np.max(data)
+        normalized_data = (data - min_value) / (max_value - min_value)
+
 atomic_number = {
     "H": 1, "He": 2, "Li": 3, "Be": 4, "B": 5, "C": 6, "N": 7, "O": 8, "F": 9, "Ne": 10, 
     "Na": 11, "Mg": 12, "Al": 13, "Si": 14, "P": 15, "S": 16, "Cl": 17, "Ar": 18, "K": 19, "Ca": 20, 
@@ -57,7 +68,7 @@ molar_vol = {
 }
 
 # melting point (K)
-mp = {
+melting_point = {
     "H": 14.01, "He": 0.95, "Li": 453.69, "Be": 1560, "B": 2349, "C": 3800, "N": 63.05, "O": 54.8, "F": 53.53, 
     "Ne": 24.56, "Na": 370.87, "Mg": 923, "Al": 933.47, "Si": 1687, "P": 317.3, "S": 388.36, "Cl": 171.6, "Ar": 83.8, "K": 336.53, "Ca": 1115, 
     "Sc": 1814, "Ti": 1941, "V": 2183, "Cr": 2180, "Mn": 1519, "Fe": 1811, "Co": 1768, "Ni": 1728, "Cu": 1357.77, "Zn": 692.68, 
@@ -70,7 +81,7 @@ mp = {
 }
 
 # boiling point T (K)
-bp = {
+boiling_point = {
     "H": 20.28, "He": 4.22, "Li": 1615, "Be": 2742, "B": 4200, "C": 4300, "N": 77.36, "O": 90.2, "F": 85.03, 
     "Ne": 27.07, "Na": 1156, "Mg": 1363, "Al": 2792, "Si": 3173, "P": 550, "S": 717.87, "Cl": 239.11, "Ar": 87.3, "K": 1032, "Ca": 1757, 
     "Sc": 3103, "Ti": 3560, "V": 3680, "Cr": 2944, "Mn": 2334, "Fe": 3134, "Co": 3200, "Ni": 3186, "Cu": 3200, "Zn": 1180, 
