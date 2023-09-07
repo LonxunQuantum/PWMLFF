@@ -1,29 +1,19 @@
 import numpy as np
-
-def get_normalized_data(atom_type=30):
-    dicts = {}
-    # atomic_number
-    type_list = [atomic_number, atom_mass, atom_radius, molar_vol, melting_point, boiling_point, electron_affin, pauling]
-    for typ in type_list:
-        min_value = np.min(data)
-        max_value = np.max(data)
-        normalized_data = (data - min_value) / (max_value - min_value)
-
-atomic_number = {
-    "H": 1, "He": 2, "Li": 3, "Be": 4, "B": 5, "C": 6, "N": 7, "O": 8, "F": 9, "Ne": 10, 
-    "Na": 11, "Mg": 12, "Al": 13, "Si": 14, "P": 15, "S": 16, "Cl": 17, "Ar": 18, "K": 19, "Ca": 20, 
-    "Sc": 21, "Ti": 22, "V": 23, "Cr": 24, "Mn": 25, "Fe": 26, "Co": 27, "Ni": 28, "Cu": 29, "Zn": 30,
-    "Ga": 31, "Ge": 32, "As": 33, "Se": 34, "Br": 35, "Kr": 36, "Rb": 37, "Sr": 38, "Y": 39, "Zr": 40,
-    "Nb": 41, "Mo": 42, "Tc": 43, "Ru": 44, "Rh": 45, "Pd": 46, "Ag": 47, "Cd": 48, "In": 49, "Sn": 50,
-    "Sb": 51, "Te": 52, "I": 53, "Xe": 54, "Cs": 55, "Ba": 56, "La": 57, "Ce": 58, "Pr": 59, "Nd": 60, 
-    "Pm": 61, "Sm": 62, "Eu": 63, "Gd": 64, "Tb": 65, "Dy": 66, "Ho": 67, "Er": 68, "Tm": 69, "Yb": 70, 
-    "Lu": 71, "Hf": 72, "Ta": 73, "W": 74, "Re": 75, "Os": 76, "Ir": 77, "Pt": 78, "Au": 79, "Hg": 80, 
-    "Tl": 81, "Pb": 82, "Bi": 83, "Po": 84, "At": 85, "Rn": 86, "Fr": 87, "Ra": 88, "Ac": 89, "Th": 90, 
-    "Pa": 91, "U": 92, "Np": 93, "Pu": 94, "Am": 95, "Cm": 96, "Bk": 97, "Cf": 98, "Es": 99, "Fm": 100, 
-    "Md": 101, "No": 102, "Lr": 103, "Rf": 104, "Db": 105, "Sg": 106, "Bh": 107, "Hs": 108, "Mt": 109
-    }
-
-atom_mass = {
+physical = {
+    "atomic_number" : {
+    1:"H", 2:"He", 3:"Li", 4:"Be", 5:"B", 6:"C", 7:"N", 8:"O", 9:"F", 10:"Ne", 
+    11:"Na", 12:"Mg", 13:"Al", 14:"Si", 15:"P", 16:"S", 17:"Cl", 18:"Ar", 19:"K", 20:"Ca", 
+    21:"Sc", 22:"Ti", 23:"V", 24:"Cr", 25:"Mn", 26:"Fe", 27:"Co", 28:"Ni", 29:"Cu", 30:"Zn",
+    31:"Ga", 32:"Ge", 33:"As", 34:"Se", 35:"Br", 36:"Kr", 37:"Rb", 38:"Sr", 39:"Y", 40:"Zr",
+    41:"Nb", 42:"Mo", 43:"Tc", 44:"Ru", 45:"Rh", 46:"Pd", 47:"Ag", 48:"Cd", 49:"In", 50:"Sn",
+    51:"Sb", 52:"Te", 53:"I", 54:"Xe", 55:"Cs", 56:"Ba", 57:"La", 58:"Ce", 59:"Pr", 60:"Nd", 
+    61:"Pm", 62:"Sm", 63:"Eu", 64:"Gd", 65:"Tb", 66:"Dy", 67:"Ho", 68:"Er", 69:"Tm", 70:"Yb", 
+    71:"Lu", 72:"Hf", 73:"Ta", 74:"W", 75:"Re", 76:"Os", 77:"Ir", 78:"Pt", 79:"Au", 80:"Hg", 
+    81:"Tl", 82:"Pb", 83:"Bi", 84:"Po", 85:"At", 86:"Rn", 87:"Fr", 88:"Ra", 89:"Ac", 90:"Th", 
+    91:"Pa", 92:"U", 93:"Np", 94:"Pu", 95:"Am", 96:"Cm", 97:"Bk", 98:"Cf", 99:"Es", 100:"Fm", 
+    101:"Md", 102:"No", 103:"Lr", 104:"Rf", 105:"Db", 106:"Sg", 107:"Bh", 108:"Hs", 109:"Mt"
+    },
+    "atom_mass" : {
     "H": 1.00794, "He": 4.002602, "Li": 6.941, "Be": 9.012182, "B": 10.811, "C": 12.0107, "N": 14.0067, "O": 15.9994, "F": 18.9984032, 
     "Ne": 20.1797, "Na": 22.98976928, "Mg": 24.305, "Al": 26.9815386, "Si": 28.0855, "P": 30.973762, "S": 32.065, "Cl": 35.453, "Ar": 39.948, "K": 39.0983, "Ca": 40.078, 
     "Sc": 44.955912, "Ti": 47.867, "V": 50.9415, "Cr": 51.9961, "Mn": 54.938045, "Fe": 55.845, "Co": 58.933195, "Ni": 58.6934, "Cu": 63.546, "Zn": 65.38, 
@@ -35,10 +25,8 @@ atom_mass = {
     "Tl": 204.3833, "Pb": 207.2, "Bi": 208.9804, "Po": 209, "At": 210, "Rn": 222, "Fr": 223, "Ra": 226, "Ac": 227, "Th": 232.03806, 
     "Pa": 231.03588, "U": 238.02891, "Np": 237, "Pu": 244, "Am": 243, "Cm": 247, "Bk": 247, "Cf": 251, "Es": 252, "Fm": 257, 
     "Md": 258, "No": 259, "Lr": 262, "Rf": 267, "Db": 268, "Sg": 271, "Bh": 272, "Hs": 270, "Mt": 276,
-}
-
-# atomic radius (pm)
-atom_radius = { 
+    },
+    "atom_radius" : { 
     "H": 25, "He": float("NaN"), "Li": 145, "Be": 105, "B": 85, "C": 70, "N": 65, "O": 60, "F": 50, 
     "Ne": float("NaN"), "Na": 180, "Mg": 150, "Al": 125, "Si": 110, "P": 100, "S": 100, "Cl": 100, "Ar": float("NaN"), "K": 220, "Ca": 180, 
     "Sc": 160, "Ti": 140, "V": 135, "Cr": 140, "Mn": 140, "Fe": 140, "Co": 135, "Ni": 135, "Cu": 135, "Zn": 135, 
@@ -50,10 +38,8 @@ atom_radius = {
     "Tl": 190, "Pb": 180, "Bi": 160, "Po": 190, "At": float("NaN"), "Rn": float("NaN"), "Fr": float("NaN"), "Ra": 215, "Ac": 195, "Th": 180, 
     "Pa": 180, "U": 175, "Np": 175, "Pu": 175, "Am": 175, "Cm": float("NaN"), "Bk": float("NaN"), "Cf": float("NaN"), "Es": float("NaN"), "Fm": float("NaN"), 
     "Md": float("NaN"), "No": float("NaN"), "Lr": float("NaN"), "Rf": float("NaN"), "Db": float("NaN"), "Sg": float("NaN"), "Bh": float("NaN"), "Hs": float("NaN"), "Mt": float("NaN"),
-}
-
-# molar volume (cm^3/mol)
-molar_vol = {
+    },
+    "molar_vol" : {
     "H": 11.42, "He": 21, "Li": 13.02, "Be": 4.85, "B": 4.39, "C": 5.29, "N": 13.54, "O": 17.36, "F": 11.2, 
     "Ne": 13.23, "Na": 23.78, "Mg": 14, "Al": 10, "Si": 12.06, "P": 17.02, "S": 15.53, "Cl": 17.39, "Ar": 22.56, "K": 45.94, "Ca": 26.2, 
     "Sc": 15, "Ti": 10.64, "V": 8.32, "Cr": 7.23, "Mn": 7.35, "Fe": 7.09, "Co": 6.67, "Ni": 6.59, "Cu": 7.11, "Zn": 9.16, 
@@ -65,10 +51,9 @@ molar_vol = {
     "Tl": 17.22, "Pb": 18.26, "Bi": 21.31, "Po": 22.97, "At": float("NaN"), "Rn": 50.5, "Fr": float("NaN"), "Ra": 41.09, "Ac": 22.55, "Th": 19.8, 
     "Pa": 15.18, "U": 12.49, "Np": 11.59, "Pu": 12.29, "Am": 17.63, "Cm": 18.05, "Bk": 16.84, "Cf": 16.5, "Es": 28.52, "Fm": float("NaN"), 
     "Md": float("NaN"), "No": float("NaN"), "Lr": float("NaN"), "Rf": float("NaN"), "Db": float("NaN"), "Sg": float("NaN"), "Bh": float("NaN"), "Hs": float("NaN"), "Mt": float("NaN"),
-}
-
-# melting point (K)
-melting_point = {
+    },
+    "_molar_vol":"molar volume (cm^3/mol)",
+    "melting_point" : {
     "H": 14.01, "He": 0.95, "Li": 453.69, "Be": 1560, "B": 2349, "C": 3800, "N": 63.05, "O": 54.8, "F": 53.53, 
     "Ne": 24.56, "Na": 370.87, "Mg": 923, "Al": 933.47, "Si": 1687, "P": 317.3, "S": 388.36, "Cl": 171.6, "Ar": 83.8, "K": 336.53, "Ca": 1115, 
     "Sc": 1814, "Ti": 1941, "V": 2183, "Cr": 2180, "Mn": 1519, "Fe": 1811, "Co": 1768, "Ni": 1728, "Cu": 1357.77, "Zn": 692.68, 
@@ -78,10 +63,8 @@ melting_point = {
     "Pm": 1373, "Sm": 1345, "Eu": 1099, "Gd": 1585, "Tb": 1629, "Dy": 1680, "Ho": 1734, "Er": 1802, "Tm": 1818, "Yb": 1097, 
     "Lu": 1925, "Hf": 2506, "Ta": 3290, "W": 3695, "Re": 3459, "Os": 3306, "Ir": 2739, "Pt": 2041.4, "Au": 1337.33, "Hg": 234.32, 
     "Tl": 577, "Pb": 600.61, "Bi": 544.4, "Po": 527, "At": 575, "Rn": 202, "Fr": 300, "Ra": 973,
-}
-
-# boiling point T (K)
-boiling_point = {
+    },
+    "boiling_point" : {
     "H": 20.28, "He": 4.22, "Li": 1615, "Be": 2742, "B": 4200, "C": 4300, "N": 77.36, "O": 90.2, "F": 85.03, 
     "Ne": 27.07, "Na": 1156, "Mg": 1363, "Al": 2792, "Si": 3173, "P": 550, "S": 717.87, "Cl": 239.11, "Ar": 87.3, "K": 1032, "Ca": 1757, 
     "Sc": 3103, "Ti": 3560, "V": 3680, "Cr": 2944, "Mn": 2334, "Fe": 3134, "Co": 3200, "Ni": 3186, "Cu": 3200, "Zn": 1180, 
@@ -91,10 +74,8 @@ boiling_point = {
     "Pm": 3273, "Sm": 2076, "Eu": 1800, "Gd": 3523, "Tb": 3503, "Dy": 2840, "Ho": 2993, "Er": 3141, "Tm": 2223, "Yb": 1469, 
     "Lu": 3675, "Hf": 4876, "Ta": 5731, "W": 5828, "Re": 5869, "Os": 5285, "Ir": 4701, "Pt": 4098, "Au": 3129, "Hg": 629.88, 
     "Tl": 1746, "Pb": 2022, "Bi": 1837, "Po": 1235, "At": float("NaN"), "Rn": 211.3, "Fr": float("NaN"), "Ra": 2010,
-}
-
-# electron affinity (J/mol)
-electron_affin = {
+    },
+    "electron_affin" : {
     "H": 72800, "He": 0, "Li": 59600, "Be": 0, "B": 26700, "C": 153900, "N": 7000, "O": 141000, "F": 328000, 
     "Ne": 0, "Na": 52800, "Mg": 0, "Al": 42500, "Si": 133600, "P": 72000, "S": 200000, "Cl": 349000, "Ar": 0, "K": 48400, "Ca": 2370, 
     "Sc": 18100, "Ti": 7600, "V": 50600, "Cr": 64300, "Mn": 0, "Fe": 15700, "Co": 63700, "Ni": 112000, "Cu": 118400, "Zn": 0, 
@@ -104,10 +85,9 @@ electron_affin = {
     "Pm": 50000, "Sm": 50000, "Eu": 50000, "Gd": 50000, "Tb": 50000, "Dy": 50000, "Ho": 50000, "Er": 50000, "Tm": 50000, "Yb": 50000, 
     "Lu": 33000, "Hf": 0, "Ta": 31000, "W": 78600, "Re": 14500, "Os": 106100, "Ir": 151000, "Pt": 205300, "Au": 222800, "Hg": 0, 
     "Tl": 19200, "Pb": 35100, "Bi": 91200, "Po": 183300, "At": 270100, "Rn": float("NaN"),
-}
-
-# Pauling electronegativity
-pauling = {
+    },
+    "_electron_affin":"# electron affinity (J/mol)", 
+    "pauling" : {
     "H": 2.2, "He": float("NaN"), "Li": 0.98, "Be": 1.57, "B": 2.04, "C": 2.55, "N": 3.04, "O": 3.44, "F": 3.98, "Ne": float("NaN"), "Na": 0.93, "Mg": 1.31, "Al": 1.61, "Si": 1.9, "P": 2.19, "S": 2.58, "Cl": 3.16, "Ar": float("NaN"), "K": 0.82, "Ca": 1, 
     "Sc": 1.36, "Ti": 1.54, "V": 1.63, "Cr": 1.66, "Mn": 1.55, "Fe": 1.83, "Co": 1.88, "Ni": 1.91, "Cu": 1.9, "Zn": 1.65, 
     "Ga": 1.81, "Ge": 2.01, "As": 2.18, "Se": 2.55, "Br": 2.96, "Kr": 3, "Rb": 0.82, "Sr": 0.95, "Y": 1.22, "Zr": 1.33, 
@@ -116,4 +96,37 @@ pauling = {
     "Pm": float("NaN"), "Sm": 1.17, "Eu": float("NaN"), "Gd": 1.2, "Tb": float("NaN"), "Dy": 1.22, "Ho": 1.23, "Er": 1.24, "Tm": 1.25, "Yb": float("NaN"), 
     "Lu": 1.27, "Hf": 1.3, "Ta": 1.5, "W": 2.36, "Re": 1.9, "Os": 2.2, "Ir": 2.2, "Pt": 2.28, "Au": 2.54, "Hg": 2, 
     "Tl": 1.62, "Pb": 2.33, "Bi": 2.02, "Po": 2, "At": 2.2, "Rn": float("NaN"), "Fr": 0.7, "Ra": 0.9,
+    }, 
+    "_pauling":"Pauling electronegativity"
 }
+
+physical_scale = {}
+for typ in physical.keys():
+    if isinstance(physical[typ], dict) is False:
+        continue
+    if typ == "atomic_number":
+        data = np.array(list(physical[typ].keys()))
+    else:
+        data = np.array(list(physical[typ].values()))
+        data = data[~np.isnan(data)]
+    min_value = np.min(data)
+    max_value = np.max(data)
+    physical_scale[typ] = [min_value, max_value]
+
+def get_normalized_data(atom_type, type_list:list):
+    dicts = {}
+    atom_name = physical["atomic_number"][atom_type]
+    # atomic_number
+    for typ in type_list:
+        value = atom_type if typ == "atomic_number" else physical[typ][atom_name]
+        if np.isnan(value):
+            raise Exception("the physical property {} of atom {} in dict is NaN !".format(typ, atom_name))
+        normalized_data = (value - min_value) / (max_value - min_value)
+        dicts[typ] = normalized_data
+    return dicts
+
+if __name__ == "__main__":
+    # keys "atomic_number", "atom_mass", "atom_radius", "molar_vol", "melting_point", "boiling_point", "electron_affin", "pauling"
+    res = get_normalized_data(29, ["atomic_number", "atom_mass", "atom_radius", "molar_vol", "melting_point", "boiling_point", "electron_affin", "pauling"])
+    print(res)
+
