@@ -4,7 +4,7 @@ import os, sys
 from src.user.dp_work import dp_train, gen_dp_feature, dp_test
 from src.user.nn_work import nn_train, gen_nn_feature, nn_test
 from src.user.linear_work import linear_train, linear_test
-from src.user.model_param import help_info
+from src.user.input_param import help_info
 from src.user.active_work import ff2lmps_explore
 from utils.json_operation import get_parameter, get_required_parameter
 from utils.gen_multi_train import multi_train

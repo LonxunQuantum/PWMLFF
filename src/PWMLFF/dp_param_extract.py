@@ -1,11 +1,11 @@
 import os
 import shutil
-from src.user.model_param import DpParam
+from src.user.input_param import InputParam
 import torch
 import numpy as np
 import src.aux.extract_ff as extract_ff
 
-def extract_force_field(dp_params:DpParam):
+def extract_force_field(dp_params:InputParam):
     config = dp_params.get_dp_net_dict()
     forcefield_dir = dp_params.file_paths.forcefield_dir
     if os.path.exists(forcefield_dir):
@@ -20,7 +20,7 @@ def extract_force_field(dp_params:DpParam):
     extract_ff.extract_ff(ff_name = dp_params.file_paths.forcefield_name, model_type = 5, atom_type = dp_params.atom_type, max_neigh_num = dp_params.max_neigh_num, is_fitting_recon = mk)
     os.chdir(cwd)
     
-def extract_model_para(config:dict, dp_params:DpParam):
+def extract_model_para(config:dict, dp_params:InputParam):
     """ 
         extract the model parameters of DP network
         NEED TO ADD SESSION DIR NAME 

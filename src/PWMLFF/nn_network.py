@@ -50,7 +50,7 @@ from src.pre_data.nn_mlff_hybrid import get_cluster_dirs, make_work_dir, mv_feat
 from src.PWMLFF.nn_param_extract import load_scaler_from_checkpoint, load_dfeat_input
 
 from utils.file_operation import write_line_to_file, smlink_file
-from src.user.model_param import DpParam
+from src.user.input_param import InputParam
 from src.aux.plot_nn_inference import plot
 # from optimizer.kalmanfilter import GKalmanFilter, LKalmanFilter, SKalmanFilter
 from src.optimizer.GKF import GKFOptimizer
@@ -64,7 +64,7 @@ from src.optimizer.LKF import LKFOptimizer
     Using default_para is purely a legacy problem
 """  
 class nn_network:
-    def __init__(self, dp_params: DpParam):
+    def __init__(self, dp_params: InputParam):
         self.workers = 1
         # Global parameters of the class.  
         # Some member data are only "declared" here, and assignment requires further operations 

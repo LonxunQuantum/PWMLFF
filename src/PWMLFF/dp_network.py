@@ -39,18 +39,18 @@ import time
 """
     customized modules 
 """
-from model.dp_dp import DP
+from model.dp_dp_typ_emb import DP
 from optimizer.GKF import GKFOptimizer
 from optimizer.LKF import LKFOptimizer
 from src.pre_data.dp_data_loader import MovementDataset
 from src.PWMLFF.dp_mods.dp_trainer import train_KF, train, valid, save_checkpoint, predict
 from src.PWMLFF.dp_param_extract import load_davg_dstd_from_checkpoint, load_davg_dstd_from_feature_path
-from src.user.model_param import DpParam
+from user.input_param import InputParam
 from utils.file_operation import write_arrays_to_file, copy_movements_to_work_dir, smlink_file
 #from data_loader_2type_dp import MovementDataset, get_torch_data
 
 class dp_network:
-    def __init__(self, dp_param:DpParam):
+    def __init__(self, dp_param:InputParam):
         self.dp_params = dp_param
         self.config = self.dp_params.get_dp_net_dict()
         torch.set_printoptions(precision = 12)

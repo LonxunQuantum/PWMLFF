@@ -16,7 +16,7 @@ sys.path.append(codepath+'/../aux')
 sys.path.append(codepath+'/../lib')
 sys.path.append(codepath+'/../..')
 
-from src.user.model_param import DpParam
+from src.user.input_param import InputParam
 # from src.pre_data.nn_mlff_hybrid import get_cluster_dirs, make_work_dir, mv_featrues, copy_file
 
 from utils.file_operation import copy_movements_to_work_dir, reset_pm_params, combine_movement, copy_tree
@@ -27,7 +27,7 @@ class linear_regressor:
     
     def __init__(   
                     self,
-                    dp_param: DpParam
+                    dp_param: InputParam
                 ):
 
         # atom_type = None, 

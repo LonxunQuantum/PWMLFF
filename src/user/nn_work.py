@@ -1,7 +1,7 @@
 import os
 import json
 
-from src.user.model_param import DpParam
+from src.user.input_param import InputParam
 from src.PWMLFF.nn_param_extract import extract_force_field
 from src.PWMLFF.nn_network import nn_network
 from utils.file_operation import delete_tree, copy_tree, copy_file
@@ -17,7 +17,7 @@ return {*}
 author: wuxingxing
 '''
 def nn_train(input_json: json, cmd:str):
-    nn_param = DpParam(input_json, cmd) 
+    nn_param = InputParam(input_json, cmd) 
     nn_param.print_input_params(json_file_save_name="std_input.json")
     nn_trainer = nn_network(nn_param)
     if len(nn_param.file_paths.train_movement_path) > 0:
@@ -41,7 +41,7 @@ def nn_train(input_json: json, cmd:str):
             delete_tree(nn_param.file_paths.work_dir)
 
 def gen_nn_feature(input_json: json, cmd:str):
-    nn_param = DpParam(input_json, cmd) 
+    nn_param = InputParam(input_json, cmd) 
     nn_param.print_input_params(json_file_save_name="std_input.json")
     nn_trainer = nn_network(nn_param)
     if len(nn_param.file_paths.train_movement_path) > 0:
@@ -61,7 +61,7 @@ return {*}
 author: wuxingxing
 '''
 def nn_test(input_json: json, cmd:str):
-    nn_param = DpParam(input_json, cmd)
+    nn_param = InputParam(input_json, cmd)
     nn_param.print_input_params(json_file_save_name="std_input.json")
     nn_trainer = nn_network(nn_param)
     if len(nn_param.file_paths.test_movement_path) > 0:
