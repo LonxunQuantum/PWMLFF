@@ -716,13 +716,15 @@ PROGRAM gen_MTP_feature
       DEALLOCATE (iatom,xatom,fatom,Eatom)
 !--------------------------------------------------------
       goto 1000
+      
+      deallocate(A, B, X)
+
 2000  continue
       close(move_file)
       !   write(25) num_step1,num_step0
       !   write(333,*) "num_step1,num_step0",num_step1,num_step0
       close(333)
       close(25)
-      deallocate(A, B, X)
       deallocate(iatom_type_num)
       deallocate(Ep_tmp)
 
