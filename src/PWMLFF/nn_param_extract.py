@@ -4,7 +4,6 @@ from src.user.model_param import DpParam
 import torch
 import numpy as np
 import src.aux.extract_ff as extract_ff
-from src.user.model_param import DpParam
 def extract_force_field():
     pass
 
@@ -59,28 +58,35 @@ param {*} input_path
 return {*}
 author: wuxingxing
 '''
-def load_dfeat_input(dfread_dfeat_path, input_path):
+def load_dfeat_input(dfread_dfeat_path, input_path, output_path):
     dicts = {}
     dicts["dfread_dfeat"] = {}
     dicts["input"] = {}
+    dicts["output"] = {}
 
-    dfread_paths = os.listdir(dfread_dfeat_path)
-    for feat in dfread_paths:
+    dfread_files = os.listdir(dfread_dfeat_path)
+    for feat in dfread_files:
         with open(os.path.join(dfread_dfeat_path, feat), 'rb') as file:
             file_content = file.read()
             dicts["dfread_dfeat"][feat] = file_content
 
-    input_paths = os.listdir(input_path)
-    for input in input_paths:
+    input_files = os.listdir(input_path)
+    for input in input_files:
         with open(os.path.join(input_path, input), 'rb') as file:
             file_content = file.read()
             dicts["input"][input] = file_content
+
+    output_files = os.listdir(output_path)
+    for output in output_files:
+        with open(os.path.join(output_path, output), 'rb') as file:
+            file_content = file.read()
+            dicts["output"][output] = file_content
 
     return dicts
 
 '''
 description: 
-extract dfread_dfeat files and input files from model.ckpt file and save the to forcefield dir
+extract dfread_dfeat files, input files and output files from model.ckpt file and save the to forcefield dir
 param {*} ckpt_file
 param {*} forcefield_dir
 return {*}
@@ -105,4 +111,13 @@ def extract_dreat_input(ckpt_file, forcefield_dir):
     for key in input.keys():
         file_content = input[key]
         with open(os.path.join(input_dir, key), 'wb') as wf:
+            wf.write(file_content)
+
+    output = model_ckpt["dfread_dfeat_input"]["output"]
+    output_dir = os.path.join(forcefield_dir, "output")
+    if os.path.exists(output_dir) is False:
+        os.makedirs(output_dir)
+    for key in output.keys():
+        file_content = output[key]
+        with open(os.path.join(output_dir, key), 'wb') as wf:
             wf.write(file_content)

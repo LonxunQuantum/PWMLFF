@@ -46,18 +46,24 @@ class Labelsystem():
             os.makedirs(self.directory, exist_ok=True)
         np.savetxt(os.path.join(self.directory, 'type_map.raw'), self.atom_types, fmt='%d')
         np.savetxt(os.path.join(self.directory, 'atom_name.raw'), self.atom_names, fmt='%s')
-        np.savetxt(os.path.join(self.directory, 'box.raw'), np.reshape(self.cells, [self.ionic_step, 9]))
-        np.savetxt(os.path.join(self.directory, 'coord.raw'), np.reshape(self.coords, [self.ionic_step, self.atom_numbs*3]))
-        np.savetxt(os.path.join(self.directory, 'energy.raw'), np.reshape(self.energys, [self.ionic_step, 1]))
-        np.savetxt(os.path.join(self.directory, 'force.raw'), np.reshape(self.forces, [self.ionic_step, self.atom_numbs*3]))
+        np.savetxt(os.path.join(self.directory, 'box.raw'), np.reshape(self.cells, [self.ionic_step
+, 9]))
+        np.savetxt(os.path.join(self.directory, 'coord.raw'), np.reshape(self.coords, [self.ionic_step
+,self.atom_numbs*3]))
+        np.savetxt(os.path.join(self.directory, 'energy.raw'), np.reshape(self.energys, [self.ionic_step
+, 1]))
+        np.savetxt(os.path.join(self.directory, 'force.raw'), np.reshape(self.forces, [self.ionic_step
+,self.atom_numbs*3]))
         if self.virial is not None:
-            np.savetxt(os.path.join(self.directory, 'virial.raw'), np.reshape(self.virial, [self.ionic_step, 9]))
+            np.savetxt(os.path.join(self.directory, 'virial.raw'), np.reshape(self.virial, [self.ionic_step
+,9]))
    
     def read_outcar(self, filename, num):
         f = open(filename, 'r')
         lines = f.readlines()
         f.close()
 
+        # Temporarily retain
         self.atom_names, self.atom_numbs, self.atom_types, self.cells, self.coords, self.energys, self.forces, self.virial, self.ionic_step = self.get_frames(lines, begin=0, step=1)
       
 
@@ -133,28 +139,42 @@ class Labelsystem():
         all_energies = []
         all_forces = []
         all_virials = []
+        prev_insw = None    # 跟踪上一个循环中的离子步
 
         for idx, ii in enumerate(lines):
-            if 'Ionic step' in ii:
-                insw = int(ii.split()[3])
-                if self.current_block is not None:
-                    self.blocks.append(self.current_block)
-                self.current_block = {
-                    "ionic_step": insw,
-                    "coord": [],
-                    "cell": [],
-                    "energy": [],
-                    "force": [],
-                    "virial": [],
-                    "is_converge": True
-                }
+            if 'Iteration' in ii:
+                # insw = int(ii.split()[3])
+                insw = int(ii.split()[2][:-1])
+                if insw != prev_insw:
+                    iflag = 1
+                else:
+                    iflag = 0
+
+                prev_insw = insw
+
+                if iflag == 1:   
+                    if self.current_block is not None:
+                        self.blocks.append(self.current_block)
+                    self.current_block = {
+                        "ionic_step": insw,
+                        "electronic_step": [],
+                        "coord": [],
+                        "cell": [],
+                        "energy": [],
+                        "force": [],
+                        "virial": [],
+                        "is_converge": True
+                    }
+
             if 'Iteration' in ii:
                 sc_index = int(ii.split()[3][:-1])
+                self.current_block["electronic_step"].append(sc_index)
                 if sc_index >= nelm:
                     is_converge = False
+                    self.current_block["is_converge"] = is_converge
             elif 'free  energy   TOTEN' in ii:
                 energy = float(ii.split()[4])
-                all_energies.append(energy)
+                # all_energies.append(energy)
                 self.current_block["energy"] = [energy]
             elif 'VOLUME and BASIS' in ii:
                 cell = []
@@ -164,7 +184,7 @@ class Labelsystem():
                 self.current_block["cell"] = cell
                 # all_cells.append(cell)
             elif 'in kB' in ii:
-                prev_line = lines[idx-1]
+                prev_line = lines[idx-1]    # eV line
                 tmp_v = [float(ss) for ss in prev_line.split()[1:]]
                 virial = np.zeros([3, 3])
                 virial[0][0] = tmp_v[0]     # xx
@@ -176,7 +196,7 @@ class Labelsystem():
                 virial[2][1] = tmp_v[4]     # yz
                 virial[0][2] = tmp_v[5]     # zx
                 virial[2][0] = tmp_v[5]     # zx
-                all_virials.append(virial)
+                # all_virials.append(virial)
                 self.current_block["virial"] = virial
             elif 'TOTAL-FORCE' in ii:
                 coord = []
@@ -218,18 +238,18 @@ def write_image(mvmt, image, atom_numbs, atom_types):
 
     image['coord'] = np.dot(image['coord'], LA.inv(image['cell']))
     
-    mvmt.write(" %d atoms, Iteration (fs) = %16.10E, Etot,Ep,Ek (eV) = %16.10E  %16.10E   %16.10E\n"\
-                % (atom_numbs, 0.0, image['energy'][0], image['energy'][0], 0.0))
+    mvmt.write(" %d atoms, Iteration (fs) = %16.10E, Etot,Ep,Ek (eV) = %16.10E  %16.10E   %16.10E, SCF = %d\n"\
+                % (atom_numbs, 0.0, image['energy'][0], image['energy'][0], 0.0, image['electronic_step'][-1]))
     mvmt.write(" MD_INFO: METHOD(1-VV,2-NH,3-LV,4-LVPR,5-NHRP) TIME(fs) TEMP(K) DESIRED_TEMP(K) AVE_TEMP(K) TIME_INTERVAL(fs) TOT_TEMP(K) \n")
     mvmt.write("          1    0.5000000000E+00   0.59978E+03   0.30000E+03   0.59978E+03   0.50000E+02   0.59978E+03\n")
     mvmt.write(" MD_VV_INFO: Basic Velocity Verlet Dynamics (NVE), Initialized total energy(Hartree)\n")
     mvmt.write("          -0.1971547257E+05\n")
     mvmt.write("Lattice vector (Angstrom)\n")
     for i in range(3):
-        if image['virial'] is not None:
-            mvmt.write("  %16.10E    %16.10E    %16.10E     stress (eV): %16.10E    %16.10E    %16.10E\n" % (image['cell'][i][0], image['cell'][i][1], image['cell'][i][2], image['virial'][i][0], image['virial'][i][1], image['virial'][i][2]))
-        else:
+        if len(image['virial']) == 0:
             mvmt.write("  %16.10E    %16.10E    %16.10E\n" % (image['cell'][i][0], image['cell'][i][1], image['cell'][i][2]))
+        else:
+            mvmt.write("  %16.10E    %16.10E    %16.10E     stress (eV): %16.10E    %16.10E    %16.10E\n" % (image['cell'][i][0], image['cell'][i][1], image['cell'][i][2], image['virial'][i][0], image['virial'][i][1], image['virial'][i][2]))
     mvmt.write("  Position (normalized), move_x, move_y, move_z\n")
     for i in range(atom_numbs):
         mvmt.write(" %4d    %20.15F    %20.15F    %20.15F    1 1 1\n"\
