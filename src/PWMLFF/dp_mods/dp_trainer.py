@@ -7,7 +7,7 @@ import torch
 from torch.utils.data import Subset
 from torch.autograd import Variable
 from src.loss.dploss import dp_loss, adjust_lr
-from optimizer.KFWrapper import KFOptimizerWrapper
+from src.optimizer.KFWrapper import KFOptimizerWrapper
 import horovod.torch as hvd
 from torch.profiler import profile, record_function, ProfilerActivity
 

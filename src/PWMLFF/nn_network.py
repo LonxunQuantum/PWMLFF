@@ -31,7 +31,7 @@ import torch.utils.data as Data
 from torch.autograd import Variable
 
 import time
-from optimizer.KFWrapper import KFOptimizerWrapper
+from src.optimizer.KFWrapper import KFOptimizerWrapper
 from sklearn.preprocessing import MinMaxScaler
 from joblib import dump, load
 
@@ -50,11 +50,14 @@ from src.pre_data.nn_mlff_hybrid import get_cluster_dirs, make_work_dir, mv_feat
 from src.PWMLFF.nn_param_extract import load_scaler_from_checkpoint, load_dfeat_input
 
 from utils.file_operation import write_line_to_file, smlink_file
+from utils.debug_operation import check_cuda_memory
+
 from src.user.input_param import InputParam
-from src.aux.plot_nn_inference import plot
 # from optimizer.kalmanfilter import GKalmanFilter, LKalmanFilter, SKalmanFilter
 from src.optimizer.GKF import GKFOptimizer
 from src.optimizer.LKF import LKFOptimizer
+
+from src.PWMLFF.nn_mods.nn_trainer import train_KF, train, valid, predict
 
 """
     class that wraps the training model and the data
@@ -149,10 +152,10 @@ class nn_network:
             torch.cuda.manual_seed(self.dp_params.seed)
         # set print precision
         torch.set_printoptions(precision = 12)
-
+        self.criterion = nn.MSELoss()
         # anything other than dfeat
-        self.loader_train = None
-        self.loader_valid = None
+        self.train_loader = None
+        self.val_loader = None
 
         #sparse dfeat from fortran 
         self.dfeat = None 
@@ -302,28 +305,6 @@ class nn_network:
         pm.f_data_scaler = pm.d_nnFi+'data_scaler.npy'
         pm.f_Wij_np  = pm.d_nnFi+'Wij.npy'
 
-    def generate_data_single(self, chunk_size = 10, shuffle=False):
-        """
-            defualt chunk size set to 10 
-        """
-        # clean old .dat files otherwise will be appended 
-        if os.path.exists("PWdata/MOVEMENTall"):
-            print ("cleaning old data")
-            subprocess.run([
-                "rm -rf fread_dfeat output input train_data plot_data PWdata/*.txt PWdata/trainData.* PWdata/location PWdata/Egroup_weight PWdata/MOVEMENTall"
-                ],shell=True)
-            subprocess.run(["find PWdata/ -name 'dfeat*' | xargs rm -rf"],shell=True)
-            subprocess.run(["find PWdata/ -name 'info*' | xargs rm -rf"],shell=True)
-        # calculating feature 
-        from src.pre_data.mlff import calc_feat
-        calc_feat()
-        # seperate training set and valid set
-        import src.pre_data.seper as seper 
-        seper.seperate_data(chunk_size = chunk_size, shuffle=shuffle)
-        # save as .npy
-        import src.pre_data.gen_data as gen_data
-        gen_data.write_data()
-        
     def scale_hybrid(self, train_data:MovementHybridDataset, valid_data:MovementHybridDataset, data_num:int):
         feat_train, feat_valid = None, None
         shape_train, shape_valid = [0], [0]
@@ -358,36 +339,6 @@ class nn_network:
         print ("scaler.pkl saved to:",self.dp_params.file_paths.model_store_dir)
 
         return train_data, valid_data
-    
-    def scale(self,train_data,valid_data):
-        if pm.use_storage_scaler:
-            scaler_path = self.dp_params.file_paths.model_store_dir + 'scaler.pkl'
-            print("loading scaler from file",scaler_path)
-            self.scaler = load(scaler_path) 
-
-            print("transforming feat with loaded scaler")
-            train_data.feat = self.scaler.transform(train_data.feat)
-            valid_data.feat = self.scaler.transform(valid_data.feat)
-
-        else:
-            # generate new scaler 
-            print("using new scaler")
-            self.scaler = MinMaxScaler()
-
-            train_data.feat = self.scaler.fit_transform(train_data.feat)
-            valid_data.feat = self.scaler.transform(valid_data.feat)
-
-            if pm.storage_scaler:
-                pickle.dump(self.scaler, open(self.opts.opt_session_dir+"scaler.pkl",'wb'))
-                print ("scaler.pkl saved to:",self.opts.opt_session_dir)
-
-        #atom index within this image, neighbor index, feature index, spatial dimension   
-        if pm.is_dfeat_sparse == False: 
-            trans = lambda x : x.transpose(0, 1, 3, 2) 
-
-            print("transforming dense dfeat with loaded scaler")
-            train_data.dfeat = trans(trans(train_data.dfeat) * self.scaler.scale_) 
-            valid_data.dfeat = trans(trans(valid_data.dfeat) * self.scaler.scale_)
 
     def load_data_hybrid(self, data_shuffle=True, alive_atomic_energy=False):
         # load anything other than dfeat
@@ -429,7 +380,7 @@ class nn_network:
         train_sampler = None
         val_sampler = None
 
-        self.loader_train = torch.utils.data.DataLoader(
+        self.train_loader = torch.utils.data.DataLoader(
             torch_train_data,
             batch_size=self.dp_params.optimizer_param.batch_size,
             shuffle=data_shuffle, #(train_sampler is None)
@@ -438,7 +389,7 @@ class nn_network:
             sampler=train_sampler,
         )
 
-        self.loader_valid = torch.utils.data.DataLoader(
+        self.val_loader = torch.utils.data.DataLoader(
             torch_valid_data,
             batch_size=self.dp_params.optimizer_param.batch_size,
             shuffle=False,
@@ -450,8 +401,8 @@ class nn_network:
             Note! When using sparse dfeat, shuffle must be False. 
             sparse dfeat class only works under the batch order before calling Data.DataLoader
         """
-        assert self.loader_train != None, "training data (except dfeat) loading fails"
-        assert self.loader_valid != None, "validation data (except dfeat) loading fails"
+        assert self.train_loader != None, "training data (except dfeat) loading fails"
+        assert self.val_loader != None, "validation data (except dfeat) loading fails"
 
         # load sparse dfeat. This is the default setting 
         if pm.is_dfeat_sparse == True:     
@@ -532,280 +483,138 @@ class nn_network:
         """    
             trianing method for the class 
         """ 
-        iter = 0 
-        iter_valid = 0 
         smlink_file(self.dp_params.file_paths.model_store_dir, \
                     os.path.join(self.dp_params.file_paths.json_dir, os.path.basename(self.dp_params.file_paths.model_store_dir)))
         # set the log files
-        iter_train_log = os.path.join(self.dp_params.file_paths.model_store_dir, "iter_train.dat")
-        f_iter_train_log = open(iter_train_log, 'w')
-        epoch_train_log = os.path.join(self.dp_params.file_paths.model_store_dir, "epoch_train.dat")
-        f_epoch_train_log = open(epoch_train_log, 'w')
-        iter_valid_log = os.path.join(self.dp_params.file_paths.model_store_dir, "iter_valid.dat")
-        f_iter_valid_log = open(iter_valid_log, 'w')
-        epoch_valid_log =  os.path.join(self.dp_params.file_paths.model_store_dir, "epoch_valid.dat")
-        f_epoch_valid_log = open(epoch_valid_log, 'w')
+        train_log = os.path.join(self.dp_params.file_paths.model_store_dir, "epoch_train.dat")
+        f_train_log = open(train_log, "w")
+
+        valid_log = os.path.join(self.dp_params.file_paths.model_store_dir, "epoch_valid.dat")
+        f_valid_log = open(valid_log, "w")
         
         # Define the lists based on the training type
-        iter_train_lists = ["iter", "loss"]
-        iter_valid_lists = ["iter", "loss"]
-        epoch_train_lists = ["epoch", "loss"]
-        epoch_valid_lists = ["epoch", "loss"]
+        train_lists = ["epoch", "loss"]
+        valid_lists = ["epoch", "loss"]
 
         if self.dp_params.optimizer_param.train_energy:
-            iter_train_lists.append("RMSE_Etot_per_atom")
-            epoch_train_lists.append("RMSE_Etot_per_atom")
-            iter_valid_lists.append("RMSE_Etot_per_atom")
-            epoch_valid_lists.append("RMSE_Etot_per_atom")
+            # train_lists.append("RMSE_Etot")
+            # valid_lists.append("RMSE_Etot")
+            train_lists.append("RMSE_Etot_per_atom")
+            valid_lists.append("RMSE_Etot_per_atom")
         if self.dp_params.optimizer_param.train_ei:
-            iter_train_lists.append("RMSE_Ei")
-            epoch_train_lists.append("RMSE_Ei")
-            iter_valid_lists.append("RMSE_Ei")
-            epoch_valid_lists.append("RMSE_Ei")
+            train_lists.append("RMSE_Ei")
+            valid_lists.append("RMSE_Ei")
         if self.dp_params.optimizer_param.train_egroup:
-            iter_train_lists.append("RMSE_Egroup")
-            epoch_train_lists.append("RMSE_Egroup")
-            iter_valid_lists.append("RMSE_Egroup")
-            epoch_valid_lists.append("RMSE_Egroup")
+            train_lists.append("RMSE_Egroup")
+            valid_lists.append("RMSE_Egroup")
         if self.dp_params.optimizer_param.train_force:
-            iter_train_lists.append("RMSE_F")
-            epoch_train_lists.append("RMSE_F")
-            iter_valid_lists.append("RMSE_F")
-            epoch_valid_lists.append("RMSE_F")
+            train_lists.append("RMSE_F")
+            valid_lists.append("RMSE_F")
+        if self.dp_params.optimizer_param.train_virial:
+            # train_lists.append("RMSE_virial")
+            # valid_lists.append("RMSE_virial")
+            train_lists.append("RMSE_virial_per_atom")
+            valid_lists.append("RMSE_virial_per_atom")
+        if self.dp_params.optimizer_param.opt_name == "LKF" or self.dp_params.optimizer_param.opt_name == "GKF":
+            train_lists.extend(["time"])
+        else:
+            train_lists.extend(["real_lr", "time"])
 
-        if "KF" not in self.dp_params.optimizer_param.opt_name:# adam or sgd optimizer need learning rate
-            iter_valid_lists.extend(["lr"])
-
-        print_width = {
-            "iter": 5,
+        train_print_width = {
             "epoch": 5,
             "loss": 18,
+            "RMSE_Etot": 18,
             "RMSE_Etot_per_atom": 21,
             "RMSE_Ei": 18,
             "RMSE_Egroup": 18,
             "RMSE_F": 18,
-            "lr": 18
+            "RMSE_virial": 18,
+            "RMSE_virial_per_atom": 23,
+            "real_lr": 18,
+            "time": 10,
         }
 
-        iter_train_format = "".join(["%{}s".format(print_width[i]) for i in iter_train_lists])
-        iter_valid_format = "".join(["%{}s".format(print_width[i]) for i in iter_valid_lists])
-        epoch_train_format = "".join(["%{}s".format(print_width[i]) for i in epoch_train_lists])
-        epoch_valid_format = "".join(["%{}s".format(print_width[i]) for i in epoch_valid_lists])
+        train_format = "".join(["%{}s".format(train_print_width[i]) for i in train_lists])
+        valid_format = "".join(["%{}s".format(train_print_width[i]) for i in valid_lists])
 
-        # write the header
-        f_iter_train_log.write("%s\n" % (iter_train_format % tuple(iter_train_lists)))
-        f_iter_valid_log.write("%s\n" % (iter_valid_format % tuple(iter_valid_lists)))
-        f_epoch_train_log.write("%s\n" % (epoch_train_format % tuple(epoch_train_lists)))
-        f_epoch_valid_log.write("%s\n" % (epoch_valid_format % tuple(epoch_valid_lists)))
+        f_train_log.write("%s\n" % (train_format % tuple(train_lists)))
+        f_valid_log.write("%s\n" % (valid_format % tuple(valid_lists)))
 
         for epoch in range(self.dp_params.optimizer_param.start_epoch, self.dp_params.optimizer_param.epochs + 1):
-            timeEpochStart = time.time()
-            last_epoch = True if epoch == self.dp_params.optimizer_param.epochs else False
-            print("<-------------------------  epoch %d  ------------------------->" %(epoch))
-            nr_total_sample = 0
-            loss = 0.
-            loss_Etot = 0.
-            loss_Etot_per_atom = 0.
-            loss_Ei = 0.
-            loss_F = 0.
-            loss_Egroup = 0.0 
-            # this line code should go out?
-            if "KF" in self.dp_params.optimizer_param.opt_name:
-                KFOptWrapper = KFOptimizerWrapper(
-                    self.model, self.optimizer, 
-                    self.dp_params.optimizer_param.nselect, self.dp_params.optimizer_param.groupsize, 
-                    self.dp_params.hvd, "hvd"
+            # train for one epoch
+            time_start = time.time()
+            # check_cuda_memory(epoch, self.dp_params.optimizer_param.epochs, "before train")
+            if self.dp_params.optimizer_param.opt_name == "LKF" or self.dp_params.optimizer_param.opt_name == "GKF":
+                loss, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_egroup, loss_virial, loss_virial_per_atom = train_KF(
+                    self.train_loader, self.model, self.criterion, self.optimizer, epoch, self.device, self.dp_params
                 )
-            
-            self.model.train()
-            # 重写一下训练这部分
-            for i_batch, sample_batches in enumerate(self.loader_train):
-                
-                nr_batch_sample = sample_batches['input_feat'].shape[0]
-                if "KF" not in self.dp_params.optimizer_param.opt_name:
-                    global_step = (epoch - 1) * len(self.loader_train) + i_batch * nr_batch_sample
-                    real_lr = self.adjust_lr(iter_num = global_step)
-                    for param_group in self.optimizer.param_groups:
-                        param_group['lr'] = real_lr * (self.dp_params.optimizer_param.batch_size ** 0.5)
-                natoms_sum = sample_batches['natoms_img'][0, 0].item()  
-                # use sparse feature 
-                if pm.is_dfeat_sparse == True:
-                    # Error this function not realized
-                    #sample_batches['input_dfeat']  = dfeat_train.transform(i_batch)
-                    sample_batches['input_dfeat']  = self.dfeat.transform(i_batch,"train")
+            else:
+                loss, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_egroup, loss_virial, loss_virial_per_atom, real_lr = train(
+                    self.train_loader, self.model, self.criterion, self.optimizer, epoch, \
+                        self.dp_params.optimizer_param.learning_rate, self.device, self.dp_params
+                )
+            time_end = time.time()
+            # check_cuda_memory(epoch, self.dp_params.optimizer_param.epochs, "after train")
+            # evaluate on validation set
+            vld_loss, vld_loss_Etot, vld_loss_Etot_per_atom, vld_loss_Force, vld_loss_Ei, val_loss_egroup, val_loss_virial, val_loss_virial_per_atom = valid(
+                self.val_loader, self.model, self.criterion, self.device, self.dp_params
+            )
+            # check_cuda_memory(epoch, self.dp_params.optimizer_param.epochs, "after valid")
+            f_train_log = open(train_log, "a")
+            f_valid_log = open(valid_log, "a")
 
-                if "KF" not in self.dp_params.optimizer_param.opt_name:
-                    # non-KF t
-                    batch_loss, batch_loss_Etot, batch_loss_Ei, batch_loss_F, batch_loss_Egroup = \
-                        self.train_img(sample_batches, self.model, self.optimizer, nn.MSELoss(), last_epoch, real_lr)
-                else:
-                    # KF 
-                    batch_loss, batch_loss_Etot, batch_loss_Ei, batch_loss_F, batch_loss_Egroup = \
-                        self.train_kalman_img(sample_batches, self.model, KFOptWrapper, nn.MSELoss())
-                                
-                iter += 1
-
-                f_iter_train_log = open(iter_train_log, 'a')
-
-                # Write the training log line to the log file
-                iter_train_log_line = "%5d%18.10e" % (iter, batch_loss)
-
-                if self.dp_params.optimizer_param.train_energy:
-                    iter_train_log_line += "%18.10e" % (math.sqrt(batch_loss_Etot)/natoms_sum)
-                if self.dp_params.optimizer_param.train_ei:
-                    iter_train_log_line += "%18.10e" % (math.sqrt(batch_loss_Ei))
-                if self.dp_params.optimizer_param.train_egroup:
-                    iter_train_log_line += "%18.10e" % (math.sqrt(batch_loss_Egroup))
-                if self.dp_params.optimizer_param.train_force:
-                    iter_train_log_line += "%18.10e" % ( math.sqrt(batch_loss_F))
-                if "KF" not in self.dp_params.optimizer_param.opt_name:
-                    iter_train_log_line += "%18.10e" % (real_lr)
-
-                f_iter_train_log.write("%s\n" % (iter_train_log_line))
-                f_iter_train_log.close()
-                
-                loss += batch_loss.item() * nr_batch_sample
-
-                loss_Etot += batch_loss_Etot.item() * nr_batch_sample
-                loss_Etot_per_atom += math.sqrt(batch_loss_Etot)/natoms_sum * nr_batch_sample
-
-                loss_Ei += batch_loss_Ei.item() * nr_batch_sample
-                loss_F += batch_loss_F.item() * nr_batch_sample
-                loss_Egroup += batch_loss_Egroup.item() * nr_batch_sample 
-
-                nr_total_sample += nr_batch_sample
-                 
-            loss /= nr_total_sample
-            loss_Etot /= nr_total_sample
-            loss_Etot_per_atom /= nr_total_sample
-            loss_Ei /= nr_total_sample
-            loss_F /= nr_total_sample
-            loss_Egroup /= nr_total_sample  
-
-            RMSE_Etot = loss_Etot ** 0.5
-            RMSE_Ei = loss_Ei ** 0.5
-            RMSE_F = loss_F ** 0.5
-            RMSE_Egroup = loss_Egroup ** 0.5 
-
-            print("epoch_loss = %.10f (RMSE_Etot_per_atom = %.12f, RMSE_Ei = %.12f, RMSE_F = %.12f, RMSE_Eg = %.12f)" \
-                %(loss, loss_Etot_per_atom, RMSE_Ei, RMSE_F, RMSE_Egroup))
-
-            f_epoch_train_log = open(epoch_train_log, 'a')
-
-            # Write the training log line to the log file
-            epoch_train_log_line = "%5d%18.10e" % (epoch, loss,)
+            # Write the log line to the file based on the training mode
+            train_log_line = "%5d%18.10e" % (
+                epoch,
+                loss,
+            )
+            valid_log_line = "%5d%18.10e" % (
+                epoch,
+                vld_loss,
+            )
 
             if self.dp_params.optimizer_param.train_energy:
-                epoch_train_log_line += "%18.10e" % (loss_Etot_per_atom)
+                # train_log_line += "%18.10e" % (loss_Etot)
+                # valid_log_line += "%18.10e" % (vld_loss_Etot)
+                train_log_line += "%21.10e" % (loss_Etot_per_atom)
+                valid_log_line += "%21.10e" % (vld_loss_Etot_per_atom)
             if self.dp_params.optimizer_param.train_ei:
-                epoch_train_log_line += "%18.10e" % (RMSE_Ei)
+                train_log_line += "%18.10e" % (loss_Ei)
+                valid_log_line += "%18.10e" % (vld_loss_Ei)
             if self.dp_params.optimizer_param.train_egroup:
-                epoch_train_log_line += "%18.10e" % (RMSE_Egroup)
+                train_log_line += "%18.10e" % (loss_egroup)
+                valid_log_line += "%18.10e" % (val_loss_egroup)
             if self.dp_params.optimizer_param.train_force:
-                epoch_train_log_line += "%18.10e" % (RMSE_F)
-            
-            f_epoch_train_log.write("%s\n" % (epoch_train_log_line))
-            f_epoch_train_log.close()
-            
-            """
-                ========== validation starts ==========
-            """ 
-            
-            nr_total_sample = 0
-            valid_loss = 0.
-            valid_loss_Etot = 0.
-            valid_loss_Etot_pre_atom = 0.
-            valid_loss_Ei = 0.
-            valid_loss_F = 0.
-            valid_loss_Egroup = 0.0
-            
-            for i_batch, sample_batches in enumerate(self.loader_valid):
-                
-                iter_valid +=1 
+                train_log_line += "%18.10e" % (loss_Force)
+                valid_log_line += "%18.10e" % (vld_loss_Force)
+            if self.dp_params.optimizer_param.train_virial:
+                # train_log_line += "%18.10e" % (loss_virial)
+                # valid_log_line += "%18.10e" % (val_loss_virial)
+                train_log_line += "%23.10e" % (loss_virial_per_atom)
+                valid_log_line += "%23.10e" % (val_loss_virial_per_atom)
 
-                natoms_sum = sample_batches['natoms_img'][0, 0].item()
-                nr_batch_sample = sample_batches['input_feat'].shape[0]
+            if self.dp_params.optimizer_param.opt_name == "LKF" or self.dp_params.optimizer_param.opt_name == "GKF":
+                train_log_line += "%10.4f" % (time_end - time_start)
+            else:
+                train_log_line += "%18.10e%10.4f" % (real_lr, time_end - time_start)
 
-                if pm.is_dfeat_sparse == True:
-                    sample_batches['input_dfeat']  = self.dfeat.transform(i_batch,"valid")
-
-                if sample_batches['input_dfeat'] == "aborted":
-                    continue 
-
-                valid_error_iter, batch_loss_Etot, batch_loss_Ei, batch_loss_F, batch_loss_Egroup = self.valid_img(sample_batches, self.model, nn.MSELoss())
-
-                valid_loss += valid_error_iter * nr_batch_sample
-
-                valid_loss_Etot += batch_loss_Etot * nr_batch_sample
-                valid_loss_Etot_pre_atom += math.sqrt(batch_loss_Etot)/natoms_sum  * nr_batch_sample
-                valid_loss_Ei += batch_loss_Ei * nr_batch_sample
-                valid_loss_F += batch_loss_F * nr_batch_sample
-                valid_loss_Egroup += batch_loss_Egroup * nr_batch_sample
-                
-                nr_total_sample += nr_batch_sample
-                f_iter_valid_log = open(iter_valid_log, 'a')
-
-                # Write the valid log line to the log file
-                iter_valid_log_line = "%5d%18.10e" % (iter, batch_loss,)
-
-                if self.dp_params.optimizer_param.train_energy:
-                    iter_valid_log_line += "%18.10e" % (math.sqrt(batch_loss_Etot)/natoms_sum)
-                if self.dp_params.optimizer_param.train_ei:
-                    iter_valid_log_line += "%18.10e" % (math.sqrt(batch_loss_Ei))
-                if self.dp_params.optimizer_param.train_egroup:
-                    iter_valid_log_line += "%18.10e" % (math.sqrt(batch_loss_Egroup))
-                if self.dp_params.optimizer_param.train_force:
-                    iter_valid_log_line += "%18.10e" % (math.sqrt(batch_loss_F))
-                if "KF" not in self.dp_params.optimizer_param.opt_name:
-                    iter_train_log_line += "%18.10e" % (real_lr)
-
-                f_iter_valid_log.write("%s\n" % (iter_valid_log_line))
-                f_iter_valid_log.close()
-
-            # epoch loss update
-            valid_loss /= nr_total_sample
-            valid_loss_Etot /= nr_total_sample
-            valid_loss_Etot_pre_atom /= nr_total_sample
-            valid_loss_Ei /= nr_total_sample
-            valid_loss_F /= nr_total_sample
-            valid_loss_Egroup /= nr_total_sample
-
-            valid_RMSE_Etot = valid_loss_Etot ** 0.5
-            valid_RMSE_Ei = valid_loss_Ei ** 0.5
-            valid_RMSE_F = valid_loss_F ** 0.5
-            valid_RMSE_Egroup = valid_loss_Egroup ** 0.5
-                
-            print("valid_loss = %.10f (valid_RMSE_Etot_pre_atom = %.12f, valid_RMSE_Ei = %.12f, valid_RMSE_F = %.12f, valid_RMSE_Egroup = %.12f)" \
-                     %(valid_loss, valid_loss_Etot_pre_atom, valid_RMSE_Ei, valid_RMSE_F, valid_RMSE_Egroup))
-   
-            f_epoch_valid_log = open(epoch_valid_log, 'a')
-
-            # Write the valid log line to the log file
-            epoch_valid_log_line = "%5d%18.10e" % (epoch, valid_loss)
-
-            if self.dp_params.optimizer_param.train_energy:
-                epoch_valid_log_line += "%18.10e" % (valid_loss_Etot_pre_atom)
-            if self.dp_params.optimizer_param.train_ei:
-                epoch_valid_log_line += "%18.10e" % (valid_RMSE_Ei)
-            if self.dp_params.optimizer_param.train_egroup:
-                epoch_valid_log_line += "%18.10e" % (valid_RMSE_Egroup)
-            if self.dp_params.optimizer_param.train_force:
-                epoch_valid_log_line += "%18.10e" % (valid_RMSE_F)
-
-            f_epoch_valid_log.write("%s\n" % (epoch_valid_log_line))
-            f_epoch_valid_log.close()
-
+            f_train_log.write("%s\n" % (train_log_line))
+            f_valid_log.write("%s\n" % (valid_log_line))
+        
+            f_train_log.close()
+            f_valid_log.close()
+                    
             # save model
             if not self.dp_params.hvd or (self.dp_params.hvd and hvd.rank() == 0):
                 if self.dp_params.file_paths.save_p_matrix:
                     self.save_checkpoint(
                         {
+                        "json_file":self.dp_params.to_dict(),
                         "epoch": epoch,
                         "state_dict": self.model.state_dict(),
                         "optimizer":self.optimizer.state_dict(),
                         "scaler": self.scaler,
                         "dfread_dfeat_input": self.dfread_dfeat_input,
-                        "json_file":self.dp_params.to_dict()
                         },
                         self.dp_params.file_paths.model_name,
                         self.dp_params.file_paths.model_store_dir,
@@ -813,18 +622,15 @@ class nn_network:
                 else: 
                     self.save_checkpoint(
                         {
+                        "json_file":self.dp_params.to_dict(),
                         "epoch": epoch,
                         "state_dict": self.model.state_dict(),
                         "scaler": self.scaler,
                         "dfread_dfeat_input": self.dfread_dfeat_input,
-                        "json_file":self.dp_params.to_dict()
                         },
                         self.dp_params.file_paths.model_name,
                         self.dp_params.file_paths.model_store_dir,
                     )
-                
-            timeEpochEnd = time.time()
-            print("time of epoch %d: %f s" %(epoch, timeEpochEnd - timeEpochStart))
 
     def save_checkpoint(self, state, filename, prefix):
         filename = os.path.join(prefix, filename)
@@ -839,333 +645,9 @@ class nn_network:
         self.set_model_optimizer()
         # initialize the optimizer and related scheduler
         if self.dp_params.inference:
-            self.do_inference()
+            predict(self.train_loader, self.model, self.criterion, self.device, self.dp_params)
         else:
             self.train()
-
-    def train_img(self, sample_batches, model, optimizer, criterion, last_epoch, real_lr):
-        # single image traing for non-Kalman 
-        if (self.dp_params.precision == 'float64'):
-            Ei_label = Variable(sample_batches['output_energy'][:,:,:].double().to(self.device))
-            Force_label = Variable(sample_batches['output_force'][:,:,:].double().to(self.device))   #[40,108,3]
-            Egroup_label = Variable(sample_batches['input_egroup'].double().to(self.device))
-            input_data = Variable(sample_batches['input_feat'].double().to(self.device), requires_grad=True)
-            dfeat = Variable(sample_batches['input_dfeat'].double().to(self.device))  #[40,108,100,42,3]
-            egroup_weight = Variable(sample_batches['input_egroup_weight'].double().to(self.device))
-            divider = Variable(sample_batches['input_divider'].double().to(self.device))
-            # Ep_label = Variable(sample_batches['output_ep'][:,:,:].double().to(device))
-        elif (self.dp_params.precision == 'float32'):
-            Ei_label = Variable(sample_batches['output_energy'][:,:,:].float().to(self.device))
-            Force_label = Variable(sample_batches['output_force'][:,:,:].float().to(self.device))   #[40,108,3]
-            Egroup_label = Variable(sample_batches['input_egroup'].float().to(self.device))
-            input_data = Variable(sample_batches['input_feat'].float().to(self.device), requires_grad=True)
-            dfeat = Variable(sample_batches['input_dfeat'].float().to(self.device))  #[40,108,100,42,3]
-            egroup_weight = Variable(sample_batches['input_egroup_weight'].float().to(self.device))
-            divider = Variable(sample_batches['input_divider'].float().to(self.device))
-            # Ep_label = Variable(sample_batches['output_ep'][:,:,:].float().to(device))
-        else:
-            #error("train(): unsupported opt_dtype %s" %self.opts.opt_dtype)
-            raise RuntimeError("train(): unsupported opt_dtype %s" %self.dp_params.precision)  
-
-        atom_number = Ei_label.shape[1]
-        Etot_label = torch.sum(Ei_label, dim=1)
-        neighbor = Variable(sample_batches['input_nblist'].int().to(self.device))  # [40,108,100]
-        ind_img = Variable(sample_batches['ind_image'].int().to(self.device))
-        natoms_img = Variable(sample_batches['natoms_img'].int().to(self.device))    
-        atom_type = Variable(sample_batches['atom_type'].int().to(self.device))
-        Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = self.model(input_data, dfeat, neighbor, natoms_img, atom_type, egroup_weight, divider)
-        optimizer.zero_grad()
-
-        loss_Etot = torch.zeros([1,1],device = self.device)
-        loss_Ei = torch.zeros([1,1],device = self.device)
-        loss_F = torch.zeros([1,1],device = self.device)
-        loss_Egroup = torch.zeros([1,1],device = self.device)
-
-        # update loss with repsect to the data used
-        if self.dp_params.optimizer_param.train_ei:
-            loss_Ei = criterion(Ei_predict, Ei_label)
-        if self.dp_params.optimizer_param.train_energy:
-            loss_Etot = criterion(Etot_predict, Etot_label)
-        if self.dp_params.optimizer_param.train_force:
-            loss_F = criterion(Force_predict, Force_label)
-        if self.dp_params.optimizer_param.train_egroup:
-            loss_Egroup = criterion(Egroup_predict, Egroup_label)
-        start_lr = self.dp_params.optimizer_param.learning_rate
-        
-        w_f = 1 if self.dp_params.optimizer_param.train_force == True else 0
-        w_e = 1 if self.dp_params.optimizer_param.train_energy == True else 0
-        w_ei = 1 if self.dp_params.optimizer_param.train_ei == True else 0
-        w_eg = 1 if self.dp_params.optimizer_param.train_egroup == True else 0 
-
-        loss, pref_f, pref_e, pref_egroup = self.get_loss_func(start_lr, real_lr, w_f, loss_F, w_e, loss_Etot, w_eg, loss_Egroup, w_ei, loss_Ei, natoms_img[0, 0].item())
-
-        # using a total loss to update weights 
-        loss.backward()
-
-        self.optimizer.step()
-        
-        return loss, loss_Etot, loss_Ei, loss_F, loss_Egroup
-
-    def train_kalman_img(self,sample_batches, model, KFOptWrapper :KFOptimizerWrapper, criterion):
-        """
-            why setting precision again? 
-        """
-        Ei_label = Variable(sample_batches['output_energy'][:,:,:].to(self.device))
-        Force_label = Variable(sample_batches['output_force'][:,:,:].to(self.device))   #[40,108,3]
-        input_data = Variable(sample_batches['input_feat'].to(self.device), requires_grad=True)
-
-        dfeat = Variable(sample_batches['input_dfeat'].to(self.device))  #[40,108,100,42,3]
-        
-        if self.dp_params.file_paths.alive_atomic_energy:
-            Egroup_label = Variable(sample_batches['input_egroup'].to(self.device))
-            egroup_weight = Variable(sample_batches['input_egroup_weight'].to(self.device))
-            divider = Variable(sample_batches['input_divider'].to(self.device))
-
-        #atom_number = Ei_label.shape[1]
-        Etot_label = torch.sum(Ei_label, dim=1)
-        neighbor = Variable(sample_batches['input_nblist'].int().to(self.device))  # [40,108,100]
-        #ind_img = Variable(sample_batches['ind_image'].int().to(self.device))
-        natoms_img = Variable(sample_batches['natoms_img'].int().to(self.device))
-        atom_type = Variable(sample_batches['atom_type'].int().to(self.device))
-
-        if self.dp_params.optimizer_param.train_egroup:
-            kalman_inputs = [input_data, dfeat, neighbor, natoms_img, atom_type, egroup_weight, divider]
-        else:
-            kalman_inputs = [input_data, dfeat, neighbor, natoms_img, atom_type, None, None]
-
-        if self.dp_params.optimizer_param.train_energy: 
-            # kalman.update_energy(kalman_inputs, Etot_label, update_prefactor = self.dp_params.optimizer_param.pre_fac_etot)
-            Etot_predict = KFOptWrapper.update_energy(kalman_inputs, Etot_label, self.dp_params.optimizer_param.pre_fac_etot, train_type = "NN")
-            
-        if self.dp_params.optimizer_param.train_ei:
-            Ei_predict = KFOptWrapper.update_ei(kalman_inputs,Ei_label, update_prefactor = self.dp_params.optimizer_param.pre_fac_ei, train_type = "NN")     
-
-        if self.dp_params.optimizer_param.train_egroup:
-            # kalman.update_egroup(kalman_inputs, Egroup_label)
-            Egroup_predict = KFOptWrapper.update_egroup(kalman_inputs, Egroup_label, self.dp_params.optimizer_param.pre_fac_egroup, train_type = "NN")
-
-        # if Egroup does not participate in training, the output of Egroup_predict will be None
-        if self.dp_params.optimizer_param.train_force:
-            Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = KFOptWrapper.update_force(
-                    kalman_inputs, Force_label, self.dp_params.optimizer_param.pre_fac_force, train_type = "NN")
-
-        Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(kalman_inputs[0], kalman_inputs[1], kalman_inputs[2], kalman_inputs[3], kalman_inputs[4], kalman_inputs[5], kalman_inputs[6])
-
-        # dtype same as torch.default
-        loss_Etot = torch.zeros([1,1],device = self.device)
-        loss_Ei = torch.zeros([1,1], device = self.device)
-        loss_F = torch.zeros([1,1],device = self.device)
-        loss_egroup = torch.zeros([1,1],device = self.device)
-
-        # update loss only for used labels  
-        # At least 2 flags should be true. 
-        if self.dp_params.optimizer_param.train_ei:
-            loss_Ei = criterion(Ei_predict, Ei_label)
-        
-        if self.dp_params.optimizer_param.train_energy:
-            loss_Etot = criterion(Etot_predict, Etot_label)
-
-        if self.dp_params.optimizer_param.train_force:
-            loss_F = criterion(Force_predict, Force_label)
-
-        if self.dp_params.optimizer_param.train_egroup:
-            loss_egroup = criterion(Egroup_label,Egroup_predict)
-
-        loss = loss_F + loss_Etot + loss_Ei + loss_egroup 
-        
-        print("RMSE_Etot_per_atom = %.12f, RMSE_Ei = %.12f, RMSE_Force = %.12f, RMSE_Egroup = %.12f" %(loss_Etot ** 0.5 / natoms_img[0, 0].item() , loss_Ei ** 0.5, loss_F ** 0.5, loss_egroup**0.5))
-        
-        del Ei_label
-        del Force_label
-        del input_data
-        del dfeat
-        if self.dp_params.file_paths.alive_atomic_energy:
-            del Egroup_label
-            del egroup_weight
-            del divider
-        del Etot_label
-        del neighbor
-        del natoms_img
-
-        return loss, loss_Etot, loss_Ei, loss_F, loss_egroup
-
-    def valid_img(self,sample_batches, model, criterion):
-        """
-            ******************* load *********************
-        """
-        Ei_label = Variable(sample_batches['output_energy'][:,:,:].to(self.device))
-        Force_label = Variable(sample_batches['output_force'][:,:,:].to(self.device))   #[40,108,3]
-        input_data = Variable(sample_batches['input_feat'].to(self.device), requires_grad=True)
-        dfeat = Variable(sample_batches['input_dfeat'].to(self.device))  #[40,108,100,42,3]
-        if self.dp_params.file_paths.alive_atomic_energy:
-            Egroup_label = Variable(sample_batches['input_egroup'].to(self.device))
-            egroup_weight = Variable(sample_batches['input_egroup_weight'].to(self.device))
-            divider = Variable(sample_batches['input_divider'].to(self.device))
-        
-        neighbor = Variable(sample_batches['input_nblist'].int().to(self.device))  # [40,108,100]
-        natoms_img = Variable(sample_batches['natoms_img'].int().to(self.device))  # [40,108,100]
-        atom_type = Variable(sample_batches['atom_type'].int().to(self.device))
-
-        error=0
-        atom_number = Ei_label.shape[1]
-        Etot_label = torch.sum(Ei_label, dim=1)
-        
-        # model.train()
-        self.model.eval()
-        if self.dp_params.optimizer_param.train_egroup:
-            kalman_inputs = [input_data, dfeat, neighbor, natoms_img, atom_type, egroup_weight, divider]
-        else:
-            kalman_inputs = [input_data, dfeat, neighbor, natoms_img, atom_type, None, None]
-
-        Etot_predict, Ei_predict, Force_predict, Egroup_predict, _ = model(kalman_inputs[0], kalman_inputs[1], kalman_inputs[2], kalman_inputs[3], kalman_inputs[4], kalman_inputs[5], kalman_inputs[6])
-        
-        loss_Etot = torch.zeros([1,1],device=self.device)
-        loss_Ei = torch.zeros([1,1],device=self.device)
-        loss_F = torch.zeros([1,1],device = self.device)
-        loss_egroup = torch.zeros([1,1],device = self.device)
-        
-        # update loss with repsect to the data used
-        if self.dp_params.optimizer_param.train_ei:
-            loss_Ei = criterion(Ei_predict, Ei_label)
-        
-        if self.dp_params.optimizer_param.train_energy:
-            loss_Etot = criterion(Etot_predict, Etot_label)
-
-        if self.dp_params.optimizer_param.train_force:
-            loss_F = criterion(Force_predict, Force_label)
-
-        if self.dp_params.optimizer_param.train_egroup:
-            loss_egroup = criterion(Egroup_label,Egroup_predict)
-
-        error = float(loss_F.item()) + float(loss_Etot.item()) + float(loss_Ei.item()) + float(loss_egroup.item())
-
-        # del Ei_label
-        # del Force_label
-        # del Egroup_label
-        # del input_data
-        # del dfeat
-        # del egroup_weight
-        # del divider
-        # del neighbor
-        # del natoms_img  
-        
-        return error, loss_Etot, loss_Ei, loss_F, loss_egroup
-
-    def do_inference(self):
-
-        train_lists = ["img_idx", "RMSE_Etot", "RMSE_Etot_per_atom", "RMSE_Ei", "RMSE_F"]
-        if self.dp_params.optimizer_param.train_egroup:
-            train_lists.append("RMSE_Egroup")
-        res_pd = pd.DataFrame(columns=train_lists)
-
-        inf_dir = self.dp_params.file_paths.test_dir
-        if os.path.exists(inf_dir) is True:
-            shutil.rmtree(inf_dir)
-        os.mkdir(inf_dir)
-        res_pd_save_path = os.path.join(inf_dir, "inference_loss.csv")
-        inf_force_save_path = os.path.join(inf_dir,"inference_force.txt")
-        lab_force_save_path = os.path.join(inf_dir,"dft_force.txt")
-        inf_energy_save_path = os.path.join(inf_dir,"inference_total_energy.txt")
-        lab_energy_save_path = os.path.join(inf_dir,"dft_total_energy.txt")
-        if self.dp_params.file_paths.alive_atomic_energy:
-            inf_Ei_save_path = os.path.join(inf_dir,"inference_atomic_energy.txt")
-            lab_Ei_save_path = os.path.join(inf_dir,"dft_atomic_energy.txt")
-        inference_path = os.path.join(inf_dir,"inference_summary.txt") 
-
-        for i_batch, sample_batches in enumerate(self.loader_train):
-            if pm.is_dfeat_sparse == True:
-                sample_batches['input_dfeat']  = self.dfeat.transform(i_batch,"valid")
-            if sample_batches['input_dfeat'] == "aborted":
-                continue 
-
-            Ei_label = Variable(sample_batches['output_energy'][:,:,:].to(self.device))
-            Force_label = Variable(sample_batches['output_force'][:,:,:].to(self.device))   #[40,108,3]
-            input_data = Variable(sample_batches['input_feat'].to(self.device), requires_grad=True)
-            dfeat = Variable(sample_batches['input_dfeat'].to(self.device))  #[40,108,100,42,3]
-            if self.dp_params.file_paths.alive_atomic_energy:
-                Egroup_label = Variable(sample_batches['input_egroup'].to(self.device))
-                egroup_weight = Variable(sample_batches['input_egroup_weight'].to(self.device))
-                divider = Variable(sample_batches['input_divider'].to(self.device))
-            
-            neighbor = Variable(sample_batches['input_nblist'].int().to(self.device))  # [40,108,100]
-            natoms_img = Variable(sample_batches['natoms_img'].int().to(self.device))  # [40,108,100]
-            atom_type = Variable(sample_batches['atom_type'].int().to(self.device))
-            Etot_label = torch.sum(Ei_label, dim=1)
-            
-            self.model.eval()
-            if self.dp_params.optimizer_param.train_egroup:
-                kalman_inputs = [input_data, dfeat, neighbor, natoms_img, atom_type, egroup_weight, divider]
-            else:
-                kalman_inputs = [input_data, dfeat, neighbor, natoms_img, atom_type, None, None]
-
-            Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = self.model(kalman_inputs[0], kalman_inputs[1], kalman_inputs[2], kalman_inputs[3], kalman_inputs[4], kalman_inputs[5], kalman_inputs[6])
-            
-            # mse
-            criterion = nn.MSELoss()
-            loss_Etot_val = criterion(Etot_predict, Etot_label)
-            loss_F_val = criterion(Force_predict, Force_label)
-            loss_Ei_val = criterion(Ei_predict, Ei_label)
-            if self.dp_params.optimizer_param.train_egroup is True:
-                loss_Egroup_val = criterion(Egroup_predict, Egroup_label)
-            # rmse
-            Etot_rmse = loss_Etot_val ** 0.5
-            etot_atom_rmse = Etot_rmse / natoms_img[0][0]
-            Ei_rmse = loss_Ei_val ** 0.5
-            F_rmse = loss_F_val ** 0.5
-
-            res_list = [i_batch, float(Etot_rmse), float(etot_atom_rmse), float(Ei_rmse), float(F_rmse)]
-            if self.dp_params.optimizer_param.train_egroup:
-                res_list.append(float(loss_Egroup_val))
-            res_pd.loc[res_pd.shape[0]] = res_list
-           
-            #''.join(map(str, list(np.array(Force_predict.flatten().cpu().data))))
-            ''.join(map(str, list(np.array(Force_predict.flatten().cpu().data))))
-            write_line_to_file(inf_force_save_path, \
-                               ' '.join(np.array(Force_predict.flatten().cpu().data).astype('str')), "a")
-            write_line_to_file(lab_force_save_path, \
-                               ' '.join(np.array(Force_label.flatten().cpu().data).astype('str')), "a")
-            if self.dp_params.file_paths.alive_atomic_energy:
-                write_line_to_file(inf_Ei_save_path, \
-                                ' '.join(np.array(Ei_predict.flatten().cpu().data).astype('str')), "a")
-                write_line_to_file(lab_Ei_save_path, \
-                               ' '.join(np.array(Ei_label.flatten().cpu().data).astype('str')), "a")
-            
-            write_line_to_file(inf_energy_save_path, \
-                               ' '.join(np.array(Etot_label.flatten().cpu().data).astype('str')), "a")
-            write_line_to_file(lab_energy_save_path, \
-                               ' '.join(np.array(Etot_predict.flatten().cpu().data).astype('str')), "a")
-            
-        res_pd.to_csv(res_pd_save_path)
-        
-        inference_cout = ""
-        inference_cout += "For {} images: \n".format(res_pd.shape[0])
-        inference_cout += "Avarage REMSE of Etot: {} \n".format(res_pd['RMSE_Etot'].mean())
-        inference_cout += "Avarage REMSE of Etot per atom: {} \n".format(res_pd['RMSE_Etot_per_atom'].mean())
-        if self.dp_params.file_paths.alive_atomic_energy:
-            inference_cout += "Avarage REMSE of Ei: {} \n".format(res_pd['RMSE_Ei'].mean())
-        inference_cout += "Avarage REMSE of RMSE_F: {} \n".format(res_pd['RMSE_F'].mean())
-        if self.dp_params.optimizer_param.train_egroup:
-            inference_cout += "Avarage REMSE of RMSE_Egroup: {} \n".format(res_pd['RMSE_Egroup'].mean())
-        # if self.dp_params.optimizer_param.train_virial:  #not realized
-        #     inference_cout += "Avarage REMSE of RMSE_virial: {} \n".format(res_pd['RMSE_virial'].mean())
-        #     inference_cout += "Avarage REMSE of RMSE_virial_per_atom: {} \n".format(res_pd['RMSE_virial_per_atom'].mean())
-
-        inference_cout += "\nMore details can be found under the file directory:\n{}\n".format(inf_dir)
-        print(inference_cout)
-
-        if self.dp_params.file_paths.alive_atomic_energy:
-            if self.dp_params.optimizer_param.train_ei or self.dp_params.optimizer_param.train_egroup:
-                plot_ei = True
-            else:
-                plot_ei = False
-        else:
-            plot_ei = False
-            
-        plot(inf_dir, plot_ei = plot_ei)
-
-        with open(inference_path, 'w') as wf:
-            wf.writelines(inference_cout)
-        return        
 
     """ 
         ============================================================
@@ -1308,7 +790,7 @@ class nn_network:
     def plot_evaluation(self, plot_elem, save_data):
         if not os.path.exists("MOVEMENT"):
             raise Exception("MOVEMENT not found. It should be force field MD result")
-        import plot_evaluation
+        import src.aux.plot_evaluation as plot_evaluation
         # plot_evaluation.plot()
         if self.dp_params.optimizer_param.train_ei or self.dp_params.optimizer_param.train_egroup:
             plot_ei = True
