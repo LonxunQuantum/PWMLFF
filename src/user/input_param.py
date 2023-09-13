@@ -4,7 +4,7 @@ from utils.json_operation import get_parameter, get_required_parameter
 from src.user.nn_feature_type import Descriptor
 from src.user.model_param import ModelParam
 from src.user.optimizer_param import OptimizerParam
-from user.work_file_param import WorkFileStructure
+from src.user.work_file_param import WorkFileStructure
 '''
 description: 
     covert the input json file to class
@@ -28,21 +28,34 @@ class InputParam(object):
         self.model_num = get_parameter("model_num", json_input, 1)
         # set fitting net, embeding net
         self.recover_train = get_parameter("recover_train", json_input, False)
-        model_dict = get_parameter("model", json_input, {})
 
-        self.descriptor = Descriptor(get_parameter("descriptor", model_dict, {}), self.model_type, self.cmd, self.feature_type)
+        self.type_embedding = get_parameter("type_embedding",json_input, False)
+        model_dict = get_parameter("model", json_input, {})
+        self.descriptor = Descriptor(get_parameter("descriptor", model_dict, {}), self.model_type, self.cmd, self.feature_type, self.type_embedding)
+        self.type_embedding = self.descriptor.type_embedding
         if self.model_type == "DP":
             self.model_param = ModelParam()
-            self.model_param.set_type_embedding_net(get_parameter("type_embedding_net",model_dict, {}))
-            self.model_param.set_embedding_net(get_parameter("descriptor", model_dict, {}))
+            self.type_embedding = self.model_param.set_type_embedding_net(
+                                                    network_size=self.descriptor.type_network_size, 
+                                                    bias=self.descriptor.type_bias, 
+                                                    resnet_dt=self.descriptor.type_resnet_dt, 
+                                                    activation=self.descriptor.type_activation,
+                                                    physical_property=self.descriptor.type_physical_property)
+            self.model_param.set_embedding_net(network_size=self.descriptor.network_size, 
+                                               bias=self.descriptor.bias, 
+                                               resnet_dt=self.descriptor.resnet_dt, 
+                                               activation=self.descriptor.activation)
             self.model_param.set_dp_fitting_net(get_parameter("fitting_net",model_dict, {}))
-
         elif self.model_type == "NN":
             self.model_param = ModelParam()
-            self.model_param.set_type_embedding_net(get_parameter("type_embedding_net",model_dict, {}))
+            self.type_embedding = self.model_param.set_type_embedding_net(
+                                        network_size=self.descriptor.type_network_size, 
+                                        bias=self.descriptor.type_bias, 
+                                        resnet_dt=self.descriptor.type_resnet_dt, 
+                                        activation=self.descriptor.type_activation,
+                                        physical_property=self.descriptor.type_physical_property)
             self.model_param.set_nn_fitting_net(get_parameter("fitting_net",model_dict, {}))
             self.is_dfeat_sparse = get_parameter("is_dfeat_sparse", json_input, False)  #'true' not realized
-
         elif self.model_type == "Linear".upper():
             pass
         else: # linear
@@ -172,7 +185,6 @@ class InputParam(object):
             params_dict["recover_train"] = self.recover_train
 
         params_dict["model"] = {}
-        params_dict["model"]["type_embedding"] = self.model_param.type_embedding_net.to_dict_std()
         params_dict["model"]["descriptor"] = self.descriptor.to_dict()
 
         if self.model_type == "Linear".upper():

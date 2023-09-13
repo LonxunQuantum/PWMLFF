@@ -10,8 +10,8 @@ sys.path.append(os.getcwd())
 # import parameters as pm    
 # import prepare as pp
 # pp.readFeatnum()
-from model.dp_embedding import EmbeddingNet, FittingNet
-from model.calculate_force import CalculateForce, CalculateVirialForce
+from src.model.dp_embedding import EmbeddingNet, FittingNet
+from src.model.calculate_force import CalculateForce, CalculateVirialForce
 # logging and our extension
 import logging
 logging_level_DUMP = 5

@@ -37,7 +37,7 @@ from joblib import dump, load
 
 import pickle
 
-from model.MLFF import MLFFNet
+from src.model.MLFF import MLFFNet
 import default_para as pm
 
 # get_torch_data for nn single system training

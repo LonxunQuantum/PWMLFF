@@ -4,49 +4,60 @@ class NetParam(object):
     def __init__(self, net_type:str) -> None:
         self.net_type = net_type
 
-    def set_params(self, network_size: list, bias:bool, resnet_dt:bool, activation:str):
+    def set_params(self, network_size: list, bias:bool, resnet_dt:bool, activation:str, physical_property:list=None):
+        self.physical_property = physical_property
         self.network_size = network_size
         self.bias = bias
         self.resnet_dt = resnet_dt
         self.activation=activation      
         
     def to_dict(self):
-        return \
-            {
-            "network_size": self.network_size, 
-            "bias": self.bias, 
-            "resnet_dt": self. resnet_dt, 
-            "activation": self.activation
-            }
+        dicts = {}
+        if self.network_size is not None:
+            dicts["network_size"] = self.network_size
+        else:
+            dicts["network_size"] = []
+        if "type_" in self.net_type:
+            dicts["physical_property"] = self.physical_property
+        dicts["bias"] = self.bias, 
+        dicts["resnet_dt"] = self. resnet_dt, 
+        dicts["activation"] = self.activation
+        return dicts
     
     def to_dict_std(self):
-        return \
-            {
-            "network_size": self.network_size
-            # "bias": self.bias, 
-            # "resnet_dt": self. resnet_dt, 
-            # "activation": self.activation
-            }
+        dicts = {}
+        if self.network_size is not None:
+            dicts["network_size"] = self.network_size
+        if "type_" in self.net_type:
+            dicts["physical_property"] = self.physical_property
+        #dicts["bias"] = self.bias, 
+        #dicts["resnet_dt"] = self. resnet_dt, 
+        #dicts["activation"] = self.activation
+        return dicts
 
 class ModelParam(object):
     def __init__(self) -> None:
-        pass
+        self.type_embedding_net = None
+        self.embedding_net = None
+        self.fitting_net = None
 
-    def set_type_embedding_net(self, type_embedding_dict:dict):
-        # set dp embedding net params
-        network_size = get_parameter("network_size", type_embedding_dict, [25, 25, 25])
-        bias = get_parameter("bias", type_embedding_dict, True)
-        resnet_dt = get_parameter("resnet_dt", type_embedding_dict, False) # resnet in embedding net is False.
-        activation = get_parameter("activation", type_embedding_dict, "tanh")
+    '''
+    description: 
+        if type_embedding in first layer of json file is True:
+           if type_embedding is not set under layer of model/descriptor, then, the default type embedding set will be used
+        else:
+           if type_embedding is set under layer of model/descriptor, then the type embedding set will be used
+    param {*} self
+    param {bool} type_embedding
+    param {dict} descriptor_dict
+    return {*}
+    author: wuxingxing
+    '''
+    def set_type_embedding_net(self, network_size:list, bias:bool, resnet_dt:bool, activation:str, physical_property:list):
         self.type_embedding_net = NetParam("type_embedding_net")
-        self.type_embedding_net.set_params(network_size, bias, resnet_dt, activation)
-
-    def set_embedding_net(self, embedding_json:dict):
-        # embedding_json = get_parameter("descriptor", json_input, {})
-        network_size = get_parameter("network_size", embedding_json, [25, 25, 25])
-        bias = get_parameter("bias", embedding_json, True)
-        resnet_dt = get_parameter("resnet_dt", embedding_json, False) # resnet in embedding net is False.
-        activation = get_parameter("activation", embedding_json, "tanh")
+        self.type_embedding_net.set_params(network_size, bias, resnet_dt, activation, physical_property)
+    
+    def set_embedding_net(self, network_size:list, bias:bool, resnet_dt:bool, activation:str):
         self.embedding_net = NetParam("embedding_net")
         self.embedding_net.set_params(network_size, bias, resnet_dt, activation)
 

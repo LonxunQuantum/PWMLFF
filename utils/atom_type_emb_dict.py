@@ -121,12 +121,18 @@ def get_normalized_data(atom_type, type_list:list):
         value = atom_type if typ == "atomic_number" else physical[typ][atom_name]
         if np.isnan(value):
             raise Exception("the physical property {} of atom {} in dict is NaN !".format(typ, atom_name))
-        normalized_data = (value - min_value) / (max_value - min_value)
+        normalized_data = (value - physical_scale[typ][0]) / (physical_scale[typ][1] - physical_scale[typ][0])
         dicts[typ] = normalized_data
+    return dicts
+
+def get_normalized_data_list(atom_type_list: list, type_list:list):
+    dicts = {}
+    for atom in atom_type_list:
+        dicts[atom] = list(get_normalized_data(atom, type_list).values())
     return dicts
 
 if __name__ == "__main__":
     # keys "atomic_number", "atom_mass", "atom_radius", "molar_vol", "melting_point", "boiling_point", "electron_affin", "pauling"
-    res = get_normalized_data(29, ["atomic_number", "atom_mass", "atom_radius", "molar_vol", "melting_point", "boiling_point", "electron_affin", "pauling"])
+    res = get_normalized_data_list([3,29], ["atomic_number", "atom_mass", "atom_radius", "molar_vol", "melting_point", "boiling_point", "electron_affin", "pauling"])
     print(res)
 

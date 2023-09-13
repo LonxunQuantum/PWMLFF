@@ -20,8 +20,7 @@ def dp_train(input_json: json, cmd:str):
     dp_param.print_input_params(json_file_save_name="std_input.json")
     dp_trainer = dp_network(dp_param)
     if len(dp_param.file_paths.train_movement_path) > 0:
-        # feature_path = dp_trainer.generate_data()
-        feature_path = "/data/home/wuxingxing/datas/pwmat_mlff_workdir/lisi/ref_dp_ef/work_train_dir/feature"
+        feature_path = dp_trainer.generate_data()
         dp_param.file_paths.set_train_feature_path([feature_path])
     dp_trainer.load_and_train()
     if os.path.exists(dp_param.file_paths.model_save_path) is False:
