@@ -256,6 +256,7 @@ class Descriptor(object):
 
         if self.model_type == "DP".upper():
             dicts["network_size"] = self.network_size
+            dicts["M2"] = self.M2
             # dicts["bias"] = self.bias
             # dicts["resnet_dt"] = self. resnet_dt 
             # dicts["activation"] = self.activation

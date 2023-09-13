@@ -337,7 +337,7 @@ class KFOptimizerWrapper:
         #print ("natoms_sum",natoms_sum)
         bs = Ei_label.shape[0]
         self.optimizer.set_grad_prefactor(1.0)
-
+        self.optimizer.zero_grad()
         error = Ei_label - Ei_predict
         #TODO: as the comment from RuNNer, the error why scaler by atom_num in Etot is because of
         #Etot is the sum of Ei, so maybe we don't need to scaler the egroup error. NEED CHECK!

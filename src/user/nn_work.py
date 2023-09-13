@@ -5,7 +5,6 @@ from src.user.model_param import DpParam
 from src.PWMLFF.nn_param_extract import extract_force_field
 from src.PWMLFF.nn_network import nn_network
 from utils.file_operation import delete_tree, copy_tree, copy_file
-
 '''
 description: do nn training
     step1. generate feature from MOVEMENTs
@@ -22,6 +21,7 @@ def nn_train(input_json: json, cmd:str):
     nn_trainer = nn_network(nn_param)
     if len(nn_param.file_paths.train_movement_path) > 0:
         feature_path = nn_trainer.generate_data()
+        # feature_path = "/data/home/wuxingxing/datas/pwmat_mlff_workdir/lisi/ref_nn/work_train_dir/feature"
         nn_param.file_paths.set_train_feature_path([feature_path])
     nn_trainer.load_and_train()
     # if the input epochs to the end, model will not be trained and will not be saved at work_dir
