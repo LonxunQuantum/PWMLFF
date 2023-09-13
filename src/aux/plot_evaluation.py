@@ -251,7 +251,7 @@ def plot_new(atom_type, plot_elem = False, save_data = False, plot_ei = False):
     if plot_ei and dft_is_atomic :
         fig, axs = plt.subplots(1, 3, figsize=(19, 5))
     else:
-        fig, axs = plt.subplots(1, 2, figsize=(12, 6))
+        fig, axs = plt.subplots(1, 2, figsize=(15, 8))
 
     # Plot atomic energy
     if plot_ei and dft_is_atomic:

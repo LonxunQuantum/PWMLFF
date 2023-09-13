@@ -220,6 +220,11 @@ class nn_network:
         source_input_dir = os.path.join(sub_work_dir[0], "input")
         if os.path.exists(input_dir) is False:
             shutil.copytree(source_input_dir, input_dir)
+        # copy output dir, grid must be used for feature 1&2
+        output_dir = os.path.join(gen_feature_data, "output")
+        source_output_dir = os.path.join(sub_work_dir[0], "output")
+        if os.path.exists(output_dir) is False:
+            shutil.copytree(source_output_dir, output_dir)
         os.chdir(self.dp_params.file_paths.work_dir)
         self._reset_pm_params(self.dp_params.file_paths.work_dir, self.atom_type)
         
@@ -392,7 +397,8 @@ class nn_network:
             feature_paths = self.dp_params.file_paths.train_feature_path
         self.set_nFeature(feature_paths)
         self.dfread_dfeat_input = load_dfeat_input(os.path.join(feature_paths[0], "fread_dfeat"),
-                                                         os.path.join(feature_paths[0], "input"))
+                                                         os.path.join(feature_paths[0], "input"),
+                                                         os.path.join(feature_paths[0], "output"))
 
         data_list = []
         for feature_path in feature_paths:
