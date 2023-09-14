@@ -89,13 +89,14 @@ def gen_config_inputfile(config):
             )
 
         GenFeatInput.write(str(config["E_tolerance"]) + "    ! E_tolerance  \n")
+        GenFeatInput.write(str(config["gen_egroup_input"]) + "    ! calculate Egroup if 1  \n")
 
-    output_path = os.path.join(config["dRFeatureInputDir"], "egroup.in")
-    with open(output_path, "w") as f:
-        f.writelines(str(config["dwidth"]) + "\n")
-        f.writelines(str(len(config["atomType"])) + "\n")
-        for i in range(len(config["atomType"])):
-            f.writelines(str(config["atomType"][i]["b_init"]) + "\n")
+    # output_path = os.path.join(config["dRFeatureInputDir"], "egroup.in")
+    # with open(output_path, "w") as f:
+    #     f.writelines(str(config["dwidth"]) + "\n")
+    #     f.writelines(str(len(config["atomType"])) + "\n")
+    #     for i in range(len(config["atomType"])):
+    #         f.writelines(str(config["atomType"][i]["b_init"]) + "\n")
 
 
 def get_real_Ep(movement_files,train_set_dir,classify):
@@ -244,10 +245,10 @@ def gen_train_data(config, is_egroup = True, is_virial = True):
     command = "gen_dR.x | tee ./output/out"
     print("==============Start generating data==============")
     os.system(command)
-    command = "gen_egroup.x | tee ./output/out_write_egroup"
-    if is_egroup is True:
-        print("==============Start generating egroup==============")
-        os.system(command)
+    # command = "gen_egroup.x | tee ./output/out_write_egroup"
+    # if is_egroup is True:
+        # print("==============Start generating egroup==============")
+        # os.system(command)
   
     print("==============Success==============")
     
@@ -601,7 +602,7 @@ def compute_Ri(config, image_dR, list_neigh, natoms_img, ind_img, davg, dstd):
 
         natoms_sum = natoms_img[start_index, 0]
         natoms_per_type = natoms_img[start_index, 1:]
-
+       
         image_dR_i = image_dR[
             ind_img[start_index]
             * config["maxNeighborNum"]
@@ -661,7 +662,22 @@ def compute_Ri(config, image_dR, list_neigh, natoms_img, ind_img, davg, dstd):
             Ri = np.concatenate((Ri, Ri_i), 0)
             Ri_d = np.concatenate((Ri_d, Ri_d_i), 0)
 
-    return Ri, Ri_d
+    dwidth = np.sqrt(-config['atomType'][0]['Rc']**2 / np.log(0.01))
+    egroup_weight_neigh = torch.exp(-dR2[mask] / dwidth / dwidth).to(device)
+    egroup_weight_neigh = torch.reshape(egroup_weight_neigh, (-1, natoms_sum, int(ntypes * config["maxNeighborNum"] / natoms_sum)))
+    egroup_weight_expanded = torch.zeros(size=(egroup_weight_neigh.shape[0], egroup_weight_neigh.shape[1], egroup_weight_neigh.shape[2] + 1), dtype=torch.float64)
+    egroup_weight_low_diag = torch.tril(egroup_weight_neigh, diagonal=-1)
+    egroup_weight_expanded[:, :natoms_sum, :egroup_weight_neigh.shape[2]] = egroup_weight_low_diag
+    egroup_weight_all = egroup_weight_expanded + egroup_weight_expanded.transpose(-1,-2)
+    for image in range(egroup_weight_neigh.shape[0]):
+        egroup_weight_all[image].diagonal().fill_(1)   
+            
+    divider = egroup_weight_all.sum(-1)
+
+    egroup_weight_all = egroup_weight_all.detach().cpu().numpy().reshape(-1, natoms_sum)
+    divider = divider.detach().cpu().numpy().reshape(-1)
+
+    return Ri, Ri_d, egroup_weight_all, divider
 
 '''
 description:
@@ -795,21 +811,21 @@ def sepper_data_main(config, is_egroup = True, stat_add = None):
     Ei = np.loadtxt(os.path.join(trainset_dir, "Ei.dat"))
     Force = np.loadtxt(os.path.join(trainset_dir, "Force.dat"))
     if is_egroup:
-        Egroup  = np.loadtxt(os.path.join(trainset_dir, "Egroup_weight.dat"), delimiter=",", usecols=0)   
-        divider = np.loadtxt(os.path.join(trainset_dir, "Egroup_weight.dat"), delimiter=",", usecols=1)   
+        Egroup  = np.loadtxt(os.path.join(trainset_dir, "Egroup.dat"), delimiter=",", usecols=0)   
+        # divider = np.loadtxt(os.path.join(trainset_dir, "Egroup_weight.dat"), delimiter=",", usecols=1)   
         # take care of weights
-        #Egroup_weight = Egroup_file[:, 2:]
-        fp = open(os.path.join(trainset_dir, "Egroup_weight.dat"),"r")
-        raw_egroup = fp.readlines()
-        fp.close()
+        # fp = open(os.path.join(trainset_dir, "Egroup_weight.dat"),"r")
+        # raw_egroup = fp.readlines()
+        # fp.close()
         # form a list to contain 1-d np arrays 
-        egroup_single_arr = []  
-        for line in raw_egroup:
-            tmp  = [float(item) for item in line.split(",")]
-            tmp  = tmp[2:]
-            egroup_single_arr.append(np.array(tmp))
+        # egroup_single_arr = []  
+        # for line in raw_egroup:
+        #     tmp  = [float(item) for item in line.split(",")]
+        #     tmp  = tmp[2:]
+        #     egroup_single_arr.append(np.array(tmp))
     else:
-        Egroup, divider, egroup_single_arr = None, None, None
+        # Egroup, divider, egroup_single_arr = None, None, None
+        Egroup = None
 
     if os.path.exists(os.path.join(trainset_dir, "Virial.dat")):
         Virial = np.loadtxt(os.path.join(trainset_dir, "Virial.dat"), delimiter=" ")
@@ -830,7 +846,8 @@ def sepper_data_main(config, is_egroup = True, stat_add = None):
     for mvm_type_key in movement_classify.keys():
         _Etot, _Ei, _Force, _dR = None, None, None, None
         _atom_num_per_image, _atom_types, _img_per_mvmt = None, None, None,
-        _Egroup, _divider, _egroup_single_arr, _Virial = None, None, None, None
+        _Egroup, _Virial = None, None
+        # _Egroup, _divider, _egroup_single_arr, _Virial = None, None, None, None
         #construct data
         for mvm in movement_classify[mvm_type_key]:
             _Etot = Etot[mvm["etot_rows"][0]:mvm["etot_rows"][1]] if _Etot is None \
@@ -845,10 +862,10 @@ def sepper_data_main(config, is_egroup = True, stat_add = None):
             if Egroup is not None:
                 _Egroup = Egroup[mvm["ei_rows"][0]:mvm["ei_rows"][1]] if _Egroup is None \
                     else np.concatenate([_Egroup, Egroup[mvm["ei_rows"][0]:mvm["ei_rows"][1]]],axis=0)
-                _divider = divider[mvm["ei_rows"][0]:mvm["ei_rows"][1]] if _divider is None \
-                    else np.concatenate([_divider, divider[mvm["ei_rows"][0]:mvm["ei_rows"][1]]],axis=0)
-                _egroup_single_arr = egroup_single_arr[mvm["ei_rows"][0]:mvm["ei_rows"][1]] if _egroup_single_arr is None \
-                    else np.concatenate([_egroup_single_arr, egroup_single_arr[mvm["ei_rows"][0]:mvm["ei_rows"][1]]],axis=0)
+                # _divider = divider[mvm["ei_rows"][0]:mvm["ei_rows"][1]] if _divider is None \
+                #     else np.concatenate([_divider, divider[mvm["ei_rows"][0]:mvm["ei_rows"][1]]],axis=0)
+                # _egroup_single_arr = egroup_single_arr[mvm["ei_rows"][0]:mvm["ei_rows"][1]] if _egroup_single_arr is None \
+                #     else np.concatenate([_egroup_single_arr, egroup_single_arr[mvm["ei_rows"][0]:mvm["ei_rows"][1]]],axis=0)
             # Virial not realized
             if Virial is not None:
                 _Virial = Virial[mvm["etot_rows"][0]:mvm["etot_rows"][1]] if _Virial is None \
@@ -872,10 +889,10 @@ def sepper_data_main(config, is_egroup = True, stat_add = None):
         _davg, _dstd = _reorder_davg_dstd(davg, dstd, list(atom_type_order), mvm['types'])
 
         accum_train_num, accum_valid_num= sepper_data(config, _Etot, _Ei, _Force, _dR, \
-                    _atom_num_per_image, _atom_types, _img_per_mvmt, \
-                    _Egroup, _divider, _egroup_single_arr, _Virial, \
-                        _davg, _dstd,\
-                        stat_add, img_start)
+                                                      _atom_num_per_image, _atom_types, _img_per_mvmt, \
+                                                      _Egroup, _Virial, \
+                                                      _davg, _dstd,\
+                                                      stat_add, img_start)
         
         img_start = [accum_train_num, accum_valid_num]
     if os.path.exists(os.path.join(train_data_path, "davg.npy")) is False:
@@ -996,9 +1013,9 @@ def _calculate_davg_dstd(config, dR_neigh, atom_type, atom_num_per_image, chunk_
     
 def sepper_data(config, Etot, Ei, Force, dR_neigh,\
                 atom_num_per_image, atom_type, img_per_mvmt, \
-                Egroup=None, divider=None, egroup_single_arr = None, Virial=None, \
-                    davg=None, dstd=None,\
-                    stat_add = "./", img_start=[0, 0]):
+                Egroup=None, Virial=None, \
+                davg=None, dstd=None,\
+                stat_add = "./", img_start=[0, 0]):
 
     train_data_path = config["trainDataPath"]
     valid_data_path = config["validDataPath"]
@@ -1030,7 +1047,7 @@ def sepper_data(config, Etot, Ei, Force, dR_neigh,\
         (atom_num_per_image.reshape(-1, 1), narray_diff_atom_types_num), axis=1
     )
     
-    Ri, Ri_d = compute_Ri(
+    Ri, Ri_d, Egroup_weight, Divider = compute_Ri(
             config, image_dR, list_neigh, atom_num_per_image, image_index, davg, dstd
         )
 
@@ -1074,8 +1091,10 @@ def sepper_data(config, Etot, Ei, Force, dR_neigh,\
         
         if Egroup is not None:
             train_set["Egroup"] = Egroup[image_index[start_index] : image_index[end_index]]
-            train_set["Divider"] = divider[image_index[start_index] : image_index[end_index]]
-            train_set["Egroup_weight"] = np.vstack(tuple(egroup_single_arr[image_index[start_index] : image_index[end_index]]))
+            # train_set["Divider"] = divider[image_index[start_index] : image_index[end_index]]
+            train_set["Divider"] = Divider[image_index[start_index] : image_index[end_index]]
+            # train_set["Egroup_weight"] = np.vstack(tuple(egroup_single_arr[image_index[start_index] : image_index[end_index]]))
+            train_set["Egroup_weight"] = Egroup_weight[image_index[start_index] : image_index[end_index]]
         if Virial is not None:
             train_set["Virial"] = Virial[start_index:end_index]
 
@@ -1113,8 +1132,10 @@ def sepper_data(config, Etot, Ei, Force, dR_neigh,\
         
         if Egroup is not None:
             valid_set["Egroup"] = Egroup[image_index[start_index] : image_index[end_index]]
-            valid_set["Divider"] = divider[image_index[start_index] : image_index[end_index]]
-            valid_set["Egroup_weight"] = np.vstack(tuple(egroup_single_arr[image_index[start_index] : image_index[end_index]]))
+            # valid_set["Divider"] = divider[image_index[start_index] : image_index[end_index]]
+            valid_set["Divider"] = Divider[image_index[start_index] : image_index[end_index]]
+            # valid_set["Egroup_weight"] = np.vstack(tuple(egroup_single_arr[image_index[start_index] : image_index[end_index]]))
+            valid_set["Egroup_weight"] = Egroup_weight[image_index[start_index] : image_index[end_index]]
         if Virial is not None:
             valid_set["Virial"] = Virial[start_index:end_index]
 
