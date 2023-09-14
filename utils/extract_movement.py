@@ -151,10 +151,27 @@ class MOVEMENT(object):
                     for line in self.image_list[i].content:
                         wf.write(line)
 
-if __name__ == "__main__":
-    source_movement_file = sys.argv[1]
-    save_movement_file = sys.argv[2]
-    interval = int(sys.argv[3])
-    mvm = MOVEMENT(source_movement_file)
-    mvm.save_image_interval(save_movement_file, interval=interval)
+    def save_image_range(self, save_file, start=0, end=100):
+         with open(save_file, 'w') as wf:
+             for i in range(start, end):
+                for line in self.image_list[i].content:
+                    wf.write(line)
 
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-i', '--input', help='specify input movement filename', type=str, default='MOVEMENT')
+    parser.add_argument('-s', '--savepath', help='specify stored directory', type=str, default='movement_save')
+    parser.add_argument('-wt', '--work_type', help='specify work type {interval or range}', type=str, default='interval')
+    
+    parser.add_argument('-t', '--interval', help='specify interval', type=int, default=10)
+    parser.add_argument('-f', '--first_range', help='specify start of range', type=int, default=0)
+    parser.add_argument('-e', '--end_range', help='specify end of range', type=int, default=1)
+    args = parser.parse_args()
+
+    source_movement_file = args.input
+    mvm = MOVEMENT(source_movement_file)
+    if args.work_type.upper() == "inverval".upper():
+        mvm.save_image_interval(args.savepath, interval=args.interval)
+    elif args.work_type.upper() == "range".upper():
+        mvm.save_image_range(args.savepath, start= args.first_range, end=args.end_range)
