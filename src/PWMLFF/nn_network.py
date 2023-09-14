@@ -203,10 +203,13 @@ class nn_network:
             calc_feat()
             # seperate training set and valid set
             import src.pre_data.seper as seper 
-            seper.seperate_data(chunk_size = chunk_size, shuffle = shuffle, atom_num = atom_num, alive_atomic_energy = self.dp_params.file_paths.alive_atomic_energy)
+            seper.seperate_data(chunk_size = chunk_size, shuffle = shuffle, atom_num = atom_num, 
+                                alive_atomic_energy = self.dp_params.file_paths.alive_atomic_energy, 
+                                train_egroup = self.dp_params.optimizer_param.train_egroup)
             # save as .npy
             import src.pre_data.gen_data as gen_data
-            gen_data.write_data(alive_atomic_energy = self.dp_params.file_paths.alive_atomic_energy)
+            gen_data.write_data(alive_atomic_energy = self.dp_params.file_paths.alive_atomic_energy, 
+                                train_egroup = self.dp_params.optimizer_param.train_egroup)
     
         # copy feat_info and vdw_fitB.ntype
         fread_dfeat_dir = os.path.join(gen_feature_data, "fread_dfeat") #target dir
@@ -389,7 +392,7 @@ class nn_network:
             train_data.dfeat = trans(trans(train_data.dfeat) * self.scaler.scale_) 
             valid_data.dfeat = trans(trans(valid_data.dfeat) * self.scaler.scale_)
 
-    def load_data_hybrid(self, data_shuffle=True, alive_atomic_energy=False):
+    def load_data_hybrid(self, data_shuffle=True, alive_atomic_energy=False, train_egroup = False):
         # load anything other than dfeat
         if self.dp_params.inference:
             feature_paths = self.dp_params.file_paths.test_feature_path
@@ -407,11 +410,11 @@ class nn_network:
                 if os.path.exists(os.path.join(feature_path, data_dir, "train_data", "final_train")):
                     data_list.append(os.path.join(feature_path, data_dir, "train_data"))
         # data_dirs = sorted(data_dirs, key=lambda x: len(x.split('_')), reverse = True)
-        torch_train_data = get_torch_data_hybrid(data_list, "final_train", alive_atomic_energy, \
+        torch_train_data = get_torch_data_hybrid(data_list, "final_train", alive_atomic_energy, train_egroup, \
                                                  atom_type = pm.atomType, is_dfeat_sparse=pm.is_dfeat_sparse)
         self.energy_shift = torch_train_data.energy_shift
 
-        torch_valid_data = get_torch_data_hybrid(data_list, "final_test", alive_atomic_energy, \
+        torch_valid_data = get_torch_data_hybrid(data_list, "final_test", alive_atomic_energy, train_egroup, \
                                                  atom_type = pm.atomType, is_dfeat_sparse=pm.is_dfeat_sparse)
         
         if self.dp_params.inference:
@@ -832,7 +835,9 @@ class nn_network:
 
     def load_and_train(self):
         # transform data
-        self.load_data_hybrid(data_shuffle=self.dp_params.data_shuffle, alive_atomic_energy=self.dp_params.file_paths.alive_atomic_energy)
+        self.load_data_hybrid(data_shuffle=self.dp_params.data_shuffle, 
+                              alive_atomic_energy=self.dp_params.file_paths.alive_atomic_energy, 
+                              train_egroup = self.dp_params.optimizer_param.train_egroup)
         # else:
         #     self.load_data()
         # initialize the network
@@ -916,7 +921,7 @@ class nn_network:
 
         dfeat = Variable(sample_batches['input_dfeat'].to(self.device))  #[40,108,100,42,3]
         
-        if self.dp_params.file_paths.alive_atomic_energy:
+        if self.dp_params.file_paths.alive_atomic_energy and self.dp_params.optimizer_param.train_egroup:
             Egroup_label = Variable(sample_batches['input_egroup'].to(self.device))
             egroup_weight = Variable(sample_batches['input_egroup_weight'].to(self.device))
             divider = Variable(sample_batches['input_divider'].to(self.device))
@@ -979,7 +984,7 @@ class nn_network:
         del Force_label
         del input_data
         del dfeat
-        if self.dp_params.file_paths.alive_atomic_energy:
+        if self.dp_params.file_paths.alive_atomic_energy and self.dp_params.optimizer_param.train_egroup:
             del Egroup_label
             del egroup_weight
             del divider
@@ -997,7 +1002,7 @@ class nn_network:
         Force_label = Variable(sample_batches['output_force'][:,:,:].to(self.device))   #[40,108,3]
         input_data = Variable(sample_batches['input_feat'].to(self.device), requires_grad=True)
         dfeat = Variable(sample_batches['input_dfeat'].to(self.device))  #[40,108,100,42,3]
-        if self.dp_params.file_paths.alive_atomic_energy:
+        if self.dp_params.file_paths.alive_atomic_energy and self.dp_params.optimizer_param.train_egroup:
             Egroup_label = Variable(sample_batches['input_egroup'].to(self.device))
             egroup_weight = Variable(sample_batches['input_egroup_weight'].to(self.device))
             divider = Variable(sample_batches['input_divider'].to(self.device))

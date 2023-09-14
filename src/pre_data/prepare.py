@@ -106,38 +106,6 @@ def movementUsed():
             index=index+numOfImage
 
 def writeGenFeatInput():
-    
-    """
-        do this chunk for some fortran executables
-    """
-    if True:
-        '''
-            gen_2b_feature.in
-                6.0, 200   !  Rc_M, m_neigh
-                2          ! ntype 
-                6          ! iat-type 
-                5.0,3.0,2,0.2,0.5      !Rc,Rm,iflag_grid,fact_base,dR1
-                30       ! n3b1, n3b2 
-                29          ! iat-type 
-                6.0,3.0,2,0.2,0.5      !Rc,Rm,iflag_grid,fact_base,dR1
-                40       !  n3b1, n3b2 
-                0.3    ! E_tolerance (eV)  
-                2     ! iflag_ftype:1,2,3 (three different ways for 3b feature, different sin peak spans) 
-                1     ! recalc_grid, 0 read from file, 1 recalc 
-        '''
-        #gen 2b feature input
-        with open(pm.Ftype1InputPath,'w') as GenFeatInput:
-            GenFeatInput.write(str(pm.Rc_M)+', '+str(pm.maxNeighborNum)+'             !  Rc_M, m_neigh \n')
-            GenFeatInput.write(str(len(pm.atomType))+'               ! ntype \n')
-            for i in range(pm.atomTypeNum):
-                GenFeatInput.write(str(pm.atomType[i])+'              ! iat-type \n')
-                GenFeatInput.write(str(pm.Rc_M)+','+str(pm.Rc_min)+','+str(pm.Ftype1_para['iflag_grid'][i])+','+str(pm.Ftype1_para['fact_base'][i])+','+\
-                    str(pm.Ftype1_para['dR1'][i])+'      !Rc,Rm,iflag_grid,fact_base,dR1 \n')
-                GenFeatInput.write(str(pm.Ftype1_para['numOf2bfeat'][i])+'              ! n2b \n')
-            # GenFeatInput.write(str(pm.maxNeighborNum)+'      ! m_neigh \n')
-            GenFeatInput.write(str(pm.E_tolerance)+'    ! E_tolerance  \n')
-            GenFeatInput.write(str(pm.Ftype1_para['iflag_ftype'])+'    ! iflag_ftype \n')
-            GenFeatInput.write(str(pm.recalc_grid)+'    ! recalc_grid, 0 read from file, 1 recalc \n')
 
     for ftype in pm.use_Ftype:
         #if ftype == 1:
@@ -506,7 +474,7 @@ def r_feat_csv(f_feat):
 def r_egroup_csv(f_egroup):
     """ read feature and energy from pandas data
     """
-    df   = pd.read_csv(f_egroup,header=None,index_col=False,dtype=pm.tf_dtype)
+    df = pd.read_csv(f_egroup,header=None,index_col=False,dtype=pm.tf_dtype)
     egroup = df[0].values
     divider = df[1].values
     egroup_weight = df.drop([0,1],axis=1).values 
