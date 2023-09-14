@@ -53,7 +53,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
             Force_label_cpu = sample_batches['output_force'][:,:,:].double()
             input_data_cpu = sample_batches['input_feat'].double()
             dfeat_cpu = sample_batches['input_dfeat'].double()
-            if args.file_paths.alive_atomic_energy:
+            if args.file_paths.alive_atomic_energy and args.optimizer_param.train_egroup:
                 Egroup_label_cpu = sample_batches['input_egroup'].double()
                 egroup_weight_cpu = sample_batches['input_egroup_weight'].double()
                 divider_cpu = sample_batches['input_divider'].double()
@@ -66,7 +66,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
             Force_label_cpu = sample_batches['output_force'][:,:,:].float()
             input_data_cpu = sample_batches['input_feat'].float()
             dfeat_cpu = sample_batches['input_dfeat'].float()
-            if args.file_paths.alive_atomic_energy:
+            if args.file_paths.alive_atomic_energy and args.optimizer_param.train_egroup:
                 Egroup_label = sample_batches['input_egroup'].float()
                 egroup_weight = sample_batches['input_egroup_weight'].float()
                 divider = sample_batches['input_divider'].float()
@@ -301,7 +301,7 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:DpPa
             Force_label_cpu = sample_batches['output_force'][:,:,:].double()
             input_data_cpu = sample_batches['input_feat'].double()
             dfeat_cpu = sample_batches['input_dfeat'].double()
-            if args.file_paths.alive_atomic_energy:
+            if args.file_paths.alive_atomic_energy and args.optimizer_param.train_egroup:
                 Egroup_label_cpu = sample_batches['input_egroup'].double()
                 egroup_weight_cpu = sample_batches['input_egroup_weight'].double()
                 divider_cpu = sample_batches['input_divider'].double()
@@ -314,7 +314,7 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:DpPa
             Force_label_cpu = sample_batches['output_force'][:,:,:].float()
             input_data_cpu = sample_batches['input_feat'].float()
             dfeat_cpu = sample_batches['input_dfeat'].float()
-            if args.file_paths.alive_atomic_energy:
+            if args.file_paths.alive_atomic_energy and args.optimizer_param.train_egroup:
                 Egroup_label = sample_batches['input_egroup'].float()
                 egroup_weight = sample_batches['input_egroup_weight'].float()
                 divider = sample_batches['input_divider'].float()
@@ -332,7 +332,7 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:DpPa
         Force_label = Variable(Force_label_cpu.to(device))   #[40,108,3]
         input_data = Variable(input_data_cpu.to(device), requires_grad=True)
         dfeat = Variable(dfeat_cpu.to(device))
-        if args.file_paths.alive_atomic_energy:
+        if args.file_paths.alive_atomic_energy and args.optimizer_param.train_egroup:
             Egroup_label = Variable(Egroup_label_cpu.to(device))
             egroup_weight = Variable(egroup_weight_cpu.to(device))
             divider = Variable(divider_cpu.to(device))
@@ -466,7 +466,7 @@ def valid(val_loader, model, criterion, device, args:DpParam):
                 Force_label_cpu = sample_batches['output_force'][:,:,:].double()
                 input_data_cpu = sample_batches['input_feat'].double()
                 dfeat_cpu = sample_batches['input_dfeat'].double()
-                if args.file_paths.alive_atomic_energy:
+                if args.file_paths.alive_atomic_energy and args.optimizer_param.train_egroup:
                     Egroup_label_cpu = sample_batches['input_egroup'].double()
                     egroup_weight_cpu = sample_batches['input_egroup_weight'].double()
                     divider_cpu = sample_batches['input_divider'].double()
@@ -479,7 +479,7 @@ def valid(val_loader, model, criterion, device, args:DpParam):
                 Force_label_cpu = sample_batches['output_force'][:,:,:].float()
                 input_data_cpu = sample_batches['input_feat'].float()
                 dfeat_cpu = sample_batches['input_dfeat'].float()
-                if args.file_paths.alive_atomic_energy:
+                if args.file_paths.alive_atomic_energy and args.optimizer_param.train_egroup:
                     Egroup_label = sample_batches['input_egroup'].float()
                     egroup_weight = sample_batches['input_egroup_weight'].float()
                     divider = sample_batches['input_divider'].float()
@@ -497,7 +497,7 @@ def valid(val_loader, model, criterion, device, args:DpParam):
             Force_label = Variable(Force_label_cpu.to(device))   #[40,108,3]
             input_data = Variable(input_data_cpu.to(device), requires_grad=True)
             dfeat = Variable(dfeat_cpu.to(device))
-            if args.file_paths.alive_atomic_energy:
+            if args.file_paths.alive_atomic_energy and args.optimizer_param.train_egroup:
                 Egroup_label = Variable(Egroup_label_cpu.to(device))
                 egroup_weight = Variable(egroup_weight_cpu.to(device))
                 divider = Variable(divider_cpu.to(device))
@@ -641,7 +641,7 @@ def predict(val_loader, model, criterion, device, args:DpParam):
             Force_label_cpu = sample_batches['output_force'][:,:,:].double()
             input_data_cpu = sample_batches['input_feat'].double()
             dfeat_cpu = sample_batches['input_dfeat'].double()
-            if args.file_paths.alive_atomic_energy:
+            if args.file_paths.alive_atomic_energy and args.optimizer_param.train_egroup:
                 Egroup_label_cpu = sample_batches['input_egroup'].double()
                 egroup_weight_cpu = sample_batches['input_egroup_weight'].double()
                 divider_cpu = sample_batches['input_divider'].double()
@@ -654,7 +654,7 @@ def predict(val_loader, model, criterion, device, args:DpParam):
             Force_label_cpu = sample_batches['output_force'][:,:,:].float()
             input_data_cpu = sample_batches['input_feat'].float()
             dfeat_cpu = sample_batches['input_dfeat'].float()
-            if args.file_paths.alive_atomic_energy:
+            if args.file_paths.alive_atomic_energy and args.optimizer_param.train_egroup:
                 Egroup_label = sample_batches['input_egroup'].float()
                 egroup_weight = sample_batches['input_egroup_weight'].float()
                 divider = sample_batches['input_divider'].float()
@@ -672,7 +672,7 @@ def predict(val_loader, model, criterion, device, args:DpParam):
         Force_label = Variable(Force_label_cpu.to(device))   #[40,108,3]
         input_data = Variable(input_data_cpu.to(device), requires_grad=True)
         dfeat = Variable(dfeat_cpu.to(device))
-        if args.file_paths.alive_atomic_energy:
+        if args.file_paths.alive_atomic_energy and args.optimizer_param.train_egroup:
             Egroup_label = Variable(Egroup_label_cpu.to(device))
             egroup_weight = Variable(egroup_weight_cpu.to(device))
             divider = Variable(divider_cpu.to(device))
