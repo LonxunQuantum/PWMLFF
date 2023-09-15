@@ -945,6 +945,8 @@ return: two list: energy shift list and atom type list
 author: wuxingxing
 '''
 def _calculate_energy_shift(Ei, atom_type, atom_num_per_image,  chunk_size=10):
+    if chunk_size > len(atom_num_per_image):
+        chunk_size = len(atom_num_per_image)
     Ei = Ei[: sum(atom_num_per_image[:chunk_size])]
     atom_type = atom_type[: sum(atom_num_per_image[:chunk_size])]
     type_dict = {}
@@ -1005,7 +1007,8 @@ def _calculate_davg_dstd(config, dR_neigh, atom_type, atom_num_per_image, chunk_
     atom_num_per_image = np.concatenate(
         (atom_num_per_image.reshape(-1, 1), narray_diff_atom_types_num), axis=1
     )
-    
+    if len(image_index)-1 < chunk_size:
+        chunk_size = len(image_index)-1
     davg, dstd = calc_stat(
             config,
             image_dR[0 : image_index[chunk_size] * max_neighbor_num * ntypes],

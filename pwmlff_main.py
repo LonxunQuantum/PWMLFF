@@ -11,9 +11,9 @@ from utils.gen_multi_train import multi_train
 from src.user.ckpt_extract import extract_force_field
 
 if __name__ == "__main__":
-    # cmd_type = sys.argv[1].upper()
+    cmd_type = sys.argv[1].upper()
     # cmd_type = "test".upper()
-    cmd_type = "train".upper()
+    # cmd_type = "train".upper()
     # cmd_type = "gen_feat".upper()
     # cmd_type = "multi_train".upper()
     # cmd_type = "explore".upper()
@@ -23,10 +23,10 @@ if __name__ == "__main__":
         ckpt_file = sys.argv[2]
         extract_force_field(ckpt_file, cmd_type)
     else:
-        # json_path = sys.argv[2]
+        json_path = sys.argv[2]
         # cmd_type = "test".upper()
         
-        json_path = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/4-CH4-dbg/dp_train_final.json"
+        # json_path = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/4-CH4-dbg/dp_train_final.json"
         os.chdir(os.path.dirname(os.path.abspath(json_path)))
         json_file = json.load(open(json_path))
         model_type = get_required_parameter("model_type", json_file).upper()  # model type : dp or nn or linear
