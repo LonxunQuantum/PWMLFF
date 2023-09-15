@@ -128,6 +128,8 @@ def get_normalized_data(atom_type, type_list:list):
 def get_normalized_data_list(atom_type_list: list, type_list:list):
     dicts = {}
     for atom in atom_type_list:
+        if atom == 0:
+            continue
         dicts[atom] = list(get_normalized_data(atom, type_list).values())
     return dicts
 

@@ -162,7 +162,7 @@ class TypeDP(nn.Module):
                 tmp_a_ = Ri[:, atom_sum:atom_sum+natoms[ntype], ntype_1 * self.maxNeighborNum:(ntype_1+1) * self.maxNeighborNum]
                 tmp_a = tmp_a_ if tmp_a is None else torch.concat((tmp_a, tmp_a_), dim=2)
 
-                type_emb_ = torch.tensor(type_vector[atom_type_cpu[ntype_1]], dtype=self.dtype, device=self.device).repeat(self.maxNeighborNum,1)
+                type_emb_ = torch.tensor(type_vector[self.atom_type[ntype_1]], dtype=self.dtype, device=self.device).repeat(self.maxNeighborNum,1)
                 type_emb_feat = type_emb_ if type_emb_feat is None else torch.concat((type_emb_feat, type_emb_), dim=0)
             tmp_a = tmp_a.transpose(-2, -1)
             # For each neighbor of the central atom 'ntype', obtain the type code by passing it through the type embedding net
