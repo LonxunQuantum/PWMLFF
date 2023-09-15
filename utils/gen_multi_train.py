@@ -3,7 +3,7 @@ import json
 import os, random, shutil
 from utils.file_operation import delete_tree
 from src.slurm.slurm import SlurmJob, Mission
-from src.user.model_param import DpParam
+from src.user.input_param import InputParam
 """
 This script generates multiple training jobs for PWmatMLFF. It takes a json file and a slurm file as input, and generates multiple training jobs based on the number of models specified in the json file. The script first generates features using the PWMLFF gen_feat command, and then trains each model using the PWMLFF train command. The script also modifies the json file for each model to specify the working directory, model store directory, and forcefield directory. The script uses subprocess to submit jobs to the slurm scheduler.
 """
@@ -42,7 +42,7 @@ def do_gen_feature_job(json_path, slurm_file):
 def do_train_job(json_path, cmd, slurm_template):
     json_dir = os.path.dirname(os.path.abspath(json_path))
     json_file = json.load(open(json_path))
-    dp_param = DpParam(json_file, cmd) 
+    dp_param = InputParam(json_file, cmd) 
     
     json_file = json.load(open(json_path))
     model_num = json_file['model_num']
@@ -79,7 +79,7 @@ def do_train_job(json_path, cmd, slurm_template):
     # post process of multi train
     post_process_multi_train(dp_param)
 
-def set_json_file(json_file:json, dp_param:DpParam, index):
+def set_json_file(json_file:json, dp_param:InputParam, index):
     # set json file dir name
     json_file["model_num"] = 1
     json_file["model_store_dir"] = "{}_{}".format(os.path.basename(dp_param.file_paths.model_store_dir), index)
@@ -91,7 +91,7 @@ def set_json_file(json_file:json, dp_param:DpParam, index):
     json_file["seed"] = random.randint(1,1000000)
     return json_file
 
-def post_process_multi_train(dp_param:DpParam):
+def post_process_multi_train(dp_param:InputParam):
     # delete slurm file
     file_list = os.listdir(dp_param.file_paths.json_dir)
     for file in file_list:

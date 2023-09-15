@@ -1,11 +1,11 @@
 import os
 import shutil
-from src.user.model_param import DpParam
+from src.user.input_param import InputParam
 import torch
 import numpy as np
 import src.aux.extract_ff as extract_ff
 
-def extract_force_field(dp_params:DpParam):
+def extract_force_field(dp_params:InputParam):
     config = dp_params.get_dp_net_dict()
     forcefield_dir = dp_params.file_paths.forcefield_dir
     if os.path.exists(forcefield_dir):
@@ -15,12 +15,13 @@ def extract_force_field(dp_params:DpParam):
     cwd = os.getcwd()
     os.chdir(forcefield_dir)
     extract_model_para(config, dp_params)
+    print("extract_model_para function need redo")
 
     mk = config["net_cfg"]["fitting_net"]["resnet_dt"]
     extract_ff.extract_ff(ff_name = dp_params.file_paths.forcefield_name, model_type = 5, atom_type = dp_params.atom_type, max_neigh_num = dp_params.max_neigh_num, is_fitting_recon = mk)
     os.chdir(cwd)
     
-def extract_model_para(config:dict, dp_params:DpParam):
+def extract_model_para(config:dict, dp_params:InputParam):
     """ 
         extract the model parameters of DP network
         NEED TO ADD SESSION DIR NAME 
@@ -56,9 +57,11 @@ def extract_model_para(config:dict, dp_params:DpParam):
     module_sign = True if "module" in list(raw.keys())[0] else False
 
     #determining # of networks 
-    nEmbedingNet = len(config["atomType"])**2  
-    nFittingNet = len(config["atomType"])
 
+    # nEmbedingNet = len(config["atomType"])**2  
+    # nFittingNet = len(config["atomType"])
+    nEmbedingNet, nFittingNet = count_net_nums(list(raw.keys()))
+    
     print("number of embedding network:",nEmbedingNet)
     print("\n")
     print("number of fitting network:",nFittingNet)
@@ -264,7 +267,19 @@ def catNameFittingB(idxNet, idxLayer, has_module=""):
 
 def catNameFittingRes(idxNet, idxResNet, has_module=""):
     return "{}fitting_net.".format(has_module)+str(idxNet)+".resnet_dt.resnet_dt"+str(idxResNet)
-    
+
+def count_net_nums(net_list:list):
+    net = {}
+    for i in net_list:
+        net_type, index = i.split('.')[:2]
+        key = "{}_{}".format(net_type, index)
+        if net_type not in net.keys():
+            net[net_type] = [key]
+        else:
+            if key not in net[net_type]:
+                net[net_type].append(key)
+    return [len(_[1]) for _ in net.items()]
+
 def dump(item, f):
     raw_str = ''
     for num in item:

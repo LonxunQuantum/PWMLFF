@@ -1,5 +1,5 @@
 import numpy as np
-from src.user.model_param import DpParam
+from src.user.input_param import InputParam
 # def dp_loss(
 #     start_lr,
 #     real_lr,
@@ -15,7 +15,7 @@ from src.user.model_param import DpParam
 #     loss_Ei,
 #     natoms_sum,
 # ):
-def dp_loss(dp_param:DpParam, start_lr, real_lr, stat, *args):
+def dp_loss(dp_param:InputParam, start_lr, real_lr, stat, *args):
 
     if stat == 1:   
         has_fi, lossFi, has_etot, loss_Etot, has_virial, loss_Virial, has_egroup, loss_Egroup, has_ei, loss_Ei, natoms_sum = args

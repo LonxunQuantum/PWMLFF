@@ -1,7 +1,7 @@
 import os
 import json
 
-from src.user.model_param import DpParam
+from src.user.input_param import InputParam
 from src.PWMLFF.dp_param_extract import extract_force_field
 from src.PWMLFF.dp_network import dp_network
 from utils.file_operation import delete_tree, copy_tree, copy_file
@@ -16,7 +16,7 @@ return {*}
 author: wuxingxing
 '''
 def dp_train(input_json: json, cmd:str):
-    dp_param = DpParam(input_json, cmd) 
+    dp_param = InputParam(input_json, cmd) 
     dp_param.print_input_params(json_file_save_name="std_input.json")
     dp_trainer = dp_network(dp_param)
     if len(dp_param.file_paths.train_movement_path) > 0:
@@ -38,7 +38,7 @@ def dp_train(input_json: json, cmd:str):
 
 
 def gen_dp_feature(input_json: json, cmd:str):
-    dp_param = DpParam(input_json, cmd) 
+    dp_param = InputParam(input_json, cmd) 
     dp_param.print_input_params(json_file_save_name="std_input.json")
     dp_trainer = dp_network(dp_param)
     if len(dp_param.file_paths.train_movement_path) > 0:
@@ -58,7 +58,7 @@ return {*}
 author: wuxingxing
 '''
 def dp_test(input_json: json, cmd:str):
-    dp_param = DpParam(input_json, cmd)
+    dp_param = InputParam(input_json, cmd)
     dp_param.print_input_params(json_file_save_name="std_input.json")
     dp_trainer = dp_network(dp_param)
     gen_feat_dir = dp_trainer.generate_data()

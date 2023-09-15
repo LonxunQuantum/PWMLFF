@@ -1,6 +1,6 @@
 import os
 import shutil
-from src.user.model_param import DpParam
+from src.user.input_param import InputParam
 import torch
 import numpy as np
 import src.aux.extract_ff as extract_ff
@@ -12,7 +12,7 @@ def extract_force_field(ckpt_file, cmd_type):
     #json_file
     model_checkpoint = torch.load(ckpt_file,map_location=torch.device("cpu"))
     json_dict = model_checkpoint["json_file"]
-    dp_param = DpParam(json_dict, "train".upper())
+    dp_param = InputParam(json_dict, "train".upper())
     # set forcefiled save path
     dp_param.file_paths.forcefield_dir = os.path.join(os.getcwd(), os.path.basename(dp_param.file_paths.forcefield_dir))
     dp_param.file_paths.model_save_path = os.path.join(os.getcwd(), ckpt_file) if os.path.isabs(ckpt_file) is False else ckpt_file

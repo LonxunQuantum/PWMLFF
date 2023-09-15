@@ -31,13 +31,13 @@ import torch.utils.data as Data
 from torch.autograd import Variable
 
 import time
-from optimizer.KFWrapper import KFOptimizerWrapper
+from src.optimizer.KFWrapper import KFOptimizerWrapper
 from sklearn.preprocessing import MinMaxScaler
 from joblib import dump, load
 
 import pickle
 
-from model.MLFF import MLFFNet
+from src.model.MLFF import MLFFNet
 import default_para as pm
 
 # get_torch_data for nn single system training
@@ -52,12 +52,12 @@ from src.PWMLFF.nn_param_extract import load_scaler_from_checkpoint, load_dfeat_
 from utils.file_operation import write_line_to_file, smlink_file
 from utils.debug_operation import check_cuda_memory
 
-from src.user.model_param import DpParam
+from src.user.input_param import InputParam
 # from optimizer.kalmanfilter import GKalmanFilter, LKalmanFilter, SKalmanFilter
 from src.optimizer.GKF import GKFOptimizer
 from src.optimizer.LKF import LKFOptimizer
 
-from src.PWMLFF.nn_mods.nn_trainer import train_KF, train, valid, save_checkpoint, predict
+from src.PWMLFF.nn_mods.nn_trainer import train_KF, train, valid, predict
 
 """
     class that wraps the training model and the data
@@ -67,7 +67,7 @@ from src.PWMLFF.nn_mods.nn_trainer import train_KF, train, valid, save_checkpoin
     Using default_para is purely a legacy problem
 """  
 class nn_network:
-    def __init__(self, dp_params: DpParam):
+    def __init__(self, dp_params: InputParam):
         self.workers = 1
         # Global parameters of the class.  
         # Some member data are only "declared" here, and assignment requires further operations 

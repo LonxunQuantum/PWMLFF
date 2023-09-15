@@ -10,8 +10,10 @@ sys.path.append(os.getcwd())
 # import parameters as pm    
 # import prepare as pp
 # pp.readFeatnum()
-from src.model.dp_embedding import EmbeddingNet, FittingNet
+from src.model.dp_embedding_typ_emb import EmbeddingNet, FittingNet
 from src.model.calculate_force import CalculateForce, CalculateVirialForce
+from utils.atom_type_emb_dict import get_normalized_data_list
+
 # logging and our extension
 import logging
 logging_level_DUMP = 5
@@ -33,9 +35,9 @@ def warning(msg, *args, **kwargs):
 def error(msg, *args, **kwargs):
     logger.error(msg, *args, **kwargs, exc_info=True)
 
-class DP(nn.Module):
+class TypeDP(nn.Module):
     def __init__(self, config, device, stat, magic=False):
-        super(DP, self).__init__()
+        super(TypeDP, self).__init__()
         self.config = config
         self.ntypes = len(config['atomType'])
         self.atom_type = [_['type'] for _ in config['atomType']] #this value in used in forward for hybrid Training
@@ -54,10 +56,19 @@ class DP(nn.Module):
         self.fitting_net = nn.ModuleList()
         
         # initial bias for fitting net? 
+        # initial type embedding net
+        if len(self.config["net_cfg"]["type_embedding_net"]["network_size"]) > 0:
+            self.embedding_net.append(EmbeddingNet(self.config["net_cfg"]["type_embedding_net"], type_feat_num=None, is_type_emb=True))
+            type_feat_num = self.config["net_cfg"]["type_embedding_net"]["network_size"][-1]
+        else:
+            type_feat_num = len(self.config["net_cfg"]["type_embedding_net"]["physical_property"])
+        # initial embedding net
+        self.embedding_net.append(EmbeddingNet(self.config["net_cfg"]["embedding_net"], 
+                                               type_feat_num= type_feat_num,# if type_emb_net exists, type_feat_num is last layer of net work, otherwise, is type num of physical_property
+                                               is_type_emb=False))
+        # initial fitting net
+        fitting_net_input_dim = self.config["net_cfg"]["embedding_net"]["network_size"][-1]
         for i in range(self.ntypes):
-            for j in range(self.ntypes):
-                self.embedding_net.append(EmbeddingNet(self.config["net_cfg"]["embedding_net"], magic))
-            fitting_net_input_dim = self.config["net_cfg"]["embedding_net"]["network_size"][-1]
             self.fitting_net.append(FittingNet(config["net_cfg"]["fitting_net"], self.M2 * fitting_net_input_dim, self.stat[2][i], magic))
 
     def get_egroup(self, Ei, Egroup_weight, divider):
@@ -132,25 +143,37 @@ class DP(nn.Module):
         natoms_sum = Ri.shape[1]
         batch_size = Ri.shape[0]
         atom_sum = 0
-        emb_list, type_nums =  self.get_train_2body_type(list(np.array(atom_type.cpu())[0]))
+        atom_type_cpu = list(np.array(atom_type.cpu())[0])
+        emb_list, type_nums =  self.get_train_2body_type(atom_type_cpu)
+        # get type_embedding_vector
+        physical_property = self.config["net_cfg"]["type_embedding_net"]["physical_property"]
+        type_vector = get_normalized_data_list(atom_type_cpu, physical_property)
         Ei = None
         for type_emb in emb_list:
-            xyz_scater_a = None
+            S_Rij = None
+            tmp_a = None
+            type_emb_feat = None
             for emb in type_emb:
-                ntype, ntype_1 = emb
-                # print(ntype, "\t\t", ntype_1)
-                # dim of Ri: batch size, natom_sum, ntype*max_neigh_num, local environment matrix , ([10,9,300,4])
-                S_Rij = Ri[:, atom_sum:atom_sum+natoms[ntype], ntype_1 * self.maxNeighborNum:(ntype_1+1) * self.maxNeighborNum, 0].unsqueeze(-1)
-                # determines which embedding net
-                embedding_index = ntype * self.ntypes + ntype_1
-                # itermediate output of embedding net 
-                # dim of G: batch size, natom of ntype, max_neigh_num, final layer dim
-                G = self.embedding_net[embedding_index](S_Rij)
-                # symmetry conserving 
-                tmp_a = Ri[:, atom_sum:atom_sum+natoms[ntype], ntype_1 * self.maxNeighborNum:(ntype_1+1) * self.maxNeighborNum].transpose(-2, -1)
-                tmp_b = torch.matmul(tmp_a, G)
-                xyz_scater_a = tmp_b if xyz_scater_a is None else xyz_scater_a + tmp_b
+                ntype, ntype_1 = emb # Compatible with hybrid training
+                #        Ri[images, atom_type_list            ,  neighbor_list_of_different_atom_type,  SRij_value]
+                S_Rij_ = Ri[:, atom_sum:atom_sum+natoms[ntype], ntype_1 * self.maxNeighborNum:(ntype_1+1) * self.maxNeighborNum, 0].unsqueeze(-1)
+                S_Rij = S_Rij_ if S_Rij is None else torch.concat((S_Rij, S_Rij_), dim=2)
+
+                tmp_a_ = Ri[:, atom_sum:atom_sum+natoms[ntype], ntype_1 * self.maxNeighborNum:(ntype_1+1) * self.maxNeighborNum]
+                tmp_a = tmp_a_ if tmp_a is None else torch.concat((tmp_a, tmp_a_), dim=2)
+
+                type_emb_ = torch.tensor(type_vector[atom_type_cpu[ntype_1]], dtype=self.dtype, device=self.device).repeat(self.maxNeighborNum,1)
+                type_emb_feat = type_emb_ if type_emb_feat is None else torch.concat((type_emb_feat, type_emb_), dim=0)
+            tmp_a = tmp_a.transpose(-2, -1)
+            # For each neighbor of the central atom 'ntype', obtain the type code by passing it through the type embedding net
             
+            if len(self.embedding_net) > 1:
+                type_emb_encoded = self.embedding_net[0](type_emb_feat)
+                S_Rij_type = torch.concat((S_Rij, type_emb_encoded.unsqueeze(0).unsqueeze(0).expand(S_Rij.shape[0], S_Rij.shape[1], -1, -1)), dim=3)
+            else:
+                S_Rij_type = torch.concat((S_Rij, type_emb_feat.unsqueeze(0).unsqueeze(0).expand(S_Rij.shape[0], S_Rij.shape[1], -1, -1)), dim=3)
+            G = self.embedding_net[-1](S_Rij_type) #[4, 60, 200, 25] li-si S_Rij_type
+            xyz_scater_a = torch.matmul(tmp_a, G)
             # attention: for hybrid training, the division should be done based on \
             #   the number of element types in the current image, because the images may from different systems.
             xyz_scater_a = xyz_scater_a / (self.maxNeighborNum * type_nums)

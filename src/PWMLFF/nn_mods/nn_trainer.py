@@ -12,10 +12,10 @@ from optimizer.KFWrapper import KFOptimizerWrapper
 import horovod.torch as hvd
 from torch.profiler import profile, record_function, ProfilerActivity
 from src.aux.plot_nn_inference import plot
-from src.user.model_param import DpParam
+from src.user.input_param import InputParam
 from utils.file_operation import write_line_to_file
 
-def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, args:DpParam):
+def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, args:InputParam):
     batch_time = AverageMeter("Time", ":6.3f")
     data_time = AverageMeter("Data", ":6.3f")
     losses = AverageMeter("Loss", ":.4e", Summary.AVERAGE)
@@ -262,11 +262,11 @@ param {*} criterion
 param {*} optimizer
 param {*} epoch
 param {*} device
-param {DpParam} args
+param {InputParam} args
 return {*}
 author: wuxingxing
 '''
-def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:DpParam):
+def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:InputParam):
     batch_time = AverageMeter("Time", ":6.3f")
     data_time = AverageMeter("Data", ":6.3f")
     losses = AverageMeter("Loss", ":.4e", Summary.AVERAGE)
@@ -457,7 +457,7 @@ def _classify_batchs(atom_types: np.ndarray, img_natoms: np.ndarray):
             dicts[key] = [i]
     return [dicts[_] for _ in dicts.keys()]
 
-def valid(val_loader, model, criterion, device, args:DpParam):
+def valid(val_loader, model, criterion, device, args:InputParam):
     def run_validate(loader, base_progress=0):
         end = time.time()
         for i, sample_batches in enumerate(loader):
@@ -615,7 +615,7 @@ param {*} args
 return {*}
 author: wuxingxing
 '''
-def predict(val_loader, model, criterion, device, args:DpParam):
+def predict(val_loader, model, criterion, device, args:InputParam):
     train_lists = ["img_idx", "RMSE_Etot", "RMSE_Etot_per_atom", "RMSE_Ei", "RMSE_F"]
     if args.optimizer_param.train_egroup:
         train_lists.append("RMSE_Egroup")

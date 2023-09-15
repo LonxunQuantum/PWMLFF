@@ -19,8 +19,8 @@ import math
 import default_para as pm    
 # import prepare as pp
 # pp.readFeatnum()
-from model.embedding import EmbedingNet, FittingNet
-from model.calculate_force import CalculateForce
+from src.model.embedding import EmbedingNet, FittingNet
+from src.model.calculate_force import CalculateForce
 # logging and our extension
 import logging
 logging_level_DUMP = 5

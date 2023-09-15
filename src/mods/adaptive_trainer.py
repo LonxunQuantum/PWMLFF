@@ -991,7 +991,7 @@ class adaptive_trainer():
         self.trainer_list[idx].extract_force_field(name = str(idx+1)+".ff")
 
     def train(self):
-        from PWMLFF.dp_network import dp_network
+        from src.PWMLFF.dp_network import dp_network
         import time
         """
             a self-contained training process

@@ -1,20 +1,19 @@
 import os
 import pandas as pd
 import numpy as np
-import shutil
 import time
 from enum import Enum
 import torch
 from torch.utils.data import Subset
 from torch.autograd import Variable
-from loss.dploss import dp_loss, adjust_lr
-from optimizer.KFWrapper import KFOptimizerWrapper
+from src.loss.dploss import dp_loss, adjust_lr
+from src.optimizer.KFWrapper import KFOptimizerWrapper
 import horovod.torch as hvd
 from torch.profiler import profile, record_function, ProfilerActivity
 
-from src.user.model_param import DpParam
+from src.user.input_param import InputParam
 
-def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, args:DpParam):
+def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, args:InputParam):
     batch_time = AverageMeter("Time", ":6.3f")
     data_time = AverageMeter("Data", ":6.3f")
     losses = AverageMeter("Loss", ":.4e", Summary.AVERAGE)
@@ -287,7 +286,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
     )
 
 
-def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:DpParam):
+def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:InputParam):
     batch_time = AverageMeter("Time", ":6.3f")
     data_time = AverageMeter("Data", ":6.3f")
     losses = AverageMeter("Loss", ":.4e", Summary.AVERAGE)
@@ -520,7 +519,7 @@ def _classify_batchs(atom_types: np.ndarray, img_natoms: np.ndarray):
             dicts[key] = [i]
     return [dicts[_] for _ in dicts.keys()]
 
-def valid(val_loader, model, criterion, device, args:DpParam):
+def valid(val_loader, model, criterion, device, args:InputParam):
     def run_validate(loader, base_progress=0):
         end = time.time()
         for i, sample_batches in enumerate(loader):
@@ -702,7 +701,7 @@ param {*} args
 return {*}
 author: wuxingxing
 '''
-def predict(val_loader, model, criterion, device, args:DpParam):
+def predict(val_loader, model, criterion, device, args:InputParam):
     train_lists = ["img_idx"] #"Etot_lab", "Etot_pre", "Ei_lab", "Ei_pre", "Force_lab", "Force_pre"
     train_lists.extend(["RMSE_Etot", "RMSE_Etot_per_atom", "RMSE_Ei", "RMSE_F"])
     if args.optimizer_param.train_egroup:
