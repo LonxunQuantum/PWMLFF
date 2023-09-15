@@ -665,8 +665,8 @@ def compute_Ri(config, image_dR, list_neigh, natoms_img, ind_img, davg, dstd):
     if config['gen_egroup_input'] == 1:
         dwidth = np.sqrt(-config['atomType'][0]['Rc']**2 / np.log(0.01))
         egroup_weight_neigh = torch.exp(-dR2[mask] / dwidth / dwidth).to(device)
-        egroup_weight_neigh = torch.reshape(egroup_weight_neigh, (-1, natoms_sum, int(ntypes * config["maxNeighborNum"] / natoms_sum)))
-        egroup_weight_expanded = torch.zeros(size=(egroup_weight_neigh.shape[0], egroup_weight_neigh.shape[1], egroup_weight_neigh.shape[2] + 1), dtype=torch.float64)
+        egroup_weight_neigh = torch.reshape(egroup_weight_neigh, (-1, natoms_sum, natoms_sum - 1))
+        egroup_weight_expanded = torch.zeros(size=(egroup_weight_neigh.shape[0], natoms_sum, natoms_sum), dtype=torch.float64)
         egroup_weight_low_diag = torch.tril(egroup_weight_neigh, diagonal=-1)
         egroup_weight_expanded[:, :natoms_sum, :egroup_weight_neigh.shape[2]] = egroup_weight_low_diag
         egroup_weight_all = egroup_weight_expanded + egroup_weight_expanded.transpose(-1,-2)
