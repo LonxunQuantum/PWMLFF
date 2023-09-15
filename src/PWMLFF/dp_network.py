@@ -98,7 +98,7 @@ class dp_network:
         os.chdir(os.path.dirname(pwdata_work_dir))
         data_file_config = self.dp_params.get_data_file_dict()
         dp_mlff.gen_train_data(data_file_config, self.dp_params.optimizer_param.train_egroup, self.dp_params.optimizer_param.train_virial)
-        dp_mlff.sepper_data_main(data_file_config, self.dp_params.optimizer_param.train_egroup, stat_add=stat_add)
+        dp_mlff.sepper_data_main(data_file_config, self.dp_params.optimizer_param.train_egroup, stat_add=stat_add, valid_random=self.dp_params.valid_shuffle)
         os.chdir(cwd)
         return os.path.dirname(pwdata_work_dir)
 

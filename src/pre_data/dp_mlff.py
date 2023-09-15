@@ -13,12 +13,8 @@ import time
 is_real_Ep = False
 '''
 description: 
- get all movement files under the dir 'workDir', and class movements with same atomtype
-param {*} workDir
-param {*} sourceFileName
-return {*} 2D List: [[path1/movement, path3/movement], [path2/movement, path4/movement], [...], ...]
-            in which [path1/movement, path3/movement] with same atomtypes and , [path2/movement, path4/movement] with same atomtypes, and so on. 
-author: wuxingxing
+ get all movement files under the dir 'workDir'
+ author: wuxingxing
 '''
 def collect_all_sourcefiles(workDir, sourceFileName="MOVEMENT"):
     movement_dir = []
@@ -100,9 +96,9 @@ def gen_config_inputfile(config):
 
 
 def get_real_Ep(movement_files,train_set_dir,classify):
-    
+    assert(len(classify) == len(movement_files))
     # make Etot label the real Etot(one with minus sign)
-    for movement_file in movement_files:
+    for mvm_index, movement_file in enumerate(movement_files):
         with open(os.path.join(movement_file, "MOVEMENT"), "r") as mov:
             lines = mov.readlines()
             
@@ -116,14 +112,16 @@ def get_real_Ep(movement_files,train_set_dir,classify):
                     num_atom = int(raw[0]) 
                     Ep = float(raw[-5])
                     
+                    atom_type_nums_list = classify[mvm_index][1]["type_nums"]
                     print(num_atom, Ep)
-
-                    tmp_Ep_shift, _, _, _ = np.linalg.lstsq(classify, np.array([Ep]), rcond=1e-3)
+                    assert(sum(atom_type_nums_list) == num_atom)
+                    tmp_Ep_shift, _, _, _ = np.linalg.lstsq([atom_type_nums_list], np.array([Ep]), rcond=1e-3)
                     # print (tmp_Ep_shift)
                     with open(os.path.join(train_set_dir, "Ei.dat"), "a") as Ei_out:
-                        for i in range(len(classify[0])):
-                            for j in range(classify[0][i]):
-                                Ei_out.write(str(tmp_Ep_shift[i]) + "\n")               
+                        for i in range(len(atom_type_nums_list)):
+                            for j in range(atom_type_nums_list[i]):
+                                Ei_out.write(str(tmp_Ep_shift[i]) + "\n")   
+        
 
 def gen_train_data(config, is_egroup = True, is_virial = True):
     trainset_dir = config["trainSetDir"]
@@ -785,13 +783,13 @@ param {*} stat_add
 return {*}
 author: wuxingxing
 '''
-def sepper_data_main(config, is_egroup = True, stat_add = None): 
+def sepper_data_main(config, is_egroup = True, stat_add = None, valid_random=False): 
     trainset_dir = config["trainSetDir"]
     train_data_path = config["trainDataPath"] 
     valid_data_path = config["validDataPath"]
     max_neighbor_num = config["maxNeighborNum"]
     # directories that contain MOVEMENT 
-    _movement_files = collect_all_sourcefiles(trainset_dir, "MOVEMENT")
+    _movement_files = np.loadtxt(os.path.join(config["dRFeatureInputDir"], "location"), dtype=str)[2:].tolist()
     ntypes = len(config["atomType"])
     atom_type_list = [int(_['type']) for _ in config["atomType"]] # get atom types,the order is consistent with user input order
     # image number in each movement 
@@ -806,9 +804,15 @@ def sepper_data_main(config, is_egroup = True, stat_add = None):
     movement_classify = _classify_systems(img_per_mvmt, atom_num_per_image, atom_types, max_neighbor_num, ntypes)
     # Ei.dat with respect to the real Ep
     if is_real_Ep is True:
+        mvm_types = {}
         for _, classify in movement_classify.items():
-            classify = np.array([classify[0]["type_nums"]])
-        get_real_Ep(_movement_files,trainset_dir,classify)
+            for item in classify:
+                tmp = {}
+                tmp["type_nums"] = item["type_nums"]
+                tmp["types"] = item["types"]
+                mvm_types[item['mvm_index']] = tmp
+        mvm_types = sorted(mvm_types.items(), key = lambda x: x[0], reverse=False)
+        get_real_Ep(_movement_files,trainset_dir,mvm_types)
         
     dR_neigh = np.loadtxt(os.path.join(trainset_dir, "dRneigh.dat"))
     Etot = np.loadtxt(os.path.join(trainset_dir, "Etot.dat"))
@@ -896,7 +900,7 @@ def sepper_data_main(config, is_egroup = True, stat_add = None):
                                                       _atom_num_per_image, _atom_types, _img_per_mvmt, \
                                                       _Egroup, _Virial, \
                                                       _davg, _dstd,\
-                                                      stat_add, img_start)
+                                                      stat_add, img_start, valid_random)
         
         img_start = [accum_train_num, accum_valid_num]
     if os.path.exists(os.path.join(train_data_path, "davg.npy")) is False:
@@ -1022,7 +1026,7 @@ def sepper_data(config, Etot, Ei, Force, dR_neigh,\
                 atom_num_per_image, atom_type, img_per_mvmt, \
                 Egroup=None, Virial=None, \
                 davg=None, dstd=None,\
-                stat_add = "./", img_start=[0, 0]):
+                stat_add = "./", img_start=[0, 0], valid_random=False):
 
     train_data_path = config["trainDataPath"]
     valid_data_path = config["validDataPath"]
@@ -1064,10 +1068,6 @@ def sepper_data(config, Etot, Ei, Force, dR_neigh,\
     if not os.path.exists(valid_data_path):
         os.makedirs(valid_data_path)
     
-    # num total trian img 
-    train_image_num = math.ceil(image_num * config["ratio"])
-
-
     list_neigh = list_neigh.reshape(-1, max_neighbor_num * ntypes)
     image_dR = image_dR.reshape(-1, max_neighbor_num * ntypes, 3)
 
@@ -1075,13 +1075,13 @@ def sepper_data(config, Etot, Ei, Force, dR_neigh,\
     accum_valid_num = img_start[1]
     # width = len(str(accum_train_num))
 
-    index = 0
-    while index < train_image_num:
+    train_indexs, valid_indexs = random_index(image_num, config["ratio"], valid_random)
+
+    # index = 0
+    for index in train_indexs:
         start_index = index
-        end_index = index + 1
-
-        end_index = min(end_index, train_image_num)
-
+        end_index = index+1
+        # end_index = min(end_index, len(train_indexs))
         train_set = {
                 "AtomType": atom_type[image_index[start_index] : image_index[end_index]],
                 "ImageDR": image_dR[image_index[start_index] : image_index[end_index]],
@@ -1113,15 +1113,15 @@ def sepper_data(config, Etot, Ei, Force, dR_neigh,\
 
         accum_train_num += 1 
 
-        index = end_index
+        # index = end_index
 
     # width = len(str(image_num - train_image_num))
 
-    while index < image_num:
+    for index in valid_indexs:
         start_index = index
         end_index = index + 1
 
-        end_index = min(end_index, image_num)
+        # end_index = min(end_index, image_num)
 
         valid_set = {
                 "AtomType": atom_type[image_index[start_index] : image_index[end_index]],
@@ -1151,9 +1151,26 @@ def sepper_data(config, Etot, Ei, Force, dR_neigh,\
         if not os.path.exists(save_path):
             os.mkdir(save_path)
         save_npy_files(save_path, valid_set)
-        index = end_index
+        # index = end_index
         accum_valid_num += 1
 
     print("Saving npy file done")
 
     return accum_train_num, accum_valid_num
+
+'''
+description: 
+param {*} start
+param {*} end
+param {*} nums
+return {*}
+author: wuxingxing
+'''
+def random_index(image_nums:int, ratio:float, is_random:bool=False):
+    arr = np.arange(image_nums)
+    if is_random is True:
+        np.random.shuffle(arr)
+    split_idx = math.ceil(image_nums*ratio)
+    train_data = arr[:split_idx]
+    test_data = arr[split_idx:]
+    return sorted(train_data), sorted(test_data)

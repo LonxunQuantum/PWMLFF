@@ -75,6 +75,7 @@ class InputParam(object):
         self.file_paths.set_file_paths(json_input)
 
         # set feature related params
+        self.valid_shuffle = get_parameter("valid_shuffle", json_input, False)
         self.data_shuffle = get_parameter("data_shuffle", json_input, True)
         self.train_valid_ratio = get_parameter("train_valid_ratio", json_input, 0.8)
         self.dwidth = get_parameter("dwidth", json_input, 3.0)
@@ -147,7 +148,11 @@ class InputParam(object):
         data_file_dict["atomType"]=self.atom_type_dict
         data_file_dict["Rc_M"] = self.descriptor.Rmax
         data_file_dict["E_tolerance"] = self.descriptor.E_tolerance
-        data_file_dict["dwidth"] = self.dwidth
+        # data_file_dict["dwidth"] = self.dwidth
+        if self.optimizer_param.train_egroup:           # setting calculate flag for egroup (Fortran code)
+            data_file_dict["gen_egroup_input"] = 1      
+        else:
+            data_file_dict["gen_egroup_input"] = 0
         data_file_dict["ratio"] = self.train_valid_ratio
 
         return data_file_dict

@@ -1,6 +1,6 @@
 import os
 import json
-
+import torch
 from src.user.input_param import InputParam
 from src.PWMLFF.dp_param_extract import extract_force_field
 from src.PWMLFF.dp_network import dp_network
@@ -58,7 +58,12 @@ return {*}
 author: wuxingxing
 '''
 def dp_test(input_json: json, cmd:str):
-    dp_param = InputParam(input_json, cmd)
+    dp_param_test = InputParam(input_json, cmd)
+    model_checkpoint = torch.load(dp_param_test.file_paths.model_load_path,map_location=torch.device("cpu"))
+    json_dict = model_checkpoint["json_file"]
+    dp_param = InputParam(json_dict, "train".upper())
+    # set test movement files
+    dp_param.file_paths.test_movement_path = dp_param_test.file_paths.test_movement_path
     dp_param.print_input_params(json_file_save_name="std_input.json")
     dp_trainer = dp_network(dp_param)
     gen_feat_dir = dp_trainer.generate_data()
