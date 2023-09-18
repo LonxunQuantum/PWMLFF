@@ -175,7 +175,7 @@ if __name__ == '__main__':
         "/data/home/wuxingxing/datas/pwmat_mlff_workdir/dpkit/datasets/iter.000007/02.fp/data.004/"
     ]
 
-    data_list = [
+    _data_list = [
         "/data/home/wuxingxing/datas/pwmat_mlff_workdir/dpkit/initial/IrNi_POSCAR/deepmd",
         "/data/home/wuxingxing/datas/pwmat_mlff_workdir/dpkit/initial/IrPdNi_POSCAR/deepmd",
         "/data/home/wuxingxing/datas/pwmat_mlff_workdir/dpkit/initial/IrPd_POSCAR/deepmd",
@@ -208,6 +208,8 @@ if __name__ == '__main__':
     #outcar2raw() 
     # movement2raw()
     # print("raw dar extracted from outcar\n")
+    type_key = set()
+    num_images = []
     for index, data_dir in enumerate(data_list):
         os.chdir(data_dir)
         print(os.getcwd())
@@ -224,6 +226,7 @@ if __name__ == '__main__':
         num_type = len(type_map_txt)
         num_atom = type_raw.shape[0]
         num_image = coord_raw.shape[0]
+        num_images.append(num_image)
         type_map = [ 'H' for tmp in range(num_type)]
         type_atom = np.zeros((num_atom), dtype=int)
 
@@ -234,7 +237,12 @@ if __name__ == '__main__':
         print(index)
         print(type_map)
         print(list(dict.fromkeys(type_atom)))
-
+        print([element[_] for _ in list(dict.fromkeys(type_atom))])
+        key = ""
+        for _ in list(dict.fromkeys(type_atom)):
+            key += "{}-".format(element[_])
+        type_key.add(key[:-1])
+    
         # all_images = []
         # for i in range(num_image):
         #     lattice = box_raw[i].reshape(3,3)
@@ -251,3 +259,7 @@ if __name__ == '__main__':
         # for i in range(num_image):
         #     write_image(fout, all_images[i])
         # fout.close()
+
+    type_key = sorted(type_key)
+    print(sorted(type_key, key=lambda x: len(x)))
+    print("image nums :", sum(num_images))
