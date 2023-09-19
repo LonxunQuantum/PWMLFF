@@ -22,6 +22,7 @@ class InputParam(object):
     '''
     def __init__(self, json_input:dict, cmd) -> None:
         self.cmd = cmd
+        self.inference = True if self.cmd == "test".upper() else False
         self.model_type = get_required_parameter("model_type", json_input).upper()
         # if feature_type specified at first layer of JSON, use this value as feature type in descriptor
         self.feature_type = get_parameter("feature_type", json_input, None) 
@@ -106,27 +107,12 @@ class InputParam(object):
         self.distributed = get_parameter("distributed", json_input, False)
         self.gpu = get_parameter("gpu", json_input, None)
 
-        # set cmd prams
-        self._set_cmd_relative_params(json_input)
-
-    def _set_cmd_relative_params(self, json_input:dict):
-        if self.cmd == "train".upper():
-            self.inference = False
-
-        elif self.cmd == "gen_feat".upper():
-            self.inference = False
-
-        elif self.cmd == "test".upper():
-            self.inference = True
-            self.optimizer_param.batch_size = 1     # set batch size to 1, so that each image inference info will be saved
-            self.train_valid_ratio = 1
-            self.data_shuffle = False
-            self.file_paths.set_inference_paths(json_input)
-
-        else:
-            error_info = "error! The command {} does not exist and currently only includes the following commands:\
-                train\t gen_feat\t test\n".format(self.cmd)
-            raise Exception(error_info) 
+    def set_test_relative_params(self, json_input:dict):
+        self.inference = True
+        self.optimizer_param.batch_size = 1     # set batch size to 1, so that each image inference info will be saved
+        self.train_valid_ratio = 1
+        self.data_shuffle = False
+        self.file_paths.set_inference_paths(json_input)
 
     def get_dp_net_dict(self):
         net_dict = {}

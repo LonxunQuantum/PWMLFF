@@ -56,7 +56,7 @@ class WorkFileStructure(object):
 
     def set_inference_paths(self, json_input:dict):
         # load test files and check if they are exist
-        test_movement_path = get_required_parameter("test_movement_file", json_input)
+        test_movement_path = get_parameter("test_movement_file", json_input, [])
         if isinstance(test_movement_path, list) is False:
             test_movement_path = [test_movement_path]
         for mvm in test_movement_path:
@@ -73,6 +73,7 @@ class WorkFileStructure(object):
         test_feature_path = [os.path.abspath(_) for _ in test_feature_path]
         self.test_movement_path = [os.path.abspath(_) for _ in test_movement_path]
 
+        self.model_load_path = get_required_parameter("model_load_file", json_input)
         if os.path.exists(self.model_load_path) is False:
             raise Exception("the model_load_path is not exist: {}, please speccified 'model_load_path' at json file".format(self.model_load_path))
         
