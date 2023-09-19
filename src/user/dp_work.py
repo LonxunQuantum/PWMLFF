@@ -49,6 +49,7 @@ def gen_dp_feature(input_json: json, cmd:str):
 '''
 description: 
     do dp inference:
+    setp0. read params from mode.cpkt file, and set model related params to test
     step1. generate feature, the movement from json file 'test_movement_path'
     step2. load model and do inference
     step3. copy inference result files to the same level directory of jsonfile
@@ -61,18 +62,32 @@ def dp_test(input_json: json, cmd:str):
     dp_param_test = InputParam(input_json, cmd)
     model_checkpoint = torch.load(dp_param_test.file_paths.model_load_path,map_location=torch.device("cpu"))
     json_dict = model_checkpoint["json_file"]
+
     dp_param = InputParam(json_dict, "train".upper())
     # set test movement files
-    dp_param.file_paths.test_movement_path = dp_param_test.file_paths.test_movement_path
-    dp_param.print_input_params(json_file_save_name="std_input.json")
-    dp_trainer = dp_network(dp_param)
+    dp_param_test.model_type = dp_param.model_type
+    dp_param_test.atom_type = dp_param.atom_type
+    dp_param_test.max_neigh_num = dp_param.max_neigh_num
+    dp_param_test.model_param = dp_param.model_param
+    dp_param_test.optimizer_param = dp_param.optimizer_param
+    dp_param_test.optimizer_param.batch_size = 1
+    dp_param_test.train_valid_ratio = 1
+    dp_param_test.data_shuffle = False
+
+    dp_param_test.print_input_params(json_file_save_name="std_input.json")
+
+    dp_trainer = dp_network(dp_param_test)
     gen_feat_dir = dp_trainer.generate_data()
-    dp_param.file_paths.set_test_feature_path([gen_feat_dir])
+    dp_param_test.file_paths.set_test_feature_path([gen_feat_dir])
     dp_trainer.load_and_train()
-    if os.path.realpath(dp_param.file_paths.json_dir) != os.path.realpath(dp_param.file_paths.work_dir) :
-        copy_test_result(dp_param.file_paths.json_dir, dp_param.file_paths.test_dir)
-        if dp_param.file_paths.reserve_work_dir is False:
-            delete_tree(dp_param.file_paths.work_dir)
+    if os.path.realpath(dp_param_test.file_paths.json_dir) != os.path.realpath(dp_param_test.file_paths.work_dir) :
+        copy_test_result(dp_param_test.file_paths.json_dir, dp_param_test.file_paths.test_dir)
+        
+        if dp_param_test.file_paths.reserve_feature is False:
+            delete_tree(dp_param_test.file_paths.train_dir)
+            
+        if dp_param_test.file_paths.reserve_work_dir is False:
+            delete_tree(dp_param_test.file_paths.work_dir)
 
 
 '''
