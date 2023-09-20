@@ -54,7 +54,8 @@ def write_natoms_dfeat(chunk_size, shuffle=True, atom_num = 1, alive_atomic_ener
         feat_head_tmp = pd.read_csv(os.path.join(
             pm.trainSetDir, 'trainData.txt'+'.Ftype'+str(i)), header=None).values[:, :3]
         feat_tmp = pd.read_csv(os.path.join(
-            pm.trainSetDir, 'trainData.txt'+'.Ftype'+str(i)), header=None).values[:, 4:].astype(float)
+            pm.trainSetDir, 'trainData.txt'+'.Ftype'+str(i)), header=None).values[:, 4:].astype(str)
+        feat_tmp = [[float(val) for val in row[0].split()] for row in feat_tmp]
         dfeat_names[i] = pd.read_csv(os.path.join(
             pm.trainSetDir, 'inquirepos'+str(i)+'.txt'), header=None).values[:, 1:].astype(int)
         if kk == 0:

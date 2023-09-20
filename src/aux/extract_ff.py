@@ -144,7 +144,8 @@ def extract_ff( ff_name = "myforcefield.ff",
                 atom_type = None, 
                 max_neigh_num = 100, 
                 is_fitting_recon = False, 
-                is_embedding_recon = False):
+                is_embedding_recon = False, 
+                is_type_embedding = False):
     """
         We need the following:
         	i. Network params/ 
@@ -347,6 +348,17 @@ def extract_ff( ff_name = "myforcefield.ff",
             for line in raw:
                 outfile.writelines(line)
             
+            outfile.writelines("\n")
+
+            # type_physical_properties
+            type_physical_properties_name = "type_physical_properties.in"
+            fin = open(type_physical_properties_name,"r")
+            raw = fin.readlines()
+            fin.close()
+
+            for line in raw:
+                outfile.writelines(line)
+
             outfile.writelines("\n")
             
             print("force field file saved")

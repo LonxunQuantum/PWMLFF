@@ -174,7 +174,8 @@ def process_data(inputs:list): # f_train_ep):
                 iatom_all[dfeatBinIdx] = np.array(read_allnn.iatom)
 
             # dfeat here is already sparse
-            nfeat[flag+1] = np.array(read_allnn.feat_all).shape[0]
+            # nfeat[flag+1] = np.array(read_allnn.feat_all).shape[0]
+            nfeat[flag+1] = np.array(read_allnn.nfeat_atom_all)[0][0]
 
             # dfeat_sparse[k] = np.array(read_allnn.dfeat_sparse).astype(pm.feature_dtype)
             # print("dfeat sparse shape:",dfeat_sparse[k].shape)

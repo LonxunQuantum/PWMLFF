@@ -17,6 +17,7 @@ module read_allnn
     real*8, allocatable,dimension(:,:) :: energy_all        !每个原子的能量
     integer(4),allocatable,dimension(:,:,:) :: list_neigh_all
     integer(4),allocatable,dimension(:,:) :: num_neigh_all
+    integer,allocatable,dimension (:,:) :: nfeat_atom_all
     integer(4),allocatable,dimension(:) :: iatom
     real*8,allocatable,dimension(:) :: rad_atom,E_ave_vdw
     real*8,allocatable,dimension(:,:,:) :: wp_atom
@@ -95,6 +96,7 @@ module read_allnn
         deallocate(feat_all)
         deallocate(num_neigh_all)
         deallocate(list_neigh_all)
+        deallocate(nfeat_atom_all)
         deallocate(iatom)
         deallocate(dfeat_tmp_all)
         deallocate(iat_tmp_all)
@@ -132,7 +134,8 @@ module read_allnn
         integer(4),allocatable, dimension (:) :: iat_tmp,jneigh_tmp,ifeat_tmp
         integer(4),allocatable,dimension(:) :: num_neigh    
         real*8,allocatable,dimension(:,:) :: xatom
-        
+        integer,allocatable,dimension (:) :: nfeat_atom
+
         integer(4) :: dfeat_nnz_idx 
 
         character(len=500) dfeatDirname
@@ -158,6 +161,7 @@ module read_allnn
         allocate(feat(nfeat0m,natom))
         allocate(num_neigh(natom))
         allocate(list_neigh(m_neigh,natom))
+        allocate(nfeat_atom(natom))
         allocate(xatom(3,natom))
 
         do 4333 image=1,nimage
@@ -170,6 +174,7 @@ module read_allnn
 
             read(23) num_neigh
             read(23) list_neigh
+            read(23) nfeat_atom
             !TODO:
             ! read(23) dfeat
             read(23) num_tmp
@@ -209,6 +214,7 @@ module read_allnn
         deallocate(feat)
         deallocate(num_neigh)
         deallocate(list_neigh)
+        deallocate(nfeat_atom)
         ! deallocate(iatom)
         deallocate(xatom)
 
@@ -227,6 +233,7 @@ module read_allnn
         allocate(feat_all(nfeat0m,natom,nimage))
         allocate(num_neigh_all(natom,nimage))
         allocate(list_neigh_all(m_neigh,natom,nimage))
+        allocate(nfeat_atom_all(natom,nimage))
         allocate(num_tmp_all(nimage))
         
         ! num_tmp_max is used here 
@@ -255,6 +262,7 @@ module read_allnn
             allocate(energy(natom))
             allocate(force(3,natom))
             allocate(feat(nfeat0m,natom))
+            allocate(nfeat_atom(natom))
             allocate(num_neigh(natom))
             allocate(list_neigh(m_neigh,natom))
             allocate(xatom(3,natom))
@@ -268,8 +276,12 @@ module read_allnn
 
             read(23) num_neigh
             read(23) list_neigh
+            
+            read(23) nfeat_atom
 
             num_neigh_all(:,image)=num_neigh(:)
+
+            nfeat_atom_all(:,image)=nfeat_atom(:)
             
             ! read(23) dfeat
             read(23) num_tmp
@@ -403,6 +415,7 @@ module read_allnn
             deallocate(feat)
             deallocate(num_neigh)
             deallocate(list_neigh)
+            deallocate(nfeat_atom)
             deallocate(xatom)
 
         3000 continue

@@ -79,11 +79,13 @@ PROGRAM gen_2b_feature
 
    type dictionary_type
       integer :: order
-      real :: atomic_E
+      real(8) :: atomic_E
+      real(8) :: atomic_normalization  ! normalization some properties for each element
    end type dictionary_type
 
    type(dictionary_type), dimension(num_elems) :: dictionary
-   integer :: o
+   integer :: o      ! order of the element
+   real(8),allocatable,dimension (:) :: normalization_coeff
 
    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
    interface
@@ -365,7 +367,7 @@ PROGRAM gen_2b_feature
       !!> we need to counts the elements with atom type first
       allocate(iatom_type_num(ntype))
       call num_elem_type(natom,ntype,iatom,max_step,iat_type,iatom_type_num)
-      write(6,*) "iatom_type_num=",iatom_type_num
+      write(6,*) "iatom_type_num=",iatom_type_num     ! for example, 10 atom EC --> return 3 3 4
       !cccccccccccccccccccccccccccccccccccccccccccccccccccc
       !cccccccccccccccccccccccccccccccccccccccccccccccccccc
       open(333,file=infoDir)
@@ -454,6 +456,11 @@ PROGRAM gen_2b_feature
          -1544.3553605, -1105.0024515, -1420.574128, -1970.9374273333333, -2274.598644, -2331.976294, -2762.3960913793107, -3298.6401545, -3637.624857, -4140.3502, -5133.970898611111, -5498.13054, -2073.70436625, -2013.83114375, -463.783827, -658.83885375, -495.05260075, &
          -782.22601375, -1136.1897344444444, -1567.6510633333335, -2136.8407, -2568.946113, -2845.9228975, -3149.6645705, -3640.458547, -4080.81555, -4952.347355, -5073.703895555555, -4879.3604305, -2082.8865266666667, -2051.94076125, -2380.010715, -2983.2449, -3478.003375, &
          -1096.984396724138, -969.538106, -2433.925215, -2419.015324, -2872.458516, -4684.01374, -5170.37679, -4678.720765, -5133.04942, -5055.7201, -5791.21431, -1412.194369, -2018.85905225, -2440.8732966666666/
+      data dictionary%atomic_normalization /0.0972155006, 0.1662967034, 0.1933328204, 0.2683159806, 0.3785987377, 0.1466022127, 0.2164212908, 0.2894568911, &
+         0.2048294409, 0.1904067795, 0.2294265320, 0.3035709500, 0.1980542376, 0.2635331168, 0.3278584232, &
+         0.2747696192, 0.2494581247, 0.2921985569, 0.2928696308, 0.3177585601, 0.3102721842, 0.2510199148, 0.2950537757, 0.3132558335, 0.3309821868, 0.3253499880, 0.2143201786, 0.2510186465, 0.3371936516, 0.2735732594, 0.3209931710, 0.3700832491, &
+         0.3402616140, 0.3118128684, 0.3618887692, 0.3818009070, 0.4264250058, 0.4450683467, 0.4004432178, 0.4315776394, 0.4206211344, 0.3743982209, 0.3689389468, 0.2696836269, 0.3133029021, 0.3606206066, 0.3601795933, 0.3799354317, 0.4214285718, &
+         0.4221036950, 0.3808102206, 0.4581242958, 0.5129592570, 0.5727363443, 0.5264437577, 0.5527034453, 0.5425899611, 0.5328131649, 0.5092874991, 0.3374220280, 0.3949182334, 0.4334024473, 0.4329462221 /
 
       !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
@@ -548,12 +555,21 @@ PROGRAM gen_2b_feature
       allocate(feat(nfeat0m,natom))
       allocate(dfeat(nfeat0m,natom,m_neigh,3))
 
+      allocate(normalization_coeff(ntype))
+
 !ccccccccccccccccccccccccccccccccccccccccccc
       itype_atom=0
       do i=1,natom
          do j=1,ntype
             if(iatom(i).eq.iat_type(j)) then
                itype_atom(i)=j
+               !!> this part just used to subrutine: find_feature_2b_type3_type_embedding
+               do o = 1, num_elems
+                  if (iatom(i) == dictionary(o)%order) then
+                     normalization_coeff(j) = dictionary(o)%atomic_normalization
+                  endif
+               enddo
+               !!< above done
             endif
          enddo
 
@@ -647,6 +663,9 @@ PROGRAM gen_2b_feature
          call find_feature_2b_type3(natom,itype_atom,Rc_type,n2b_type,num_neigh,  &
             list_neigh,dR_neigh,iat_neigh,ntype,grid2_2, &
             feat,dfeat,nfeat0m,m_neigh,n2bm,nfeat_atom)
+         ! call find_feature_2b_type3_type_embedding(natom,itype_atom,Rc_type,n2b_type,num_neigh,  &
+         !    list_neigh,dR_neigh,iat_neigh,ntype,grid2_2, &
+         !    feat,dfeat,nfeat0m,m_neigh,n2bm,nfeat_atom, normalization_coeff)
       endif
 
       !cccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -666,7 +685,7 @@ PROGRAM gen_2b_feature
       write(25) num_neigh_alltypeM    ! the num of neighbor using Rc_M
       write(25) list_neigh_alltypeM   ! The list of neighor using Rc_M
       !   write(25) map2neigh_alltypeM    ! the neighbore atom, from list_neigh_alltype list to list_neigh_alltypeM list
-      !   write(25) nfeat_atom  ! The number of feature for this atom
+      write(25) nfeat_atom  ! The number of feature for this atom
 
 
       !  Only output the nonzero points for dfeat
@@ -731,7 +750,7 @@ PROGRAM gen_2b_feature
       do i=1,natom
          !write(55,"(i5,',',i3,',',f12.7,',', i3,<nfeat0m>(',',f15.10))")  &
          !   i,iatom(i),Eatom(i),nfeat_atom(i),(feat(j,i),j=1,nfeat_atom(i))
-         write(55,"(i5,',',i3,',',E18.10,',', i3,<nfeat0m>(',',E23.16))")  &
+         write(55,"(i5,',',i3,',',E18.10,',', i3, ',',<nfeat0m>(E23.16))")  &
             i,iatom(i),Eatom(i),nfeat_atom(i),(feat(j,i),j=1,nfeat_atom(i))
       enddo
       close(55)
@@ -764,7 +783,7 @@ PROGRAM gen_2b_feature
       deallocate(list_tmp)
       deallocate(itype_atom)
       deallocate(nfeat_atom)
-
+      deallocate(normalization_coeff)
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc

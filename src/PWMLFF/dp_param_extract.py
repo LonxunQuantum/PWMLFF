@@ -4,6 +4,7 @@ from src.user.input_param import InputParam
 import torch
 import numpy as np
 import src.aux.extract_ff as extract_ff
+from utils.atom_type_emb_dict import get_normalized_data_list
 
 def extract_force_field(dp_params:InputParam):
     config = dp_params.get_dp_net_dict()
@@ -18,7 +19,15 @@ def extract_force_field(dp_params:InputParam):
     print("extract_model_para function need redo")
 
     mk = config["net_cfg"]["fitting_net"]["resnet_dt"]
-    extract_ff.extract_ff(ff_name = dp_params.file_paths.forcefield_name, model_type = 5, atom_type = dp_params.atom_type, max_neigh_num = dp_params.max_neigh_num, is_fitting_recon = mk)
+
+    extract_type_physical_property(dp_params)
+
+    extract_ff.extract_ff(ff_name = dp_params.file_paths.forcefield_name, 
+                          model_type = 5, 
+                          atom_type = dp_params.atom_type, 
+                          max_neigh_num = dp_params.max_neigh_num, 
+                          is_fitting_recon = mk, 
+                          is_type_embedding = dp_params.descriptor.type_embedding)
     os.chdir(cwd)
     
 def extract_model_para(config:dict, dp_params:InputParam):
@@ -66,6 +75,9 @@ def extract_model_para(config:dict, dp_params:InputParam):
     print("\n")
     print("number of fitting network:",nFittingNet)
     
+    # first dim of w matrix 
+    first_w_matrix = raw[list(raw.keys())[0]]
+    first_dim = len(first_w_matrix)
     # write embedding network
     f = open(embedingNet_output, 'w')
     # total number of embeding network
@@ -73,7 +85,7 @@ def extract_model_para(config:dict, dp_params:InputParam):
     #layer of embeding network
     f.write(str(nLayerEmbedingNet) + '\n')
     #size of each layer
-    f.write("1 ")
+    f.write(str(first_dim) + " ")
     for i in embedingNetSizes:
         f.write(str(i)+' ')
     f.write('\n')
@@ -250,6 +262,22 @@ def extract_model_para(config:dict, dp_params:InputParam):
 
     print("******** gen_dp.in generation done *********")
 
+def extract_type_physical_property(dp_params:InputParam):
+    """
+        extract the type embedding parameters of DP network
+    """
+    type_vector = get_normalized_data_list(dp_params.atom_type, dp_params.descriptor.type_physical_property)
+    print("******** writting type embedding starts ********")
+    f = open("type_physical_properties.in","w")
+    if dp_params.descriptor.type_embedding:
+        f.write("1 " + "\n")         # if 1, then type embedding is used
+        for i, atom in enumerate(type_vector):
+            f.write(str(atom)+" \n")
+            f.write(" ".join(map(str, type_vector[atom])) + " \n")
+    else:
+        f.write("0 " + "\n")
+    f.close()
+    print("******** writting type embedding ends ********")
 """
     parameter extraction related functions
 """ 

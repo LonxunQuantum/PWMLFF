@@ -351,7 +351,7 @@ PROGRAM gen_MTP_feature
       !!> we need to counts the elements with atom type first
       allocate(iatom_type_num(ntype))
       call num_elem_type(natom,ntype,iatom,max_step,iat_type,iatom_type_num)
-      write(6,*) "iatom_type_num=",iatom_type_num
+      write(6,*) "iatom_type_num=",iatom_type_num     ! for example, 10 atom EC --> return 3 3 4
 !cccccccccccccccccccccccccccccccccccccccccccccccccccc
 !cccccccccccccccccccccccccccccccccccccccccccccccccccc
       open(333,file=infoDir)
@@ -625,7 +625,7 @@ PROGRAM gen_MTP_feature
       write(25) num_neigh_alltypeM    ! the num of neighbor using Rc_M
       write(25) list_neigh_alltypeM   ! The list of neighor using Rc_M
 !    write(25) map2neigh_alltypeM    ! the neighbore atom, from list_neigh_alltype list to list_neigh_alltypeM list
-!    write(25) nfeat_atom  ! The number of feature for this atom
+      write(25) nfeat_atom  ! The number of feature for this atom
 
 !cccccccccccccccccccccccccccccccccccccccccccccchhhhhh
 !  Only output the nonzero points for dfeat
@@ -676,7 +676,7 @@ PROGRAM gen_MTP_feature
 
       open(55,file=trainDataDir,position="append")
       do i=1,natom
-         write(55,"(i5,',',i3,',',E18.10,',', i3,<nfeat0m>(',',E23.16))")  &
+         write(55,"(i5,',',i3,',',E18.10,',', i3, ',',<nfeat0m>(E23.16))")  &
             i,iatom(i),Eatom(i),nfeat_atom(i),(feat(j,i),j=1,nfeat_atom(i))
       enddo
       close(55)
@@ -716,7 +716,7 @@ PROGRAM gen_MTP_feature
       DEALLOCATE (iatom,xatom,fatom,Eatom)
 !--------------------------------------------------------
       goto 1000
-      
+
       deallocate(A, B, X)
 
 2000  continue
