@@ -47,12 +47,14 @@ class WorkFileStructure(object):
         self.save_p_matrix = save_p_matrix
         self.p_matrix_path = p_path
 
-    def _set_model_paths(self,model_store_dir:str, model_load_path:str, model_name:str, best_model_path:str):
+    def _set_model_paths(self,model_store_dir:str, model_name:str, best_model_path:str):
         self.model_store_dir = model_store_dir
-        self.model_load_path = model_load_path
         self.model_name = model_name
         self.best_model_path = best_model_path
         self.model_save_path = os.path.join(model_store_dir, self.model_name)
+
+    def _set_model_load_path(self, model_load_path:str):
+        self.model_load_path = model_load_path
 
     def set_inference_paths(self, json_input:dict):
         # load test files and check if they are exist
@@ -71,6 +73,7 @@ class WorkFileStructure(object):
             if os.path.exists(feat_path) is False:
                 raise Exception("Error! test_feature_path {} does not exist!".format(feat_path))
         test_feature_path = [os.path.abspath(_) for _ in test_feature_path]
+        self.test_feature_path = test_feature_path
         self.test_movement_path = [os.path.abspath(_) for _ in test_movement_path]
 
         self.model_load_path = get_required_parameter("model_load_file", json_input)
@@ -100,6 +103,7 @@ class WorkFileStructure(object):
         model_load_path = get_parameter("model_load_file", json_input, " ")
         if os.path.exists(model_load_path):
             model_load_path = os.path.abspath(model_load_path)
+        self._set_model_load_path(model_load_path)
         # if self.recover_train is True and os.path.isfile(model_load_path):
         #     raise Exception("Error! The recover_train and model_load_path are simultaneously specified, please set recover_train to False or remove param model_load_path")
         if self.model_type == "NN":
@@ -108,7 +112,7 @@ class WorkFileStructure(object):
             model_name = get_parameter("model_name", json_input, "dp_model.ckpt")
         model_store_dir = get_parameter("model_store_dir", json_input, "model_record")
         model_store_dir = os.path.join(self.work_dir, model_store_dir)
-        self._set_model_paths(model_store_dir = model_store_dir, model_load_path=model_load_path, \
+        self._set_model_paths(model_store_dir = model_store_dir, \
                                     model_name = model_name, best_model_path=os.path.join(self.work_dir, "best.pth.tar"))
 
         # set trian movement file path
