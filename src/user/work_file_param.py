@@ -76,7 +76,8 @@ class WorkFileStructure(object):
         self.test_feature_path = test_feature_path
         self.test_movement_path = [os.path.abspath(_) for _ in test_movement_path]
 
-        self.model_load_path = get_required_parameter("model_load_file", json_input)
+        model_load_path = get_required_parameter("model_load_file", json_input)
+        self.model_load_path = os.path.abspath(model_load_path)
         if os.path.exists(self.model_load_path) is False:
             raise Exception("the model_load_path is not exist: {}, please speccified 'model_load_path' at json file".format(self.model_load_path))
         
