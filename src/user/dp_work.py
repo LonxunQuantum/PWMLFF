@@ -63,6 +63,7 @@ def dp_test(input_json: json, cmd:str):
     model_load_path = get_required_parameter("model_load_file", input_json)
     model_checkpoint = torch.load(model_load_path, map_location=torch.device("cpu"))
     json_dict_train = model_checkpoint["json_file"]
+    json_dict_train["work_dir"] = get_parameter("work_dir", input_json, "work_dir")
     dp_param = InputParam(json_dict_train, "test".upper()) 
     # set inference param
     dp_param.set_test_relative_params(input_json)
