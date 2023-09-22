@@ -52,9 +52,9 @@ author: wuxingxing
 '''
 def linear_test(input_json: json, cmd:str):
     linear_param = InputParam(input_json, cmd)
+    linear_param.set_test_relative_params(input_json)
     linear_param.print_input_params("std_input.json")
     linear_trainer = linear_regressor(linear_param)
-    
     if len(linear_param.file_paths.test_movement_path) > 0:
         linear_trainer.evaluate_prepare_data()
     

@@ -676,7 +676,7 @@ PROGRAM gen_MTP_feature
 
       open(55,file=trainDataDir,position="append")
       do i=1,natom
-         write(55,"(i5,',',i3,',',E18.10,',', i3, ',',<nfeat0m>(E23.16))")  &
+         write(55,"(i5,',',i3,',',E18.10,',', i3, ',',<nfeat0m>(E24.16))")  &
             i,iatom(i),Eatom(i),nfeat_atom(i),(feat(j,i),j=1,nfeat_atom(i))
       enddo
       close(55)

@@ -724,9 +724,9 @@ def predict(val_loader, model, criterion, device, args:InputParam):
                             ' '.join(np.array(Ei_label.flatten().cpu().data).astype('str')), "a")
         
         write_line_to_file(inf_energy_save_path, \
-                            ' '.join(np.array(Etot_label.flatten().cpu().data).astype('str')), "a")
-        write_line_to_file(lab_energy_save_path, \
                             ' '.join(np.array(Etot_predict.flatten().cpu().data).astype('str')), "a")
+        write_line_to_file(lab_energy_save_path, \
+                            ' '.join(np.array(Etot_label.flatten().cpu().data).astype('str')), "a")
         
     res_pd.to_csv(res_pd_save_path)
     

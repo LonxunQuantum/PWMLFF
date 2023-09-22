@@ -76,10 +76,11 @@ class WorkFileStructure(object):
         self.test_feature_path = test_feature_path
         self.test_movement_path = [os.path.abspath(_) for _ in test_movement_path]
 
-        model_load_path = get_required_parameter("model_load_file", json_input)
-        self.model_load_path = os.path.abspath(model_load_path)
-        if os.path.exists(self.model_load_path) is False:
-            raise Exception("the model_load_path is not exist: {}, please speccified 'model_load_path' at json file".format(self.model_load_path))
+        if not json_input['model_type'].upper() == "LINEAR":
+            model_load_path = get_required_parameter("model_load_file", json_input)
+            self.model_load_path = os.path.abspath(model_load_path)
+            if os.path.exists(self.model_load_path) is False:
+                raise Exception("the model_load_path is not exist: {}, please speccified 'model_load_path' at json file".format(self.model_load_path))
         
         alive_atomic_energy = is_alive_atomic_energy(test_movement_path)
         self._set_alive_atomic_energy(alive_atomic_energy)
