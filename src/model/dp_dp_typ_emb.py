@@ -213,18 +213,39 @@ class TypeDP(nn.Module):
         F = torch.matmul(dE, Ri_d).squeeze(-2) # batch natom 3
         F = F * (-1)
         
-        list_neigh = torch.unsqueeze(list_neigh,2)
-        list_neigh = (list_neigh - 1).type(torch.int)
-        F = CalculateForce.apply(list_neigh, dE, Ri_d, F)
-        
-        #print ("Force")
-        #print (F)
-        # virial = CalculateVirialForce.apply(list_neigh, dE, Ri[:,:,:,:3], Ri_d)
-        virial = CalculateVirialForce.apply(list_neigh, dE, ImageDR, Ri_d)
-        
-        # no need to switch sign here 
-        #virial = virial * (-1)
+        # for cpu device
+        if self.device.type == 'cpu':
+            Virial = torch.zeros((batch_size, 9), device=self.device, dtype=self.dtype)
+            for batch_idx in range(batch_size):   
+                for i in range(natoms_sum):
+                    # get atom_idx & neighbor_idx
+                    i_neighbor = list_neigh[batch_idx, i]  #[100]
+                    neighbor_idx = i_neighbor.nonzero().squeeze().type(torch.int64)  #[78]
+                    atom_idx = i_neighbor[neighbor_idx].type(torch.int64) - 1
+                    # calculate Force
+                    for neigh_tmp, neighbor_id in zip(atom_idx, neighbor_idx):
+                        tmpA = dE[batch_idx, i, :, neighbor_id*4:neighbor_id*4+4]
+                        tmpB = Ri_d[batch_idx, i, neighbor_id*4:neighbor_id*4+4]
+                        dE_dx = torch.matmul(tmpA, tmpB).squeeze(0)
+                        F[batch_idx, neigh_tmp] += dE_dx
 
-        return Etot, Ei, F, Egroup, virial  #F is Force
-            
+                        Virial[batch_idx][0] += ImageDR[batch_idx, i, neighbor_id][0]*dE_dx[0] #xx
+                        Virial[batch_idx][4] += ImageDR[batch_idx, i, neighbor_id][1]*dE_dx[1] #yy
+                        Virial[batch_idx][8] += ImageDR[batch_idx, i, neighbor_id][2]*dE_dx[2] #zz
+
+                        Virial[batch_idx][1] += ImageDR[batch_idx, i, neighbor_id][0]*dE_dx[1] 
+                        Virial[batch_idx][2] += ImageDR[batch_idx, i, neighbor_id][0]*dE_dx[2]
+                        Virial[batch_idx][5] += ImageDR[batch_idx, i, neighbor_id][1]*dE_dx[2]
+
+                Virial[batch_idx][3] = Virial[batch_idx][1]
+                Virial[batch_idx][6] = Virial[batch_idx][2]
+                Virial[batch_idx][7] = Virial[batch_idx][5]
+        else:
+            list_neigh = torch.unsqueeze(list_neigh,2)
+            list_neigh = (list_neigh - 1).type(torch.int)
+            F = CalculateForce.apply(list_neigh, dE, Ri_d, F)
+            # virial = CalculateVirialForce.apply(list_neigh, dE, Ri[:,:,:,:3], Ri_d)
+            Virial = CalculateVirialForce.apply(list_neigh, dE, ImageDR, Ri_d)
+        return Etot, Ei, F, Egroup, Virial  #F is Force
+    
         
