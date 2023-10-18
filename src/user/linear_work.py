@@ -38,7 +38,10 @@ def linear_train(input_json: json, cmd:str):
 
     if linear_param.recover_train is False:
         if os.path.realpath(linear_param.file_paths.json_dir) != os.path.realpath(linear_param.file_paths.work_dir) :
-            delete_tree(linear_param.file_paths.work_dir)
+            if linear_param.file_paths.reserve_feature is False:
+                delete_tree(linear_param.file_paths.train_dir)
+            if linear_param.file_paths.reserve_work_dir is False:
+                delete_tree(linear_param.file_paths.work_dir)
 '''
 description: 
     do linear inference:
@@ -67,5 +70,8 @@ def linear_test(input_json: json, cmd:str):
 
     if linear_param.recover_train is False:
         if os.path.realpath(linear_param.file_paths.json_dir) != os.path.realpath(linear_param.file_paths.work_dir) :
-            delete_tree(linear_param.file_paths.work_dir)
+            if linear_param.file_paths.reserve_feature is False:
+                delete_tree(linear_param.file_paths.train_dir)
+            if linear_param.file_paths.reserve_work_dir is False:
+                delete_tree(linear_param.file_paths.work_dir)
             

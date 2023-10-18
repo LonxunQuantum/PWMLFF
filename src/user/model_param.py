@@ -112,8 +112,11 @@ class DpParam(object):
             test_feature_path = [os.path.abspath(_) for _ in test_feature_path]
             test_movement_path = [os.path.abspath(_) for _ in test_movement_path]
 
-            if os.path.exists(self.file_paths.model_load_path) is False:
-                raise Exception("the model_load_path is not exist: {}".format(self.file_paths.model_load_path))
+            if not json_input['model_type'].upper() == 'LINEAR':
+                model_load_path = get_required_parameter("model_load_file", json_input)
+                self.file_paths.model_load_path = os.path.abspath(model_load_path)
+                if os.path.exists(self.file_paths.model_load_path) is False:
+                    raise Exception("the model_load_path is not exist: {}".format(self.file_paths.model_load_path))
             
             self.file_paths._set_inference_paths(test_movement_path, test_dir)
 
