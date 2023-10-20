@@ -9,7 +9,7 @@ from src.user.active_work import ff2lmps_explore
 from utils.json_operation import get_parameter, get_required_parameter
 from utils.gen_multi_train import multi_train
 from src.user.ckpt_extract import extract_force_field
-
+from src.user.ckpt_compress import compress_force_field
 if __name__ == "__main__":
     cmd_type = sys.argv[1].upper()
     # cmd_type = "test".upper()
@@ -22,6 +22,9 @@ if __name__ == "__main__":
     elif cmd_type == "extract_ff".upper():
         ckpt_file = sys.argv[2]
         extract_force_field(ckpt_file, cmd_type)
+    elif cmd_type == "compress".upper():
+        ckpt_file = sys.argv[2]
+        compress_force_field(ckpt_file, cmd_type)
     else:
         json_path = sys.argv[2]
         # cmd_type = "test".upper()
@@ -55,7 +58,7 @@ if __name__ == "__main__":
                 linear_test(json_file, cmd_type)
             else:
                 raise Exception("Error! the model_type param in json file does not existent, you could use DP or NN or Linear")
-            
+          
         elif cmd_type == "gen_feat".upper():
             if model_type == "DP".upper():
                 gen_dp_feature(json_file, cmd_type)

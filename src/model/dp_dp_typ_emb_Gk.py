@@ -10,8 +10,10 @@ sys.path.append(os.getcwd())
 # import parameters as pm    
 # import prepare as pp
 # pp.readFeatnum()
-from src.model.dp_embedding import EmbeddingNet, FittingNet
+from src.model.dp_embedding_typ_emb import EmbeddingNet, FittingNet
 from src.model.calculate_force import CalculateForce, CalculateVirialForce
+from utils.atom_type_emb_dict import get_normalized_data_list
+
 # logging and our extension
 import logging
 logging_level_DUMP = 5
@@ -33,14 +35,14 @@ def warning(msg, *args, **kwargs):
 def error(msg, *args, **kwargs):
     logger.error(msg, *args, **kwargs, exc_info=True)
 
-class DP(nn.Module):
-    def __init__(self, config, device, energy_shift, magic=False):
-        super(DP, self).__init__()
+class TypeDP(nn.Module):
+    def __init__(self, config, device, stat, magic=False):
+        super(TypeDP, self).__init__()
         self.config = config
         self.ntypes = len(config['atomType'])
         self.atom_type = [_['type'] for _ in config['atomType']] #this value in used in forward for hybrid Training
         self.device = device
-        self.energy_shift = energy_shift
+        self.stat = stat
         self.M2 = config["M2"]
         self.maxNeighborNum = config["maxNeighborNum"]
         if self.config["training_type"] == "float64":
@@ -54,23 +56,21 @@ class DP(nn.Module):
         self.fitting_net = nn.ModuleList()
         
         # initial bias for fitting net? 
-        for i in range(self.ntypes):
-            for j in range(self.ntypes):
-                self.embedding_net.append(EmbeddingNet(self.config["net_cfg"]["embedding_net"], magic))
-            fitting_net_input_dim = self.config["net_cfg"]["embedding_net"]["network_size"][-1]
-            self.fitting_net.append(FittingNet(config["net_cfg"]["fitting_net"], self.M2 * fitting_net_input_dim, energy_shift[i], magic))
-        
-        self.compress_tab = None #for dp compress
-
-    def set_comp_tab(self, compress_tab, dx:float, davg:list, dstd:list, sij_min:float):
-        if self.ntypes**2 == len(compress_tab):
-            self.compress_tab = torch.tensor(compress_tab, dtype=self.dtype, device=self.device)
-            self.dx = dx
-            self.davg = davg
-            self.dstd = dstd
-            self.sij_min = sij_min
+        # initial type embedding net
+        if len(self.config["net_cfg"]["type_embedding_net"]["network_size"]) > 0:
+            self.embedding_net.append(EmbeddingNet(self.config["net_cfg"]["type_embedding_net"], type_feat_num=None, is_type_emb=True))
+            type_feat_num = self.config["net_cfg"]["type_embedding_net"]["network_size"][-1]
         else:
-            raise Exception("Error! The compressed tables {} do not match embedding net nums {}!".format(len(compress_tab), self.ntypes))
+            # type_feat_num = len(self.config["net_cfg"]["type_embedding_net"]["physical_property"])
+            type_feat_num = 0 # vector sum to Sij
+        # initial embedding net
+        self.embedding_net.append(EmbeddingNet(self.config["net_cfg"]["embedding_net"], 
+                                               type_feat_num= type_feat_num,# if type_emb_net exists, type_feat_num is last layer of net work, otherwise, is type num of physical_property
+                                               is_type_emb=False))
+        # initial fitting net
+        fitting_net_input_dim = self.config["net_cfg"]["embedding_net"]["network_size"][-1]
+        for i in range(self.ntypes):
+            self.fitting_net.append(FittingNet(config["net_cfg"]["fitting_net"], self.M2 * fitting_net_input_dim, self.stat[2][i], magic))
 
     def get_egroup(self, Ei, Egroup_weight, divider):
         # commit by wuxing and replace by the under line code
@@ -135,38 +135,53 @@ class DP(nn.Module):
     return {*}
     author: wuxingxing
     '''
-    def forward(self, Ri, dfeat, list_neigh, natoms_img, atom_type, ImageDR, Egroup_weight = None, divider = None, is_calc_f=None, is_compress=False):
+    def forward(self, Ri, dfeat, list_neigh, natoms_img, atom_type, ImageDR, Egroup_weight = None, divider = None, is_calc_f=None):
+
         #torch.autograd.set_detect_anomaly(True)
-        # from torchviz import make_dot
         Ri_d = dfeat
         # dim of natoms_img: batch size, natom_sum & natom_types ([9, 6, 2, 1])
         natoms = natoms_img[0, 1:]
         natoms_sum = Ri.shape[1]
         batch_size = Ri.shape[0]
         atom_sum = 0
-        emb_list, type_nums =  self.get_train_2body_type(list(np.array(atom_type.cpu())[0]))
+        atom_type_cpu = list(np.array(atom_type.cpu())[0])
+        emb_list, type_nums =  self.get_train_2body_type(atom_type_cpu)
+        # get type_embedding_vector
+        physical_property = self.config["net_cfg"]["type_embedding_net"]["physical_property"]
+        type_vector = get_normalized_data_list(atom_type_cpu, physical_property)
         Ei = None
         for type_emb in emb_list:
-            xyz_scater_a = None
+            S_Rij = None
+            tmp_a = None
+            type_emb_feat = None
             for emb in type_emb:
-                ntype, ntype_1 = emb
-                # print(ntype, "\t\t", ntype_1)
-                # dim of Ri: batch size, natom_sum, ntype*max_neigh_num, local environment matrix , ([10,9,300,4])
-                S_Rij = Ri[:, atom_sum:atom_sum+natoms[ntype], ntype_1 * self.maxNeighborNum:(ntype_1+1) * self.maxNeighborNum, 0].unsqueeze(-1)
-                # determines which embedding net
-                embedding_index = ntype * self.ntypes + ntype_1
-                # itermediate output of embedding net 
-                # dim of G: batch size, natom of ntype, max_neigh_num, final layer dim
-                tmp_a = Ri[:, atom_sum:atom_sum+natoms[ntype], ntype_1 * self.maxNeighborNum:(ntype_1+1) * self.maxNeighborNum].transpose(-2, -1)
-                if self.compress_tab is None:
-                    G = self.embedding_net[embedding_index](S_Rij)
-                    # symmetry conserving
-                else:
-                    # G = self.calc_compress(S_Rij, embedding_index, ntype)
-                    G = self.calc_compress_5order(S_Rij, embedding_index, ntype)
-                tmp_b = torch.matmul(tmp_a, G)
-                xyz_scater_a = tmp_b if xyz_scater_a is None else xyz_scater_a + tmp_b
+                ntype, ntype_1 = emb # Compatible with hybrid training
+                #        Ri[images, atom_type_list            ,  neighbor_list_of_different_atom_type,  SRij_value]
+                S_Rij_ = Ri[:, atom_sum:atom_sum+natoms[ntype], ntype_1 * self.maxNeighborNum:(ntype_1+1) * self.maxNeighborNum, 0].unsqueeze(-1)
+                type_tensor = torch.tensor(type_vector[self.atom_type[ntype_1]], dtype=self.dtype, device=self.device)
+                S_Rij_ = S_Rij_ * type_tensor
+                S_Rij = S_Rij_ if S_Rij is None else torch.concat((S_Rij, S_Rij_), dim=2)
+
+                tmp_a_ = Ri[:, atom_sum:atom_sum+natoms[ntype], ntype_1 * self.maxNeighborNum:(ntype_1+1) * self.maxNeighborNum]
+                tmp_a = tmp_a_ if tmp_a is None else torch.concat((tmp_a, tmp_a_), dim=2)
+
+                type_emb_ = torch.tensor(type_vector[self.atom_type[ntype_1]], dtype=self.dtype, device=self.device).repeat(self.maxNeighborNum,1)
+                type_emb_feat = type_emb_ if type_emb_feat is None else torch.concat((type_emb_feat, type_emb_), dim=0)
+            tmp_a = tmp_a.transpose(-2, -1)
+            # For each neighbor of the central atom 'ntype', obtain the type code by passing it through the type embedding net
             
+            # if len(self.embedding_net) > 1:
+            #     type_emb_encoded = self.embedding_net[0](type_emb_feat)
+            #     S_Rij_type = torch.concat((S_Rij, type_emb_encoded.unsqueeze(0).unsqueeze(0).expand(S_Rij.shape[0], S_Rij.shape[1], -1, -1)), dim=3)
+            # else:
+            #     S_Rij_type = torch.concat((S_Rij, type_emb_feat.unsqueeze(0).unsqueeze(0).expand(S_Rij.shape[0], S_Rij.shape[1], -1, -1)), dim=3)
+            G0 = self.embedding_net[-1](S_Rij[:,:,:,0].unsqueeze(-1)) #[4, 60, 200, 25] li-si S_Rij_type
+            G1 = self.embedding_net[-1](S_Rij[:,:,:,1].unsqueeze(-1))
+            G2 = self.embedding_net[-1](S_Rij[:,:,:,2].unsqueeze(-1))
+            G3 = self.embedding_net[-1](S_Rij[:,:,:,3].unsqueeze(-1))
+            G4 = self.embedding_net[-1](S_Rij[:,:,:,4].unsqueeze(-1))
+            G = (G0 + G1 + G2 + G3 + G4)/5
+            xyz_scater_a = torch.matmul(tmp_a, G)
             # attention: for hybrid training, the division should be done based on \
             #   the number of element types in the current image, because the images may from different systems.
             xyz_scater_a = xyz_scater_a / (self.maxNeighborNum * type_nums)
@@ -196,8 +211,6 @@ class DP(nn.Module):
         
         mask = torch.ones_like(Ei)
         dE = torch.autograd.grad(Ei, Ri, grad_outputs=mask, retain_graph=True, create_graph=True)
-        # dot = make_dot(Ei, params={"x":Ri})
-        # dot.render("compute_graph.png", format="png")
         dE = torch.stack(list(dE), dim=0).squeeze(0)  #[:,:,:,:-1] #[2,108,100,4]-->[2,108,100,3]
 
         Ri_d = Ri_d.reshape(batch_size, natoms_sum, -1, 3)
@@ -208,12 +221,6 @@ class DP(nn.Module):
         F = torch.matmul(dE, Ri_d).squeeze(-2) # batch natom 3
         F = F * (-1)
         
-        # error code
-        # dE1 = dE.squeeze(2).reshape(batch_size, atom_sum, self.maxNeighborNum*self.ntypes,4).unsqueeze(-1) #[5, 76, 1, 800] -> [5, 76, 800] -> [5, 76, 200, 4] -> [5, 76, 200, 4, 1]
-        # Ri_d1 = Ri_d.reshape(batch_size, atom_sum, self.maxNeighborNum*self.ntypes, 4, 3)#[5, 76, 800, 3] -> [5, 76, 200, 4, 3]
-        # temp_dE_dx = torch.sum(dE1*Ri_d1, dim=3) #[5, 76, 200, 4, 3]->[5, 76, 200, 3]
-        # F_res = F + torch.sum(temp_dE_dx, dim=2)
-
         # for cpu device
         if self.device.type == 'cpu':
             Virial = torch.zeros((batch_size, 9), device=self.device, dtype=self.dtype)
@@ -248,47 +255,5 @@ class DP(nn.Module):
             # virial = CalculateVirialForce.apply(list_neigh, dE, Ri[:,:,:,:3], Ri_d)
             Virial = CalculateVirialForce.apply(list_neigh, dE, ImageDR, Ri_d)
         return Etot, Ei, F, Egroup, Virial  #F is Force
-                      
-    '''
-    description: 
-        F(x) = f2*(F(k+1)-F(k))+F(k)
-        f1 = k+1-x
-        f2 = 1-f1 = x-k
-        
-        dG/df2 = F(k+1)-F(k), hear the self.compress_tab is constant
-        df2/dx = 1 / (self.dstd[itype]*10**self.dx)
-        dx/d_sij = self.dstd[itype]*(10**self.dx)
-        df2/d_sij = 1
-
-        dG/ds_ij = F(k+1)-F(k) = sum_l(F_l(k+1)-F_l(k)), l = last layer node
-
-    param {*} self
-    param {torch} S_Rij
-    param {int} embedding_index
-    param {int} itype
-    return {*}
-    author: wuxingxing
-    '''    
-    def calc_compress(self, S_Rij:torch.Tensor, embedding_index:int, itype:int):
-        # S_Rij = S_Rij.flatten()
-        x = (S_Rij-self.sij_min)/(10**-self.dx)
-        index_k1 = x.type(torch.long) # get floor
-        index_k2 = index_k1 + 1
-        xk = self.sij_min + index_k1*(10**-self.dx)
-        f2 = (S_Rij - xk).flatten().unsqueeze(-1)
-        # f2 = ((x-index_k1)/(self.dstd[itype]*10**self.dx)).unsqueeze(-1)
-        # f2 = ((((x - index_k1)/(10**self.dx)))/self.dstd[itype]).unsqueeze(-1)
-        # f2 = (S_Rij.flatten() - ((index_k1*(1/10**self.dx)-self.davg[itype])/self.dstd[itype])).unsqueeze(-1)
-        G = f2*(self.compress_tab[embedding_index][index_k2.flatten()]-self.compress_tab[embedding_index][index_k1.flatten()]) + self.compress_tab[embedding_index][index_k1.flatten()]
-        G = G.reshape(S_Rij.shape[0], S_Rij.shape[1], S_Rij.shape[2], G.shape[1])
-        return G
     
-    def calc_compress_5order(self, S_Rij:torch.Tensor, embedding_index:int, itype:int):
-        x = S_Rij.flatten().unsqueeze(-1)
-        index_k1 = ((x-self.sij_min)/(10**-self.dx)).type(torch.long) # get floor
-        coefficient = self.compress_tab[embedding_index, index_k1.flatten(), :]
-        G = x**5 *coefficient[:, :, 0] + x**4 * coefficient[:, :, 1] + \
-            x**3 * coefficient[:, :, 2] + x**2 * coefficient[:, :, 3] + \
-            x * coefficient[:, :, 4] + coefficient[:, :, 5]
-        G = G.reshape(S_Rij.shape[0], S_Rij.shape[1], S_Rij.shape[2], G.shape[1])
-        return G
+        

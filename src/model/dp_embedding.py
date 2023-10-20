@@ -84,7 +84,7 @@ class EmbeddingNet(nn.Module):
                     x = hiden * self.resnet_dt['resnet_dt' + str(i-1)] + x
                 else:
                     x = hiden + x
-            elif self.network_size[i] == 2 * self.network_size[i-1]:
+            elif self.network_size[i] == 2 * self.network_size[i-1]:#not excute, because the net shape is [5,25,25,25]
                 if self.cfg['resnet_dt']:
                     x = torch.cat((x, x), dim=-1)  + hiden * self.resnet_dt['resnet_dt' + str(i-1)]
                 else:

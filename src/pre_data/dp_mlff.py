@@ -340,7 +340,7 @@ def calc_stat(config, image_dR, list_neigh, natoms_img):
     dstd_tensor = torch.ones(
         (ntypes, config["maxNeighborNum"] * ntypes, 4), dtype=torch.float64
     )
-    Ri, _ = smooth(
+    Ri, _, _ = smooth(
         config,
         image_dR,
         nr,
@@ -558,17 +558,18 @@ def smooth(config, image_dR, x, Ri_xyz, mask, inr, davg, dstd, natoms):
         # else:
         #     davg_res = torch.concat((davg_res, davg_ntype), dim=1)
         #     dstd_res = torch.concat((dstd_res, dstd_ntype), dim=1)
+    max_ri = torch.max(Ri[:,:,:,0])
     Ri = (Ri - davg_res) / dstd_res
     dstd_res = dstd_res.unsqueeze(-1).repeat(1, 1, 1, 1, 3)
     Ri_d = Ri_d / dstd_res
-    return Ri, Ri_d
+    return Ri, Ri_d, max_ri
 
 
 def compute_Ri(config, image_dR, list_neigh, natoms_img, ind_img, davg, dstd):
     natoms_sum = natoms_img[0, 0]
     natoms_per_type = natoms_img[0, 1:]
     ntypes = len(natoms_per_type)
-
+    max_ri_list = [] # max Rij before davg and dstd cacled
     #if torch.cuda.is_available():
     #    device = torch.device("cuda")
     #else:
@@ -627,7 +628,7 @@ def compute_Ri(config, image_dR, list_neigh, natoms_img, ind_img, davg, dstd):
         list_neigh_i = torch.tensor(list_neigh_i, device=device, dtype=torch.int)
 
         # deepmd neighbor id 从 0 开始，MLFF从1开始
-        mask = list_neigh_i > 0
+        mask = list_neigh_i > 0 # 0 means the centor atom i does not have neighor
 
         dR2 = torch.zeros_like(list_neigh_i, dtype=torch.float64)
         Rij = torch.zeros_like(list_neigh_i, dtype=torch.float64)
@@ -644,7 +645,7 @@ def compute_Ri(config, image_dR, list_neigh, natoms_img, ind_img, davg, dstd):
         Ri_xyz[mask] = image_dR_i[mask] / dR2_copy[mask]
         inr[mask] = 1 / Rij[mask]
 
-        Ri_i, Ri_d_i = smooth(
+        Ri_i, Ri_d_i, max_ri = smooth(
             config, image_dR_i, nr, Ri_xyz, mask, inr, davg, dstd, natoms_per_type
         )
 
@@ -659,6 +660,7 @@ def compute_Ri(config, image_dR, list_neigh, natoms_img, ind_img, davg, dstd):
             Ri_d_i = Ri_d_i.detach().cpu().numpy()
             Ri = np.concatenate((Ri, Ri_i), 0)
             Ri_d = np.concatenate((Ri_d, Ri_d_i), 0)
+        max_ri_list.append(max_ri)
 
     if config['gen_egroup_input'] == 1:
         dwidth = np.sqrt(-config['atomType'][0]['Rc']**2 / np.log(0.01))
@@ -679,7 +681,7 @@ def compute_Ri(config, image_dR, list_neigh, natoms_img, ind_img, davg, dstd):
         egroup_weight_all = None
         divider = None
 
-    return Ri, Ri_d, egroup_weight_all, divider
+    return Ri, Ri_d, egroup_weight_all, divider, max(max_ri_list)
 
 '''
 description:
@@ -776,6 +778,8 @@ description:
         2. calculate davg, dstd and energy_shift from system which contain all atom types.
         3. for movements in the same category, call function sepper_data.
         4. the last, save davg, dstd and energy_shift.
+    
+    Srij_max is the max S(rij) before doing scaled by dstd and davg, this value is used for model compress
 param {*} config
 param {*} is_egroup
 param {*} is_load_stat
@@ -849,7 +853,7 @@ def sepper_data_main(config, is_egroup = True, stat_add = None, valid_random=Fal
     else:
         # calculate davg and dstd from first category of movement_classify
         davg, dstd = None, None
-
+    Srij_max = 0.0
     img_start = [0, 0] # the index of images saved (train set and valid set)
     for mvm_type_key in movement_classify.keys():
         _Etot, _Ei, _Force, _dR = None, None, None, None
@@ -895,12 +899,12 @@ def sepper_data_main(config, is_egroup = True, stat_add = None, valid_random=Fal
         # reorder davg and dstd to consistent with atom type order of current movement
         _davg, _dstd = _reorder_davg_dstd(davg, dstd, list(atom_type_order), mvm['types'])
 
-        accum_train_num, accum_valid_num= sepper_data(config, _Etot, _Ei, _Force, _dR, \
+        accum_train_num, accum_valid_num, _Srij_max= sepper_data(config, _Etot, _Ei, _Force, _dR, \
                                                       _atom_num_per_image, _atom_types, _img_per_mvmt, \
                                                       _Egroup, _Virial, \
                                                       _davg, _dstd,\
                                                       stat_add, img_start, valid_random)
-        
+        Srij_max = max(_Srij_max, Srij_max)
         img_start = [accum_train_num, accum_valid_num]
     if os.path.exists(os.path.join(train_data_path, "davg.npy")) is False:
         np.save(os.path.join(train_data_path, "davg.npy"), davg)
@@ -911,6 +915,8 @@ def sepper_data_main(config, is_egroup = True, stat_add = None, valid_random=Fal
         np.savetxt(os.path.join(valid_data_path, "atom_map.raw"), atom_type_order, fmt="%d")
         np.savetxt(os.path.join(train_data_path, "energy_shift.raw"), energy_shift)
         np.savetxt(os.path.join(valid_data_path, "energy_shift.raw"), energy_shift)
+        np.savetxt(os.path.join(train_data_path, "sij_max.raw"), [Srij_max], fmt="%.6f")
+        np.savetxt(os.path.join(valid_data_path, "sij_max.raw"), [Srij_max], fmt="%.6f")
                 
 
 '''
@@ -1067,10 +1073,9 @@ def sepper_data(config, Etot, Ei, Force, dR_neigh,\
         (atom_num_per_image.reshape(-1, 1), narray_diff_atom_types_num), axis=1
     )
     
-    Ri, Ri_d, Egroup_weight, Divider = compute_Ri(
+    Ri, Ri_d, Egroup_weight, Divider, max_ri = compute_Ri( 
             config, image_dR, list_neigh, atom_num_per_image, image_index, davg, dstd
         )
-
     if not os.path.exists(train_data_path):
         os.makedirs(train_data_path)
 
@@ -1165,7 +1170,8 @@ def sepper_data(config, Etot, Ei, Force, dR_neigh,\
 
     print("Saving npy file done")
 
-    return accum_train_num, accum_valid_num
+    Rij_max = max_ri # for model compress
+    return accum_train_num, accum_valid_num, Rij_max
 
 '''
 description: 

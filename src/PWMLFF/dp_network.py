@@ -27,7 +27,7 @@ import time
 import pickle
 import torch.nn as nn
 import math
-
+import horovod.torch as hvd
 import torch.nn as nn
 import torch.nn.parallel
 import torch.optim as optim
@@ -40,6 +40,10 @@ import time
     customized modules 
 """
 from src.model.dp_dp_typ_emb import TypeDP
+from src.model.dp_dp_typ_emb_mean import TypeDP as meanTypeDP
+from src.model.dp_dp_typ_emb_Gk import TypeDP as GkTypeDP
+from src.model.dp_dp_typ_emb_Gk5 import TypeDP as Gk5TypeDP
+
 from src.model.dp_dp import DP
 from src.optimizer.GKF import GKFOptimizer
 from src.optimizer.LKF import LKFOptimizer
@@ -54,8 +58,34 @@ class dp_network:
     def __init__(self, dp_param:InputParam):
         self.dp_params = dp_param
         self.config = self.dp_params.get_dp_net_dict()
+        self.davg_dstd_energy_shift = None # davg/dstd/energy_shift from training data
         torch.set_printoptions(precision = 12)
+        if self.dp_params.seed is not None:
+            random.seed(self.dp_params.seed)
+            torch.manual_seed(self.dp_params.seed)
 
+        if self.dp_params.hvd:
+            hvd.init()
+            self.dp_params.gpu = hvd.local_rank()
+
+        if torch.cuda.is_available():
+            if self.dp_params.gpu:
+                print("Use GPU: {} for training".format(self.dp_params.gpu))
+                self.device = torch.device("cuda:{}".format(self.dp_params.gpu))
+            else:
+                self.device = torch.device("cuda")
+        #elif torch.backends.mps.is_available():
+        #    self.device = torch.device("mps")
+        else:
+            self.device = torch.device("cpu")
+
+        if self.dp_params.precision == "float32":
+            self.training_type = torch.float32  # training type is weights type
+        else:
+            self.training_type = torch.float64
+
+        self.criterion = nn.MSELoss().to(self.device)
+        
     def generate_data(self):
         if self.dp_params.inference:
             if os.path.exists(self.dp_params.file_paths.model_load_path):
@@ -102,37 +132,7 @@ class dp_network:
         os.chdir(cwd)
         return os.path.dirname(pwdata_work_dir)
 
-    def load_and_train(self):
-        if self.dp_params.seed is not None:
-            random.seed(self.dp_params.seed)
-            torch.manual_seed(self.dp_params.seed)
-
-        if not os.path.exists(self.dp_params.file_paths.model_store_dir):
-            os.mkdir(self.dp_params.file_paths.model_store_dir)
-        if self.dp_params.model_num == 1:
-            smlink_file(self.dp_params.file_paths.model_store_dir, os.path.join(self.dp_params.file_paths.json_dir, os.path.basename(self.dp_params.file_paths.model_store_dir)))
-
-        if self.dp_params.hvd:
-            import horovod.torch as hvd
-            hvd.init()
-            self.dp_params.gpu = hvd.local_rank()
-
-        if torch.cuda.is_available():
-            if self.dp_params.gpu:
-                print("Use GPU: {} for training".format(self.dp_params.gpu))
-                device = torch.device("cuda:{}".format(self.dp_params.gpu))
-            else:
-                device = torch.device("cuda")
-        #elif torch.backends.mps.is_available():
-        #    device = torch.device("mps")
-        else:
-            device = torch.device("cpu")
-
-        if self.dp_params.precision == "float32":
-            training_type = torch.float32  # training type is weights type
-        else:
-            training_type = torch.float64
-        
+    def load_data(self):
         # Create dataset
         if self.dp_params.inference:
             train_dataset = MovementDataset([os.path.join(_, "train") for _ in self.dp_params.file_paths.test_feature_path])
@@ -140,16 +140,63 @@ class dp_network:
         else:            
             train_dataset = MovementDataset([os.path.join(_, "train") for _ in self.dp_params.file_paths.train_feature_path])
             valid_dataset = MovementDataset([os.path.join(_, "valid") for _ in self.dp_params.file_paths.train_feature_path])
+        
+        davg, dstd, energy_shift, atom_map, sij_max = train_dataset.get_stat()
 
+        if self.dp_params.hvd:
+            train_sampler = torch.utils.data.distributed.DistributedSampler(
+                train_dataset, num_replicas=hvd.size(), rank=hvd.rank()
+            )
+            val_sampler = torch.utils.data.distributed.DistributedSampler(
+                valid_dataset, num_replicas=hvd.size(), rank=hvd.rank(), drop_last=True
+            )
+        else:
+            train_sampler = None
+            val_sampler = None
+
+        # should add a collate function for padding
+        train_loader = torch.utils.data.DataLoader(
+            train_dataset,
+            batch_size=self.dp_params.optimizer_param.batch_size,
+            shuffle=self.dp_params.data_shuffle,
+            num_workers=self.dp_params.workers,   
+            pin_memory=True,
+            sampler=train_sampler,
+        )
+        
+        val_loader = torch.utils.data.DataLoader(
+            valid_dataset,
+            batch_size=self.dp_params.optimizer_param.batch_size,
+            shuffle=False,
+            num_workers=self.dp_params.workers,
+            pin_memory=True,
+            sampler=val_sampler,
+        )
+        return davg, dstd, energy_shift, atom_map, sij_max, train_loader, val_loader
+    
+    '''
+    description:
+        if davg, dstd and energy_shift not from load_data, get it from model_load_file
+    return {*}
+    author: wuxingxing
+    '''
+    def get_stat(self):
+        if self.davg_dstd_energy_shift is None:
+            if os.path.exists(self.dp_params.file_paths.model_load_path) is False:
+                raise Exception("ERROR! {} is not exist when get energy shift !".format(self.dp_params.file_paths.model_load_path))
+            davg_dstd_energy_shift = load_davg_dstd_from_checkpoint(self.dp_params.file_paths.model_load_path)
+        else:
+            davg_dstd_energy_shift = self.davg_dstd_energy_shift
+        return davg_dstd_energy_shift
+    
+    def load_model_optimizer(self, energy_shift):
         # create model 
         # when running evaluation, nothing needs to be done with davg.npy
-        davg, dstd, ener_shift, atom_map = train_dataset.get_stat()
-        stat = [davg, dstd, ener_shift]
         if self.dp_params.descriptor.type_embedding:
-            model = TypeDP(self.config, device, stat)
+            model = Gk5TypeDP(self.config, self.device, energy_shift)
         else:
-            model = DP(self.config, device, stat)
-        model = model.to(training_type)
+            model = DP(self.config, self.device, energy_shift)
+        model = model.to(self.training_type)
 
         if not torch.cuda.is_available():
             print("using CPU, this will be slow")
@@ -164,9 +211,7 @@ class dp_network:
             model = model.cuda(self.dp_params.gpu)
         else:
             model = model.cuda()
-
-        # define loss function (criterion), optimizer, and learning rate scheduler
-        criterion = nn.MSELoss().to(device)
+        # optimizer, and learning rate scheduler
 
         if self.dp_params.optimizer_param.opt_name == "LKF":
             optimizer = LKFOptimizer(
@@ -222,6 +267,10 @@ class dp_network:
                 # scheduler.load_state_dict(checkpoint["scheduler"])
                 print("=> loaded checkpoint '{}' (epoch {})"\
                       .format(model_path, checkpoint["epoch"]))
+                if "compress" in checkpoint.keys():
+                    model.set_comp_tab(checkpoint["compress"]["table"], checkpoint["compress"]["dx"], \
+                                       checkpoint["compress"]["davg"], checkpoint["compress"]["dstd"],\
+                                        checkpoint["compress"]["sij_min"])
             else:
                 print("=> no checkpoint found at '{}'".format(model_path))
 
@@ -231,90 +280,67 @@ class dp_network:
             )
             # Broadcast parameters from rank 0 to all other processes.
             hvd.broadcast_parameters(model.state_dict(), root_rank=0)
-
         # """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
         # scheduler = StepLR(optimizer, step_size=30, gamma=0.1)
+        return model, optimizer
 
-        if self.dp_params.hvd:
-            train_sampler = torch.utils.data.distributed.DistributedSampler(
-                train_dataset, num_replicas=hvd.size(), rank=hvd.rank()
-            )
-            val_sampler = torch.utils.data.distributed.DistributedSampler(
-                valid_dataset, num_replicas=hvd.size(), rank=hvd.rank(), drop_last=True
-            )
-        else:
-            train_sampler = None
-            val_sampler = None
-
-        # should add a collate function for padding
-        train_loader = torch.utils.data.DataLoader(
-            train_dataset,
-            batch_size=self.dp_params.optimizer_param.batch_size,
-            shuffle=self.dp_params.data_shuffle,
-            num_workers=self.dp_params.workers,   
-            pin_memory=True,
-            sampler=train_sampler,
-        )
-        
-        val_loader = torch.utils.data.DataLoader(
-            valid_dataset,
-            batch_size=self.dp_params.optimizer_param.batch_size,
-            shuffle=False,
-            num_workers=self.dp_params.workers,
-            pin_memory=True,
-            sampler=val_sampler,
-        )
-        
+    def inference(self):
         # do inference
-        if self.dp_params.inference:
-            res_pd, etot_label_list, etot_predict_list, ei_label_list, ei_predict_list, force_label_list, force_predict_list\
-            = predict(train_loader, model, criterion, device, self.dp_params)
-            # print infos
-            inference_cout = ""
-            inference_cout += "For {} images: \n".format(res_pd.shape[0])
-            inference_cout += "Avarage REMSE of Etot: {} \n".format(res_pd['RMSE_Etot'].mean())
-            inference_cout += "Avarage REMSE of Etot per atom: {} \n".format(res_pd['RMSE_Etot_per_atom'].mean())
-            inference_cout += "Avarage REMSE of Ei: {} \n".format(res_pd['RMSE_Ei'].mean())
-            inference_cout += "Avarage REMSE of RMSE_F: {} \n".format(res_pd['RMSE_F'].mean())
-            if self.dp_params.optimizer_param.train_egroup:
-                inference_cout += "Avarage REMSE of RMSE_Egroup: {} \n".format(res_pd['RMSE_Egroup'].mean())
-            if self.dp_params.optimizer_param.train_virial:
-                inference_cout += "Avarage REMSE of RMSE_virial: {} \n".format(res_pd['RMSE_virial'].mean())
-                inference_cout += "Avarage REMSE of RMSE_virial_per_atom: {} \n".format(res_pd['RMSE_virial_per_atom'].mean())
-            
-            inference_cout += "\nMore details can be found under the file directory:\n{}\n".format(os.path.realpath(self.dp_params.file_paths.test_dir))
-            print(inference_cout)
+        davg, dstd, energy_shift, atom_map, sij_max, train_loader, val_loader = self.load_data()
+        model, optimizer = self.load_model_optimizer(energy_shift)
+        
+        res_pd, etot_label_list, etot_predict_list, ei_label_list, ei_predict_list, force_label_list, force_predict_list\
+        = predict(train_loader, model, self.criterion, self.device, self.dp_params)
+        # print infos
+        inference_cout = ""
+        inference_cout += "For {} images: \n".format(res_pd.shape[0])
+        inference_cout += "Avarage REMSE of Etot: {} \n".format(res_pd['RMSE_Etot'].mean())
+        inference_cout += "Avarage REMSE of Etot per atom: {} \n".format(res_pd['RMSE_Etot_per_atom'].mean())
+        inference_cout += "Avarage REMSE of Ei: {} \n".format(res_pd['RMSE_Ei'].mean())
+        inference_cout += "Avarage REMSE of RMSE_F: {} \n".format(res_pd['RMSE_F'].mean())
+        if self.dp_params.optimizer_param.train_egroup:
+            inference_cout += "Avarage REMSE of RMSE_Egroup: {} \n".format(res_pd['RMSE_Egroup'].mean())
+        if self.dp_params.optimizer_param.train_virial:
+            inference_cout += "Avarage REMSE of RMSE_virial: {} \n".format(res_pd['RMSE_virial'].mean())
+            inference_cout += "Avarage REMSE of RMSE_virial_per_atom: {} \n".format(res_pd['RMSE_virial_per_atom'].mean())
+        
+        inference_cout += "\nMore details can be found under the file directory:\n{}\n".format(os.path.realpath(self.dp_params.file_paths.test_dir))
+        print(inference_cout)
 
-            inference_path = self.dp_params.file_paths.test_dir
-            if os.path.exists(inference_path) is False:
-                os.mkdir(inference_path)
-            write_arrays_to_file(os.path.join(inference_path, "dft_total_energy.txt"), etot_label_list)
-            write_arrays_to_file(os.path.join(inference_path, "inference_total_energy.txt"), etot_predict_list)
+        inference_path = self.dp_params.file_paths.test_dir
+        if os.path.exists(inference_path) is False:
+            os.mkdir(inference_path)
+        write_arrays_to_file(os.path.join(inference_path, "dft_total_energy.txt"), etot_label_list)
+        write_arrays_to_file(os.path.join(inference_path, "inference_total_energy.txt"), etot_predict_list)
 
-            write_arrays_to_file(os.path.join(inference_path, "dft_atomic_energy.txt"), ei_label_list)
-            write_arrays_to_file(os.path.join(inference_path, "inference_atomic_energy.txt"), ei_predict_list)
+        write_arrays_to_file(os.path.join(inference_path, "dft_atomic_energy.txt"), ei_label_list)
+        write_arrays_to_file(os.path.join(inference_path, "inference_atomic_energy.txt"), ei_predict_list)
 
-            write_arrays_to_file(os.path.join(inference_path, "dft_force.txt"), force_label_list)
-            write_arrays_to_file(os.path.join(inference_path, "inference_force.txt"), force_predict_list)
+        write_arrays_to_file(os.path.join(inference_path, "dft_force.txt"), force_label_list)
+        write_arrays_to_file(os.path.join(inference_path, "inference_force.txt"), force_predict_list)
 
-            res_pd.to_csv(os.path.join(inference_path, "inference_loss.csv"))
+        res_pd.to_csv(os.path.join(inference_path, "inference_loss.csv"))
 
-            with open(os.path.join(inference_path, "inference_summary.txt"), 'w') as wf:
-                wf.writelines(inference_cout)
-            return  
+        with open(os.path.join(inference_path, "inference_summary.txt"), 'w') as wf:
+            wf.writelines(inference_cout)
+        return 
 
+    def train(self):
+        davg, dstd, energy_shift, atom_map, sij_max, train_loader, val_loader = self.load_data() #davg, dstd, energy_shift, atom_map
+        model, optimizer = self.load_model_optimizer(energy_shift)
+        if not os.path.exists(self.dp_params.file_paths.model_store_dir):
+            os.makedirs(self.dp_params.file_paths.model_store_dir)
+        if self.dp_params.model_num == 1:
+            smlink_file(self.dp_params.file_paths.model_store_dir, os.path.join(self.dp_params.file_paths.json_dir, os.path.basename(self.dp_params.file_paths.model_store_dir)))
+        
         if not self.dp_params.hvd or (self.dp_params.hvd and hvd.rank() == 0):
-            
             train_log = os.path.join(self.dp_params.file_paths.model_store_dir, "epoch_train.dat")
             f_train_log = open(train_log, "w")
-
             valid_log = os.path.join(self.dp_params.file_paths.model_store_dir, "epoch_valid.dat")
             f_valid_log = open(valid_log, "w")
-
             # Define the lists based on the training type
             train_lists = ["epoch", "loss"]
             valid_lists = ["epoch", "loss"]
-
             if self.dp_params.optimizer_param.train_energy:
                 # train_lists.append("RMSE_Etot")
                 # valid_lists.append("RMSE_Etot")
@@ -360,25 +386,25 @@ class dp_network:
             f_valid_log.write("%s\n" % (valid_format % tuple(valid_lists)))
 
         for epoch in range(self.dp_params.optimizer_param.start_epoch, self.dp_params.optimizer_param.epochs + 1):
-            if self.dp_params.hvd:
-                train_sampler.set_epoch(epoch)
+            # if self.dp_params.hvd: # this code maybe error, check when add multi GPU training. wu
+            #     self.train_sampler.set_epoch(epoch)
 
             # train for one epoch
             time_start = time.time()
             if self.dp_params.optimizer_param.opt_name == "LKF" or self.dp_params.optimizer_param.opt_name == "GKF":
                 loss, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_egroup, loss_virial, loss_virial_per_atom = train_KF(
-                    train_loader, model, criterion, optimizer, epoch, device, self.dp_params
+                    train_loader, model, self.criterion, optimizer, epoch, self.device, self.dp_params
                 )
             else:
                 loss, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_egroup, loss_virial, loss_virial_per_atom, real_lr = train(
-                    train_loader, model, criterion, optimizer, epoch, \
-                        self.dp_params.optimizer_param.learning_rate, device, self.dp_params
+                    train_loader, model, self.criterion, optimizer, epoch, \
+                        self.dp_params.optimizer_param.learning_rate, self.device, self.dp_params
                 )
             time_end = time.time()
 
             # evaluate on validation set
             vld_loss, vld_loss_Etot, vld_loss_Etot_per_atom, vld_loss_Force, vld_loss_Ei, val_loss_egroup, val_loss_virial, val_loss_virial_per_atom = valid(
-                val_loader, model, criterion, device, self.dp_params
+                val_loader, model, self.criterion, self.device, self.dp_params
             )
 
             if not self.dp_params.hvd or (self.dp_params.hvd and hvd.rank() == 0):
@@ -436,10 +462,11 @@ class dp_network:
                         "json_file":self.dp_params.to_dict(),
                         "epoch": epoch,
                         "state_dict": model.state_dict(),
-                        "davg":davg, 
-                        "dstd":dstd, 
-                        "energy_shift":ener_shift,
+                        "davg":davg,
+                        "dstd":dstd,
+                        "energy_shift":energy_shift,
                         "atom_type_order": atom_map,    #atom type order of davg/dstd/energy_shift
+                        "sij_max":sij_max,
                         "optimizer":optimizer.state_dict()
                         },
                         self.dp_params.file_paths.model_name,
@@ -451,16 +478,20 @@ class dp_network:
                         "json_file":self.dp_params.to_dict(),
                         "epoch": epoch,
                         "state_dict": model.state_dict(),
-                        "davg":davg, 
-                        "dstd":dstd, 
-                        "energy_shift":ener_shift,
-                        "atom_type_order": atom_map    #atom type order of davg/dstd/energy_shift
+                        "davg":davg,
+                        "dstd":dstd,
+                        "energy_shift":energy_shift,
+                        "atom_type_order": atom_map,    #atom type order of davg/dstd/energy_shift
+                        "sij_max":sij_max
                         },
                         self.dp_params.file_paths.model_name,
                         self.dp_params.file_paths.model_store_dir,
                     )
-                
-    
+
+    def load_model_with_ckpt(self, energy_shift):
+        model, optimizer = self.load_model_optimizer(energy_shift)
+        return model
+
     def evaluate(self,num_thread = 1):
         """
             evaluate a model against AIMD

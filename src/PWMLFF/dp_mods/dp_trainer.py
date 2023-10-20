@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 import numpy as np
+from decimal import Decimal
 import time
 from enum import Enum
 import torch
@@ -10,7 +11,7 @@ from src.loss.dploss import dp_loss, adjust_lr
 from src.optimizer.KFWrapper import KFOptimizerWrapper
 import horovod.torch as hvd
 from torch.profiler import profile, record_function, ProfilerActivity
-
+from src.model.dp_dp import DP
 from src.user.input_param import InputParam
 
 def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, args:InputParam):
@@ -722,6 +723,8 @@ def predict(val_loader, model, criterion, device, args:InputParam):
     for i, sample_batches in enumerate(val_loader):
         # measure data loading time
         # load data to cpu
+        if i == 417:
+            print()
         if args.precision == "float64":
             Ei_label_cpu = sample_batches["Ei"].double()
             Etot_label_cpu = sample_batches["Etot"].double()
@@ -837,6 +840,8 @@ def predict(val_loader, model, criterion, device, args:InputParam):
 def save_checkpoint(state, filename, prefix):
     filename = os.path.join(prefix, filename)
     torch.save(state, filename)
+
+
 
 class Summary(Enum):
     NONE = 0
