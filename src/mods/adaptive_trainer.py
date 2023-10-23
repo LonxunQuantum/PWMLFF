@@ -439,6 +439,7 @@ class adaptive_trainer():
             link the force field files to the model dir
         """
 
+        os.chdir(self.working_dir)
         if not os.path.exists(self.explore_model_dir):
             os.makedirs(self.explore_model_dir)
 
@@ -747,7 +748,7 @@ class adaptive_trainer():
 
         psp_path = self.psp_dir
 
-        etot_input = self.etot_path
+        etot_input = self.etot_file
 
         mp_line = "mp_n123 = "
 
