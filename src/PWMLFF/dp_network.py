@@ -288,9 +288,12 @@ class dp_network:
         # do inference
         davg, dstd, energy_shift, atom_map, sij_max, train_loader, val_loader = self.load_data()
         model, optimizer = self.load_model_optimizer(energy_shift)
-        
+        start = time.time()
         res_pd, etot_label_list, etot_predict_list, ei_label_list, ei_predict_list, force_label_list, force_predict_list\
         = predict(train_loader, model, self.criterion, self.device, self.dp_params)
+        end = time.time()
+        print("fitting time:", end - start, 's')
+
         # print infos
         inference_cout = ""
         inference_cout += "For {} images: \n".format(res_pd.shape[0])

@@ -1,3 +1,5 @@
+import sys, os
+import time
 import numpy as np
 import torch
 from torch import embedding
@@ -5,7 +7,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn import init
 from torch.autograd import Variable
-import sys, os
 sys.path.append(os.getcwd())
 # import parameters as pm    
 # import prepare as pp
@@ -162,8 +163,8 @@ class DP(nn.Module):
                     G = self.embedding_net[embedding_index](S_Rij)
                     # symmetry conserving
                 else:
-                    # G = self.calc_compress(S_Rij, embedding_index, ntype)
-                    G = self.calc_compress_5order(S_Rij, embedding_index, ntype)
+                    G = self.calc_compress(S_Rij, embedding_index, ntype)
+                    # G = self.calc_compress_5order(S_Rij, embedding_index, ntype)
                 tmp_b = torch.matmul(tmp_a, G)
                 xyz_scater_a = tmp_b if xyz_scater_a is None else xyz_scater_a + tmp_b
             
@@ -178,7 +179,7 @@ class DP(nn.Module):
             Ei = Ei_ntype if Ei is None else torch.concat((Ei, Ei_ntype), dim=1)
             atom_sum = atom_sum + natoms[ntype]
         
-        Etot = torch.sum(Ei, 1)   
+        Etot = torch.sum(Ei, 1)
 
         if Egroup_weight is not None:
             Egroup = self.get_egroup(Ei, Egroup_weight, divider)
@@ -270,22 +271,26 @@ class DP(nn.Module):
     author: wuxingxing
     '''    
     def calc_compress(self, S_Rij:torch.Tensor, embedding_index:int, itype:int):
-        # S_Rij = S_Rij.flatten()
-        x = (S_Rij-self.sij_min)/(10**-self.dx)
+        sij = S_Rij.flatten()
+        out_len = int(self.compress_tab.shape[-1]/2)
+        x = (sij-self.sij_min)/self.dx
         index_k1 = x.type(torch.long) # get floor
         index_k2 = index_k1 + 1
-        xk = self.sij_min + index_k1*(10**-self.dx)
-        f2 = (S_Rij - xk).flatten().unsqueeze(-1)
+        xk = self.sij_min + index_k1*self.dx
+        f2 = (sij - xk).flatten().unsqueeze(-1)
         # f2 = ((x-index_k1)/(self.dstd[itype]*10**self.dx)).unsqueeze(-1)
         # f2 = ((((x - index_k1)/(10**self.dx)))/self.dstd[itype]).unsqueeze(-1)
         # f2 = (S_Rij.flatten() - ((index_k1*(1/10**self.dx)-self.davg[itype])/self.dstd[itype])).unsqueeze(-1)
-        G = f2*(self.compress_tab[embedding_index][index_k2.flatten()]-self.compress_tab[embedding_index][index_k1.flatten()]) + self.compress_tab[embedding_index][index_k1.flatten()]
+        # G = f2*(self.compress_tab[embedding_index][index_k2.flatten()]-self.compress_tab[embedding_index][index_k1.flatten()]) + self.compress_tab[embedding_index][index_k1.flatten()]
+        deriv_sij = (self.compress_tab[embedding_index][index_k2][:, out_len:] + self.compress_tab[embedding_index][index_k1][:, out_len:])/2
+        G = self.compress_tab[embedding_index][index_k1][:, :out_len] + f2*deriv_sij
         G = G.reshape(S_Rij.shape[0], S_Rij.shape[1], S_Rij.shape[2], G.shape[1])
         return G
     
     def calc_compress_5order(self, S_Rij:torch.Tensor, embedding_index:int, itype:int):
         x = S_Rij.flatten().unsqueeze(-1)
-        index_k1 = ((x-self.sij_min)/(10**-self.dx)).type(torch.long) # get floor
+        index_k1 = ((x-self.sij_min)*10**self.dx).type(torch.long) # get floor
+        x = x - index_k1*(10**-self.dx)
         coefficient = self.compress_tab[embedding_index, index_k1.flatten(), :]
         G = x**5 *coefficient[:, :, 0] + x**4 * coefficient[:, :, 1] + \
             x**3 * coefficient[:, :, 2] + x**2 * coefficient[:, :, 3] + \

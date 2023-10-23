@@ -24,7 +24,7 @@ if __name__ == "__main__":
         extract_force_field(ckpt_file, cmd_type)
     elif cmd_type == "compress".upper():
         ckpt_file = sys.argv[2]
-        compress_force_field(ckpt_file, cmd_type)
+        compress_force_field(ckpt_file)
     else:
         json_path = sys.argv[2]
         # cmd_type = "test".upper()

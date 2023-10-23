@@ -1,4 +1,5 @@
 import os
+import sys
 import numpy as np
 import json
 import torch
@@ -19,9 +20,15 @@ param {*} cmd_type
 return {*}
 author: wuxingxing
 '''
-def compress_force_field(ckpt_file, cmd_type):
+def compress_force_field(ckpt_file):
     #json_file
-    os.chdir("/data/home/wuxingxing/datas/pwmat_mlff_workdir/lisi/cmp_dp_ef")
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-d', '--dx', help='specify Sij grid partition interval', type=float, default=0.001)
+    parser.add_argument('-s', '--savename', help='specify the compressed model prefix name', type=str, default='cmp_dp_model')
+    args = parser.parse_args(sys.argv[3:])
+    dx = args.dx
+    model_compress_name = args.savename.replace('.ckpt', '') + ".ckpt"
     model_checkpoint = torch.load(ckpt_file,map_location=torch.device("cpu"))
     atom_type_order = model_checkpoint['atom_type_order']
     if atom_type_order.size == 1:   #
@@ -41,14 +48,14 @@ def compress_force_field(ckpt_file, cmd_type):
     dp_param = InputParam(json_dict, "train".upper())
     dp_trainer = dp_network(dp_param)
     model = dp_trainer.load_model_with_ckpt(energy_shift)
-    dx=3
+    # dx=3
     sij, scal_min = set_sij_range(davg, dstd, atom_type_order, \
                         dp_trainer.training_type, dp_trainer.device, \
-                        sij_max*2, 1/10**dx)
+                        sij_max*2, dx)
 
-    # cmp_tab = model_compress(sij, model)
+    cmp_tab = model_compress(sij, model)
     # cmp_tab = model_compress_5order(sij, model, 1/10**dx)
-    cmp_tab = model_compress_sintest(sij, model, 1/10**dx)
+    # cmp_tab = model_compress_sintest(sij, model, 1/10**dx)
     compress = {}
     compress["table"] = cmp_tab
     compress["dx"] = dx
@@ -57,7 +64,7 @@ def compress_force_field(ckpt_file, cmd_type):
     compress["sij_min"] = scal_min   
     model_checkpoint["compress"] = compress
 
-    torch.save(model_checkpoint, os.path.join(os.getcwd(), "3_5s_dp_model_cmp.ckpt"))
+    torch.save(model_checkpoint, os.path.join(os.getcwd(), model_compress_name))
     print("dp model compress success!")
 
 def model_compress(sij:torch.Tensor, model:DP):
@@ -65,16 +72,17 @@ def model_compress(sij:torch.Tensor, model:DP):
     sij_tab = []
     for type_0 in range(0, ntypes):
         for type_1 in range(0, ntypes):
-            # print(type_0, "\t\t", ntype_1)
-            # dim of Ri: batch size, natom_sum, ntype*max_neigh_num, local environment matrix , ([10,9,300,4])
-            # S_Rij = sij[:,type_0].unsqueeze(-1)
-            # determines which embedding net
+            y_d = None
             embedding_index = type_0 * model.ntypes + type_1
-            # itermediate output of embedding net 
-            # dim of G: batch size, natom of ntype, max_neigh_num, final layer dim
             G = model.embedding_net[embedding_index](sij)
+            for m in range(G.shape[-1]):
+                ym = G[:,m].unsqueeze(-1)
+                mask = torch.ones_like(ym)
+                ym_1d = torch.stack(list(torch.autograd.grad(ym, sij, grad_outputs=mask, retain_graph=True, create_graph=True)), dim=0).squeeze(0)
+                y_d = ym_1d if y_d is None else torch.concat((y_d, ym_1d), dim=1)
             # save to table
-            sij_tab.append(np.array(G.data.cpu()))
+            print()
+            sij_tab.append(np.array(torch.concat((G,y_d), dim=1).data.cpu()))
     sij_tab = np.array(sij_tab)
     return sij_tab
     
@@ -149,9 +157,8 @@ def model_compress_5order(sij:torch.Tensor, model:DP, dx:float):
 def model_compress_sintest(sij:torch.Tensor, model:DP, dx:float):
     ntypes = model.ntypes
     sij_tab = []
-    dx = np.pi/8
-    # sij = [ _ * dx for _ in range(0, 8)]
-    sij = [np.pi/4,np.pi/2,np.pi]
+    dx = np.pi/100
+    sij = [ _ * dx for _ in range(0, 1000)]
     sij = torch.tensor(sij, device=model.device, requires_grad=True).unsqueeze(-1)
     for type_0 in range(0, ntypes):
         for type_1 in range(0, ntypes):
