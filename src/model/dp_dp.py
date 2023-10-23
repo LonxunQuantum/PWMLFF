@@ -163,8 +163,8 @@ class DP(nn.Module):
                     G = self.embedding_net[embedding_index](S_Rij)
                     # symmetry conserving
                 else:
-                    G = self.calc_compress(S_Rij, embedding_index, ntype)
-                    # G = self.calc_compress_5order(S_Rij, embedding_index, ntype)
+                    # G = self.calc_compress(S_Rij, embedding_index, ntype)
+                    G = self.calc_compress_5order(S_Rij, embedding_index)
                 tmp_b = torch.matmul(tmp_a, G)
                 xyz_scater_a = tmp_b if xyz_scater_a is None else xyz_scater_a + tmp_b
             
@@ -287,13 +287,17 @@ class DP(nn.Module):
         G = G.reshape(S_Rij.shape[0], S_Rij.shape[1], S_Rij.shape[2], G.shape[1])
         return G
     
-    def calc_compress_5order(self, S_Rij:torch.Tensor, embedding_index:int, itype:int):
-        x = S_Rij.flatten().unsqueeze(-1)
-        index_k1 = ((x-self.sij_min)*10**self.dx).type(torch.long) # get floor
-        x = x - index_k1*(10**-self.dx)
-        coefficient = self.compress_tab[embedding_index, index_k1.flatten(), :]
-        G = x**5 *coefficient[:, :, 0] + x**4 * coefficient[:, :, 1] + \
-            x**3 * coefficient[:, :, 2] + x**2 * coefficient[:, :, 3] + \
-            x * coefficient[:, :, 4] + coefficient[:, :, 5]
+    def calc_compress_5order(self, S_Rij:torch.Tensor, embedding_index:int):
+        sij = S_Rij.flatten()
+
+        x = (sij-self.sij_min)/self.dx
+        index_k1 = x.type(torch.long) # get floor
+        xk = self.sij_min + index_k1*self.dx
+        f2 = (sij - xk).flatten().unsqueeze(-1)
+    
+        coefficient = self.compress_tab[embedding_index, index_k1, :]
+        G = f2**5 *coefficient[:, :, 0] + f2**4 * coefficient[:, :, 1] + \
+            f2**3 * coefficient[:, :, 2] + f2**2 * coefficient[:, :, 3] + \
+            f2 * coefficient[:, :, 4] + coefficient[:, :, 5]
         G = G.reshape(S_Rij.shape[0], S_Rij.shape[1], S_Rij.shape[2], G.shape[1])
         return G

@@ -702,7 +702,7 @@ param {*} args
 return {*}
 author: wuxingxing
 '''
-def predict(val_loader, model, criterion, device, args:InputParam):
+def predict(val_loader, model, criterion, device, args:InputParam, isprofile=False):
     train_lists = ["img_idx"] #"Etot_lab", "Etot_pre", "Ei_lab", "Ei_pre", "Force_lab", "Force_pre"
     train_lists.extend(["RMSE_Etot", "RMSE_Etot_per_atom", "RMSE_Ei", "RMSE_F"])
     if args.optimizer_param.train_egroup:
@@ -794,14 +794,30 @@ def predict(val_loader, model, criterion, device, args:InputParam):
             Ri_d = Variable(Ri_d_cpu[batch_indexs, :natoms].to(device))
 
             batch_size = len(batch_indexs)
-
-            if args.optimizer_param.train_egroup is True:
-                Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
-                    Ri, Ri_d, dR_neigh_list, natoms_img, atom_type, ImageDR, Egroup_weight, Divider)
+            if isprofile:
+                with profile(
+                        activities=[ProfilerActivity.CUDA, ProfilerActivity.CPU],
+                        record_shapes=True,
+                ) as prof:
+                    with record_function("model inference"):
+                        if args.optimizer_param.train_egroup is True:
+                            Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
+                                Ri, Ri_d, dR_neigh_list, natoms_img, atom_type, ImageDR, Egroup_weight, Divider)
+                        else:
+                            Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
+                                Ri, Ri_d, dR_neigh_list, natoms_img, atom_type, ImageDR, None, None 
+                            )
+                print(prof.key_averages().table(sort_by="cuda_time_total"))
+                print("=" * 60, "Profiling model inference", "=" * 60)
+                prof.export_chrome_trace("profiling_model.json")
             else:
-                Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
-                    Ri, Ri_d, dR_neigh_list, natoms_img, atom_type, ImageDR, None, None 
-                )
+                if args.optimizer_param.train_egroup is True:
+                    Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
+                        Ri, Ri_d, dR_neigh_list, natoms_img, atom_type, ImageDR, Egroup_weight, Divider)
+                else:
+                    Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
+                        Ri, Ri_d, dR_neigh_list, natoms_img, atom_type, ImageDR, None, None 
+                    )
             # mse
             loss_Etot_val = criterion(Etot_predict, Etot_label)
             loss_F_val = criterion(Force_predict, Force_label)

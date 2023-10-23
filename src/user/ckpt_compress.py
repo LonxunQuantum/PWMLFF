@@ -53,9 +53,9 @@ def compress_force_field(ckpt_file):
                         dp_trainer.training_type, dp_trainer.device, \
                         sij_max*2, dx)
 
-    cmp_tab = model_compress(sij, model)
-    # cmp_tab = model_compress_5order(sij, model, 1/10**dx)
-    # cmp_tab = model_compress_sintest(sij, model, 1/10**dx)
+    # cmp_tab = model_compress(sij, model)
+    cmp_tab = model_compress_5order(sij, model, dx)
+    # cmp_tab = model_compress_sintest(sij, model, dx)
     compress = {}
     compress["table"] = cmp_tab
     compress["dx"] = dx
@@ -89,149 +89,138 @@ def model_compress(sij:torch.Tensor, model:DP):
 def model_compress_5order(sij:torch.Tensor, model:DP, dx:float):
     ntypes = model.ntypes
     sij_tab = []
+    len = sij.shape[0]
     for type_0 in range(0, ntypes):
         for type_1 in range(0, ntypes):
             # print(type_0, "\t\t", ntype_1)
             # dim of Ri: batch size, natom_sum, ntype*max_neigh_num, local environment matrix , ([10,9,300,4])
             # S_Rij = sij[:,type_0].unsqueeze(-1)
-            S_Rij = sij
-            # determines which embedding net
             embedding_index = type_0 * model.ntypes + type_1
-            # itermediate output of embedding net 
-            # dim of G: batch size, natom of ntype, max_neigh_num, final layer dim
-            y = model.embedding_net[embedding_index](S_Rij) #S_Rij shape is [1000, 1], out y shape is [1000, 25]
-            S_Rij_2 = S_Rij+dx
-            y_2 = model.embedding_net[embedding_index](S_Rij_2)
-            am, bm, cm, dm, em, fm = None, None, None, None, None, None
-            # m_coef = None
-            for m in range(y.shape[-1]):
-                ym = y[:,m].unsqueeze(-1)
-                mask = torch.ones_like(ym)
-                ym_1d = torch.stack(list(torch.autograd.grad(ym, S_Rij, grad_outputs=mask, retain_graph=True, create_graph=True)), dim=0).squeeze(0)
-                # m_coef = ym_1d if m_coef is None else torch.concat((m_coef, ym_1d), dim=1)
-
-                mask2 = torch.ones_like(ym_1d)
-                ym_2d = torch.stack(list(torch.autograd.grad(ym_1d, S_Rij, grad_outputs=mask2, retain_graph=True, create_graph=True)), dim=0).squeeze(0)
-                
-                ym_2 = y_2[:,m].unsqueeze(-1)
-                mask_2 = torch.ones_like(ym_2)
-                ym_2_1d = torch.stack(list(torch.autograd.grad(ym_2, S_Rij_2, grad_outputs=mask_2, retain_graph=True, create_graph=True)), dim=0).squeeze(0)
-                mask2_2 = torch.ones_like(ym_2_1d)
-                ym_2_2d = torch.stack(list(torch.autograd.grad(ym_2_1d, S_Rij_2, grad_outputs=mask2_2, retain_graph=True, create_graph=True)), dim=0).squeeze(0)
- 
-                _am = 1/(2*dx**5) * (12*(ym_2-ym)-6*(ym_2_1d+ym_1d)*dx+(ym_2_2d-ym_2d)*dx**2)
-                _bm = 1/(2*dx**4) * (-30*(ym_2-ym)+(14*ym_2_1d+16*ym_1d)*dx+(3*ym_2d-2*ym_2_2d)*dx**2)
-                _cm = 1/(2*dx**3) * (20*(ym_2-ym)-(8*ym_2_1d+12*ym_1d)*dx-(3*ym_2d-ym_2_2d)*dx**2)
-                _dm = 1/2*(ym_2d)
-                _em = ym_1d
-                _fm = ym
-
-                # m_coef = torch.concat((_am, _bm, _cm, _dm, _em, _fm), dim=1)
-                am = _am if am is None else torch.concat((am, _am), dim=1) #[L+1, m]
-                bm = _bm if bm is None else torch.concat((bm, _bm), dim=1)
-                cm = _cm if cm is None else torch.concat((cm, _cm), dim=1)
-                dm = _dm if dm is None else torch.concat((dm, _dm), dim=1)
-                em = _em if em is None else torch.concat((em, _em), dim=1)
-                fm = _fm if fm is None else torch.concat((fm, _fm), dim=1)
-            # contruct coefficient matrix [L+1, m, 6]
-            # for m in range(0, y.shape[-1]):
-            #     coef_sij = torch.concat((am[:,m].unsqueeze(-1), bm[:,m].unsqueeze(-1), \
-            #                              cm[:,m].unsqueeze(-1), dm[:,m].unsqueeze(-1), \
-            #                                 em[:,m].unsqueeze(-1), fm[:,m].unsqueeze(-1)),\
-            #                                     dim=1)
-            #     coef_L = coef_sij if coef_L is None else torch.concat((coef_L, coef_sij), dim=1)
-            # print(coef_L.shape)
             coef_L = []
-            for L in range(S_Rij.shape[0]):
-                coef_sij = []
-                for m in range(0, y.shape[-1]):
-                    _coef_sij = [float(am[L][m]), float(bm[L][m]), float(cm[L][m]), float(dm[L][m]), float(em[L][m]), float(fm[L][m])]
-                    coef_sij.append(_coef_sij)
-                coef_L.append(coef_sij)
-            # save to table
+            for index, split in enumerate(range(0, len, 2000)): #split the input sij to 2000 as a group to avoid the out cuda memory in 2 order derivative atuograd step
+                start = index*2000
+                end = (index+1)*2000 if (index+1)*2000 < len else len
+                print("embedding net {} compress doing: {:.2f}%, all net is {}".format(embedding_index, start/len, ntypes**2))
+                S_Rij = sij[start: end]
+                # determines which embedding net
+                # itermediate output of embedding net 
+                # dim of G: batch size, natom of ntype, max_neigh_num, final layer dim
+                y = model.embedding_net[embedding_index](S_Rij) #S_Rij shape is [1000, 1], out y shape is [1000, 25]
+                S_Rij_2 = S_Rij+dx
+                y_2 = model.embedding_net[embedding_index](S_Rij_2)
+                am, bm, cm, dm, em, fm = None, None, None, None, None, None
+                # m_coef = None
+                for m in range(y.shape[-1]):
+                    ym = y[:,m].unsqueeze(-1)
+                    mask = torch.ones_like(ym)
+                    ym_1d = torch.stack(list(torch.autograd.grad(ym, S_Rij, grad_outputs=mask, retain_graph=True, create_graph=True)), dim=0).squeeze(0)
+                    # m_coef = ym_1d if m_coef is None else torch.concat((m_coef, ym_1d), dim=1)
+
+                    mask2 = torch.ones_like(ym_1d)
+                    ym_2d = torch.stack(list(torch.autograd.grad(ym_1d, S_Rij, grad_outputs=mask2, retain_graph=True, create_graph=True)), dim=0).squeeze(0)
+                    
+                    ym_2 = y_2[:,m].unsqueeze(-1)
+                    mask_2 = torch.ones_like(ym_2)
+                    ym_2_1d = torch.stack(list(torch.autograd.grad(ym_2, S_Rij_2, grad_outputs=mask_2, retain_graph=True, create_graph=True)), dim=0).squeeze(0)
+                    mask2_2 = torch.ones_like(ym_2_1d)
+                    ym_2_2d = torch.stack(list(torch.autograd.grad(ym_2_1d, S_Rij_2, grad_outputs=mask2_2, retain_graph=True, create_graph=True)), dim=0).squeeze(0)
+    
+                    _am = 1/(2*dx**5) * (12*(ym_2-ym)-6*(ym_2_1d+ym_1d)*dx+(ym_2_2d-ym_2d)*dx**2)
+                    _bm = 1/(2*dx**4) * (-30*(ym_2-ym)+(14*ym_2_1d+16*ym_1d)*dx+(3*ym_2d-2*ym_2_2d)*dx**2)
+                    _cm = 1/(2*dx**3) * (20*(ym_2-ym)-(8*ym_2_1d+12*ym_1d)*dx-(3*ym_2d-ym_2_2d)*dx**2)
+                    _dm = 1/2*(ym_2d)
+                    _em = ym_1d
+                    _fm = ym
+
+                    # m_coef = torch.concat((_am, _bm, _cm, _dm, _em, _fm), dim=1)
+                    am = _am if am is None else torch.concat((am, _am), dim=1) #[L+1, m]
+                    bm = _bm if bm is None else torch.concat((bm, _bm), dim=1)
+                    cm = _cm if cm is None else torch.concat((cm, _cm), dim=1)
+                    dm = _dm if dm is None else torch.concat((dm, _dm), dim=1)
+                    em = _em if em is None else torch.concat((em, _em), dim=1)
+                    fm = _fm if fm is None else torch.concat((fm, _fm), dim=1)
+                # contruct coefficient matrix [L+1, m, 6]
+                # for m in range(0, y.shape[-1]):
+                #     coef_sij = torch.concat((am[:,m].unsqueeze(-1), bm[:,m].unsqueeze(-1), \
+                #                              cm[:,m].unsqueeze(-1), dm[:,m].unsqueeze(-1), \
+                #                                 em[:,m].unsqueeze(-1), fm[:,m].unsqueeze(-1)),\
+                #                                     dim=1)
+                #     coef_L = coef_sij if coef_L is None else torch.concat((coef_L, coef_sij), dim=1)
+                # print(coef_L.shape)
+                for L in range(S_Rij.shape[0]):
+                    coef_sij = []
+                    for m in range(0, y.shape[-1]):
+                        _coef_sij = [float(am[L][m]), float(bm[L][m]), float(cm[L][m]), float(dm[L][m]), float(em[L][m]), float(fm[L][m])]
+                        coef_sij.append(_coef_sij)
+                    coef_L.append(coef_sij)
+                # save to table
             sij_tab.append(coef_L)
     sij_tab = np.array(sij_tab)
     return sij_tab
 
 
+'''
+description: 
+it is a example test of y=sin(x) for 5 order polynomial
+param {torch} sij
+param {DP} model
+param {float} dx
+return {*}
+author: wuxingxing
+'''
 def model_compress_sintest(sij:torch.Tensor, model:DP, dx:float):
-    ntypes = model.ntypes
-    sij_tab = []
     dx = np.pi/100
     sij = [ _ * dx for _ in range(0, 1000)]
     sij = torch.tensor(sij, device=model.device, requires_grad=True).unsqueeze(-1)
-    for type_0 in range(0, ntypes):
-        for type_1 in range(0, ntypes):
-            # print(type_0, "\t\t", ntype_1)
-            # dim of Ri: batch size, natom_sum, ntype*max_neigh_num, local environment matrix , ([10,9,300,4])
-            # S_Rij = sij[:,type_0].unsqueeze(-1)
-            S_Rij = sij
-            # determines which embedding net
-            embedding_index = type_0 * model.ntypes + type_1
-            # itermediate output of embedding net 
-            # dim of G: batch size, natom of ntype, max_neigh_num, final layer dim
-            # y = model.embedding_net[embedding_index](S_Rij) #S_Rij shape is [1000, 1], out y shape is [1000, 25]
-            y = torch.sin(sij)
-            S_Rij_2 = S_Rij+dx
-            y_2 = torch.sin(S_Rij_2)
-            # y_2 = model.embedding_net[embedding_index](S_Rij_2)
-            am, bm, cm, dm, em, fm = None, None, None, None, None, None
-            # m_coef = None
-            for m in range(y.shape[-1]):
-                ym = y[:,m].unsqueeze(-1)
-                mask = torch.ones_like(ym)
-                ym_1d = torch.stack(list(torch.autograd.grad(ym, S_Rij, grad_outputs=mask, retain_graph=True, create_graph=True)), dim=0).squeeze(0)
-                # m_coef = ym_1d if m_coef is None else torch.concat((m_coef, ym_1d), dim=1)
 
-                mask2 = torch.ones_like(ym_1d)
-                ym_2d = torch.stack(list(torch.autograd.grad(ym_1d, S_Rij, grad_outputs=mask2, retain_graph=True, create_graph=True)), dim=0).squeeze(0)
-                
-                ym_2 = y_2[:,m].unsqueeze(-1)
-                mask_2 = torch.ones_like(ym_2)
-                ym_2_1d = torch.stack(list(torch.autograd.grad(ym_2, S_Rij_2, grad_outputs=mask_2, retain_graph=True, create_graph=True)), dim=0).squeeze(0)
-                mask2_2 = torch.ones_like(ym_2_1d)
-                ym_2_2d = torch.stack(list(torch.autograd.grad(ym_2_1d, S_Rij_2, grad_outputs=mask2_2, retain_graph=True, create_graph=True)), dim=0).squeeze(0)
- 
-                _am = 1/(2*dx**5) * (12*(ym_2-ym)-6*(ym_2_1d+ym_1d)*dx+(ym_2_2d-ym_2d)*dx**2)
-                _bm = 1/(2*dx**4) * (-30*(ym_2-ym)+(14*ym_2_1d+16*ym_1d)*dx+(3*ym_2d-2*ym_2_2d)*dx**2)
-                _cm = 1/(2*dx**3) * (20*(ym_2-ym)-(8*ym_2_1d+12*ym_1d)*dx-(3*ym_2d-ym_2_2d)*dx**2)
-                _dm = 1/2*(ym_2d)
-                _em = ym_1d
-                _fm = ym
+    sij_test = [ _ * np.pi/1000 for _ in range(0, 1000)]
+    sij_test = torch.tensor(sij_test, device=model.device, requires_grad=True).unsqueeze(-1)
 
-                # m_coef = torch.concat((_am, _bm, _cm, _dm, _em, _fm), dim=1)
-                am = _am if am is None else torch.concat((am, _am), dim=1) #[L+1, m]
-                bm = _bm if bm is None else torch.concat((bm, _bm), dim=1)
-                cm = _cm if cm is None else torch.concat((cm, _cm), dim=1)
-                dm = _dm if dm is None else torch.concat((dm, _dm), dim=1)
-                em = _em if em is None else torch.concat((em, _em), dim=1)
-                fm = _fm if fm is None else torch.concat((fm, _fm), dim=1)
-                infer = _am * S_Rij**5 + _bm * S_Rij**4 + _cm * S_Rij**3 + _dm * S_Rij**2 + _em * S_Rij**1 + _fm
-                print()
-            # contruct coefficient matrix [L+1, m, 6]
-            # for m in range(0, y.shape[-1]):
-            #     coef_sij = torch.concat((am[:,m].unsqueeze(-1), bm[:,m].unsqueeze(-1), \
-            #                              cm[:,m].unsqueeze(-1), dm[:,m].unsqueeze(-1), \
-            #                                 em[:,m].unsqueeze(-1), fm[:,m].unsqueeze(-1)),\
-            #                                     dim=1)
-            #     coef_L = coef_sij if coef_L is None else torch.concat((coef_L, coef_sij), dim=1)
-            # print(coef_L.shape)
-            coef_L = []
-            for L in range(S_Rij.shape[0]):
-                coef_sij = []
-                for m in range(0, y.shape[-1]):
-                    _coef_sij = [float(am[L][m]), float(bm[L][m]), float(cm[L][m]), float(dm[L][m]), float(em[L][m]), float(fm[L][m])]
-                    coef_sij.append(_coef_sij)
-                coef_L.append(coef_sij)
-            # save to table
-            sij_tab.append(coef_L)
-    sij_tab = np.array(sij_tab)
-    return sij_tab
+    S_Rij = sij
+    y = torch.sin(sij)
+    S_Rij_2 = S_Rij+dx
+    y_2 = torch.sin(S_Rij_2)
+    y_test = torch.sin(sij_test)
 
+    am, bm, cm, dm, em, fm = None, None, None, None, None, None
+    # m_coef = None
+    for m in range(y.shape[-1]):
+        ym = y[:,m].unsqueeze(-1)
+        mask = torch.ones_like(ym)
+        ym_1d = torch.stack(list(torch.autograd.grad(ym, S_Rij, grad_outputs=mask, retain_graph=True, create_graph=True)), dim=0).squeeze(0)
+        # m_coef = ym_1d if m_coef is None else torch.concat((m_coef, ym_1d), dim=1)
 
-def get_am():
-    pass
+        mask2 = torch.ones_like(ym_1d)
+        ym_2d = torch.stack(list(torch.autograd.grad(ym_1d, S_Rij, grad_outputs=mask2, retain_graph=True, create_graph=True)), dim=0).squeeze(0)
+        
+        ym_2 = y_2[:,m].unsqueeze(-1)
+        mask_2 = torch.ones_like(ym_2)
+        ym_2_1d = torch.stack(list(torch.autograd.grad(ym_2, S_Rij_2, grad_outputs=mask_2, retain_graph=True, create_graph=True)), dim=0).squeeze(0)
+        mask2_2 = torch.ones_like(ym_2_1d)
+        ym_2_2d = torch.stack(list(torch.autograd.grad(ym_2_1d, S_Rij_2, grad_outputs=mask2_2, retain_graph=True, create_graph=True)), dim=0).squeeze(0)
 
+        _am = 1/(2*dx**5) * (12*(ym_2-ym)-6*(ym_2_1d+ym_1d)*dx+(ym_2_2d-ym_2d)*dx**2)
+        _bm = 1/(2*dx**4) * (-30*(ym_2-ym)+(14*ym_2_1d+16*ym_1d)*dx+(3*ym_2d-2*ym_2_2d)*dx**2)
+        _cm = 1/(2*dx**3) * (20*(ym_2-ym)-(8*ym_2_1d+12*ym_1d)*dx-(3*ym_2d-ym_2_2d)*dx**2)
+        _dm = 1/2*(ym_2d)
+        _em = ym_1d
+        _fm = ym
+
+        # m_coef = torch.concat((_am, _bm, _cm, _dm, _em, _fm), dim=1)
+        am = _am if am is None else torch.concat((am, _am), dim=1) #[L+1, m]
+        bm = _bm if bm is None else torch.concat((bm, _bm), dim=1)
+        cm = _cm if cm is None else torch.concat((cm, _cm), dim=1)
+        dm = _dm if dm is None else torch.concat((dm, _dm), dim=1)
+        em = _em if em is None else torch.concat((em, _em), dim=1)
+        fm = _fm if fm is None else torch.concat((fm, _fm), dim=1)
+
+        index_k1 = ((sij_test)/dx).type(torch.long)
+        index_k2 = index_k1 + 1
+        xk = index_k1*dx
+        f2 = (sij_test - xk).flatten().unsqueeze(-1)
+        index_k1 = index_k1.squeeze()
+        infer = am[index_k1]*f2**5 + bm[index_k1]*f2**4+cm[index_k1]*f2**3 + dm[index_k1]*f2**2+em[index_k1]*f2**1 + fm[index_k1]
+        print()
 
 '''
 description: 
