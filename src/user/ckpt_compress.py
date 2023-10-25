@@ -26,7 +26,10 @@ def compress_force_field(ckpt_file):
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--dx', help='specify Sij grid partition interval', type=float, default=0.001)
     parser.add_argument('-s', '--savename', help='specify the compressed model prefix name', type=str, default='cmp_dp_model')
+    parser.add_argument('-o', '--order', help='specify the compressed order', type=int, default='5')
+    
     args = parser.parse_args(sys.argv[3:])
+    order = args.order
     dx = args.dx
     model_compress_name = args.savename.replace('.ckpt', '') + ".ckpt"
     model_checkpoint = torch.load(ckpt_file,map_location=torch.device("cpu"))
@@ -52,13 +55,19 @@ def compress_force_field(ckpt_file):
     sij, scal_min = set_sij_range(davg, dstd, atom_type_order, \
                         dp_trainer.training_type, dp_trainer.device, \
                         sij_max*2, dx)
-
-    # cmp_tab = model_compress(sij, model)
-    cmp_tab = model_compress_5order(sij, model, dx)
+    if order == 2:
+        cmp_tab = model_compress(sij, model)
+    elif order == 3:
+        cmp_tab = model_compress_3order(sij, model, dx)
+    elif order == 5:
+        cmp_tab = model_compress_5order(sij, model, dx)
+    else:
+        raise Exception("Error ! The input compress order {} not realized yet. Order options: 2, 3, or 5".format(order))
     # cmp_tab = model_compress_sintest(sij, model, dx)
     compress = {}
     compress["table"] = cmp_tab
     compress["dx"] = dx
+    compress["order"] = order
     compress["davg"] = davg[:,0]
     compress["dstd"] = dstd[:,0]
     compress["sij_min"] = scal_min   
@@ -85,7 +94,54 @@ def model_compress(sij:torch.Tensor, model:DP):
             sij_tab.append(np.array(torch.concat((G,y_d), dim=1).data.cpu()))
     sij_tab = np.array(sij_tab)
     return sij_tab
+
+def model_compress_3order(sij:torch.Tensor, model:DP, dx:float):
+    ntypes = model.ntypes
+    sij_tab = []
+    len = sij.shape[0]
+    for type_0 in range(0, ntypes):
+        for type_1 in range(0, ntypes):
+            embedding_index = type_0 * model.ntypes + type_1
+            coef_L = []
+            for index, split in enumerate(range(0, len, 2000)): #split the input sij to 2000 as a group to avoid the out cuda memory in 2 order derivative atuograd step
+                start = index*2000
+                end = (index+1)*2000 if (index+1)*2000 < len else len
+                print("embedding net {} compress doing: {:.2f}%, all net is {}".format(embedding_index, start/len*100, ntypes**2))
+                S_Rij = sij[start: end]
+                y = model.embedding_net[embedding_index](S_Rij) #S_Rij shape is [1000, 1], out y shape is [1000, 25]
+                S_Rij_2 = S_Rij+dx
+                y_2 = model.embedding_net[embedding_index](S_Rij_2)
+                am, bm, cm, dm, em, fm = None, None, None, None, None, None
+                # m_coef = None
+                for m in range(y.shape[-1]):
+                    ym = y[:,m].unsqueeze(-1)
+                    mask = torch.ones_like(ym)
+                    ym_1d = torch.stack(list(torch.autograd.grad(ym, S_Rij, grad_outputs=mask, retain_graph=True, create_graph=True)), dim=0).squeeze(0)
+                    
+                    ym_2 = y_2[:,m].unsqueeze(-1)
+                    mask_2 = torch.ones_like(ym_2)
+                    ym_2_1d = torch.stack(list(torch.autograd.grad(ym_2, S_Rij_2, grad_outputs=mask_2, retain_graph=True, create_graph=True)), dim=0).squeeze(0)
     
+                    _am = 1/(dx**3) * ((ym_2_1d+ym_1d)*dx-2*(ym_2-ym))
+                    _bm = 1/(dx**2) * (-(ym_2_1d+2*ym_1d)*dx+3*(ym_2-ym))
+                    _cm = ym_1d
+                    _dm = ym
+
+                    am = _am if am is None else torch.concat((am, _am), dim=1) #[L+1, m]
+                    bm = _bm if bm is None else torch.concat((bm, _bm), dim=1)
+                    cm = _cm if cm is None else torch.concat((cm, _cm), dim=1)
+                    dm = _dm if dm is None else torch.concat((dm, _dm), dim=1)
+                for L in range(S_Rij.shape[0]):
+                    coef_sij = []
+                    for m in range(0, y.shape[-1]):
+                        _coef_sij = [float(am[L][m]), float(bm[L][m]), float(cm[L][m]), float(dm[L][m])]
+                        coef_sij.append(_coef_sij)
+                    coef_L.append(coef_sij)
+                # save to table
+            sij_tab.append(coef_L)
+    sij_tab = np.array(sij_tab)
+    return sij_tab
+
 def model_compress_5order(sij:torch.Tensor, model:DP, dx:float):
     ntypes = model.ntypes
     sij_tab = []
@@ -100,7 +156,7 @@ def model_compress_5order(sij:torch.Tensor, model:DP, dx:float):
             for index, split in enumerate(range(0, len, 2000)): #split the input sij to 2000 as a group to avoid the out cuda memory in 2 order derivative atuograd step
                 start = index*2000
                 end = (index+1)*2000 if (index+1)*2000 < len else len
-                print("embedding net {} compress doing: {:.2f}%, all net is {}".format(embedding_index, start/len, ntypes**2))
+                print("embedding net {} compress doing: {:.2f}%, all net is {}".format(embedding_index, start/len*100, ntypes**2))
                 S_Rij = sij[start: end]
                 # determines which embedding net
                 # itermediate output of embedding net 

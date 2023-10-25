@@ -63,15 +63,13 @@ class DP(nn.Module):
         
         self.compress_tab = None #for dp compress
 
-    def set_comp_tab(self, compress_tab, dx:float, davg:list, dstd:list, sij_min:float):
-        if self.ntypes**2 == len(compress_tab):
-            self.compress_tab = torch.tensor(compress_tab, dtype=self.dtype, device=self.device)
-            self.dx = dx
-            self.davg = davg
-            self.dstd = dstd
-            self.sij_min = sij_min
-        else:
-            raise Exception("Error! The compressed tables {} do not match embedding net nums {}!".format(len(compress_tab), self.ntypes))
+    def set_comp_tab(self, compress_dict:dict):
+        self.compress_tab = torch.tensor(compress_dict["table"], dtype=self.dtype, device=self.device)
+        self.dx = compress_dict["dx"]
+        self.davg = compress_dict["davg"]
+        self.dstd = compress_dict["dstd"]
+        self.sij_min = compress_dict["sij_min"]
+        self.order = compress_dict["order"] if "order" in compress_dict.keys() else 5 #the default compress order is 5
 
     def get_egroup(self, Ei, Egroup_weight, divider):
         # commit by wuxing and replace by the under line code
@@ -163,8 +161,13 @@ class DP(nn.Module):
                     G = self.embedding_net[embedding_index](S_Rij)
                     # symmetry conserving
                 else:
-                    # G = self.calc_compress(S_Rij, embedding_index, ntype)
-                    G = self.calc_compress_5order(S_Rij, embedding_index)
+                    if self.order == 2:
+                        G = self.calc_compress(S_Rij, embedding_index)
+                    elif self.order == 5:
+                        G = self.calc_compress_5order(S_Rij, embedding_index)
+                    elif self.order == 3:
+                        G = self.calc_compress_3order(S_Rij, embedding_index)
+
                 tmp_b = torch.matmul(tmp_a, G)
                 xyz_scater_a = tmp_b if xyz_scater_a is None else xyz_scater_a + tmp_b
             
@@ -270,7 +273,7 @@ class DP(nn.Module):
     return {*}
     author: wuxingxing
     '''    
-    def calc_compress(self, S_Rij:torch.Tensor, embedding_index:int, itype:int):
+    def calc_compress(self, S_Rij:torch.Tensor, embedding_index:int):
         sij = S_Rij.flatten()
         out_len = int(self.compress_tab.shape[-1]/2)
         x = (sij-self.sij_min)/self.dx
@@ -301,3 +304,19 @@ class DP(nn.Module):
             f2 * coefficient[:, :, 4] + coefficient[:, :, 5]
         G = G.reshape(S_Rij.shape[0], S_Rij.shape[1], S_Rij.shape[2], G.shape[1])
         return G
+
+    def calc_compress_3order(self, S_Rij:torch.Tensor, embedding_index:int):
+        sij = S_Rij.flatten()
+
+        x = (sij-self.sij_min)/self.dx
+        index_k1 = x.type(torch.long) # get floor
+        xk = self.sij_min + index_k1*self.dx
+        f2 = (sij - xk).flatten().unsqueeze(-1)
+    
+        coefficient = self.compress_tab[embedding_index, index_k1, :]
+        G = f2**3 *coefficient[:, :, 0] + f2**2 * coefficient[:, :, 1] + \
+            f2 * coefficient[:, :, 2] + coefficient[:, :, 3]
+        G = G.reshape(S_Rij.shape[0], S_Rij.shape[1], S_Rij.shape[2], G.shape[1])
+        
+        return G
+    

@@ -268,9 +268,7 @@ class dp_network:
                 print("=> loaded checkpoint '{}' (epoch {})"\
                       .format(model_path, checkpoint["epoch"]))
                 if "compress" in checkpoint.keys():
-                    model.set_comp_tab(checkpoint["compress"]["table"], checkpoint["compress"]["dx"], \
-                                       checkpoint["compress"]["davg"], checkpoint["compress"]["dstd"],\
-                                        checkpoint["compress"]["sij_min"])
+                    model.set_comp_tab(checkpoint["compress"])
             else:
                 print("=> no checkpoint found at '{}'".format(model_path))
 
@@ -312,7 +310,7 @@ class dp_network:
 
         inference_path = self.dp_params.file_paths.test_dir
         if os.path.exists(inference_path) is False:
-            os.mkdir(inference_path)
+            os.makedirs(inference_path)
         write_arrays_to_file(os.path.join(inference_path, "dft_total_energy.txt"), etot_label_list)
         write_arrays_to_file(os.path.join(inference_path, "inference_total_energy.txt"), etot_predict_list)
 
