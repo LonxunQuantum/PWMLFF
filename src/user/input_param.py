@@ -36,7 +36,7 @@ class InputParam(object):
         self.type_embedding = self.descriptor.type_embedding
         if self.model_type == "DP":
             self.model_param = ModelParam()
-            self.type_embedding = self.model_param.set_type_embedding_net(
+            self.model_param.set_type_embedding_net(
                                                     network_size=self.descriptor.type_network_size, 
                                                     bias=self.descriptor.type_bias, 
                                                     resnet_dt=self.descriptor.type_resnet_dt, 
@@ -49,7 +49,7 @@ class InputParam(object):
             self.model_param.set_dp_fitting_net(get_parameter("fitting_net",model_dict, {}))
         elif self.model_type == "NN":
             self.model_param = ModelParam()
-            self.type_embedding = self.model_param.set_type_embedding_net(
+            self.model_param.set_type_embedding_net(
                                         network_size=self.descriptor.type_network_size, 
                                         bias=self.descriptor.type_bias, 
                                         resnet_dt=self.descriptor.type_resnet_dt, 

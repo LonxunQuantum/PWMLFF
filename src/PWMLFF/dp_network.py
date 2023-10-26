@@ -40,10 +40,7 @@ import time
     customized modules 
 """
 from src.model.dp_dp_typ_emb import TypeDP
-from src.model.dp_dp_typ_emb_mean import TypeDP as meanTypeDP
-from src.model.dp_dp_typ_emb_Gk import TypeDP as GkTypeDP
-from src.model.dp_dp_typ_emb_Gk5 import TypeDP as Gk5TypeDP
-
+# from src.model.dp_dp_typ_emb_Gk5 import TypeDP as Gk5TypeDP # this is Gk5 type embedding of dp
 from src.model.dp_dp import DP
 from src.optimizer.GKF import GKFOptimizer
 from src.optimizer.LKF import LKFOptimizer
@@ -193,7 +190,7 @@ class dp_network:
         # create model 
         # when running evaluation, nothing needs to be done with davg.npy
         if self.dp_params.descriptor.type_embedding:
-            model = Gk5TypeDP(self.config, self.device, energy_shift)
+            model = TypeDP(self.config, self.device, energy_shift)
         else:
             model = DP(self.config, self.device, energy_shift)
         model = model.to(self.training_type)

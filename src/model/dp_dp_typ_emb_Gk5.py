@@ -136,7 +136,7 @@ class TypeDP(nn.Module):
     return {*}
     author: wuxingxing
     '''
-    def forward(self, Ri, dfeat, list_neigh, natoms_img, atom_type, ImageDR, Egroup_weight = None, divider = None, is_calc_f=None):
+    def forward(self, Ri, dfeat, list_neigh, natoms_img, atom_type, ImageDR, Egroup_weight = None, divider = None, is_calc_f=True):
 
         #torch.autograd.set_detect_anomaly(True)
         Ri_d = dfeat

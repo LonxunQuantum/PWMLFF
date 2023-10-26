@@ -36,13 +36,13 @@ def error(msg, *args, **kwargs):
     logger.error(msg, *args, **kwargs, exc_info=True)
 
 class TypeDP(nn.Module):
-    def __init__(self, config, device, stat, magic=False):
+    def __init__(self, config, device, energy_shift, magic=False):
         super(TypeDP, self).__init__()
         self.config = config
         self.ntypes = len(config['atomType'])
         self.atom_type = [_['type'] for _ in config['atomType']] #this value in used in forward for hybrid Training
         self.device = device
-        self.stat = stat
+        self.energy_shift = energy_shift
         self.M2 = config["M2"]
         self.maxNeighborNum = config["maxNeighborNum"]
         if self.config["training_type"] == "float64":
@@ -69,8 +69,10 @@ class TypeDP(nn.Module):
         # initial fitting net
         fitting_net_input_dim = self.config["net_cfg"]["embedding_net"]["network_size"][-1]
         for i in range(self.ntypes):
-            self.fitting_net.append(FittingNet(config["net_cfg"]["fitting_net"], self.M2 * fitting_net_input_dim, self.stat[2][i], magic))
+            self.fitting_net.append(FittingNet(config["net_cfg"]["fitting_net"], self.M2 * fitting_net_input_dim, self.energy_shift[i], magic))
 
+        self.compress_tab = None #for dp compress
+        
     def get_egroup(self, Ei, Egroup_weight, divider):
         # commit by wuxing and replace by the under line code
         # batch_size = Ei.shape[0]
@@ -85,6 +87,15 @@ class TypeDP(nn.Module):
         Egroup_out = torch.divide(Egroup.squeeze(-1), divider)
         
         return Egroup_out
+
+    def set_comp_tab(self, compress_dict:dict):
+        self.compress_tab = torch.tensor(compress_dict["table"], dtype=self.dtype, device=self.device)
+        self.dx = compress_dict["dx"]
+        self.davg = compress_dict["davg"]
+        self.dstd = compress_dict["dstd"]
+        self.sij_min = compress_dict["sij_min"]
+        self.order = compress_dict["order"] if "order" in compress_dict.keys() else 5 #the default compress order is 5
+        self.type_vector = compress_dict["type_vector"] if "type_vector" in compress_dict.keys() else None #the default compress order is 5
 
     '''
     description: 
@@ -134,7 +145,7 @@ class TypeDP(nn.Module):
     return {*}
     author: wuxingxing
     '''
-    def forward(self, Ri, dfeat, list_neigh, natoms_img, atom_type, ImageDR, Egroup_weight = None, divider = None, is_calc_f=None):
+    def forward(self, Ri, dfeat, list_neigh, natoms_img, atom_type, ImageDR, Egroup_weight = None, divider = None, is_calc_f=True):
 
         #torch.autograd.set_detect_anomaly(True)
         Ri_d = dfeat
@@ -153,6 +164,8 @@ class TypeDP(nn.Module):
             S_Rij = None
             tmp_a = None
             type_emb_feat = None
+            vector_tensor = None
+            G = None
             for emb in type_emb:
                 ntype, ntype_1 = emb # Compatible with hybrid training
                 #        Ri[images, atom_type_list            ,  neighbor_list_of_different_atom_type,  SRij_value]
@@ -164,15 +177,32 @@ class TypeDP(nn.Module):
 
                 type_emb_ = torch.tensor(type_vector[self.atom_type[ntype_1]], dtype=self.dtype, device=self.device).repeat(self.maxNeighborNum,1)
                 type_emb_feat = type_emb_ if type_emb_feat is None else torch.concat((type_emb_feat, type_emb_), dim=0)
+
+                if self.compress_tab is not None:
+                    _vector = torch.tensor(ntype_1, dtype=torch.long, device=self.device).repeat(self.maxNeighborNum)
+                    vector_tensor = _vector if vector_tensor is None else torch.concat((vector_tensor, _vector), dim=0)
+                    if self.order == 3:
+                        G3 = self.calc_compress_3order(S_Rij_, ntype_1)
+                        G = G3 if G is None else torch.concat((G, G3), dim=2)
+                    elif self.order == 5:
+                        G5 = self.calc_compress_5order(S_Rij_, ntype_1)
+                        G = G5 if G is None else torch.concat((G, G5), dim=2)
+
             tmp_a = tmp_a.transpose(-2, -1)
             # For each neighbor of the central atom 'ntype', obtain the type code by passing it through the type embedding net
             
-            if len(self.embedding_net) > 1:
-                type_emb_encoded = self.embedding_net[0](type_emb_feat)
-                S_Rij_type = torch.concat((S_Rij, type_emb_encoded.unsqueeze(0).unsqueeze(0).expand(S_Rij.shape[0], S_Rij.shape[1], -1, -1)), dim=3)
-            else:
+            #-------------------------------------------------------#
+            # this code is for type embedding that physical vectors pass to a small net work
+            # if len(self.embedding_net) > 1:  
+            #     type_emb_encoded = self.embedding_net[0](type_emb_feat)
+            #     S_Rij_type = torch.concat((S_Rij, type_emb_encoded.unsqueeze(0).unsqueeze(0).expand(S_Rij.shape[0], S_Rij.shape[1], -1, -1)), dim=3)
+            # else:
+            #     S_Rij_type = torch.concat((S_Rij, type_emb_feat.unsqueeze(0).unsqueeze(0).expand(S_Rij.shape[0], S_Rij.shape[1], -1, -1)), dim=3)
+            #-------------------------------------------------------#
+            if self.compress_tab is None:
                 S_Rij_type = torch.concat((S_Rij, type_emb_feat.unsqueeze(0).unsqueeze(0).expand(S_Rij.shape[0], S_Rij.shape[1], -1, -1)), dim=3)
-            G = self.embedding_net[-1](S_Rij_type) #[4, 60, 200, 25] li-si S_Rij_type
+                G = self.embedding_net[-1](S_Rij_type) #[4, 60, 200, 25] li-si S_Rij_type
+                    # symmetry conserving
             xyz_scater_a = torch.matmul(tmp_a, G)
             # attention: for hybrid training, the division should be done based on \
             #   the number of element types in the current image, because the images may from different systems.
@@ -248,4 +278,33 @@ class TypeDP(nn.Module):
             Virial = CalculateVirialForce.apply(list_neigh, dE, ImageDR, Ri_d)
         return Etot, Ei, F, Egroup, Virial  #F is Force
     
+    def calc_compress_5order(self, S_Rij:torch.Tensor, table_type:int):
+        sij = S_Rij.flatten()
+
+        x = (sij-self.sij_min)/self.dx
+        index_k1 = x.type(torch.long) # get floor
+        xk = self.sij_min + index_k1*self.dx
+        f2 = (sij - xk).flatten().unsqueeze(-1)
+    
+        coefficient = self.compress_tab[table_type, index_k1, :]
+        G = f2**5 *coefficient[:, :, 0] + f2**4 * coefficient[:, :, 1] + \
+            f2**3 * coefficient[:, :, 2] + f2**2 * coefficient[:, :, 3] + \
+            f2 * coefficient[:, :, 4] + coefficient[:, :, 5]
+        G = G.reshape(S_Rij.shape[0], S_Rij.shape[1], S_Rij.shape[2], G.shape[1])
+        return G
+
+    def calc_compress_3order(self, S_Rij:torch.Tensor, table_type:int ):
+        sij = S_Rij.flatten()
+
+        x = (sij-self.sij_min)/self.dx
+        index_k1 = x.type(torch.long) # get floor
+        xk = self.sij_min + index_k1*self.dx
+        f2 = (sij - xk).flatten().unsqueeze(-1)
+    
+        coefficient = self.compress_tab[table_type, index_k1, :]
+        G = f2**3 *coefficient[:, :, 0] + f2**2 * coefficient[:, :, 1] + \
+            f2 * coefficient[:, :, 2] + coefficient[:, :, 3]
+        G = G.reshape(S_Rij.shape[0], S_Rij.shape[1], S_Rij.shape[2], G.shape[1])
         
+        return G
+    
