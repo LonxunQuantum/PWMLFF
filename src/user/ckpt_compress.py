@@ -142,7 +142,7 @@ def dp_model_compress_3order(sij:torch.Tensor, model:DP, dx:float):
                     bm = _bm if bm is None else torch.concat((bm, _bm), dim=1)
                     cm = _cm if cm is None else torch.concat((cm, _cm), dim=1)
                     dm = _dm if dm is None else torch.concat((dm, _dm), dim=1)
-                for L in range(S_Rij.shape[0]):
+                for L in range(S_Rij.shape[0]-1):
                     coef_sij = []
                     for m in range(0, y.shape[-1]):
                         _coef_sij = [float(am[L][m]), float(bm[L][m]), float(cm[L][m]), float(dm[L][m])]
@@ -216,7 +216,7 @@ def dp_model_compress_5order(sij:torch.Tensor, model:DP, dx:float):
                 #                                     dim=1)
                 #     coef_L = coef_sij if coef_L is None else torch.concat((coef_L, coef_sij), dim=1)
                 # print(coef_L.shape)
-                for L in range(S_Rij.shape[0]):
+                for L in range(S_Rij.shape[0]-1):
                     coef_sij = []
                     for m in range(0, y.shape[-1]):
                         _coef_sij = [float(am[L][m]), float(bm[L][m]), float(cm[L][m]), float(dm[L][m]), float(em[L][m]), float(fm[L][m])]
