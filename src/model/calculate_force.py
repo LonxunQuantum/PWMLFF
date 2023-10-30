@@ -3,6 +3,41 @@ import torch
 from torch.autograd import Function
 import op
 
+class CalculateCompress(Function):
+    @staticmethod
+    def forward(ctx, f2, coefficient):
+        sij_num = coefficient.shape[0]
+        layer_node = coefficient.shape[1]
+        coe_num = coefficient.shape[2]
+        ctx.save_for_backward(f2, coefficient)
+        G = torch.empty(
+            [sij_num, layer_node],
+            device=f2.device,
+            dtype=f2.dtype,
+        )
+        op.calculate_compress(f2, coefficient, sij_num, layer_node, coe_num, G)
+        return G
+
+    @staticmethod
+    def backward(ctx, grad_output): # the grad_output is dE/dG
+        # print("IN compress gradout:\n", grad_output.shape)
+        # print(grad_output[0,:], "\n\n")
+        inputs = ctx.saved_tensors
+        f2 = inputs[0]
+        coefficient = inputs[1]
+        sij_num = coefficient.shape[0]
+        layer_node = coefficient.shape[1]
+        coe_num = coefficient.shape[2]
+        Grad = torch.zeros([sij_num, layer_node], device=f2.device, dtype=f2.dtype)
+        op.calculate_compress_grad(f2, coefficient, grad_output, sij_num, layer_node, coe_num, Grad)
+        grad_out = torch.sum(grad_output*Grad, dim=1).unsqueeze(-1) #对应坐标位置相乘，然后算加法
+        # print("OUT compress Grad:\n", Grad.shape)
+        # print(Grad[0,:], "\n\n")
+        # print("OUT compress grad_out:\n", Grad.shape)
+        # print(grad_out[0,:], "\n\n")
+        # assert(1 == 0)
+        return (grad_out, None)
+    
 class CalculateForce(Function):
     @staticmethod
     def forward(ctx, list_neigh, dE, Ri_d, F):

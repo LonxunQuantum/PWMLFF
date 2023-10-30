@@ -12,7 +12,7 @@ sys.path.append(os.getcwd())
 # import prepare as pp
 # pp.readFeatnum()
 from src.model.dp_embedding import EmbeddingNet, FittingNet
-from src.model.calculate_force import CalculateForce, CalculateVirialForce
+from src.model.calculate_force import CalculateCompress, CalculateForce, CalculateVirialForce
 # logging and our extension
 import logging
 logging_level_DUMP = 5
@@ -145,6 +145,7 @@ class DP(nn.Module):
         atom_sum = 0
         emb_list, type_nums =  self.get_train_2body_type(list(np.array(atom_type.cpu())[0]))
         Ei = None
+        # start_forward = time.time()
         for type_emb in emb_list:
             xyz_scater_a = None
             for emb in type_emb:
@@ -157,6 +158,7 @@ class DP(nn.Module):
                 # itermediate output of embedding net 
                 # dim of G: batch size, natom of ntype, max_neigh_num, final layer dim
                 tmp_a = Ri[:, atom_sum:atom_sum+natoms[ntype], ntype_1 * self.maxNeighborNum:(ntype_1+1) * self.maxNeighborNum].transpose(-2, -1)
+                # start_emb = time.time()
                 if self.compress_tab is None:
                     G = self.embedding_net[embedding_index](S_Rij)
                     # symmetry conserving
@@ -167,7 +169,8 @@ class DP(nn.Module):
                         G = self.calc_compress_5order(S_Rij, embedding_index)
                     elif self.order == 3:
                         G = self.calc_compress_3order(S_Rij, embedding_index)
-
+                # end_emb = time.time()
+                # print("embedding time:", end_emb - start_emb, 's')
                 tmp_b = torch.matmul(tmp_a, G)
                 xyz_scater_a = tmp_b if xyz_scater_a is None else xyz_scater_a + tmp_b
             
@@ -199,7 +202,10 @@ class DP(nn.Module):
         # print("fitting time:", start_autograd - start_fitting, 's')
         
         mask = torch.ones_like(Ei)
+        # start_autograd = time.time()
         dE = torch.autograd.grad(Ei, Ri, grad_outputs=mask, retain_graph=True, create_graph=True)
+        # end_autograd = time.time()
+        # print("autograd time:", end_autograd - start_autograd, 's')
         # dot = make_dot(Ei, params={"x":Ri})
         # dot.render("compute_graph.png", format="png")
         dE = torch.stack(list(dE), dim=0).squeeze(0)  #[:,:,:,:-1] #[2,108,100,4]-->[2,108,100,3]
@@ -251,6 +257,9 @@ class DP(nn.Module):
             F = CalculateForce.apply(list_neigh, dE, Ri_d, F)
             # virial = CalculateVirialForce.apply(list_neigh, dE, Ri[:,:,:,:3], Ri_d)
             Virial = CalculateVirialForce.apply(list_neigh, dE, ImageDR, Ri_d)
+        
+        # end_forward = time.time()
+        # print("forward time:", end_forward - start_forward, 's')
         return Etot, Ei, F, Egroup, Virial  #F is Force
                       
     '''
@@ -307,16 +316,17 @@ class DP(nn.Module):
 
     def calc_compress_3order(self, S_Rij:torch.Tensor, embedding_index:int):
         sij = S_Rij.flatten()
-
         x = (sij-self.sij_min)/self.dx
         index_k1 = x.type(torch.long) # get floor
         xk = self.sij_min + index_k1*self.dx
         f2 = (sij - xk).flatten().unsqueeze(-1)
     
         coefficient = self.compress_tab[embedding_index, index_k1, :]
-        G = f2**3 *coefficient[:, :, 0] + f2**2 * coefficient[:, :, 1] + \
-            f2 * coefficient[:, :, 2] + coefficient[:, :, 3]
+        G = CalculateCompress.apply(f2, coefficient)
+        # G = f2**3 *coefficient[:, :, 0] + f2**2 * coefficient[:, :, 1] + \
+        #     f2 * coefficient[:, :, 2] + coefficient[:, :, 3]
         G = G.reshape(S_Rij.shape[0], S_Rij.shape[1], S_Rij.shape[2], G.shape[1])
-        
         return G
+
+
     

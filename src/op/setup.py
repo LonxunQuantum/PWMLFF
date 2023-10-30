@@ -10,6 +10,10 @@ setup(
         CUDAExtension(
             "op",
             [
+                "calculate_compress.cpp", 
+                "kernel/calculateCompress.cu",
+                "calculate_compress_grad.cpp", 
+                "kernel/calculateCompress_grad.cu",
                 "calculate_force.cpp", 
                 "kernel/calculateForce.cu",
                 "calculate_force_grad.cpp",

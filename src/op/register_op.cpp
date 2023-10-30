@@ -1,6 +1,13 @@
 #include "op_declare.h"
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
+    m.def("calculate_compress", 
+          &torch_launch_calculate_compress,
+          "calculate compress kernel warpper");
+
+    m.def("calculate_compress_grad", 
+          &torch_launch_calculate_compress_grad,
+          "calculate compress grad kernel warpper");
 
     m.def("calculate_force", 
           &torch_launch_calculate_force,
@@ -20,6 +27,10 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
 }
 
 TORCH_LIBRARY(op, m) {
+    m.def("calculate_compress", torch_launch_calculate_compress);
+
+    m.def("calculate_compress_grad", torch_launch_calculate_compress_grad);
+
     m.def("calculate_force", torch_launch_calculate_force);
 
     m.def("calculate_force_grad", torch_launch_calculate_force_grad);
