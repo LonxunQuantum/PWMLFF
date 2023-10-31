@@ -12,7 +12,7 @@ PROGRAM gen_dR
    character(len=50) char_tmp(20)
    character(len=200) trainSetFileDir(5000)
    character(len=200) trainSetDir
-   character(len=200) MOVEMENTDir
+   character(len=200) MOVEMENTDir,trainDataDir
    integer sys_num,sys
 
    integer,allocatable,dimension (:,:,:) :: list_neigh,iat_neigh,iat_neigh_M
@@ -25,11 +25,21 @@ PROGRAM gen_dR
    integer,allocatable,dimension (:,:,:) :: list_neigh_M
    integer,allocatable,dimension (:,:) :: num_neigh_M
 
-   integer m_neigh
-   integer ntype, nfeat0(100)
-   integer iat_type(100)
+   real*8,allocatable,dimension (:,:) :: fact
+   real*8,allocatable,dimension (:) :: energy_group
+   real*8,allocatable,dimension (:) :: divider
+   real*8 :: dwidth
+   integer :: iat1,iat2
+   integer :: max_natom
+   real*8 :: Esum, sum, dx1, dx2, dx3, dx, dy, dz, dd
+   logical*2::alive
 
-   real*8 Rc_type(100), Rc2_type(100), Rm_type(100),weight_rterm(100)
+   integer :: m_neigh
+   integer :: ntype,itype
+   integer :: iat_type(100)
+   integer :: egroup_flag
+
+   real*8 :: Rc_type(100)
 
    integer, parameter :: num_elems = 63  ! Total number of elements
 
@@ -66,6 +76,7 @@ PROGRAM gen_dR
       endif
    enddo
    read(10,*) E_tolerance
+   read(10,*) egroup_flag
    close(10)
 
    open(13,file="input/location")
@@ -78,9 +89,18 @@ PROGRAM gen_dR
    enddo
    close(13)
 
+
+   !cccccccccccccccccccccccccccccccccccccccc
+   trainDataDir=trim(trainSetDir)//"/Egroup.dat"
+   inquire(file=trainDataDir,exist=alive)
+   if (alive) then
+      open(10,file=trainDataDir)
+      close(10,status='delete')
+   endif
+   max_natom = 0
+   !cccccccccccccccccccccccccccccccccccccccccccccccccccc
    do 2333 sys=1,sys_num
       MOVEMENTDir=trim(trainSetFileDir(sys))//"/MOVEMENT"
-
 !cccccccccccccccccccccccccccccccccccccccccccccccccccc
       OPEN (move_file,file=MOVEMENTDir,status="old",action="read")
       rewind(move_file)
@@ -315,6 +335,55 @@ PROGRAM gen_dR
       !do k=1,m_neigh
       !    write(*,*) dR_neigh(:,k,1,1)
       !enddo
+      if(egroup_flag.eq.1) then
+         allocate(divider(natom))
+         allocate(energy_group(natom))
+         allocate(fact(natom,natom))
+         fact=0.d0
+         energy_group=0.d0
+         divider=0.d0
+         dwidth = sqrt(-Rc_M**2/log(0.01)) ! log(0.01)=-4.60517018598809 = ln(0.01)
+
+         do iat1=1,natom   ! center position (not even call it atom)
+            Esum=0.d0
+            sum=0.d0
+            do iat2=1,natom
+               itype=itype_atom(iat2)
+
+               dx1=xatom(1,iat2)-xatom(1,iat1)
+               dx2=xatom(2,iat2)-xatom(2,iat1)
+               dx3=xatom(3,iat2)-xatom(3,iat1)
+               if(abs(dx1+1).lt.abs(dx1)) dx1=dx1+1
+               if(abs(dx1-1).lt.abs(dx1)) dx1=dx1-1
+               if(abs(dx2+1).lt.abs(dx2)) dx2=dx2+1
+               if(abs(dx2-1).lt.abs(dx2)) dx2=dx2-1
+               if(abs(dx3+1).lt.abs(dx3)) dx3=dx3+1
+               if(abs(dx3-1).lt.abs(dx3)) dx3=dx3-1
+               dx=AL(1,1)*dx1+AL(1,2)*dx2+AL(1,3)*dx3
+               dy=AL(2,1)*dx1+AL(2,2)*dx2+AL(2,3)*dx3
+               dz=AL(3,1)*dx1+AL(3,2)*dx2+AL(3,3)*dx3
+               dd=dx**2+dy**2+dz**2
+
+               if(dd.lt.Rc_M) then
+                  fact(iat1,iat2)=exp(-dd/dwidth**2)
+                  Esum=Esum+(Eatom(iat2))*fact(iat1,iat2)
+                  sum=sum+fact(iat1,iat2)
+               endif
+            enddo
+            divider(iat1) = sum
+            energy_group(iat1)=Esum/sum
+         enddo
+
+         open(55,file=trainDataDir,position="append")
+         do i=1,natom
+            write(55,"(f20.7)") energy_group(i)
+         enddo
+         close(55)
+
+         deallocate(fact)
+         deallocate(divider)
+         deallocate(energy_group)
+      endif
 
 
       open(1314, file='./PWdata/dRneigh.dat', access='append')
@@ -322,8 +391,6 @@ PROGRAM gen_dR
       do k=1, natom
          do j=1, ntype
             do i=1, m_neigh
-
-
                if ((abs(dR_neigh(1, i, j, k)) + abs(dR_neigh(2, i, j, k)) + abs(dR_neigh(3, i, j, k))) > 1.D-8) then
                   !if (abs(dR_neigh(1, i, j, k))>1.D-8) then
                   write(1314, "(3(E17.10, 1x), i4)") dR_neigh(1, i, j, k), dR_neigh(2, i, j, k), dR_neigh(3, i, j, k), list_neigh(i,j,k)
@@ -353,6 +420,9 @@ PROGRAM gen_dR
       close(move_file)
 
 2333 continue
-
+   open(11,file="output/max_natom")
+   rewind(11)
+   write(11,*) max_natom
+   close(11)
    stop
 end

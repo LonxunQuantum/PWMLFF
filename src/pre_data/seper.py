@@ -16,10 +16,12 @@ import prepare as pp
 
 def write_egroup_input():
     with open(os.path.join(pm.InputPath, 'egroup.in'), 'w') as f:
-        f.writelines(str(pm.dwidth)+'\n')
-        f.writelines(str(pm.ntypes)+'\n')
+        f.writelines(str(pm.Rc_M)+', '+str(pm.maxNeighborNum)+'             !  Rc_M, m_neigh \n')
+        f.writelines(str(pm.ntypes)+'               ! ntype \n')
         for i in range(pm.ntypes):
-            f.writelines(str(pm.b_init[i])+'\n')
+            f.writelines(str(pm.atomType[i])+'              ! iat-type \n')
+            f.writelines(str(pm.Rc_M)+'               ! Rc \n')
+        f.writelines(str(pm.E_tolerance)+'    ! E_tolerance  \n')
 
 def run_write_egroup():
     command = 'write_egroup.x > ./output/out_write_egroup'
@@ -27,7 +29,7 @@ def run_write_egroup():
     os.system(command)
 
 
-def write_natoms_dfeat(chunk_size, shuffle=True, atom_num = 1, alive_atomic_energy = False):
+def write_natoms_dfeat(chunk_size, shuffle=True, atom_num = 1, alive_atomic_energy = False, train_egroup = False):
     """
         put data into chunks
     """
@@ -52,7 +54,8 @@ def write_natoms_dfeat(chunk_size, shuffle=True, atom_num = 1, alive_atomic_ener
         feat_head_tmp = pd.read_csv(os.path.join(
             pm.trainSetDir, 'trainData.txt'+'.Ftype'+str(i)), header=None).values[:, :3]
         feat_tmp = pd.read_csv(os.path.join(
-            pm.trainSetDir, 'trainData.txt'+'.Ftype'+str(i)), header=None).values[:, 4:].astype(float)
+            pm.trainSetDir, 'trainData.txt'+'.Ftype'+str(i)), header=None).values[:, 4:].astype(str)
+        feat_tmp = [[float(val) for val in row[0].split()] for row in feat_tmp]
         dfeat_names[i] = pd.read_csv(os.path.join(
             pm.trainSetDir, 'inquirepos'+str(i)+'.txt'), header=None).values[:, 1:].astype(int)
         if kk == 0:
@@ -65,7 +68,7 @@ def write_natoms_dfeat(chunk_size, shuffle=True, atom_num = 1, alive_atomic_ener
     feat_all = np.concatenate((feat_head_tmp, feat), axis=1)
     # import ipdb;ipdb.set_trace()
 
-    if alive_atomic_energy:
+    if alive_atomic_energy and train_egroup:
         egroup_all = pd.read_csv(os.path.join(
             pm.trainSetDir, 'Egroup_weight'), header=None, names=range(max_natom+2))
         egroup_all = egroup_all.fillna(0)
@@ -205,7 +208,7 @@ def write_natoms_dfeat(chunk_size, shuffle=True, atom_num = 1, alive_atomic_ener
                     (feat_train, feat_all[idx_start:idx_end,:]), axis=0)
                 
                 #egroup
-                if alive_atomic_energy:
+                if alive_atomic_energy and train_egroup:
                     egroup_train = np.concatenate(
                         (egroup_train, egroup_all[idx_start:idx_end,:]), axis=0) 
                 
@@ -232,7 +235,7 @@ def write_natoms_dfeat(chunk_size, shuffle=True, atom_num = 1, alive_atomic_ener
                     (feat_test, feat_all[idx_start:idx_end,:]), axis=0)
                 
                 #egroup
-                if alive_atomic_energy:
+                if alive_atomic_energy and train_egroup:
                     egroup_test = np.concatenate(
                         (egroup_test, egroup_all[idx_start:idx_end,:]), axis=0)
 
@@ -304,7 +307,7 @@ def write_natoms_dfeat(chunk_size, shuffle=True, atom_num = 1, alive_atomic_ener
     # feat_train/test.csv 
     if pm.test_ratio != 1:
         np.savetxt(pm.f_train_feat, feat_train, delimiter=',')
-        if alive_atomic_energy:
+        if alive_atomic_energy and train_egroup:
             np.savetxt(pm.f_train_egroup, egroup_train, delimiter=',')
         f_train_natom.close()
         for i in pm.use_Ftype:
@@ -312,7 +315,7 @@ def write_natoms_dfeat(chunk_size, shuffle=True, atom_num = 1, alive_atomic_ener
 
     np.savetxt(pm.f_test_feat, feat_test, delimiter=',')
 
-    if alive_atomic_energy:
+    if alive_atomic_energy and train_egroup:
         np.savetxt(pm.f_test_egroup, egroup_test, delimiter=',')
 
     f_test_natom.close()
@@ -360,7 +363,7 @@ def write_dR_neigh():
     
     test_img.to_csv(pm.f_test_dR_neigh, header=False, index=False)
     
-def seperate_data(chunk_size = 10, shuffle=True, atom_num = 1, alive_atomic_energy = False):
+def seperate_data(chunk_size = 10, shuffle=True, atom_num = 1, alive_atomic_energy = False, train_egroup = False):
 
     print("start data seperation")
 
@@ -370,11 +373,11 @@ def seperate_data(chunk_size = 10, shuffle=True, atom_num = 1, alive_atomic_ener
         if not os.path.isdir(dirn):
             os.system("mkdir " + dirn)
 
-    if alive_atomic_energy:
+    if alive_atomic_energy and train_egroup:
         write_egroup_input()
         run_write_egroup()
 
-    write_natoms_dfeat(chunk_size, shuffle, atom_num, alive_atomic_energy)
+    write_natoms_dfeat(chunk_size, shuffle, atom_num, alive_atomic_energy, train_egroup)
 
     if (pm.dR_neigh):
         write_dR_neigh()

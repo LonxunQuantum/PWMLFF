@@ -14,8 +14,8 @@ sys.path.append(codepath+"/pre_data")
 import use_para as pm    
 # import prepare as pp
 # pp.readFeatnum()
-from model.dmirror import dmirror_FC
-from model.FC import f_FC
+from src.model.dmirror import dmirror_FC
+from src.model.FC import f_FC
 # logging and our extension
 import logging
 logging_level_DUMP = 5

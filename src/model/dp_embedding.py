@@ -90,7 +90,7 @@ class EmbeddingNet(nn.Module):
                 normal(resnet_dt, mean=1, std=0.001)
                 # self.resnet_dt["resnet_dt" + str(i-1)] = nn.Parameter(resnet_dt, requires_grad=True)
                 # self.resnet_dt.append(nn.Parameter(resnet_dt, requires_grad=True)).to('cuda:2')
-            self.layers.append(LayerModule(wij, bias, resnet_dt)).to('cuda:2')
+            self.layers.append(LayerModule(wij, bias, resnet_dt)).to(device)
 
     def forward(self, x):
         '''
@@ -202,7 +202,7 @@ class FittingNet(nn.Module):
                 normal(resnet_dt, mean=0.1, std=0.001)
                 # self.resnet_dt["resnet_dt" + str(i-1)] = nn.Parameter(resnet_dt, requires_grad=True)
                 # self.resnet_dt.append(nn.Parameter(resnet_dt, requires_grad=True)).to('cuda:2')
-            self.layers.append(LayerModule(wij, bias, resnet_dt)).to('cuda:2')
+            self.layers.append(LayerModule(wij, bias, resnet_dt)).to(device)
         
         i = len(self.network_size) - 1
         wij = torch.randn(self.network_size[i-1], self.network_size[i])
@@ -217,7 +217,7 @@ class FittingNet(nn.Module):
             # self.bias["bias" + str(i-1)] = nn.Parameter(bias_init, requires_grad=True)       # 初始化指定均值
             # self.bias.append(nn.Parameter(bias_init, requires_grad=True)).to('cuda:2')
         
-        self.layers.append(LayerModule(wij, bias_init, None)).to('cuda:2')
+        self.layers.append(LayerModule(wij, bias_init, None)).to(device)
         
 
     def forward(self, x):

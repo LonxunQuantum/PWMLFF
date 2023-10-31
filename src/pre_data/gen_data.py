@@ -174,7 +174,8 @@ def process_data(inputs:list): # f_train_ep):
                 iatom_all[dfeatBinIdx] = np.array(read_allnn.iatom)
 
             # dfeat here is already sparse
-            nfeat[flag+1] = np.array(read_allnn.feat_all).shape[0]
+            # nfeat[flag+1] = np.array(read_allnn.feat_all).shape[0]
+            nfeat[flag+1] = np.array(read_allnn.nfeat_atom_all)[0][0]
 
             # dfeat_sparse[k] = np.array(read_allnn.dfeat_sparse).astype(pm.feature_dtype)
             # print("dfeat sparse shape:",dfeat_sparse[k].shape)
@@ -384,7 +385,7 @@ def process_data(inputs:list): # f_train_ep):
     np.save(nn_data_path + "/natoms_img.npy", natoms_img)
     # np.save(nn_data_path + "/ep.npy", ep)
     
-def write_data(alive_atomic_energy):
+def write_data(alive_atomic_energy, train_egroup):
 
     print("")
     print("<================ Start of feature data file generation ================>")
@@ -397,7 +398,7 @@ def write_data(alive_atomic_energy):
 
     if pm.test_ratio != 1:
         print(read_allnn.wp_atom)
-        if alive_atomic_energy:
+        if alive_atomic_energy and train_egroup:
             process_list = [pm.f_train_feat,
                             pm.f_train_dfeat,
                             pm.f_train_dR_neigh,
@@ -416,7 +417,7 @@ def write_data(alive_atomic_energy):
     # # scalers_test = get_scalers(pm.f_test_feat, pm.f_data_scaler, False)
     # # data_scalers = DataScalers(f_ds=pm.f_data_scaler,
     # #                                f_feat=pm.f_test_feat)
-    if alive_atomic_energy:
+    if alive_atomic_energy and train_egroup:
         process_list = [pm.f_test_feat,
                         pm.f_test_dfeat,
                         pm.f_test_dR_neigh,

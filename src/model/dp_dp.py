@@ -1,3 +1,5 @@
+import sys, os
+import time
 import numpy as np
 import torch
 from torch import embedding
@@ -12,8 +14,8 @@ sys.path.append(os.getcwd())
 # import parameters as pm    
 # import prepare as pp
 # pp.readFeatnum()
-from model.dp_embedding import EmbeddingNet, FittingNet
-from model.calculate_force import CalculateForce, CalculateVirialForce
+from src.model.dp_embedding import EmbeddingNet, FittingNet
+from src.model.calculate_force import CalculateForce, CalculateVirialForce
 # logging and our extension
 import logging
 logging_level_DUMP = 5
@@ -36,13 +38,13 @@ def error(msg, *args, **kwargs):
     logger.error(msg, *args, **kwargs, exc_info=True)
 
 class DP(nn.Module):
-    def __init__(self, config, device, stat, magic=False):
+    def __init__(self, config, device, energy_shift, magic=False):
         super(DP, self).__init__()
         self.config = config
         self.ntypes = len(config['atomType'])
         self.atom_type = [_['type'] for _ in config['atomType']] #this value in used in forward for hybrid Training
         self.device = device
-        self.stat = stat
+        self.energy_shift = energy_shift
         self.M2 = config["M2"]
         self.maxNeighborNum = config["maxNeighborNum"]
         if self.config["training_type"] == "float64":
@@ -71,7 +73,18 @@ class DP(nn.Module):
                                                self.config["net_cfg"]["fitting_net"]["resnet_dt"],
                                                self.config["net_cfg"]["fitting_net"]["activation"], 
                                                self.device, 
-                                               self.M2 * fitting_net_input_dim, self.stat[2][i], magic))
+                                               self.M2 * fitting_net_input_dim, energy_shift[i], magic))
+            # self.fitting_net.append(FittingNet(config["net_cfg"]["fitting_net"], self.M2 * fitting_net_input_dim, energy_shift[i], magic))
+        
+        self.compress_tab = None #for dp compress
+
+    def set_comp_tab(self, compress_dict:dict):
+        self.compress_tab = torch.tensor(compress_dict["table"], dtype=self.dtype, device=self.device)
+        self.dx = compress_dict["dx"]
+        self.davg = compress_dict["davg"]
+        self.dstd = compress_dict["dstd"]
+        self.sij_min = compress_dict["sij_min"]
+        self.order = compress_dict["order"] if "order" in compress_dict.keys() else 5 #the default compress order is 5
 
     def get_egroup(self,
                    Ei: torch.Tensor,
@@ -113,7 +126,7 @@ class DP(nn.Module):
     return {*}
     author: wuxingxing
     '''
-    def get_train_2body_type(self, atom_type_data: List[int]) -> Tuple[List[List[List[int]]], int]:
+    def get_train_2body_type(self, atom_type_data: torch.Tensor) -> Tuple[List[List[List[int]]], int]:
         type_2body_list: List[List[List[int]]] = []         # 整数列表的列表
         type_2body_index: List[int] = []
         for atom_type in atom_type_data:
@@ -149,6 +162,7 @@ class DP(nn.Module):
     def forward0(self, Ri, dfeat, list_neigh, natoms_img, atom_type, ImageDR, Egroup_weight = None, divider = None, is_calc_f = True):
 
         #torch.autograd.set_detect_anomaly(True)
+        # from torchviz import make_dot
         Ri_d = dfeat
         # dim of natoms_img: batch size, natom_sum & natom_types ([9, 6, 2, 1])
         natoms = natoms_img[0, 1:]
@@ -177,9 +191,18 @@ class DP(nn.Module):
                         G = emb_net(S_Rij)
                         found = True
                 # dim of G: batch size, natom of ntype, max_neigh_num, final layer dim
-                # G = self.embedding_net[embedding_index](S_Rij)
-                # symmetry conserving 
                 tmp_a = Ri[:, atom_sum:atom_sum+natoms[ntype], ntype_1 * self.maxNeighborNum:(ntype_1+1) * self.maxNeighborNum].transpose(-2, -1)
+                if self.compress_tab is None:
+                    G = self.embedding_net[embedding_index](S_Rij)
+                    # symmetry conserving
+                else:
+                    if self.order == 2:
+                        G = self.calc_compress(S_Rij, embedding_index)
+                    elif self.order == 5:
+                        G = self.calc_compress_5order(S_Rij, embedding_index)
+                    elif self.order == 3:
+                        G = self.calc_compress_3order(S_Rij, embedding_index)
+
                 tmp_b = torch.matmul(tmp_a, G)
                 # xyz_scater_a = tmp_b if xyz_scater_a is None else xyz_scater_a + tmp_b
                 if xyz_scater_a.numel() == 0:  # 检查 tensor 是否为空
@@ -208,7 +231,7 @@ class DP(nn.Module):
                 Ei = torch.concat((Ei, Ei_ntype), dim=1)
             atom_sum = atom_sum + natoms[ntype]
         
-        Etot = torch.sum(Ei, 1)   
+        Etot = torch.sum(Ei, 1)
 
         if Egroup_weight is not None:
             Egroup = self.get_egroup(Ei, Egroup_weight, divider)
@@ -242,20 +265,48 @@ class DP(nn.Module):
         F = torch.matmul(dE, Ri_d).squeeze(-2) # batch natom 3
         F = F * (-1)
         
-        list_neigh = torch.unsqueeze(list_neigh,2)
-        list_neigh = (list_neigh - 1).type(torch.int)
-        F = CalculateForce.apply(list_neigh, dE, Ri_d, F)
-        
-        #print ("Force")
-        #print (F)
-        # virial = CalculateVirialForce.apply(list_neigh, dE, Ri[:,:,:,:3], Ri_d)
-        virial = CalculateVirialForce.apply(list_neigh, dE, ImageDR, Ri_d)
-        
-        # no need to switch sign here 
-        #virial = virial * (-1)
+        # error code
+        # dE1 = dE.squeeze(2).reshape(batch_size, atom_sum, self.maxNeighborNum*self.ntypes,4).unsqueeze(-1) #[5, 76, 1, 800] -> [5, 76, 800] -> [5, 76, 200, 4] -> [5, 76, 200, 4, 1]
+        # Ri_d1 = Ri_d.reshape(batch_size, atom_sum, self.maxNeighborNum*self.ntypes, 4, 3)#[5, 76, 800, 3] -> [5, 76, 200, 4, 3]
+        # temp_dE_dx = torch.sum(dE1*Ri_d1, dim=3) #[5, 76, 200, 4, 3]->[5, 76, 200, 3]
+        # F_res = F + torch.sum(temp_dE_dx, dim=2)
 
-        return Etot, Ei, F, Egroup, virial  #F is Force
-    
+        # for cpu device
+        if self.device.type == 'cpu':
+            Virial = torch.zeros((batch_size, 9), device=self.device, dtype=self.dtype)
+            for batch_idx in range(batch_size):   
+                for i in range(natoms_sum):
+                    # get atom_idx & neighbor_idx
+                    i_neighbor = list_neigh[batch_idx, i]  #[100]
+                    neighbor_idx = i_neighbor.nonzero().squeeze().type(torch.int64)  #[78]
+                    atom_idx = i_neighbor[neighbor_idx].type(torch.int64) - 1
+                    # calculate Force
+                    for neigh_tmp, neighbor_id in zip(atom_idx, neighbor_idx):
+                        tmpA = dE[batch_idx, i, :, neighbor_id*4:neighbor_id*4+4]
+                        tmpB = Ri_d[batch_idx, i, neighbor_id*4:neighbor_id*4+4]
+                        dE_dx = torch.matmul(tmpA, tmpB).squeeze(0)
+                        F[batch_idx, neigh_tmp] += dE_dx
+
+                        Virial[batch_idx][0] += ImageDR[batch_idx, i, neighbor_id][0]*dE_dx[0] #xx
+                        Virial[batch_idx][4] += ImageDR[batch_idx, i, neighbor_id][1]*dE_dx[1] #yy
+                        Virial[batch_idx][8] += ImageDR[batch_idx, i, neighbor_id][2]*dE_dx[2] #zz
+
+                        Virial[batch_idx][1] += ImageDR[batch_idx, i, neighbor_id][0]*dE_dx[1] 
+                        Virial[batch_idx][2] += ImageDR[batch_idx, i, neighbor_id][0]*dE_dx[2]
+                        Virial[batch_idx][5] += ImageDR[batch_idx, i, neighbor_id][1]*dE_dx[2]
+
+                Virial[batch_idx][3] = Virial[batch_idx][1]
+                Virial[batch_idx][6] = Virial[batch_idx][2]
+                Virial[batch_idx][7] = Virial[batch_idx][5]
+        else:
+            list_neigh = torch.unsqueeze(list_neigh,2)
+            list_neigh = (list_neigh - 1).type(torch.int)
+            F = CalculateForce.apply(list_neigh, dE, Ri_d, F)
+            # virial = CalculateVirialForce.apply(list_neigh, dE, Ri[:,:,:,:3], Ri_d)
+            Virial = CalculateVirialForce.apply(list_neigh, dE, ImageDR, Ri_d)
+        return Etot, Ei, F, Egroup, Virial  #F is Force
+                      
+   
     def forward(self, 
                 Ri: torch.Tensor, 
                 dfeat: torch.Tensor, 
@@ -270,12 +321,15 @@ class DP(nn.Module):
         natoms = natoms_img[0, 1:]
         natoms_sum = Ri.shape[1]
         batch_size = Ri.shape[0]
-        atom_type_list: List[int] = atom_type.cpu().tolist()
-        emb_list, type_nums = self.get_train_2body_type(atom_type_list[0])
+        # atom_type_list: List[int] = atom_type.cpu().tolist()
+        emb_list, type_nums = self.get_train_2body_type(atom_type[0])
 
         Ei = self.calculate_Ei(Ri, natoms, batch_size, emb_list, type_nums)
 
+        if Ei is None:
+            raise ValueError("Ei has not been initialized properly.")
         Etot = torch.sum(Ei, 1)
+
         Egroup = self.get_egroup(Ei, Egroup_weight, divider) if Egroup_weight is not None else None
         Ei = torch.squeeze(Ei, 2)
 
@@ -292,20 +346,21 @@ class DP(nn.Module):
                      batch_size: int,
                      emb_list: List[List[List[int]]],
                      type_nums: int):
-        Ei = torch.tensor([])
+        Ei : Optional[torch.Tensor] = None
         atom_sum = 0
         for type_emb in emb_list:
             xyz_scater_a, xyz_scater_b, ntype = self.calculate_xyz_scater(Ri, atom_sum, natoms, type_emb, type_nums)
             DR_ntype = torch.matmul(xyz_scater_a.transpose(-2, -1), xyz_scater_b)
             DR_ntype = DR_ntype.reshape(batch_size, natoms[ntype], -1)
 
-            Ei_ntype = torch.tensor([])
+            Ei_ntype: Optional[torch.Tensor] = None 
             found = False
             for idx, fit_net in enumerate(self.fitting_net):
                 if idx == ntype and not found:
                     Ei_ntype = fit_net(DR_ntype)
                     found = True
-            Ei = Ei_ntype if Ei.numel() == 0 else torch.concat((Ei, Ei_ntype), dim=1)
+            assert Ei_ntype is not None
+            Ei = Ei_ntype if Ei is None else torch.concat((Ei, Ei_ntype), dim=1)
             atom_sum = atom_sum + natoms[ntype]
         return Ei
             
@@ -315,22 +370,36 @@ class DP(nn.Module):
                              natoms: torch.Tensor,
                              type_emb: List[List[int]],
                              type_nums: int):
-        xyz_scater_a = torch.tensor([])
+        xyz_scater_a : Optional[torch.Tensor] = None
         ntype = 0
         for emb in type_emb:
             ntype, ntype_1 = emb
             S_Rij = Ri[:, atom_sum:atom_sum+natoms[ntype], ntype_1 * self.maxNeighborNum:(ntype_1+1) * self.maxNeighborNum, 0].unsqueeze(-1)
             embedding_index = ntype * self.ntypes + ntype_1
-            G = torch.tensor([])
-            found = False
-            for idx, emb_net in enumerate(self.embedding_net):
-                if idx == embedding_index and not found:
-                    G = emb_net(S_Rij)
-                    found = True
+            G: Optional[torch.Tensor] = None
+            if self.compress_tab is None:
+                found = False
+                for idx, emb_net in enumerate(self.embedding_net):
+                    if idx == embedding_index and not found:
+                        G = emb_net(S_Rij)
+                        found = True
+            else:
+                if self.order == 2:
+                    G = self.calc_compress(S_Rij, embedding_index)
+                elif self.order == 5:
+                    G = self.calc_compress_5order(S_Rij, embedding_index)
+                elif self.order == 3:
+                    G = self.calc_compress_3order(S_Rij, embedding_index)
             tmp_a = Ri[:, atom_sum:atom_sum+natoms[ntype], ntype_1 * self.maxNeighborNum:(ntype_1+1) * self.maxNeighborNum].transpose(-2, -1)
+            if G is None:
+                raise ValueError("G has not been initialized properly.")
             tmp_b = torch.matmul(tmp_a, G)
-            xyz_scater_a = tmp_b if xyz_scater_a.numel() == 0 else xyz_scater_a + tmp_b
-        return xyz_scater_a / (self.maxNeighborNum * type_nums), xyz_scater_a[:, :, :, :self.M2], ntype
+            xyz_scater_a = tmp_b if xyz_scater_a is None else xyz_scater_a + tmp_b
+        if xyz_scater_a is None:
+            raise ValueError("xyz_scater_a has not been initialized properly.")
+        xyz_scater_a = xyz_scater_a / (self.maxNeighborNum * type_nums)
+        xyz_scater_b = xyz_scater_a[:, :, :, :self.M2]
+        return xyz_scater_a, xyz_scater_b, ntype
 
     def calculate_force_virial(self, 
                                Ri: torch.Tensor,
@@ -342,7 +411,8 @@ class DP(nn.Module):
                                ImageDR: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         mask: List[Optional[torch.Tensor]] = [torch.ones_like(Ei)]
         dE = torch.autograd.grad([Ei], [Ri], grad_outputs=mask, retain_graph=True, create_graph=True)
-        dE_list = []
+        # dE_list = []
+        dE_list = torch.jit.annotate(List[torch.Tensor], [])
         for g in dE:
             if g is not None:
                 dE_list.append(g.unsqueeze(0))
@@ -359,9 +429,10 @@ class DP(nn.Module):
         '''
         # 1. Get atom_idx & neighbor_idx
         # non_zero_indices = list_neigh.nonzero(as_tuple=True)
-        non_zero_indices = list_neigh.nonzero().unbind(1)
-        batch_indices, atom_indices, neighbor_indices = non_zero_indices
-        atom_idx = list_neigh[non_zero_indices].long() - 1
+        non_zero_indices = list_neigh.nonzero()
+        # non_zero_indices = torch.where(list_neigh)
+        batch_indices, atom_indices, neighbor_indices = non_zero_indices.unbind(1)
+        atom_idx = list_neigh[batch_indices, atom_indices, neighbor_indices].long() - 1
         # 2. Calculate Force using indexing
         expanded_dims_dE = [len(batch_indices), 1, 1]
         expanded_dims_Ri_d = [len(batch_indices), 1, 3]
@@ -381,7 +452,7 @@ class DP(nn.Module):
             F[batch_idx].index_add_(0, atom_idx[mask_accumulation], dE_dx[mask_accumulation])
 
         # 3. Calculate Virial
-        Virial = torch.zeros((batch_size, 9), device="cuda:2", dtype=self.dtype)
+        Virial = torch.zeros((batch_size, 9), device=self.device, dtype=self.dtype)
         virial_components = torch.zeros((len(batch_indices), 6), device=Virial.device, dtype=self.dtype)
         virial_components[:, 0] = ImageDR[batch_indices, atom_indices, neighbor_indices][:, 0] * dE_dx[:, 0] # xx
         virial_components[:, 1] = ImageDR[batch_indices, atom_indices, neighbor_indices][:, 0] * dE_dx[:, 1] # xy
@@ -391,5 +462,72 @@ class DP(nn.Module):
         virial_components[:, 5] = ImageDR[batch_indices, atom_indices, neighbor_indices][:, 2] * dE_dx[:, 2] # zz 
         Virial[:, [0, 1, 2, 4, 5, 8]] = virial_components.sum(dim=0)
         Virial[:, [3, 6, 7]] = Virial[:, [1, 2, 5]]
-
         return F, Virial    
+    '''
+    description: 
+        F(x) = f2*(F(k+1)-F(k))+F(k)
+        f1 = k+1-x
+        f2 = 1-f1 = x-k
+        
+        dG/df2 = F(k+1)-F(k), hear the self.compress_tab is constant
+        df2/dx = 1 / (self.dstd[itype]*10**self.dx)
+        dx/d_sij = self.dstd[itype]*(10**self.dx)
+        df2/d_sij = 1
+
+        return Etot, Ei, F, Egroup, virial  #F is Force
+        dG/ds_ij = F(k+1)-F(k) = sum_l(F_l(k+1)-F_l(k)), l = last layer node
+
+    param {*} self
+    param {torch} S_Rij
+    param {int} embedding_index
+    param {int} itype
+    return {*}
+    author: wuxingxing
+    '''    
+    def calc_compress(self, S_Rij:torch.Tensor, embedding_index:int):
+        sij = S_Rij.flatten()
+        out_len = int(self.compress_tab.shape[-1]/2)
+        x = (sij-self.sij_min)/self.dx
+        index_k1 = x.type(torch.long) # get floor
+        index_k2 = index_k1 + 1
+        xk = self.sij_min + index_k1*self.dx
+        f2 = (sij - xk).flatten().unsqueeze(-1)
+        # f2 = ((x-index_k1)/(self.dstd[itype]*10**self.dx)).unsqueeze(-1)
+        # f2 = ((((x - index_k1)/(10**self.dx)))/self.dstd[itype]).unsqueeze(-1)
+        # f2 = (S_Rij.flatten() - ((index_k1*(1/10**self.dx)-self.davg[itype])/self.dstd[itype])).unsqueeze(-1)
+        # G = f2*(self.compress_tab[embedding_index][index_k2.flatten()]-self.compress_tab[embedding_index][index_k1.flatten()]) + self.compress_tab[embedding_index][index_k1.flatten()]
+        deriv_sij = (self.compress_tab[embedding_index][index_k2][:, out_len:] + self.compress_tab[embedding_index][index_k1][:, out_len:])/2
+        G = self.compress_tab[embedding_index][index_k1][:, :out_len] + f2*deriv_sij
+        G = G.reshape(S_Rij.shape[0], S_Rij.shape[1], S_Rij.shape[2], G.shape[1])
+        return G
+    
+    def calc_compress_5order(self, S_Rij:torch.Tensor, embedding_index:int):
+        sij = S_Rij.flatten()
+
+        x = (sij-self.sij_min)/self.dx
+        index_k1 = x.type(torch.long) # get floor
+        xk = self.sij_min + index_k1*self.dx
+        f2 = (sij - xk).flatten().unsqueeze(-1)
+    
+        coefficient = self.compress_tab[embedding_index, index_k1, :]
+        G = f2**5 *coefficient[:, :, 0] + f2**4 * coefficient[:, :, 1] + \
+            f2**3 * coefficient[:, :, 2] + f2**2 * coefficient[:, :, 3] + \
+            f2 * coefficient[:, :, 4] + coefficient[:, :, 5]
+        G = G.reshape(S_Rij.shape[0], S_Rij.shape[1], S_Rij.shape[2], G.shape[1])
+        return G
+
+    def calc_compress_3order(self, S_Rij:torch.Tensor, embedding_index:int):
+        sij = S_Rij.flatten()
+
+        x = (sij-self.sij_min)/self.dx
+        index_k1 = x.type(torch.long) # get floor
+        xk = self.sij_min + index_k1*self.dx
+        f2 = (sij - xk).flatten().unsqueeze(-1)
+    
+        coefficient = self.compress_tab[embedding_index, index_k1, :]
+        G = f2**3 *coefficient[:, :, 0] + f2**2 * coefficient[:, :, 1] + \
+            f2 * coefficient[:, :, 2] + coefficient[:, :, 3]
+        G = G.reshape(S_Rij.shape[0], S_Rij.shape[1], S_Rij.shape[2], G.shape[1])
+        
+        return G
+    

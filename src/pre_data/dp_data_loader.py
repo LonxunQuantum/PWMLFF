@@ -34,8 +34,9 @@ class MovementDataset(Dataset):
             if self.ener_shift.size == 1:
                 self.ener_shift = [self.ener_shift.tolist()]
             self.atom_map = np.loadtxt(os.path.join(data_path, "atom_map.raw"), dtype=int)
+            self.sij_max = np.loadtxt(os.path.join(data_path, "sij_max.raw"))
         else:
-            self.davg, self.dstd, self.ener_shift, self.atom_map = None, None, None, None
+            self.davg, self.dstd, self.ener_shift, self.atom_map, self.sij_max = None, None, None, None, None
             
     def __load_data(self, path):
 
@@ -94,7 +95,7 @@ class MovementDataset(Dataset):
         return len(self.dirs)
 
     def get_stat(self):
-        return self.davg, self.dstd, self.ener_shift, self.atom_map
+        return self.davg, self.dstd, self.ener_shift, self.atom_map, self.sij_max
     
     
     '''

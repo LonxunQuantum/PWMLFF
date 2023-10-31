@@ -1,0 +1,9 @@
+{   
+    "work_dir":"./work_train_dir",
+    "train_movement_file":["100_1200k_movement"],
+    "seed":2023,
+    "model_type": "DP",
+    "atom_type":[3,32,15,16],
+    "max_neigh_num":100, 
+    "type_embedding":true
+}

@@ -65,14 +65,14 @@ class KFOptimizerWrapper:
         error[mask] = -1 * error[mask]
         error = error.mean()
 
-        if self.is_distributed:
-            if self.distributed_backend == "horovod":
-                import horovod as hvd
+        # if self.is_distributed:
+        #     if self.distributed_backend == "horovod":
+        #         import horovod as hvd
 
-                error = hvd.torch.allreduce(error)
-            elif self.distributed_backend == "torch":
-                dist.all_reduce(error)
-                error /= dist.get_world_size()
+        #         error = hvd.torch.allreduce(error)
+        #     elif self.distributed_backend == "torch":
+        #         dist.all_reduce(error)
+        #         error /= dist.get_world_size()
         
         Etot_predict = update_prefactor * Etot_predict
         Etot_predict[mask] = -1.0 * Etot_predict[mask]
@@ -126,14 +126,14 @@ class KFOptimizerWrapper:
         error[mask] = -1 * error[mask]
         error = error.mean()
 
-        if self.is_distributed:
-            if self.distributed_backend == "horovod":
-                import horovod as hvd
+        # if self.is_distributed:
+        #     if self.distributed_backend == "horovod":
+        #         import horovod as hvd
 
-                error = hvd.torch.allreduce(error)
-            elif self.distributed_backend == "torch":
-                dist.all_reduce(error)
-                error /= dist.get_world_size()
+        #         error = hvd.torch.allreduce(error)
+        #     elif self.distributed_backend == "torch":
+        #         dist.all_reduce(error)
+        #         error /= dist.get_world_size()
         
         Egroup_predict = update_prefactor * Egroup_predict
         Egroup_predict[mask] = -1.0 * Egroup_predict[mask]
@@ -187,14 +187,14 @@ class KFOptimizerWrapper:
         
         error = error.mean()
 
-        if self.is_distributed:
-            if self.distributed_backend == "horovod":
-                import horovod as hvd
+        # if self.is_distributed:
+        #     if self.distributed_backend == "horovod":
+        #         import horovod as hvd
 
-                error = hvd.torch.allreduce(error)
-            elif self.distributed_backend == "torch":
-                dist.all_reduce(error)
-                error /= dist.get_world_size()
+        #         error = hvd.torch.allreduce(error)
+        #     elif self.distributed_backend == "torch":
+        #         dist.all_reduce(error)
+        #         error /= dist.get_world_size()
 
         Virial_predict = update_prefactor * Virial_predict
         Virial_predict[mask] = -1.0 * Virial_predict[mask]
@@ -232,14 +232,14 @@ class KFOptimizerWrapper:
             error_tmp[mask] = -1 * error_tmp[mask]
             error = error_tmp.mean()
 
-            if self.is_distributed:
-                if self.distributed_backend == "horovod":
-                    import horovod as hvd
+            # if self.is_distributed:
+            #     if self.distributed_backend == "horovod":
+            #         import horovod as hvd
 
-                    error = hvd.torch.allreduce(error)
-                elif self.distributed_backend == "torch":
-                    dist.all_reduce(error)
-                    error /= dist.get_world_size()
+            #         error = hvd.torch.allreduce(error)
+            #     elif self.distributed_backend == "torch":
+            #         dist.all_reduce(error)
+            #         error /= dist.get_world_size()
 
             tmp_egroup_predict = Egroup_predict[:, index[i]] * update_prefactor
             tmp_egroup_predict[mask] = -1.0 * tmp_egroup_predict[mask]
@@ -278,14 +278,14 @@ class KFOptimizerWrapper:
             error_tmp[mask] = -1 * error_tmp[mask]
             error = error_tmp.mean() / natoms_sum
 
-            if self.is_distributed:
-                if self.distributed_backend == "horovod":
-                    import horovod as hvd
+            # if self.is_distributed:
+            #     if self.distributed_backend == "horovod":
+            #         import horovod as hvd
 
-                    error = hvd.torch.allreduce(error)
-                elif self.distributed_backend == "torch":
-                    dist.all_reduce(error)
-                    error /= dist.get_world_size()
+            #         error = hvd.torch.allreduce(error)
+            #     elif self.distributed_backend == "torch":
+            #         dist.all_reduce(error)
+            #         error /= dist.get_world_size()
 
             tmp_force_predict = Force_predict[:, index[i]] * update_prefactor
             tmp_force_predict[mask] = -1.0 * tmp_force_predict[mask]
@@ -337,7 +337,7 @@ class KFOptimizerWrapper:
         #print ("natoms_sum",natoms_sum)
         bs = Ei_label.shape[0]
         self.optimizer.set_grad_prefactor(1.0)
-
+        self.optimizer.zero_grad()
         error = Ei_label - Ei_predict
         #TODO: as the comment from RuNNer, the error why scaler by atom_num in Etot is because of
         #Etot is the sum of Ei, so maybe we don't need to scaler the egroup error. NEED CHECK!
@@ -348,14 +348,14 @@ class KFOptimizerWrapper:
         error[mask] = -1 * error[mask]
         error = error.mean()
 
-        if self.is_distributed:
-            if self.distributed_backend == "horovod":
-                import horovod as hvd
+        # if self.is_distributed:
+        #     if self.distributed_backend == "horovod":
+        #         import horovod as hvd
 
-                error = hvd.torch.allreduce(error)
-            elif self.distributed_backend == "torch":
-                dist.all_reduce(error)
-                error /= dist.get_world_size()
+        #         error = hvd.torch.allreduce(error)
+        #     elif self.distributed_backend == "torch":
+        #         dist.all_reduce(error)
+        #         error /= dist.get_world_size()
         
         Ei_predict = update_prefactor * Ei_predict
         Ei_predict[mask] = -1.0 * Ei_predict[mask]

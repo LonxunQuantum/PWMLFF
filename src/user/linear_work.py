@@ -1,6 +1,6 @@
 import os
 import json
-from src.user.model_param import DpParam
+from src.user.input_param import InputParam
 from src.PWMLFF.linear_regressor import linear_regressor
 from utils.file_operation import delete_tree, copy_tree, copy_file
 
@@ -15,7 +15,7 @@ return {*}
 author: wuxingxing
 '''
 def linear_train(input_json: json, cmd:str):
-    linear_param = DpParam(input_json, cmd) 
+    linear_param = InputParam(input_json, cmd) 
     linear_param.print_input_params("std_input.json")
     linear_trainer = linear_regressor(linear_param)
     if len(linear_param.file_paths.train_movement_path) > 0:
@@ -54,10 +54,10 @@ return {*}
 author: wuxingxing
 '''
 def linear_test(input_json: json, cmd:str):
-    linear_param = DpParam(input_json, cmd)
+    linear_param = InputParam(input_json, cmd)
+    linear_param.set_test_relative_params(input_json)
     linear_param.print_input_params("std_input.json")
     linear_trainer = linear_regressor(linear_param)
-    
     if len(linear_param.file_paths.test_movement_path) > 0:
         linear_trainer.evaluate_prepare_data()
     

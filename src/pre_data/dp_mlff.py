@@ -13,12 +13,8 @@ import time
 is_real_Ep = False
 '''
 description: 
- get all movement files under the dir 'workDir', and class movements with same atomtype
-param {*} workDir
-param {*} sourceFileName
-return {*} 2D List: [[path1/movement, path3/movement], [path2/movement, path4/movement], [...], ...]
-            in which [path1/movement, path3/movement] with same atomtypes and , [path2/movement, path4/movement] with same atomtypes, and so on. 
-author: wuxingxing
+ get all movement files under the dir 'workDir'
+ author: wuxingxing
 '''
 def collect_all_sourcefiles(workDir, sourceFileName="MOVEMENT"):
     movement_dir = []
@@ -89,19 +85,20 @@ def gen_config_inputfile(config):
             )
 
         GenFeatInput.write(str(config["E_tolerance"]) + "    ! E_tolerance  \n")
+        GenFeatInput.write(str(config["gen_egroup_input"]) + "    ! calculate Egroup if 1  \n")
 
-    output_path = os.path.join(config["dRFeatureInputDir"], "egroup.in")
-    with open(output_path, "w") as f:
-        f.writelines(str(config["dwidth"]) + "\n")
-        f.writelines(str(len(config["atomType"])) + "\n")
-        for i in range(len(config["atomType"])):
-            f.writelines(str(config["atomType"][i]["b_init"]) + "\n")
+    # output_path = os.path.join(config["dRFeatureInputDir"], "egroup.in")
+    # with open(output_path, "w") as f:
+    #     f.writelines(str(config["dwidth"]) + "\n")
+    #     f.writelines(str(len(config["atomType"])) + "\n")
+    #     for i in range(len(config["atomType"])):
+    #         f.writelines(str(config["atomType"][i]["b_init"]) + "\n")
 
 
 def get_real_Ep(movement_files,train_set_dir,classify):
-    
+    assert(len(classify) == len(movement_files))
     # make Etot label the real Etot(one with minus sign)
-    for movement_file in movement_files:
+    for mvm_index, movement_file in enumerate(movement_files):
         with open(os.path.join(movement_file, "MOVEMENT"), "r") as mov:
             lines = mov.readlines()
             
@@ -115,14 +112,16 @@ def get_real_Ep(movement_files,train_set_dir,classify):
                     num_atom = int(raw[0]) 
                     Ep = float(raw[-5])
                     
+                    atom_type_nums_list = classify[mvm_index][1]["type_nums"]
                     print(num_atom, Ep)
-
-                    tmp_Ep_shift, _, _, _ = np.linalg.lstsq(classify, np.array([Ep]), rcond=1e-3)
+                    assert(sum(atom_type_nums_list) == num_atom)
+                    tmp_Ep_shift, _, _, _ = np.linalg.lstsq([atom_type_nums_list], np.array([Ep]), rcond=1e-3)
                     # print (tmp_Ep_shift)
                     with open(os.path.join(train_set_dir, "Ei.dat"), "a") as Ei_out:
-                        for i in range(len(classify[0])):
-                            for j in range(classify[0][i]):
-                                Ei_out.write(str(tmp_Ep_shift[i]) + "\n")               
+                        for i in range(len(atom_type_nums_list)):
+                            for j in range(atom_type_nums_list[i]):
+                                Ei_out.write(str(tmp_Ep_shift[i]) + "\n")   
+        
 
 def gen_train_data(config, is_egroup = True, is_virial = True):
     trainset_dir = config["trainSetDir"]
@@ -244,10 +243,10 @@ def gen_train_data(config, is_egroup = True, is_virial = True):
     command = "gen_dR.x | tee ./output/out"
     print("==============Start generating data==============")
     os.system(command)
-    command = "gen_egroup.x | tee ./output/out_write_egroup"
-    if is_egroup is True:
-        print("==============Start generating egroup==============")
-        os.system(command)
+    # command = "gen_egroup.x | tee ./output/out_write_egroup"
+    # if is_egroup is True:
+        # print("==============Start generating egroup==============")
+        # os.system(command)
   
     print("==============Success==============")
     
@@ -341,7 +340,7 @@ def calc_stat(config, image_dR, list_neigh, natoms_img):
     dstd_tensor = torch.ones(
         (ntypes, config["maxNeighborNum"] * ntypes, 4), dtype=torch.float64
     )
-    Ri, _ = smooth(
+    Ri, _, _ = smooth(
         config,
         image_dR,
         nr,
@@ -559,17 +558,18 @@ def smooth(config, image_dR, x, Ri_xyz, mask, inr, davg, dstd, natoms):
         # else:
         #     davg_res = torch.concat((davg_res, davg_ntype), dim=1)
         #     dstd_res = torch.concat((dstd_res, dstd_ntype), dim=1)
+    max_ri = torch.max(Ri[:,:,:,0])
     Ri = (Ri - davg_res) / dstd_res
     dstd_res = dstd_res.unsqueeze(-1).repeat(1, 1, 1, 1, 3)
     Ri_d = Ri_d / dstd_res
-    return Ri, Ri_d
+    return Ri, Ri_d, max_ri
 
 
 def compute_Ri(config, image_dR, list_neigh, natoms_img, ind_img, davg, dstd):
     natoms_sum = natoms_img[0, 0]
     natoms_per_type = natoms_img[0, 1:]
     ntypes = len(natoms_per_type)
-
+    max_ri_list = [] # max Rij before davg and dstd cacled
     #if torch.cuda.is_available():
     #    device = torch.device("cuda")
     #else:
@@ -601,7 +601,7 @@ def compute_Ri(config, image_dR, list_neigh, natoms_img, ind_img, davg, dstd):
 
         natoms_sum = natoms_img[start_index, 0]
         natoms_per_type = natoms_img[start_index, 1:]
-
+       
         image_dR_i = image_dR[
             ind_img[start_index]
             * config["maxNeighborNum"]
@@ -628,7 +628,7 @@ def compute_Ri(config, image_dR, list_neigh, natoms_img, ind_img, davg, dstd):
         list_neigh_i = torch.tensor(list_neigh_i, device=device, dtype=torch.int)
 
         # deepmd neighbor id 从 0 开始，MLFF从1开始
-        mask = list_neigh_i > 0
+        mask = list_neigh_i > 0 # 0 means the centor atom i does not have neighor
 
         dR2 = torch.zeros_like(list_neigh_i, dtype=torch.float64)
         Rij = torch.zeros_like(list_neigh_i, dtype=torch.float64)
@@ -645,7 +645,7 @@ def compute_Ri(config, image_dR, list_neigh, natoms_img, ind_img, davg, dstd):
         Ri_xyz[mask] = image_dR_i[mask] / dR2_copy[mask]
         inr[mask] = 1 / Rij[mask]
 
-        Ri_i, Ri_d_i = smooth(
+        Ri_i, Ri_d_i, max_ri = smooth(
             config, image_dR_i, nr, Ri_xyz, mask, inr, davg, dstd, natoms_per_type
         )
 
@@ -660,8 +660,28 @@ def compute_Ri(config, image_dR, list_neigh, natoms_img, ind_img, davg, dstd):
             Ri_d_i = Ri_d_i.detach().cpu().numpy()
             Ri = np.concatenate((Ri, Ri_i), 0)
             Ri_d = np.concatenate((Ri_d, Ri_d_i), 0)
+        max_ri_list.append(max_ri)
 
-    return Ri, Ri_d
+    if config['gen_egroup_input'] == 1:
+        dwidth = np.sqrt(-config['atomType'][0]['Rc']**2 / np.log(0.01))
+        egroup_weight_neigh = torch.exp(-dR2[mask] / dwidth / dwidth).to(device)
+        egroup_weight_neigh = torch.reshape(egroup_weight_neigh, (-1, natoms_sum, natoms_sum - 1))
+        egroup_weight_expanded = torch.zeros(size=(egroup_weight_neigh.shape[0], natoms_sum, natoms_sum), dtype=torch.float64)
+        egroup_weight_low_diag = torch.tril(egroup_weight_neigh, diagonal=-1)
+        egroup_weight_expanded[:, :natoms_sum, :egroup_weight_neigh.shape[2]] = egroup_weight_low_diag
+        egroup_weight_all = egroup_weight_expanded + egroup_weight_expanded.transpose(-1,-2)
+        for image in range(egroup_weight_neigh.shape[0]):
+            egroup_weight_all[image].diagonal().fill_(1)   
+                
+        divider = egroup_weight_all.sum(-1)
+
+        egroup_weight_all = egroup_weight_all.detach().cpu().numpy().reshape(-1, natoms_sum)
+        divider = divider.detach().cpu().numpy().reshape(-1)
+    else:
+        egroup_weight_all = None
+        divider = None
+
+    return Ri, Ri_d, egroup_weight_all, divider, max(max_ri_list)
 
 '''
 description:
@@ -758,6 +778,8 @@ description:
         2. calculate davg, dstd and energy_shift from system which contain all atom types.
         3. for movements in the same category, call function sepper_data.
         4. the last, save davg, dstd and energy_shift.
+    
+    Srij_max is the max S(rij) before doing scaled by dstd and davg, this value is used for model compress
 param {*} config
 param {*} is_egroup
 param {*} is_load_stat
@@ -765,13 +787,13 @@ param {*} stat_add
 return {*}
 author: wuxingxing
 '''
-def sepper_data_main(config, is_egroup = True, stat_add = None): 
+def sepper_data_main(config, is_egroup = True, stat_add = None, valid_random=False): 
     trainset_dir = config["trainSetDir"]
     train_data_path = config["trainDataPath"] 
     valid_data_path = config["validDataPath"]
     max_neighbor_num = config["maxNeighborNum"]
     # directories that contain MOVEMENT 
-    _movement_files = collect_all_sourcefiles(trainset_dir, "MOVEMENT")
+    _movement_files = np.loadtxt(os.path.join(config["dRFeatureInputDir"], "location"), dtype=str)[2:].tolist()
     ntypes = len(config["atomType"])
     atom_type_list = [int(_['type']) for _ in config["atomType"]] # get atom types,the order is consistent with user input order
     # image number in each movement 
@@ -786,30 +808,36 @@ def sepper_data_main(config, is_egroup = True, stat_add = None):
     movement_classify = _classify_systems(img_per_mvmt, atom_num_per_image, atom_types, max_neighbor_num, ntypes)
     # Ei.dat with respect to the real Ep
     if is_real_Ep is True:
+        mvm_types = {}
         for _, classify in movement_classify.items():
-            classify = np.array([classify[0]["type_nums"]])
-        get_real_Ep(_movement_files,trainset_dir,classify)
+            for item in classify:
+                tmp = {}
+                tmp["type_nums"] = item["type_nums"]
+                tmp["types"] = item["types"]
+                mvm_types[item['mvm_index']] = tmp
+        mvm_types = sorted(mvm_types.items(), key = lambda x: x[0], reverse=False)
+        get_real_Ep(_movement_files,trainset_dir,mvm_types)
         
     dR_neigh = np.loadtxt(os.path.join(trainset_dir, "dRneigh.dat"))
     Etot = np.loadtxt(os.path.join(trainset_dir, "Etot.dat"))
     Ei = np.loadtxt(os.path.join(trainset_dir, "Ei.dat"))
     Force = np.loadtxt(os.path.join(trainset_dir, "Force.dat"))
     if is_egroup:
-        Egroup  = np.loadtxt(os.path.join(trainset_dir, "Egroup_weight.dat"), delimiter=",", usecols=0)   
-        divider = np.loadtxt(os.path.join(trainset_dir, "Egroup_weight.dat"), delimiter=",", usecols=1)   
+        Egroup  = np.loadtxt(os.path.join(trainset_dir, "Egroup.dat"), delimiter=",", usecols=0)   
+        # divider = np.loadtxt(os.path.join(trainset_dir, "Egroup_weight.dat"), delimiter=",", usecols=1)   
         # take care of weights
-        #Egroup_weight = Egroup_file[:, 2:]
-        fp = open(os.path.join(trainset_dir, "Egroup_weight.dat"),"r")
-        raw_egroup = fp.readlines()
-        fp.close()
+        # fp = open(os.path.join(trainset_dir, "Egroup_weight.dat"),"r")
+        # raw_egroup = fp.readlines()
+        # fp.close()
         # form a list to contain 1-d np arrays 
-        egroup_single_arr = []  
-        for line in raw_egroup:
-            tmp  = [float(item) for item in line.split(",")]
-            tmp  = tmp[2:]
-            egroup_single_arr.append(np.array(tmp))
+        # egroup_single_arr = []  
+        # for line in raw_egroup:
+        #     tmp  = [float(item) for item in line.split(",")]
+        #     tmp  = tmp[2:]
+        #     egroup_single_arr.append(np.array(tmp))
     else:
-        Egroup, divider, egroup_single_arr = None, None, None
+        # Egroup, divider, egroup_single_arr = None, None, None
+        Egroup = None
 
     if os.path.exists(os.path.join(trainset_dir, "Virial.dat")):
         Virial = np.loadtxt(os.path.join(trainset_dir, "Virial.dat"), delimiter=" ")
@@ -825,12 +853,13 @@ def sepper_data_main(config, is_egroup = True, stat_add = None):
     else:
         # calculate davg and dstd from first category of movement_classify
         davg, dstd = None, None
-
+    Srij_max = 0.0
     img_start = [0, 0] # the index of images saved (train set and valid set)
     for mvm_type_key in movement_classify.keys():
         _Etot, _Ei, _Force, _dR = None, None, None, None
         _atom_num_per_image, _atom_types, _img_per_mvmt = None, None, None,
-        _Egroup, _divider, _egroup_single_arr, _Virial = None, None, None, None
+        _Egroup, _Virial = None, None
+        # _Egroup, _divider, _egroup_single_arr, _Virial = None, None, None, None
         #construct data
         for mvm in movement_classify[mvm_type_key]:
             _Etot = Etot[mvm["etot_rows"][0]:mvm["etot_rows"][1]] if _Etot is None \
@@ -845,10 +874,10 @@ def sepper_data_main(config, is_egroup = True, stat_add = None):
             if Egroup is not None:
                 _Egroup = Egroup[mvm["ei_rows"][0]:mvm["ei_rows"][1]] if _Egroup is None \
                     else np.concatenate([_Egroup, Egroup[mvm["ei_rows"][0]:mvm["ei_rows"][1]]],axis=0)
-                _divider = divider[mvm["ei_rows"][0]:mvm["ei_rows"][1]] if _divider is None \
-                    else np.concatenate([_divider, divider[mvm["ei_rows"][0]:mvm["ei_rows"][1]]],axis=0)
-                _egroup_single_arr = egroup_single_arr[mvm["ei_rows"][0]:mvm["ei_rows"][1]] if _egroup_single_arr is None \
-                    else np.concatenate([_egroup_single_arr, egroup_single_arr[mvm["ei_rows"][0]:mvm["ei_rows"][1]]],axis=0)
+                # _divider = divider[mvm["ei_rows"][0]:mvm["ei_rows"][1]] if _divider is None \
+                #     else np.concatenate([_divider, divider[mvm["ei_rows"][0]:mvm["ei_rows"][1]]],axis=0)
+                # _egroup_single_arr = egroup_single_arr[mvm["ei_rows"][0]:mvm["ei_rows"][1]] if _egroup_single_arr is None \
+                #     else np.concatenate([_egroup_single_arr, egroup_single_arr[mvm["ei_rows"][0]:mvm["ei_rows"][1]]],axis=0)
             # Virial not realized
             if Virial is not None:
                 _Virial = Virial[mvm["etot_rows"][0]:mvm["etot_rows"][1]] if _Virial is None \
@@ -866,27 +895,28 @@ def sepper_data_main(config, is_egroup = True, stat_add = None):
             # the davg, dstd and energy_shift atom order are the same --> atom_type_order 
             davg, dstd = _calculate_davg_dstd(config, _dR, _atom_types, _atom_num_per_image)
             energy_shift, atom_type_order = _calculate_energy_shift(_Ei, _atom_types, _atom_num_per_image)
-        # else:
-        #     atom_type_order = _get_atom_type_order(_atom_types, _atom_num_per_image)
+            davg, dstd, energy_shift, atom_type_order = adjust_order_same_as_user_input(davg, dstd, energy_shift,atom_type_order, atom_type_list)
         # reorder davg and dstd to consistent with atom type order of current movement
         _davg, _dstd = _reorder_davg_dstd(davg, dstd, list(atom_type_order), mvm['types'])
 
-        accum_train_num, accum_valid_num= sepper_data(config, _Etot, _Ei, _Force, _dR, \
-                    _atom_num_per_image, _atom_types, _img_per_mvmt, \
-                    _Egroup, _divider, _egroup_single_arr, _Virial, \
-                        _davg, _dstd,\
-                        stat_add, img_start)
-        
+        accum_train_num, accum_valid_num, _Srij_max= sepper_data(config, _Etot, _Ei, _Force, _dR, \
+                                                      _atom_num_per_image, _atom_types, _img_per_mvmt, \
+                                                      _Egroup, _Virial, \
+                                                      _davg, _dstd,\
+                                                      stat_add, img_start, valid_random)
+        Srij_max = max(_Srij_max, Srij_max)
         img_start = [accum_train_num, accum_valid_num]
     if os.path.exists(os.path.join(train_data_path, "davg.npy")) is False:
         np.save(os.path.join(train_data_path, "davg.npy"), davg)
         np.save(os.path.join(valid_data_path, "davg.npy"), davg)
         np.save(os.path.join(train_data_path, "dstd.npy"), dstd)
         np.save(os.path.join(valid_data_path, "dstd.npy"), dstd)
-        np.savetxt(os.path.join(train_data_path, "atom_map.raw"), atom_type_list, fmt="%d")
-        np.savetxt(os.path.join(valid_data_path, "atom_map.raw"), atom_type_list, fmt="%d")
+        np.savetxt(os.path.join(train_data_path, "atom_map.raw"), atom_type_order, fmt="%d")
+        np.savetxt(os.path.join(valid_data_path, "atom_map.raw"), atom_type_order, fmt="%d")
         np.savetxt(os.path.join(train_data_path, "energy_shift.raw"), energy_shift)
         np.savetxt(os.path.join(valid_data_path, "energy_shift.raw"), energy_shift)
+        np.savetxt(os.path.join(train_data_path, "sij_max.raw"), [Srij_max], fmt="%.6f")
+        np.savetxt(os.path.join(valid_data_path, "sij_max.raw"), [Srij_max], fmt="%.6f")
                 
 
 '''
@@ -924,6 +954,8 @@ return: two list: energy shift list and atom type list
 author: wuxingxing
 '''
 def _calculate_energy_shift(Ei, atom_type, atom_num_per_image,  chunk_size=10):
+    if chunk_size > len(atom_num_per_image):
+        chunk_size = len(atom_num_per_image)
     Ei = Ei[: sum(atom_num_per_image[:chunk_size])]
     atom_type = atom_type[: sum(atom_num_per_image[:chunk_size])]
     type_dict = {}
@@ -937,14 +969,24 @@ def _calculate_energy_shift(Ei, atom_type, atom_num_per_image,  chunk_size=10):
         res.append(np.mean(type_dict[t]))
     return res, list(type_dict.keys())
 
-def _get_atom_type_order(atom_type, atom_num_per_image):
-    atom_type = atom_type[: sum(atom_num_per_image[:1])]    #get first image atom list
-    type_list = []
-    for i in atom_type:
-        if i not in type_list:
-            type_list.append(i)
-    return type_list
-
+'''
+description: 
+adjust atom ordor of davg, dstd, energy_shift to same as user input order
+param {list} davg
+param {list} dstd
+param {list} energy_shift
+param {list} atom_type_order: the input davg, dstd atom order
+param {list} atom_type_list: the user input order 
+return {*}
+author: wuxingxing
+'''
+def adjust_order_same_as_user_input(davg:list, dstd:list, energy_shift:list, atom_type_order:list, atom_type_list:list):
+    davg_res, dstd_res, energy_shift_res = [], [], []
+    for i, atom in enumerate(atom_type_list):
+        davg_res.append(davg[atom_type_order.index(atom)])
+        dstd_res.append(dstd[atom_type_order.index(atom)])
+        energy_shift_res.append(energy_shift[atom_type_order.index(atom)])
+    return davg_res, dstd_res, energy_shift_res, atom_type_list
         
 '''
 description: 
@@ -984,7 +1026,8 @@ def _calculate_davg_dstd(config, dR_neigh, atom_type, atom_num_per_image, chunk_
     atom_num_per_image = np.concatenate(
         (atom_num_per_image.reshape(-1, 1), narray_diff_atom_types_num), axis=1
     )
-    
+    if len(image_index)-1 < chunk_size:
+        chunk_size = len(image_index)-1
     davg, dstd = calc_stat(
             config,
             image_dR[0 : image_index[chunk_size] * max_neighbor_num * ntypes],
@@ -996,9 +1039,9 @@ def _calculate_davg_dstd(config, dR_neigh, atom_type, atom_num_per_image, chunk_
     
 def sepper_data(config, Etot, Ei, Force, dR_neigh,\
                 atom_num_per_image, atom_type, img_per_mvmt, \
-                Egroup=None, divider=None, egroup_single_arr = None, Virial=None, \
-                    davg=None, dstd=None,\
-                    stat_add = "./", img_start=[0, 0]):
+                Egroup=None, Virial=None, \
+                davg=None, dstd=None,\
+                stat_add = "./", img_start=[0, 0], valid_random=False):
 
     train_data_path = config["trainDataPath"]
     valid_data_path = config["validDataPath"]
@@ -1030,20 +1073,15 @@ def sepper_data(config, Etot, Ei, Force, dR_neigh,\
         (atom_num_per_image.reshape(-1, 1), narray_diff_atom_types_num), axis=1
     )
     
-    Ri, Ri_d = compute_Ri(
+    Ri, Ri_d, Egroup_weight, Divider, max_ri = compute_Ri( 
             config, image_dR, list_neigh, atom_num_per_image, image_index, davg, dstd
         )
-
     if not os.path.exists(train_data_path):
         os.makedirs(train_data_path)
 
     if not os.path.exists(valid_data_path):
         os.makedirs(valid_data_path)
     
-    # num total trian img 
-    train_image_num = math.ceil(image_num * config["ratio"])
-
-
     list_neigh = list_neigh.reshape(-1, max_neighbor_num * ntypes)
     image_dR = image_dR.reshape(-1, max_neighbor_num * ntypes, 3)
 
@@ -1051,13 +1089,13 @@ def sepper_data(config, Etot, Ei, Force, dR_neigh,\
     accum_valid_num = img_start[1]
     # width = len(str(accum_train_num))
 
-    index = 0
-    while index < train_image_num:
+    train_indexs, valid_indexs = random_index(image_num, config["ratio"], valid_random)
+
+    # index = 0
+    for index in train_indexs:
         start_index = index
-        end_index = index + 1
-
-        end_index = min(end_index, train_image_num)
-
+        end_index = index+1
+        # end_index = min(end_index, len(train_indexs))
         train_set = {
                 "AtomType": atom_type[image_index[start_index] : image_index[end_index]],
                 "ImageDR": image_dR[image_index[start_index] : image_index[end_index]],
@@ -1074,8 +1112,10 @@ def sepper_data(config, Etot, Ei, Force, dR_neigh,\
         
         if Egroup is not None:
             train_set["Egroup"] = Egroup[image_index[start_index] : image_index[end_index]]
-            train_set["Divider"] = divider[image_index[start_index] : image_index[end_index]]
-            train_set["Egroup_weight"] = np.vstack(tuple(egroup_single_arr[image_index[start_index] : image_index[end_index]]))
+            # train_set["Divider"] = divider[image_index[start_index] : image_index[end_index]]
+            train_set["Divider"] = Divider[image_index[start_index] : image_index[end_index]]
+            # train_set["Egroup_weight"] = np.vstack(tuple(egroup_single_arr[image_index[start_index] : image_index[end_index]]))
+            train_set["Egroup_weight"] = Egroup_weight[image_index[start_index] : image_index[end_index]]
         if Virial is not None:
             train_set["Virial"] = Virial[start_index:end_index]
 
@@ -1087,15 +1127,15 @@ def sepper_data(config, Etot, Ei, Force, dR_neigh,\
 
         accum_train_num += 1 
 
-        index = end_index
+        # index = end_index
 
     # width = len(str(image_num - train_image_num))
 
-    while index < image_num:
+    for index in valid_indexs:
         start_index = index
         end_index = index + 1
 
-        end_index = min(end_index, image_num)
+        # end_index = min(end_index, image_num)
 
         valid_set = {
                 "AtomType": atom_type[image_index[start_index] : image_index[end_index]],
@@ -1113,8 +1153,10 @@ def sepper_data(config, Etot, Ei, Force, dR_neigh,\
         
         if Egroup is not None:
             valid_set["Egroup"] = Egroup[image_index[start_index] : image_index[end_index]]
-            valid_set["Divider"] = divider[image_index[start_index] : image_index[end_index]]
-            valid_set["Egroup_weight"] = np.vstack(tuple(egroup_single_arr[image_index[start_index] : image_index[end_index]]))
+            # valid_set["Divider"] = divider[image_index[start_index] : image_index[end_index]]
+            valid_set["Divider"] = Divider[image_index[start_index] : image_index[end_index]]
+            # valid_set["Egroup_weight"] = np.vstack(tuple(egroup_single_arr[image_index[start_index] : image_index[end_index]]))
+            valid_set["Egroup_weight"] = Egroup_weight[image_index[start_index] : image_index[end_index]]
         if Virial is not None:
             valid_set["Virial"] = Virial[start_index:end_index]
 
@@ -1123,9 +1165,27 @@ def sepper_data(config, Etot, Ei, Force, dR_neigh,\
         if not os.path.exists(save_path):
             os.mkdir(save_path)
         save_npy_files(save_path, valid_set)
-        index = end_index
+        # index = end_index
         accum_valid_num += 1
 
     print("Saving npy file done")
 
-    return accum_train_num, accum_valid_num
+    Rij_max = max_ri # for model compress
+    return accum_train_num, accum_valid_num, Rij_max
+
+'''
+description: 
+param {*} start
+param {*} end
+param {*} nums
+return {*}
+author: wuxingxing
+'''
+def random_index(image_nums:int, ratio:float, is_random:bool=False):
+    arr = np.arange(image_nums)
+    if is_random is True:
+        np.random.shuffle(arr)
+    split_idx = math.ceil(image_nums*ratio)
+    train_data = arr[:split_idx]
+    test_data = arr[split_idx:]
+    return sorted(train_data), sorted(test_data)

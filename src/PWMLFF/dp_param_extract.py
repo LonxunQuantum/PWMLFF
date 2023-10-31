@@ -1,11 +1,12 @@
 import os
 import shutil
-from src.user.model_param import DpParam
+from src.user.input_param import InputParam
 import torch
 import numpy as np
 import src.aux.extract_ff as extract_ff
+from utils.atom_type_emb_dict import get_normalized_data_list
 
-def extract_force_field(dp_params:DpParam):
+def extract_force_field(dp_params:InputParam):
     config = dp_params.get_dp_net_dict()
     forcefield_dir = dp_params.file_paths.forcefield_dir
     if os.path.exists(forcefield_dir):
@@ -15,12 +16,21 @@ def extract_force_field(dp_params:DpParam):
     cwd = os.getcwd()
     os.chdir(forcefield_dir)
     extract_model_para(config, dp_params)
+    print("extract_model_para function need redo")
 
     mk = config["net_cfg"]["fitting_net"]["resnet_dt"]
-    extract_ff.extract_ff(ff_name = dp_params.file_paths.forcefield_name, model_type = 5, atom_type = dp_params.atom_type, max_neigh_num = dp_params.max_neigh_num, is_fitting_recon = mk)
+
+    extract_type_physical_property(dp_params)
+
+    extract_ff.extract_ff(ff_name = dp_params.file_paths.forcefield_name, 
+                          model_type = 5, 
+                          atom_type = dp_params.atom_type, 
+                          max_neigh_num = dp_params.max_neigh_num, 
+                          is_fitting_recon = mk, 
+                          is_type_embedding = dp_params.descriptor.type_embedding)
     os.chdir(cwd)
     
-def extract_model_para(config:dict, dp_params:DpParam):
+def extract_model_para(config:dict, dp_params:InputParam):
     """ 
         extract the model parameters of DP network
         NEED TO ADD SESSION DIR NAME 
@@ -56,13 +66,18 @@ def extract_model_para(config:dict, dp_params:DpParam):
     module_sign = True if "module" in list(raw.keys())[0] else False
 
     #determining # of networks 
-    nEmbedingNet = len(config["atomType"])**2  
-    nFittingNet = len(config["atomType"])
 
+    # nEmbedingNet = len(config["atomType"])**2  
+    # nFittingNet = len(config["atomType"])
+    nEmbedingNet, nFittingNet = count_net_nums(list(raw.keys()))
+    
     print("number of embedding network:",nEmbedingNet)
     print("\n")
     print("number of fitting network:",nFittingNet)
     
+    # first dim of w matrix 
+    first_w_matrix = raw[list(raw.keys())[0]]
+    first_dim = len(first_w_matrix)
     # write embedding network
     f = open(embedingNet_output, 'w')
     # total number of embeding network
@@ -70,7 +85,7 @@ def extract_model_para(config:dict, dp_params:DpParam):
     #layer of embeding network
     f.write(str(nLayerEmbedingNet) + '\n')
     #size of each layer
-    f.write("1 ")
+    f.write(str(first_dim) + " ")
     for i in embedingNetSizes:
         f.write(str(i)+' ')
     f.write('\n')
@@ -247,6 +262,22 @@ def extract_model_para(config:dict, dp_params:DpParam):
 
     print("******** gen_dp.in generation done *********")
 
+def extract_type_physical_property(dp_params:InputParam):
+    """
+        extract the type embedding parameters of DP network
+    """
+    type_vector = get_normalized_data_list(dp_params.atom_type, dp_params.descriptor.type_physical_property)
+    print("******** writting type embedding starts ********")
+    f = open("type_physical_properties.in","w")
+    if dp_params.descriptor.type_embedding:
+        f.write("1 " + "\n")         # if 1, then type embedding is used
+        for i, atom in enumerate(type_vector):
+            f.write(str(atom)+" \n")
+            f.write(" ".join(map(str, type_vector[atom])) + " \n")
+    else:
+        f.write("0 " + "\n")
+    f.close()
+    print("******** writting type embedding ends ********")
 """
     parameter extraction related functions
 """ 
@@ -264,7 +295,19 @@ def catNameFittingB(idxNet, idxLayer, has_module=""):
 
 def catNameFittingRes(idxNet, idxResNet, has_module=""):
     return "{}fitting_net.".format(has_module)+str(idxNet)+".resnet_dt.resnet_dt"+str(idxResNet)
-    
+
+def count_net_nums(net_list:list):
+    net = {}
+    for i in net_list:
+        net_type, index = i.split('.')[:2]
+        key = "{}_{}".format(net_type, index)
+        if net_type not in net.keys():
+            net[net_type] = [key]
+        else:
+            if key not in net[net_type]:
+                net[net_type].append(key)
+    return [len(_[1]) for _ in net.items()]
+
 def dump(item, f):
     raw_str = ''
     for num in item:

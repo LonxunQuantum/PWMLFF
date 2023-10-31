@@ -1,20 +1,20 @@
 import os
 import pandas as pd
 import numpy as np
-import shutil
+from decimal import Decimal
 import time
 from enum import Enum
 import torch
 from torch.utils.data import Subset
 from torch.autograd import Variable
-from loss.dploss import dp_loss, adjust_lr
-from optimizer.KFWrapper import KFOptimizerWrapper
-import horovod.torch as hvd
+from src.loss.dploss import dp_loss, adjust_lr
+from src.optimizer.KFWrapper import KFOptimizerWrapper
+# import horovod.torch as hvd
 from torch.profiler import profile, record_function, ProfilerActivity
+from src.model.dp_dp import DP
+from src.user.input_param import InputParam
 
-from src.user.model_param import DpParam
-
-def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, args:DpParam):
+def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, args:InputParam):
     batch_time = AverageMeter("Time", ":6.3f")
     data_time = AverageMeter("Data", ":6.3f")
     losses = AverageMeter("Loss", ":.4e", Summary.AVERAGE)
@@ -287,7 +287,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
     )
 
 
-def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:DpParam):
+def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:InputParam):
     batch_time = AverageMeter("Time", ":6.3f")
     data_time = AverageMeter("Data", ":6.3f")
     losses = AverageMeter("Loss", ":.4e", Summary.AVERAGE)
@@ -306,7 +306,7 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:DpPa
     )
 
     KFOptWrapper = KFOptimizerWrapper(
-        model, optimizer, args.optimizer_param.nselect, args.optimizer_param.nselect, args.hvd, "hvd"
+        model, optimizer, args.optimizer_param.nselect, args.optimizer_param.nselect
     )
     
     # switch to train mode
@@ -468,18 +468,18 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:DpPa
         if i % args.optimizer_param.print_freq == 0:
             progress.display(i + 1)
  
-    if args.hvd:
-        losses.all_reduce()
-        loss_Etot.all_reduce()
-        loss_Etot_per_atom.all_reduce()
-        loss_Force.all_reduce()
-        loss_Ei.all_reduce()
-        if args.optimizer_param.train_egroup is True:
-            loss_Egroup.all_reduce()
-        if args.optimizer_param.train_virial is True:
-            loss_Virial.all_reduce()
-            loss_Virial_per_atom.all_reduce()
-        batch_time.all_reduce()
+    # if args.hvd:
+    #     losses.all_reduce()
+    #     loss_Etot.all_reduce()
+    #     loss_Etot_per_atom.all_reduce()
+    #     loss_Force.all_reduce()
+    #     loss_Ei.all_reduce()
+    #     if args.optimizer_param.train_egroup is True:
+    #         loss_Egroup.all_reduce()
+    #     if args.optimizer_param.train_virial is True:
+    #         loss_Virial.all_reduce()
+    #         loss_Virial_per_atom.all_reduce()
+    #     batch_time.all_reduce()
 
     progress.display_summary(["Training Set:"])
     return losses.avg, loss_Etot.root, loss_Etot_per_atom.root, loss_Force.root, loss_Ei.root, loss_Egroup.root, loss_Virial.root, loss_Virial_per_atom.root
@@ -520,7 +520,7 @@ def _classify_batchs(atom_types: np.ndarray, img_natoms: np.ndarray):
             dicts[key] = [i]
     return [dicts[_] for _ in dicts.keys()]
 
-def valid(val_loader, model, criterion, device, args:DpParam):
+def valid(val_loader, model, criterion, device, args:InputParam):
     def run_validate(loader, base_progress=0):
         end = time.time()
         for i, sample_batches in enumerate(loader):
@@ -648,11 +648,11 @@ def valid(val_loader, model, criterion, device, args:DpParam):
     loss_Virial_per_atom = AverageMeter("Virial_per_atom", ":.4e", Summary.ROOT)
 
     progress = ProgressMeter(
-        len(val_loader)
-        + (
-            args.hvd
-            and (len(val_loader.sampler) * hvd.size() < len(val_loader.dataset))
-        ),
+        len(val_loader),
+        # + (
+        #     args.hvd
+        #     and (len(val_loader.sampler) * hvd.size() < len(val_loader.dataset))
+        # ),
         [batch_time, losses, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_Egroup, loss_Virial, loss_Virial_per_atom],
         prefix="Test: ",    
     )
@@ -662,29 +662,29 @@ def valid(val_loader, model, criterion, device, args:DpParam):
     
     run_validate(val_loader)
 
-    if args.hvd and (len(val_loader.sampler) * hvd.size() < len(val_loader.dataset)):
-        aux_val_dataset = Subset(
-            val_loader.dataset,
-            range(len(val_loader.sampler) * hvd.size(), len(val_loader.dataset)),
-        )
-        aux_val_loader = torch.utils.data.DataLoader(
-            aux_val_dataset,
-            batch_size=args.batch_size,
-            shuffle=False,
-            num_workers=args.workers,
-            pin_memory=True,
-        )
-        run_validate(aux_val_loader, len(val_loader))
+    # if args.hvd and (len(val_loader.sampler) * hvd.size() < len(val_loader.dataset)):
+    #     aux_val_dataset = Subset(
+    #         val_loader.dataset,
+    #         range(len(val_loader.sampler) * hvd.size(), len(val_loader.dataset)),
+    #     )
+    #     aux_val_loader = torch.utils.data.DataLoader(
+    #         aux_val_dataset,
+    #         batch_size=args.batch_size,
+    #         shuffle=False,
+    #         num_workers=args.workers,
+    #         pin_memory=True,
+    #     )
+    #     run_validate(aux_val_loader, len(val_loader))
 
-    if args.hvd:
-        losses.all_reduce()
-        loss_Etot.all_reduce()
-        loss_Etot_per_atom.all_reduce()
-        loss_Force.all_reduce()
-        loss_Ei.all_reduce()
-        if args.optimizer_param.train_virial is True:
-            loss_Virial.all_reduce()
-            loss_Virial_per_atom.all_reduce()
+    # if args.hvd:
+    #     losses.all_reduce()
+    #     loss_Etot.all_reduce()
+    #     loss_Etot_per_atom.all_reduce()
+    #     loss_Force.all_reduce()
+    #     loss_Ei.all_reduce()
+    #     if args.optimizer_param.train_virial is True:
+    #         loss_Virial.all_reduce()
+    #         loss_Virial_per_atom.all_reduce()
 
     progress.display_summary(["Test Set:"])
 
@@ -702,7 +702,7 @@ param {*} args
 return {*}
 author: wuxingxing
 '''
-def predict(val_loader, model, criterion, device, args:DpParam):
+def predict(val_loader, model, criterion, device, args:InputParam, isprofile=False):
     train_lists = ["img_idx"] #"Etot_lab", "Etot_pre", "Ei_lab", "Ei_pre", "Force_lab", "Force_pre"
     train_lists.extend(["RMSE_Etot", "RMSE_Etot_per_atom", "RMSE_Ei", "RMSE_F"])
     if args.optimizer_param.train_egroup:
@@ -723,6 +723,8 @@ def predict(val_loader, model, criterion, device, args:DpParam):
     for i, sample_batches in enumerate(val_loader):
         # measure data loading time
         # load data to cpu
+        if i == 417:
+            print()
         if args.precision == "float64":
             Ei_label_cpu = sample_batches["Ei"].double()
             Etot_label_cpu = sample_batches["Etot"].double()
@@ -792,14 +794,30 @@ def predict(val_loader, model, criterion, device, args:DpParam):
             Ri_d = Variable(Ri_d_cpu[batch_indexs, :natoms].to(device))
 
             batch_size = len(batch_indexs)
-
-            if args.optimizer_param.train_egroup is True:
-                Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
-                    Ri, Ri_d, dR_neigh_list, natoms_img, atom_type, ImageDR, Egroup_weight, Divider)
+            if isprofile:
+                with profile(
+                        activities=[ProfilerActivity.CUDA, ProfilerActivity.CPU],
+                        record_shapes=True,
+                ) as prof:
+                    with record_function("model inference"):
+                        if args.optimizer_param.train_egroup is True:
+                            Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
+                                Ri, Ri_d, dR_neigh_list, natoms_img, atom_type, ImageDR, Egroup_weight, Divider)
+                        else:
+                            Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
+                                Ri, Ri_d, dR_neigh_list, natoms_img, atom_type, ImageDR, None, None 
+                            )
+                print(prof.key_averages().table(sort_by="cuda_time_total"))
+                print("=" * 60, "Profiling model inference", "=" * 60)
+                prof.export_chrome_trace("profiling_model.json")
             else:
-                Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
-                    Ri, Ri_d, dR_neigh_list, natoms_img, atom_type, ImageDR, None, None 
-                )
+                if args.optimizer_param.train_egroup is True:
+                    Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
+                        Ri, Ri_d, dR_neigh_list, natoms_img, atom_type, ImageDR, Egroup_weight, Divider)
+                else:
+                    Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
+                        Ri, Ri_d, dR_neigh_list, natoms_img, atom_type, ImageDR, None, None 
+                    )
             # mse
             loss_Etot_val = criterion(Etot_predict, Etot_label)
             loss_F_val = criterion(Force_predict, Force_label)
@@ -838,6 +856,8 @@ def predict(val_loader, model, criterion, device, args:DpParam):
 def save_checkpoint(state, filename, prefix):
     filename = os.path.join(prefix, filename)
     torch.save(state, filename)
+
+
 
 class Summary(Enum):
     NONE = 0
@@ -879,7 +899,7 @@ class AverageMeter(object):
             device = torch.device("cpu")
 
         total = torch.tensor([self.sum, self.count], dtype=torch.float32, device=device)
-        total = hvd.allreduce(total, hvd.Sum)
+        # total = hvd.allreduce(total, hvd.Sum)
         # dist.all_reduce(total, dist.ReduceOp.SUM, async_op=False)
         self.sum, self.count = total.tolist()
         self.avg = self.sum / self.count

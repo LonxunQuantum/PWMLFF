@@ -1,6 +1,6 @@
 import os
 import shutil
-from src.user.model_param import DpParam
+from src.user.input_param import InputParam
 import torch
 import numpy as np
 import src.aux.extract_ff as extract_ff
@@ -10,12 +10,12 @@ def extract_force_field():
 '''
 description: 
     extracting network parameters and scaler values for fortran MD routine
-param {DpParam} dp_params
+param {InputParam} dp_params
 param {*} model_name
 return {*}
 author: wuxingxing
 '''
-def extract_model_para(dp_params:DpParam):
+def extract_model_para(dp_params:InputParam):
     from src.aux.extract_nn import read_wij, read_scaler 
 
     load_model_path = dp_params.file_paths.model_save_path
@@ -25,7 +25,7 @@ def extract_model_para(dp_params:DpParam):
     # extracting scaler values from model.ckpt
     read_scaler(load_model_path, ntype=len(dp_params.atom_type))
 
-def extract_force_field(dp_params:DpParam):
+def extract_force_field(dp_params:InputParam):
     forcefield_dir = dp_params.file_paths.forcefield_dir
     if os.path.exists(forcefield_dir):
         shutil.rmtree(forcefield_dir)

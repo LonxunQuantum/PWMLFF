@@ -2,7 +2,7 @@ import numpy as np
 from utils.json_operation import get_parameter, get_required_parameter
 
 class Descriptor(object):
-    def __init__(self, json_input:dict, model_type:str, cmd:str, feature_type:list=None) -> None:
+    def __init__(self, json_input:dict, model_type:str, cmd:str, feature_type:list=None, type_embedding:bool=False) -> None:
         self.model_type = model_type
         self.cmd = cmd
         self.feature_type = feature_type
@@ -19,11 +19,24 @@ class Descriptor(object):
         else:   # the first layer not specified in both first layer and descriptor layer, use default value
             self.feature_type = [int(_) for _ in get_parameter("feature_type", json_input, [3,4])]
 
-        # dp params
+        # dp params These parameters are only used for outputting to the standard output json file
         self.network_size = get_parameter("network_size", json_input, [25, 25, 25])
         self.bias = get_parameter("bias", json_input, True)
         self.resnet_dt = get_parameter("resnet_dt", json_input, False) # resnet in embedding net is False.
         self.activation = get_parameter("activation", json_input, "tanh")
+
+        # type embedding params These parameters are only used for outputting to the standard output json file
+        type_embedding_dict = get_parameter("type_embedding", json_input, {})
+        self.type_embedding = False if (not type_embedding_dict.items()) and type_embedding is False else True
+        # set dp embedding net params
+        self.type_physical_property = get_parameter("physical_property", type_embedding_dict, ["atomic_number", "atom_radius", "atom_mass", "electron_affin", "pauling"])
+        self.type_network_size = get_parameter("network_size", type_embedding_dict, None)
+        if self.type_network_size is not None:
+            self.type_network_size = [len(self.type_physical_property)] + self.type_network_size
+
+        self.type_bias = get_parameter("bias", type_embedding_dict, True)
+        self.type_resnet_dt = get_parameter("resnet_dt", type_embedding_dict, False) # resnet in embedding net is False.
+        self.type_activation = get_parameter("activation", type_embedding_dict, "tanh")
 
         if self.feature_type not in self.supported_feature_group:
             raise Exception("ERROR: The input feature type group {} is not support, \
@@ -251,22 +264,26 @@ class Descriptor(object):
         dicts = {}
         dicts["Rmax"] = self.Rmax
         dicts["Rmin"] = self.Rmin
-        # dicts["M2"] = self.M2
         # dicts["E_tolerance"] = self.E_tolerance
-
         if self.model_type == "DP".upper():
+            dicts["M2"] = self.M2
             dicts["network_size"] = self.network_size
+            dicts["M2"] = self.M2
             # dicts["bias"] = self.bias
             # dicts["resnet_dt"] = self. resnet_dt 
             # dicts["activation"] = self.activation
-
         elif self.model_type == "NN".upper() or self.model_type == "Linear".upper():
             dicts["feature_type"] = self.feature_type
             for feature in self.feature_type:
                 feature = "{}".format(feature)
                 dicts[feature] = self.feature_dict_out[feature]
-            
         else:
             raise Exception("descriptor to dict: the model type not realized:{}".format(self.model_type))
         
+        if self.type_embedding is True:
+            dicts["type_embedding"] = {}
+            dicts["type_embedding"]["physical_property"] = self.type_physical_property
+            if self.type_network_size is not None:
+               dicts["type_embedding"]["network_size"] = self.type_network_size[1:]
+               
         return dicts

@@ -11,6 +11,7 @@ program linear_forceMM
     integer,allocatable,dimension(:) :: num_neigh,num,num_atomtype
     integer,allocatable,dimension(:) :: num_neight
     integer,allocatable,dimension(:,:) :: list_neigh,ind_type
+    integer,allocatable,dimension (:) :: nfeat_atom
 
     real*8,allocatable,dimension(:,:,:,:) :: dfeat,dfeat2
     real*8,allocatable,dimension(:,:,:) :: dfeat_type,dfeat2_type
@@ -320,6 +321,7 @@ program linear_forceMM
     deallocate(feat22_type)
     deallocate(num_neigh)
     deallocate(list_neigh)
+    deallocate(nfeat_atom)
     deallocate(ind_type)
     deallocate(dfeat)
     deallocate(dfeat_type)
@@ -354,6 +356,7 @@ program linear_forceMM
     allocate(feat22_type(nfeat2m,ntype))
     allocate(num_neigh(natom))
     allocate(list_neigh(m_neigh,natom))
+    allocate(nfeat_atom(natom))
     allocate(ind_type(natom,ntype))
     allocate(dfeat(nfeat1m,natom,m_neigh,3))
     allocate(dfeat_type(nfeat1m,natom*m_neigh*3,ntype))
@@ -454,6 +457,7 @@ program linear_forceMM
     
     read(1000+kkk) num_neigh     ! this is actually the num_neighM (of Rc_M)
     read(1000+kkk) list_neigh    ! this is actually the list_neighM (of Rc_M)
+    read(1000+kkk) nfeat_atom
 !    the above should be the same for different kkk. 
 !    Perhaps we should check it later. Here we proceed without checking 
     if(kkk.eq.1) then
