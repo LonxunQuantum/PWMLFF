@@ -69,6 +69,10 @@ class DP(nn.Module):
         self.davg = compress_dict["davg"]
         self.dstd = compress_dict["dstd"]
         self.sij_min = compress_dict["sij_min"]
+        self.sij_max = compress_dict["sij_max"]
+        self.sij_out_max = compress_dict["sij_out_max"]
+        self.sij_len = compress_dict["sij_len"]
+        self.sij_out_len = compress_dict["sij_out_len"]
         self.order = compress_dict["order"] if "order" in compress_dict.keys() else 5 #the default compress order is 5
 
     def get_egroup(self, Ei, Egroup_weight, divider):
@@ -316,11 +320,18 @@ class DP(nn.Module):
 
     def calc_compress_3order(self, S_Rij:torch.Tensor, embedding_index:int):
         sij = S_Rij.flatten()
-        x = (sij-self.sij_min)/self.dx
+        mask = sij < self.sij_max
+
+        x = torch.zeros_like(sij)
+        x[mask] = (sij[mask]-self.sij_min)/self.dx
+        x[~mask] = (sij[~mask]-self.sij_max)/(10*self.dx)
         index_k1 = x.type(torch.long) # get floor
-        xk = self.sij_min + index_k1*self.dx
+
+        xk = torch.zeros_like(sij, dtype=torch.float32) # the index * dx + sij_min is a float type data
+        xk[mask] = index_k1[mask]*self.dx + self.sij_min
+        xk[~mask] = self.sij_max + index_k1[~mask]*self.dx*10
         f2 = (sij - xk).flatten().unsqueeze(-1)
-    
+        
         coefficient = self.compress_tab[embedding_index, index_k1, :]
         G = CalculateCompress.apply(f2, coefficient)
         # G = f2**3 *coefficient[:, :, 0] + f2**2 * coefficient[:, :, 1] + \
