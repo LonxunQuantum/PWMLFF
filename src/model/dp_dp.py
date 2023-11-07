@@ -310,11 +310,15 @@ class DP(nn.Module):
         index_k1 = x.type(torch.long) # get floor
         xk = self.sij_min + index_k1*self.dx
         f2 = (sij - xk).flatten().unsqueeze(-1)
-    
+
         coefficient = self.compress_tab[embedding_index, index_k1, :]
-        G = f2**5 *coefficient[:, :, 0] + f2**4 * coefficient[:, :, 1] + \
-            f2**3 * coefficient[:, :, 2] + f2**2 * coefficient[:, :, 3] + \
-            f2 * coefficient[:, :, 4] + coefficient[:, :, 5]
+
+        G = CalculateCompress.apply(f2, coefficient)
+
+        # G = f2**5 *coefficient[:, :, 0] + f2**4 * coefficient[:, :, 1] + \
+        #     f2**3 * coefficient[:, :, 2] + f2**2 * coefficient[:, :, 3] + \
+        #     f2 * coefficient[:, :, 4] + coefficient[:, :, 5]
+        
         G = G.reshape(S_Rij.shape[0], S_Rij.shape[1], S_Rij.shape[2], G.shape[1])
         return G
 

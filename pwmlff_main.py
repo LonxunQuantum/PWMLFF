@@ -48,7 +48,10 @@ if __name__ == "__main__":
                 linear_train(json_file, cmd_type)
             else:
                 raise Exception("Error! the model_type param in json file does not existent, you could use DP or NN or Linear")
-            
+            if model_type == "NEP".upper():
+                # nep_train(json_file, cmd_type)
+                pass
+                    
         elif cmd_type == "test".upper():
             if model_type == "DP".upper():
                 dp_test(json_file, cmd_type)

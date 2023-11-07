@@ -76,7 +76,7 @@ class WorkFileStructure(object):
         self.test_feature_path = test_feature_path
         self.test_movement_path = [os.path.abspath(_) for _ in test_movement_path]
 
-        if not json_input['model_type'].upper() == "LINEAR":
+        if not json_input["model_type"].upper() == "LINEAR":
             model_load_path = get_required_parameter("model_load_file", json_input)
             self.model_load_path = os.path.abspath(model_load_path)
             if os.path.exists(self.model_load_path) is False:
@@ -101,7 +101,15 @@ class WorkFileStructure(object):
     def set_test_feature_path(self, feature_path:list):
         self.test_feature_path.extend(feature_path)
 
-    def set_file_paths(self, json_input:dict):
+    '''
+    description: 
+    set workdir structrues of dp/NN/linear model when doing initialization
+    param {*} self
+    param {dict} json_input
+    return {*}
+    author: wuxingxing
+    '''    
+    def set_dp_nn_file_paths(self, json_input:dict):
         model_load_path = get_parameter("model_load_file", json_input, " ")
         if os.path.exists(model_load_path):
             model_load_path = os.path.abspath(model_load_path)

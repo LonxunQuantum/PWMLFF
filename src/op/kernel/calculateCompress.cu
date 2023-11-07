@@ -13,14 +13,26 @@ __global__ void compress_calc(
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
     if (tid < sij_num) {
         DType f2_val = f2[tid];
+        int coefficient_base = tid * layer_node * coe_num;
+        
         for (int i = 0; i < layer_node; i++) {
-            DType coeff_0 = coefficient[tid * layer_node * 4 + i * 4 + 0];
-            DType coeff_1 = coefficient[tid * layer_node * 4 + i * 4 + 1];
-            DType coeff_2 = coefficient[tid * layer_node * 4 + i * 4 + 2];
-            DType coeff_3 = coefficient[tid * layer_node * 4 + i * 4 + 3];
-
-            G[tid * layer_node + i] = f2_val * f2_val * f2_val * coeff_0 + f2_val * f2_val * coeff_1 +
-                            f2_val * coeff_2 + coeff_3;
+            DType coeff_0 = coefficient[coefficient_base + i * coe_num];
+            DType coeff_1 = coefficient[coefficient_base + i * coe_num + 1];
+            DType coeff_2 = coefficient[coefficient_base + i * coe_num + 2];
+            DType coeff_3 = coefficient[coefficient_base + i * coe_num + 3];
+            
+            DType result = 0.0;
+            
+            if (coe_num == 4) {
+                result = f2_val * (f2_val * (f2_val * coeff_0 + coeff_1) + coeff_2) + coeff_3;
+            } else {
+                DType coeff_4 = coefficient[coefficient_base + i * coe_num + 4];
+                DType coeff_5 = coefficient[coefficient_base + i * coe_num + 5];
+                
+                result = f2_val * (f2_val * (f2_val * (f2_val * (f2_val * coeff_0 + coeff_1) + coeff_2) + coeff_3) + coeff_4) + coeff_5;
+            }
+            
+            G[tid * layer_node + i] = result;
         }
     }
 }
