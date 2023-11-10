@@ -29,7 +29,7 @@ class InputParam(object):
         self.atom_type = get_required_parameter("atom_type", json_input)
 
         self.model_num = get_parameter("model_num", json_input, 1)
-        self.recover_train = get_parameter("recover_train", json_input, False)
+        self.recover_train = get_parameter("recover_train", json_input, True)
         self.max_neigh_num = get_parameter("max_neigh_num", json_input, 100)
 
         self.profiling = get_parameter("profiling", json_input, False)#not realized
@@ -40,23 +40,25 @@ class InputParam(object):
         if self.model_type in ["DP", "NN", "LINEAR"]:
             self.set_dp_NN_model_init_params(json_input)
             self.set_default_multi_gpu_info(json_input)
-            # set workdir 
-            self.file_paths.set_dp_nn_file_paths(json_input)
 
         elif self.model_type in ["NEP"]:
             self.set_nep_in_params(json_input)
+            self.file_paths.set_nep_file_paths()
 
         elif self.model_type in ["GNN"]:
             raise Exception("GNN is not realized yet!")
         else:
             raise Exception("ERROR! {} model type not supported!".format(self.model_type))
-    
+
+        # DP, NN, and NEP common file paths
+        self.file_paths.set_model_file_paths(json_input)
+        self.file_paths.set_train_valid_file(json_input)
+        
     def set_nep_in_params(self, json_input:dict):
         nep_in_file = get_parameter("nep_in_file", json_input, None)
         nep_dict = get_parameter("model", json_input, {})
-        if nep_in_file is not None:
-            type_list_weight = get_parameter("type_list_weight", nep_dict, None)
-            self.nep_param = NepParam(nep_dict, nep_in_file, self.atom_type, type_list_weight, os.path.join(self.file_paths.work_dir, "nep.in"))
+        type_list_weight = get_parameter("type_list_weight", nep_dict, None)
+        self.nep_param = NepParam(nep_dict, nep_in_file, self.atom_type, type_list_weight)
 
     '''
     description: 
@@ -179,6 +181,7 @@ class InputParam(object):
     '''    
     def set_test_relative_params(self, json_input:dict):
         self.inference = True
+        self.recover_train = True
         self.optimizer_param.batch_size = 1     # set batch size to 1, so that each image inference info will be saved
         self.train_valid_ratio = 1
         self.data_shuffle = False

@@ -9,6 +9,7 @@ from collections import Counter
 import subprocess as sp
 import random
 import time
+from utils.random_utils import random_index
 
 is_real_Ep = False
 '''
@@ -1173,19 +1174,3 @@ def sepper_data(config, Etot, Ei, Force, dR_neigh,\
     Rij_max = max_ri # for model compress
     return accum_train_num, accum_valid_num, Rij_max
 
-'''
-description: 
-param {*} start
-param {*} end
-param {*} nums
-return {*}
-author: wuxingxing
-'''
-def random_index(image_nums:int, ratio:float, is_random:bool=False):
-    arr = np.arange(image_nums)
-    if is_random is True:
-        np.random.shuffle(arr)
-    split_idx = math.ceil(image_nums*ratio)
-    train_data = arr[:split_idx]
-    test_data = arr[split_idx:]
-    return sorted(train_data), sorted(test_data)
