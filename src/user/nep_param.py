@@ -31,7 +31,7 @@ class NepParam(object):
                 raise Exception("ERROR! the nep.in file is not exist, please check the file: {}".format(nep_in_file))
             nep_file_dict = self.read_nep_param_from_nep_file(nep_in_file)
         
-        self.version = self.get_parameter("version", nep_dict, 3, nep_file_dict, 0) # select between NEP2, NEP3, and NEP4
+        self.version = self.get_parameter("version", nep_dict, 4, nep_file_dict, 0) # select between NEP2, NEP3, and NEP4
 
         type_str = self.set_atom_type(type_list)
         self.type = self.get_parameter("type", nep_dict, type_str, nep_file_dict, 4) # number of atom types and list of chemical species

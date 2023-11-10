@@ -8,3 +8,4 @@ make clean -C pre_data/fit
 make clean -C pre_data/fortran_code  # for tf, will delete it
 make clean -C md/fortran_code
 
+make clean -C GPUMD/src

@@ -7,6 +7,10 @@ make -C pre_data/fit
 make -C pre_data/fortran_code  # spack load gcc@7.5.0
 
 make -C md/fortran_code
+
+# compile gpumd
+make -C GPUMD/src
+
 cd bin
 
 ln -s ../pre_data/mlff.py .
@@ -20,6 +24,9 @@ ln -s ../../utils/read_torch_wij_dp.py .
 ln -s ../../utils/otr2mvt.py ./outcar2movement 
 ln -s ../md/fortran_code/main_MD.x .
 ln -s ../../pwmlff_main.py ./PWMLFF
+
+ln -s ../GPUMD/src/gpumd .
+ln -s ../GPUMD/src/nep .
 
 chmod +x ./mlff.py
 chmod +x ./seper.py
@@ -35,6 +42,7 @@ chmod +x ./plot_mlff_inference.py
 chmod +x ./outcar2movement
 
 cd ..            # back to src dir
+
 ################################################################
 #Writing environment variable
 
