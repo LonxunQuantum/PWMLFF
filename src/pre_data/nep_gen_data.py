@@ -33,6 +33,9 @@ def write_train_valid_movement(train_save_path, valid_save_path, mvm_sorted:dict
     # separate mvm files to train_movement and valid_movement
     train_file_list = []
     valid_file_list = []
+    # delete tmp files, train.xyz, and test.xyz if exist before
+    os.system("rm train_mvm_* valid_mvm_* train.xyz test.xyz -r")
+
     for i, mvm_type_key in enumerate(mvm_sorted.keys()):
         mvm_list = mvm_sorted[mvm_type_key]
         tmp_train = "train_mvm_{}_{}".format(mvm_type_key, i)

@@ -135,7 +135,7 @@ class WorkFileStructure(object):
                 self._set_p_matrix_paths(Pmatrix_path, True)
             else:
                 self._set_p_matrix_paths(None, False)
-            self._set_PWdata_NN_DP_dirs()
+            self._set_PWdata_NN_DP_dirs(json_input)
         elif self.model_type == "NEP":
             best_model_path = ""
             model_name = "nep.txt"

@@ -324,10 +324,11 @@ class Structure:
                         self.atom_force[j][tmp].append(-float(file_tmp[i].split()[ii]))
                     tmp=tmp+1
                 tmp=0
-                self.dE.append(float(file_tmp[dE_loop[j]].split()[-1]))
-                for i in range(dE_loop[j]+1,dE_loop[j]+self.atom_num+1):
-                    self.atom_energy[j][tmp].append(float(file_tmp[i].split()[1]))
-                    tmp=tmp+1
+                if len(dE_loop) > 0:
+                    self.dE.append(float(file_tmp[dE_loop[j]].split()[-1]))
+                    for i in range(dE_loop[j]+1,dE_loop[j]+self.atom_num+1):
+                        self.atom_energy[j][tmp].append(float(file_tmp[i].split()[1]))
+                        tmp=tmp+1
 
         return
 
@@ -514,7 +515,8 @@ class Structure:
                     if self.is_atom_config:
                         f.write('" Properties=species:S:1:pos:R:3\n')
                     else:
-                        f.write('" Properties=species:S:1:pos:R:3:forces:R:3 energy={}"\n'.format(self.etot[j]-self.dE[j]))
+                        f.write('" Properties=species:S:1:pos:R:3:forces:R:3 energy={}"\n'.format(self.etot[j])) 
+                        #self.etot[j]-self.dE[j] we use Ep as energy etot, for Ei lable, Ei = Ei+dEi, dEi from a table made by huangfongfu
                     # for i in range(self.atom_num):
                     for i in range(int(self.atom_num)):
                         # f.write('{}      '.format(self.eles_type[self.eles_list[i]]))
