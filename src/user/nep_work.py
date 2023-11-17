@@ -3,6 +3,7 @@ import json
 from src.user.input_param import InputParam
 from src.PWMLFF.nep_network import NepNetwork
 from utils.file_operation import delete_tree, copy_tree, copy_file
+from utils.atom_type_emb_dict import element_table
 '''
 description: do nep training
     step1. generate feature from MOVEMENTs
@@ -50,6 +51,8 @@ def gen_nep_feature(input_json: json, cmd:str):
 description: 
     do dp inference:
     setp0. read params from mode.cpkt file, and set model related params to test
+        the params need to be set by nep.txt or nep.in file:
+
     step1. generate feature, the movement from json file 'test_movement_path'
     step2. load model and do inference
     step3. copy inference result files to the same level directory of jsonfile
@@ -59,28 +62,40 @@ return {*}
 author: wuxingxing
 '''
 def nep_test(input_json: json, cmd:str):
-    # model_load_path = get_required_parameter("model_load_file", input_json)
-    # model_checkpoint = torch.load(model_load_path, map_location=torch.device("cpu"))
-    # json_dict_train = model_checkpoint["json_file"]
+    nep_txt_file = input_json["model_load_file"]
+    nep_info = read_nep_info(nep_txt_file)
+    input_json["atom_type"] = nep_info["atom_type"]
+    if "model" in input_json.keys() and \
+        "prediction" in input_json["model"].keys():
+            input_json["model"]["prediction"] = 1
+    nep_param = InputParam(input_json, "test".upper())
+    nep_param.set_test_relative_params(input_json)
+    nep_param.print_input_params(json_file_save_name="std_input.json")
+    nep_trainer = NepNetwork(nep_param)
+    if len(nep_param.file_paths.test_movement_path) > 0:
+        nep_trainer.generate_data()
+    nep_trainer.inference()
 
-    # json_dict_train["work_dir"] = get_parameter("work_dir", input_json, "work_test_dir")
-    
-    # dp_param = InputParam(json_dict_train, "test".upper())
-    # # set inference param
-    # dp_param.set_test_relative_params(input_json)
-    # dp_param.print_input_params(json_file_save_name="std_input.json")
+    if os.path.realpath(nep_param.file_paths.json_dir) != os.path.realpath(nep_param.file_paths.work_dir) :
+        if nep_param.file_paths.reserve_feature is False:
+            if os.path.exists(nep_param.file_paths.nep_train_xyz_path):
+                os.remove(nep_param.file_paths.nep_train_xyz_path)
 
-    # nep_trainer = dp_network(dp_param)
-    # if len(dp_param.file_paths.test_movement_path) > 0:
-    #     gen_feat_dir = nep_trainer.generate_data()
-    #     dp_param.file_paths.set_test_feature_path([gen_feat_dir])
-    # nep_trainer.inference()
-    # if os.path.realpath(dp_param.file_paths.json_dir) != os.path.realpath(dp_param.file_paths.work_dir) :
-    #     copy_test_result(dp_param.file_paths.json_dir, dp_param.file_paths.test_dir)
-        
-    #     if dp_param.file_paths.reserve_feature is False:
-    #         delete_tree(dp_param.file_paths.train_dir)
-            
-    #     if dp_param.file_paths.reserve_work_dir is False:
-    #         delete_tree(dp_param.file_paths.work_dir)
-    pass
+    # copy the whole work dir to nep_training_dir or model_record?
+    copy_tree(nep_param.file_paths.work_dir, os.path.join(nep_param.file_paths.json_dir, os.path.basename(nep_param.file_paths.test_dir)))
+    if nep_param.file_paths.reserve_work_dir is False:
+        delete_tree(nep_param.file_paths.work_dir)
+
+def read_nep_info(nep_txt_file: str):
+    if not os.path.exists(nep_txt_file):
+        raise Exception("ERROR! The nep.txt file does not exist at {}!".format(nep_txt_file))
+    with open(nep_txt_file, 'r') as rf:
+        lines = rf.readlines()
+    res = {}
+    # read version and atom type with order
+    first = lines[0].strip().split()
+    res["version"]=int(first[0].lower().replace("nep", ""))
+    res["atom_type"] = []
+    for atom_name in first[2:]:
+        res["atom_type"].append(element_table.index(atom_name))
+    return res

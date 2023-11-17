@@ -11,8 +11,10 @@ param {bool} is_random, random seperate
 return {*}
 author: wuxingxing
 '''
-def random_index(image_nums:int, ratio:float, is_random:bool=False):
+def random_index(image_nums:int, ratio:float, is_random:bool=False, seed:int=None):
     arr = np.arange(image_nums)
+    if seed:
+        np.random.seed(seed)
     if is_random is True:
         np.random.shuffle(arr)
     split_idx = math.ceil(image_nums*ratio)

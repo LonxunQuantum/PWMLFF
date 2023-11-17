@@ -4,10 +4,10 @@ from utils.random_utils import random_index
 from utils.mvm2xyz import Structure
 import os, shutil
 
-def convert_mvmfiles_to_xyz(mvm_file_list:list, train_save_path:str, valid_save_path:str, valid_shuffle:bool=False, ratio:float=0.2):
+def convert_mvmfiles_to_xyz(mvm_file_list:list, train_save_path:str, valid_save_path:str, valid_shuffle:bool=False, ratio:float=0.2, seed:int=None):
     mvm_classed_list = classify_mvm(mvm_file_list)
     # saperated movements to training and valid by random or last 20%
-    write_train_valid_movement(train_save_path, valid_save_path, mvm_classed_list, ratio, valid_shuffle)
+    write_train_valid_movement(train_save_path, valid_save_path, mvm_classed_list, ratio, valid_shuffle, seed)
         
 def classify_mvm(mvm_file_list: list[str]):
     mvm_sorted = {}
@@ -29,7 +29,7 @@ def classify_mvm(mvm_file_list: list[str]):
             mvm_sorted[t[1]].append({"file": mvm_file_list[t[0]], "obj":mvm_obj[t[0]]})
     return mvm_sorted
 
-def write_train_valid_movement(train_save_path, valid_save_path, mvm_sorted:dict, ratio:float, valid_shuffle:bool):
+def write_train_valid_movement(train_save_path, valid_save_path, mvm_sorted:dict, ratio:float, valid_shuffle:bool, seed:int=None):
     # separate mvm files to train_movement and valid_movement
     train_file_list = []
     valid_file_list = []
@@ -40,26 +40,32 @@ def write_train_valid_movement(train_save_path, valid_save_path, mvm_sorted:dict
         mvm_list = mvm_sorted[mvm_type_key]
         tmp_train = "train_mvm_{}_{}".format(mvm_type_key, i)
         tmp_valid = "valid_mvm_{}_{}".format(mvm_type_key, i)
-
+        train_images, valid_images = 0, 0
         for mvm in mvm_list:
-            train_indexs, valid_indexs = random_index(mvm["obj"].image_nums, ratio, valid_shuffle)
-    
-            with open(tmp_train, 'a') as af:
-                for j in train_indexs:
-                    for line in mvm["obj"].image_list[j].content:
-                        af.write(line)
+            train_indexs, valid_indexs = random_index(mvm["obj"].image_nums, ratio, valid_shuffle, seed)
+            if len(train_indexs) > 0:
+                with open(tmp_train, 'a') as af:
+                    for j in train_indexs:
+                        for line in mvm["obj"].image_list[j].content:
+                            af.write(line)
+                train_images += len(train_indexs)
+            if len(valid_indexs) > 0:
+                with open(tmp_valid, 'a') as af:
+                    for j in valid_indexs:
+                        for line in mvm["obj"].image_list[j].content:
+                            af.write(line)
+                valid_images += len(valid_indexs)
 
-            with open(tmp_valid, 'a') as af:
-                for j in valid_indexs:
-                    for line in mvm["obj"].image_list[j].content:
-                        af.write(line)
-
-            print("{} separted to train and valid momvement done (valid shuffle {})!".format(mvm['file'], valid_shuffle))
+            print("{} momvement separted to train {} and valid {} done (valid shuffle {})!".format(\
+                mvm['file'], len(train_indexs), len(valid_indexs),
+            valid_shuffle))
         
-        train_file_list.append(tmp_train)
-        valid_file_list.append(tmp_valid)
+        if train_images > 0:
+            train_file_list.append(tmp_train)
+        if valid_images > 0:
+            valid_file_list.append(tmp_valid)
         
-    # convert movement to xyz 
+    # convert movement to xyz
     mvm2xyz(train_file_list, train_save_path)
     mvm2xyz(valid_file_list, valid_save_path)
     # delete tmp files

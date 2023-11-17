@@ -515,7 +515,7 @@ class Structure:
                     if self.is_atom_config:
                         f.write('" Properties=species:S:1:pos:R:3\n')
                     else:
-                        f.write('" Properties=species:S:1:pos:R:3:forces:R:3 energy={}"\n'.format(self.etot[j])) 
+                        f.write('" Properties=species:S:1:pos:R:3:forces:R:3 energy={}\n'.format(self.etot[j])) 
                         #self.etot[j]-self.dE[j] we use Ep as energy etot, for Ei lable, Ei = Ei+dEi, dEi from a table made by huangfongfu
                     # for i in range(self.atom_num):
                     for i in range(int(self.atom_num)):

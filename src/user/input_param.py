@@ -59,6 +59,8 @@ class InputParam(object):
         nep_dict = get_parameter("model", json_input, {})
         type_list_weight = get_parameter("type_list_weight", nep_dict, None)
         self.nep_param = NepParam(nep_dict, nep_in_file, self.atom_type, type_list_weight)
+        if self.inference:
+            self.nep_param.prediction = 1
 
     '''
     description: 
@@ -151,7 +153,7 @@ class InputParam(object):
         self.data_shuffle = get_parameter("data_shuffle", json_input, True)
         self.train_valid_ratio = get_parameter("train_valid_ratio", json_input, 0.8)
         self.dwidth = get_parameter("dwidth", json_input, 3.0)
-        self.seed = get_parameter("seed", json_input, None)
+        self.seed = get_parameter("seed", json_input, 2023)
         self.precision = get_parameter("precision", json_input, "float64")
 
     '''
@@ -182,9 +184,10 @@ class InputParam(object):
     def set_test_relative_params(self, json_input:dict):
         self.inference = True
         self.recover_train = True
-        self.optimizer_param.batch_size = 1     # set batch size to 1, so that each image inference info will be saved
+        if self.model_type not in ["NEP","GNN"]:
+            self.optimizer_param.batch_size = 1     # set batch size to 1, so that each image inference info will be saved
+            self.data_shuffle = False
         self.train_valid_ratio = 1
-        self.data_shuffle = False
         self.file_paths.set_inference_paths(json_input)
     
     '''

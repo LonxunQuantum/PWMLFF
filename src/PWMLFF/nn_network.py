@@ -25,7 +25,7 @@ import numpy as np
 import pandas as pd
 import torch.nn as nn
 import math
-
+import random
 import torch.optim as optim
 import torch.utils.data as Data
 from torch.autograd import Variable
@@ -148,6 +148,7 @@ class nn_network:
         print ("device used",self.device)
         # set random seed
         if self.dp_params.seed is not None:
+            random.seed(self.dp_params.seed)
             torch.manual_seed(self.dp_params.seed)
             torch.cuda.manual_seed(self.dp_params.seed)
         # set print precision

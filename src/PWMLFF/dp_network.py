@@ -60,7 +60,8 @@ class dp_network:
         if self.dp_params.seed is not None:
             random.seed(self.dp_params.seed)
             torch.manual_seed(self.dp_params.seed)
-
+            torch.cuda.manual_seed(self.dp_params.seed)
+            
         if self.dp_params.hvd:
             hvd.init()
             self.dp_params.gpu = hvd.local_rank()
@@ -124,8 +125,8 @@ class dp_network:
         cwd = os.getcwd()
         os.chdir(os.path.dirname(pwdata_work_dir))
         data_file_config = self.dp_params.get_data_file_dict()
-        dp_mlff.gen_train_data(data_file_config, self.dp_params.optimizer_param.train_egroup, self.dp_params.optimizer_param.train_virial)
-        dp_mlff.sepper_data_main(data_file_config, self.dp_params.optimizer_param.train_egroup, stat_add=stat_add, valid_random=self.dp_params.valid_shuffle)
+        dp_mlff.gen_train_data(data_file_config, self.dp_params.optimizer_param.train_egroup, self.dp_params.optimizer_param.train_virial, self.dp_params.file_paths.alive_atomic_energy)
+        dp_mlff.sepper_data_main(data_file_config, self.dp_params.optimizer_param.train_egroup, stat_add=stat_add, valid_random=self.dp_params.valid_shuffle, seed = self.dp_params.seed)
         os.chdir(cwd)
         return os.path.dirname(pwdata_work_dir)
 

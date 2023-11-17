@@ -155,7 +155,8 @@ class WorkFileStructure(object):
                 raise Exception("Error! train movement: {} file not exist!".format(mvm))
         # set train feature path
         train_movement_path = [os.path.abspath(_) for _ in train_movement_path]
-
+        if len(train_movement_path) > 0:
+            train_movement_path = sorted(train_movement_path)
         train_feature_path = get_parameter("train_feature_path", json_input, [])
         for feat_path in train_feature_path:
             if os.path.exists(feat_path) is False:

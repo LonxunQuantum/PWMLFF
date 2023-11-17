@@ -491,7 +491,7 @@ class Structure:
             for j in range(self.nimages):
                 '''NOTICE！ the MOVEMENT Etot should not be Ep! we use Ei_sum as Etot, it has a shift between Ep! '''
                 tmp=0
-                self.etot.append(float(file_tmp[iter_loop[j]].split()[9]))
+                self.etot.append(float(file_tmp[iter_loop[j]].split()[9])) #Ep
                 for i in range(lattice_loop[j]+1,lattice_loop[j]+4):
                     for ii in range(0, 3):
                         self.lattice[j][tmp].append(float(file_tmp[i].split()[ii]))
@@ -699,7 +699,7 @@ class Structure:
                     if self.is_atom_config:
                         f.write('" Properties=species:S:1:pos:R:3\n')
                     else:
-                        f.write('" Properties=species:S:1:pos:R:3:forces:R:3 energy={}"\n'.format(self.etot[j]-self.dE[j]))
+                        f.write('" Properties=species:S:1:pos:R:3:forces:R:3 energy={}\n'.format(self.etot[j]))
                     # for i in range(self.atom_num):
                     for i in range(int(self.atom_num)):
                         # f.write('{}      '.format(self.eles_type[self.eles_list[i]]))
