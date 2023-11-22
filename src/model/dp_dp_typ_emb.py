@@ -36,12 +36,14 @@ def error(msg, *args, **kwargs):
     logger.error(msg, *args, **kwargs, exc_info=True)
 
 class TypeDP(nn.Module):
-    def __init__(self, config, device, energy_shift, magic=False):
+    def __init__(self, config, device, davg, dstd, energy_shift, magic=False):
         super(TypeDP, self).__init__()
         self.config = config
         self.ntypes = len(config['atomType'])
         self.atom_type = [_['type'] for _ in config['atomType']] #this value in used in forward for hybrid Training
         self.device = device
+        self.davg = davg
+        self.dstd = dstd
         self.energy_shift = energy_shift
         self.M2 = config["M2"]
         self.maxNeighborNum = config["maxNeighborNum"]

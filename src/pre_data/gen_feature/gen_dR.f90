@@ -393,9 +393,9 @@ PROGRAM gen_dR
             do i=1, m_neigh
                if ((abs(dR_neigh(1, i, j, k)) + abs(dR_neigh(2, i, j, k)) + abs(dR_neigh(3, i, j, k))) > 1.D-8) then
                   !if (abs(dR_neigh(1, i, j, k))>1.D-8) then
-                  write(1314, "(3(E17.10, 1x), i4)") dR_neigh(1, i, j, k), dR_neigh(2, i, j, k), dR_neigh(3, i, j, k), list_neigh(i,j,k)
+                  write(1314, "(3(E17.10, 1x), 2(i4))") dR_neigh(1, i, j, k), dR_neigh(2, i, j, k), dR_neigh(3, i, j, k), list_neigh(i,j,k), iat_neigh(i,j,k)
                else
-                  write(1314, "(3(E17.10, 1x), i4)") 0,0,0,0
+                  write(1314, "(3(E17.10, 1x), 2(i4))") 0,0,0,0,0
                end if
             end do
          end do

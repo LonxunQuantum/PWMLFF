@@ -255,10 +255,14 @@ def save_npy_files(data_path, data_set):
     print("Saving to ", data_path)
     print("    AtomType.npy", data_set["AtomType"].shape)
     np.save(os.path.join(data_path, "AtomType.npy"), data_set["AtomType"])
+    print("    AtomTypeMap.npy", data_set["AtomTypeMap"].shape)
+    np.save(os.path.join(data_path, "AtomTypeMap.npy"), data_set["AtomTypeMap"])
     print("    ImageDR.npy", data_set["ImageDR"].shape)
     np.save(os.path.join(data_path, "ImageDR.npy"), data_set["ImageDR"])
     print("    ListNeighbor.npy", data_set["ListNeighbor"].shape)
     np.save(os.path.join(data_path, "ListNeighbor.npy"), data_set["ListNeighbor"])
+    print("    NeighborType.npy", data_set["NeighborType"].shape)
+    np.save(os.path.join(data_path, "NeighborType.npy"), data_set["NeighborType"])
     print("    Ei.npy", data_set["Ei"].shape)
     np.save(os.path.join(data_path, "Ei.npy"), data_set["Ei"])
     
@@ -681,7 +685,7 @@ def compute_Ri(config, image_dR, list_neigh, natoms_img, ind_img, davg, dstd):
         egroup_weight_all = None
         divider = None
 
-    return Ri, Ri_d, egroup_weight_all, divider, max(max_ri_list)
+    return Ri, Ri_d, egroup_weight_all, divider, max(max_ri_list), Rij
 
 '''
 description:
@@ -1050,11 +1054,14 @@ def sepper_data(config, Etot, Ei, Force, dR_neigh,\
     
     image_dR = dR_neigh[:, :3]
     list_neigh = dR_neigh[:, 3]
+    neigh_type = dR_neigh[:, 4]
     
     image_index = np.insert(
         atom_num_per_image, 0, 0
     ).cumsum()  # array([  0, 108, 216, 324, 432, 540, 648, 756, 864, 972])
     
+    mask = np.array([atom_type['type'] for atom_type in config["atomType"]])
+    atom_type_map = np.array([np.argwhere(mask == atom)[0][0] for atom in atom_type])
     image_num = atom_num_per_image.shape[0]
     
     diff_atom_types_num = []
@@ -1063,7 +1070,6 @@ def sepper_data(config, Etot, Ei, Force, dR_neigh,\
         ######## mask need to flexibly change according to atom_type
         # unique_values, indices = np.unique(atom_type_per_image, return_index=True)
         # mask = unique_values[np.argsort(indices)]
-        mask = np.array([atom_type['type'] for atom_type in config["atomType"]])
         #######
         diff_atom_types_num.append(
             [Counter(atom_type_per_image)[mask[type]] for type in range(mask.shape[0])]
@@ -1073,7 +1079,7 @@ def sepper_data(config, Etot, Ei, Force, dR_neigh,\
         (atom_num_per_image.reshape(-1, 1), narray_diff_atom_types_num), axis=1
     )
     
-    Ri, Ri_d, Egroup_weight, Divider, max_ri = compute_Ri( 
+    Ri, Ri_d, Egroup_weight, Divider, max_ri, Rij = compute_Ri( 
             config, image_dR, list_neigh, atom_num_per_image, image_index, davg, dstd
         )
     if not os.path.exists(train_data_path):
@@ -1083,7 +1089,10 @@ def sepper_data(config, Etot, Ei, Force, dR_neigh,\
         os.makedirs(valid_data_path)
     
     list_neigh = list_neigh.reshape(-1, max_neighbor_num * ntypes)
+    neigh_type = neigh_type.reshape(-1, max_neighbor_num * ntypes)
+    Rij = Rij.reshape(-1, max_neighbor_num * ntypes).unsqueeze(-1).numpy()
     image_dR = image_dR.reshape(-1, max_neighbor_num * ntypes, 3)
+    image_dR = np.concatenate((Rij, image_dR), axis=-1)
 
     accum_train_num = img_start[0] 
     accum_valid_num = img_start[1]
@@ -1098,10 +1107,12 @@ def sepper_data(config, Etot, Ei, Force, dR_neigh,\
         # end_index = min(end_index, len(train_indexs))
         train_set = {
                 "AtomType": atom_type[image_index[start_index] : image_index[end_index]],
+                "AtomTypeMap": atom_type_map[image_index[start_index] : image_index[end_index]],
                 "ImageDR": image_dR[image_index[start_index] : image_index[end_index]],
                 "ListNeighbor": list_neigh[
                     image_index[start_index] : image_index[end_index]
                 ],
+                "NeighborType": neigh_type[image_index[start_index] : image_index[end_index]],
                 "Ei": Ei[image_index[start_index] : image_index[end_index]],
                 "Ri": Ri[image_index[start_index] : image_index[end_index]],
                 "Ri_d": Ri_d[image_index[start_index] : image_index[end_index]],
@@ -1139,10 +1150,12 @@ def sepper_data(config, Etot, Ei, Force, dR_neigh,\
 
         valid_set = {
                 "AtomType": atom_type[image_index[start_index] : image_index[end_index]],
+                "AtomTypeMap": atom_type_map[image_index[start_index] : image_index[end_index]],
                 "ImageDR": image_dR[image_index[start_index] : image_index[end_index]],
                 "ListNeighbor": list_neigh[
                     image_index[start_index] : image_index[end_index]
                 ],
+                "NeighborType": neigh_type[image_index[start_index] : image_index[end_index]],
                 "Ei": Ei[image_index[start_index] : image_index[end_index]],
                 "Ri": Ri[image_index[start_index] : image_index[end_index]],
                 "Ri_d": Ri_d[image_index[start_index] : image_index[end_index]],

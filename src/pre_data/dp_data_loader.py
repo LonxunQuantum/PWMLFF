@@ -56,12 +56,15 @@ class MovementDataset(Dataset):
             data["Egroup_weight"] = np.load(os.path.join(path, "Egroup_weight.npy"))
 
         data["ListNeighbor"] = np.load(os.path.join(path, "ListNeighbor.npy"))
+        data["NeighborType"] = np.load(os.path.join(path, "NeighborType.npy"))
         data["ImageDR"] = np.load(os.path.join(path, "ImageDR.npy"))
         data["Ri"] = np.load(os.path.join(path, "Ri.npy"))
         data["Ri_d"] = np.load(os.path.join(path, "Ri_d.npy"))
         data["ImageAtomNum"] = np.load(os.path.join(path, "ImageAtomNum.npy")).reshape(-1)
-        atom_type_list = list(np.load(os.path.join(path, "AtomType.npy")))
+        data["Imagetype"] = np.load(os.path.join(path, "AtomType.npy"))
+        atom_type_list = list(data["Imagetype"])
         data["AtomType"] = np.array(sorted(set(atom_type_list), key=atom_type_list.index))
+        data["AtomTypeMap"] = np.load(os.path.join(path, "AtomTypeMap.npy"))
         
         # this block is used for hybrid training
         if data["ImageAtomNum"][0] < self.img_max_atom_num:
@@ -75,6 +78,7 @@ class MovementDataset(Dataset):
                 data["Egroup_weight"].resize((self.img_max_atom_num, self.img_max_atom_num), refcheck=False)
             
             data["ListNeighbor"].resize((self.img_max_atom_num, data["ListNeighbor"].shape[1]), refcheck=False)
+            data["NeighborType"].resize((self.img_max_atom_num, data["NeighborType"].shape[1]), refcheck=False)
             data["ImageDR"].resize((self.img_max_atom_num, data["ImageDR"].shape[1], data["ImageDR"].shape[2]), refcheck=False)
             data["Ri"].resize((self.img_max_atom_num, data["Ri"].shape[1], data["Ri"].shape[2]), refcheck=False)
             data["Ri_d"].resize((self.img_max_atom_num, data["Ri_d"].shape[1], data["Ri_d"].shape[2], data["Ri_d"].shape[3]), refcheck=False)
@@ -195,6 +199,7 @@ def main():
         #print(sample_batches["Egroup_weight"].shape)
 
         print(sample_batches["ListNeighbor"].shape)
+        print(sample_batches["NeighborType"].shape)
         print(sample_batches["Ri"].shape)
         print(sample_batches["ImageDR"].shape)
         print(sample_batches["Ri_d"].shape)

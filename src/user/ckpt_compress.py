@@ -45,7 +45,7 @@ def compress_force_field(ckpt_file):
     json_dict["model_load_file"] = ckpt_file
     dp_param = InputParam(json_dict, "train".upper())
     dp_trainer = dp_network(dp_param)
-    model = dp_trainer.load_model_with_ckpt(energy_shift)
+    model = dp_trainer.load_model_with_ckpt(davg, dstd, energy_shift)
  
     sij, scal_min = set_sij_range(davg, dstd, atom_type_order, \
                         dp_trainer.training_type, dp_trainer.device, \

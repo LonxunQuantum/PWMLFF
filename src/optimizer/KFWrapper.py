@@ -33,10 +33,9 @@ class KFOptimizerWrapper:
                 inputs[1],
                 inputs[2],
                 inputs[3],
+                0,
                 inputs[4],
                 inputs[5],
-                inputs[6],
-                inputs[7],
                 is_calc_f=False
             )
         elif train_type == "NN": # nn training
@@ -52,7 +51,8 @@ class KFOptimizerWrapper:
             )
         else:
             raise Exception("Error! the train type {} is not realized!".format(train_type))
-        natoms_sum = inputs[3][0, 0]
+        # natoms_sum = inputs[2][0, 0]
+        natoms_sum = len(inputs[2])
         self.optimizer.set_grad_prefactor(natoms_sum)
 
         self.optimizer.zero_grad()
@@ -96,6 +96,7 @@ class KFOptimizerWrapper:
                 inputs[5],
                 inputs[6],
                 inputs[7],
+                inputs[8],
                 is_calc_f=False,
             )
         elif train_type == "NN": # nn training
@@ -155,7 +156,8 @@ class KFOptimizerWrapper:
                 inputs[4],
                 inputs[5],
                 inputs[6],
-                inputs[7]
+                inputs[7],
+                inputs[8]
             )
         elif train_type == "NN":
             Etot_predict, _, _, Virial_predict = self.model(
@@ -252,8 +254,7 @@ class KFOptimizerWrapper:
     def update_force(
         self, inputs: list, Force_label: torch.Tensor, update_prefactor: float = 1, train_type = "DP"
     ) -> None:
-        natoms_sum = inputs[3][0, 0]
-        #print ("natoms_sum",natoms_sum)
+        natoms_sum = len(inputs[2])
         bs = Force_label.shape[0]
         self.optimizer.set_grad_prefactor(natoms_sum * self.atoms_per_group * 3)
 
@@ -263,7 +264,7 @@ class KFOptimizerWrapper:
             self.optimizer.zero_grad()
             if train_type == "DP":
                 Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = self.model(
-                    inputs[0], inputs[1], inputs[2], inputs[3], inputs[4], inputs[5], inputs[6], inputs[7]
+                    inputs[0], inputs[1], inputs[2], inputs[3], 0, inputs[4], inputs[5]
                 )
             elif train_type == "NN":  # nn training
                 Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = self.model(
@@ -317,6 +318,7 @@ class KFOptimizerWrapper:
                 inputs[5],
                 inputs[6],
                 inputs[7],
+                inputs[8],
                 is_calc_f=False,
             )
         elif train_type == "NN": # nn training

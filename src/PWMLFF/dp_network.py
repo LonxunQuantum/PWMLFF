@@ -186,13 +186,13 @@ class dp_network:
             davg_dstd_energy_shift = self.davg_dstd_energy_shift
         return davg_dstd_energy_shift
     
-    def load_model_optimizer(self, energy_shift):
+    def load_model_optimizer(self, davg, dstd, energy_shift):
         # create model 
         # when running evaluation, nothing needs to be done with davg.npy
         if self.dp_params.descriptor.type_embedding:
-            model = TypeDP(self.config, self.device, energy_shift)
+            model = TypeDP(self.config, self.device, davg, dstd, energy_shift)
         else:
-            model = DP(self.config, self.device, energy_shift)
+            model = DP(self.config, self.device, davg, dstd, energy_shift)
         model = model.to(self.training_type)
 
         if not torch.cuda.is_available():
@@ -282,7 +282,7 @@ class dp_network:
     def inference(self):
         # do inference
         davg, dstd, energy_shift, atom_map, sij_max, train_loader, val_loader = self.load_data()
-        model, optimizer = self.load_model_optimizer(energy_shift)
+        model, optimizer = self.load_model_optimizer(davg, dstd, energy_shift)
         start = time.time()
         res_pd, etot_label_list, etot_predict_list, ei_label_list, ei_predict_list, force_label_list, force_predict_list\
         = predict(train_loader, model, self.criterion, self.device, self.dp_params)
@@ -325,7 +325,7 @@ class dp_network:
 
     def train(self):
         davg, dstd, energy_shift, atom_map, sij_max, train_loader, val_loader = self.load_data() #davg, dstd, energy_shift, atom_map
-        model, optimizer = self.load_model_optimizer(energy_shift)
+        model, optimizer = self.load_model_optimizer(davg, dstd, energy_shift)
         if not os.path.exists(self.dp_params.file_paths.model_store_dir):
             os.makedirs(self.dp_params.file_paths.model_store_dir)
         if self.dp_params.model_num == 1:
@@ -486,8 +486,8 @@ class dp_network:
                     self.dp_params.file_paths.model_store_dir,
                 )
 
-    def load_model_with_ckpt(self, energy_shift):
-        model, optimizer = self.load_model_optimizer(energy_shift)
+    def load_model_with_ckpt(self, davg, dstd, energy_shift):
+        model, optimizer = self.load_model_optimizer(davg, dstd, energy_shift)
         return model
 
     def evaluate(self,num_thread = 1):

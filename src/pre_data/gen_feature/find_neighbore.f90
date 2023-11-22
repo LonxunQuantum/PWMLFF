@@ -24,6 +24,7 @@ subroutine find_neighbore(iatom,natom,xatom,AL,Rc_type,num_neigh,list_neigh, &
         list_neigh = 0
         dR_neigh = 0
         iflag=0
+        iat_neigh = 0
         
         !write(*,*) "AL"
         !write(*,*) AL
