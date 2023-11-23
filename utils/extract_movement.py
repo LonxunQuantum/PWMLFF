@@ -104,34 +104,34 @@ class MOVEMENT(object):
             mvm_contents = rf.readlines()
         i = 0
         while i < len(mvm_contents):
-            image_start = i
             if "Iteration" in mvm_contents[i]:
+                image_start = i
                 # set energy info
                 image = Image()
                 self.image_list.append(image)
                 image.set_energy_info(mvm_contents[i])
                 i += 1
-            if "Lattice" in mvm_contents[i]:
+            elif "Lattice" in mvm_contents[i]:
                 # three line for lattic info
                 image.set_lattice_stress(mvm_contents[i+1:i+4])
                 i += 4
-            if " Position" in mvm_contents[i]:
+            elif " Position" in mvm_contents[i]:
                 # atom_nums line for postion
                 image.set_position(mvm_contents[i+1:i+image.atom_num+1])
                 i = i + 1 + image.atom_num
-            if "Force" in mvm_contents[i]:
+            elif "Force" in mvm_contents[i]:
                 image.set_force(mvm_contents[i+1: i+ image.atom_num+1])
                 i = i + 1 + image.atom_num
-            if "Atomic-Energy" in mvm_contents[i]:
+            elif "Atomic-Energy" in mvm_contents[i]:
                 image.set_atomic_energy(mvm_contents[i+1: i+ image.atom_num+1])
                 i = i + 1 + image.atom_num
-
+            else:
+                i = i + 1   #to next line
             # image content end at the line "------------END"
-            while "-------------" not in mvm_contents[i]:
-                i += 1
-            i += 1
-            image_end = i
-            image.set_content(mvm_contents[image_start:image_end])
+            if "-------------" in mvm_contents[i]:
+                i = i + 1
+                image_end = i
+                image.set_content(mvm_contents[image_start:image_end])
 
         self.image_nums = len(self.image_list)
 
@@ -157,21 +157,37 @@ class MOVEMENT(object):
                 for line in self.image_list[i].content:
                     wf.write(line)
 
+    def save_to_2parts(self, mid):
+        part_1 = "part_1_movement_{}".format(mid)
+        part_2 = "part_2_movement_{}".format(self.image_nums-mid)
+        with open(part_1, 'w') as wf:
+            for i in range(0, mid):
+                for line in self.image_list[i].content:
+                    wf.write(line)
+
+        with open(part_2, 'w') as wf:
+            for i in range(mid, self.image_nums):
+                for line in self.image_list[i].content:
+                    wf.write(line)
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--input', help='specify input movement filename', type=str, default='MOVEMENT')
     parser.add_argument('-s', '--savepath', help='specify stored directory', type=str, default='movement_save')
-    parser.add_argument('-wt', '--work_type', help='specify work type {interval or range}', type=str, default='interval')
+    parser.add_argument('-wt', '--work_type', help='specify work type: 0 for interval cut, 1 for range cut, 2 for split 2 parts of movement}', type=int, default=0)
     
     parser.add_argument('-t', '--interval', help='specify interval', type=int, default=10)
     parser.add_argument('-f', '--first_range', help='specify start of range', type=int, default=0)
     parser.add_argument('-e', '--end_range', help='specify end of range', type=int, default=1)
+    parser.add_argument('-m', '--mid', help='specify split Position of 2 parts', type=int, default=100)
     args = parser.parse_args()
 
     source_movement_file = args.input
     mvm = MOVEMENT(source_movement_file)
-    if args.work_type.upper() == "inverval".upper():
+    if args.work_type == 0:
         mvm.save_image_interval(args.savepath, interval=args.interval)
-    elif args.work_type.upper() == "range".upper():
+    elif args.work_type == 1:
         mvm.save_image_range(args.savepath, start= args.first_range, end=args.end_range)
+    elif args.work_type == 2:
+        mvm.save_to_2parts(args.mid)

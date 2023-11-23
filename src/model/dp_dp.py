@@ -15,7 +15,7 @@ sys.path.append(os.getcwd())
 # import prepare as pp
 # pp.readFeatnum()
 from src.model.dp_embedding import EmbeddingNet, FittingNet
-from src.model.calculate_force import CalculateForce, CalculateVirialForce
+from src.model.calculate_force import CalculateCompress, CalculateForce, CalculateVirialForce
 # logging and our extension
 import logging
 logging_level_DUMP = 5
@@ -44,9 +44,6 @@ class DP(nn.Module):
         self.ntypes = len(config['atomType'])
         self.atom_type = [_['type'] for _ in config['atomType']] #this value in used in forward for hybrid Training
         self.device = device
-        self.davg = torch.tensor(davg, device=device)
-        self.dstd = torch.tensor(dstd, device=device)
-        self.energy_shift = torch.tensor(energy_shift, device=device)
         self.M2 = config["M2"]
         self.Rmax = config["Rc_M"]
         self.Rmin = config['atomType'][0]['Rm']
@@ -57,6 +54,9 @@ class DP(nn.Module):
             self.dtype = torch.float32
         else:
             raise RuntimeError("train(): unsupported training data type")
+        self.davg = torch.tensor(davg, device=device, dtype=self.dtype)
+        self.dstd = torch.tensor(dstd, device=device, dtype=self.dtype)
+        self.energy_shift = torch.tensor(energy_shift, device=device, dtype=self.dtype)
 
         self.embedding_net = nn.ModuleList()
         self.fitting_net = nn.ModuleList()
@@ -85,9 +85,13 @@ class DP(nn.Module):
     def set_comp_tab(self, compress_dict:dict):
         self.compress_tab = torch.tensor(compress_dict["table"], dtype=self.dtype, device=self.device)
         self.dx = compress_dict["dx"]
-        self.davg = compress_dict["davg"]
-        self.dstd = compress_dict["dstd"]
+        # self.davg = compress_dict["davg"]
+        # self.dstd = compress_dict["dstd"]
         self.sij_min = compress_dict["sij_min"]
+        self.sij_max = compress_dict["sij_max"]
+        self.sij_out_max = compress_dict["sij_out_max"]
+        self.sij_len = compress_dict["sij_len"]
+        self.sij_out_len = compress_dict["sij_out_len"]
         self.order = compress_dict["order"] if "order" in compress_dict.keys() else 5 #the default compress order is 5
 
     def get_egroup(self,
@@ -131,7 +135,7 @@ class DP(nn.Module):
     author: wuxingxing
     '''
     def get_train_2body_type(self, atom_type_data: List[int]) -> Tuple[List[List[List[int]]], int]:
-        type_2body_list: List[List[List[int]]] = []         # 整数列表的列表
+        type_2body_list: List[List[List[int]]] = []         
         type_2body_index: List[int] = []
         for i, atom_type in enumerate(atom_type_data):
             if atom_type != 0 and atom_type in self.atom_type:
@@ -203,6 +207,7 @@ class DP(nn.Module):
                         found = True
                 # dim of G: batch size, natom of ntype, max_neigh_num, final layer dim
                 tmp_a = Ri[:, atom_sum:atom_sum+natoms[ntype], ntype_1 * self.maxNeighborNum:(ntype_1+1) * self.maxNeighborNum].transpose(-2, -1)
+                # start_emb = time.time()
                 if self.compress_tab is None:
                     G = self.embedding_net[embedding_index](S_Rij)
                     # symmetry conserving
@@ -213,7 +218,8 @@ class DP(nn.Module):
                         G = self.calc_compress_5order(S_Rij, embedding_index)
                     elif self.order == 3:
                         G = self.calc_compress_3order(S_Rij, embedding_index)
-
+                # end_emb = time.time()
+                # print("embedding time:", end_emb - start_emb, 's')
                 tmp_b = torch.matmul(tmp_a, G)
                 # xyz_scater_a = tmp_b if xyz_scater_a is None else xyz_scater_a + tmp_b
                 if xyz_scater_a.numel() == 0:  # 检查 tensor 是否为空
@@ -315,6 +321,9 @@ class DP(nn.Module):
             F = CalculateForce.apply(list_neigh, dE, Ri_d, F)
             # virial = CalculateVirialForce.apply(list_neigh, dE, Ri[:,:,:,:3], Ri_d)
             Virial = CalculateVirialForce.apply(list_neigh, dE, ImageDR, Ri_d)
+        
+        # end_forward = time.time()
+        # print("forward time:", end_forward - start_forward, 's')
         return Etot, Ei, F, Egroup, Virial  #F is Force
                       
    
@@ -424,6 +433,7 @@ class DP(nn.Module):
         Ri = (Ri - davg_res) / dstd_res
         dstd_res = dstd_res.unsqueeze(-1).repeat(1, 1, 1, 1, 3)
         dfeat = - dfeat / dstd_res
+        print("Ri.max", Ri.max())
         # t4 = time.time()
         # print("\nRi:", t2-t1, "\ndfeat:", t3-t2, "\ndavg_res:", t4-t3, "\n********************")
         return Ri, dfeat
@@ -539,16 +549,6 @@ class DP(nn.Module):
         batch_indices, atom_indices, neighbor_indices = non_zero_indices.unbind(1)
         atom_idx = list_neigh[batch_indices, atom_indices, neighbor_indices] - 1
         # 2. Calculate Force using indexing
-        '''
-        start_indices = neighbor_indices.view(-1, 1) * 4
-        index_range_dE = torch.arange(4, device=start_indices.device).view(1, 1, -1).repeat([len(batch_indices), 1, 1])
-        index_range_Ri_d = torch.arange(4, device=start_indices.device).view(1, -1, 1).repeat([len(batch_indices), 1, 3])
-        gather_indices_dE = (start_indices.view(-1, 1, 1) + index_range_dE).long()
-        gather_indices_Ri_d = (start_indices.view(-1, 1, 1) + index_range_Ri_d).long()
-        dE_selected = torch.gather(dE[batch_indices, atom_indices], -1, gather_indices_dE)
-        Ri_d_selected = torch.gather(Ri_d[batch_indices, atom_indices], -2, gather_indices_Ri_d)
-        dE_dx0 = torch.matmul(dE_selected, Ri_d_selected).squeeze(-2)
-        '''
         start_indices = neighbor_indices.unsqueeze(1) * 4
         gather_indices = start_indices + torch.arange(4, device=device).unsqueeze(0)
         dE_selected = torch.gather(dE[batch_indices, atom_indices], -1, gather_indices.unsqueeze(1))
@@ -618,26 +618,37 @@ class DP(nn.Module):
         index_k1 = x.type(torch.long) # get floor
         xk = self.sij_min + index_k1*self.dx
         f2 = (sij - xk).flatten().unsqueeze(-1)
-    
+
         coefficient = self.compress_tab[embedding_index, index_k1, :]
+
+        # G = CalculateCompress.apply(f2, coefficient)
+
         G = f2**5 *coefficient[:, :, 0] + f2**4 * coefficient[:, :, 1] + \
             f2**3 * coefficient[:, :, 2] + f2**2 * coefficient[:, :, 3] + \
             f2 * coefficient[:, :, 4] + coefficient[:, :, 5]
+        
         G = G.reshape(S_Rij.shape[0], S_Rij.shape[1], S_Rij.shape[2], G.shape[1])
         return G
 
     def calc_compress_3order(self, S_Rij:torch.Tensor, embedding_index:int):
         sij = S_Rij.flatten()
-
-        x = (sij-self.sij_min)/self.dx
+        mask = sij < self.sij_max
+        print("self.sij_max", self.sij_max)
+        x = torch.zeros_like(sij)
+        x[mask] = (sij[mask]-self.sij_min)/self.dx
+        x[~mask] = (sij[~mask]-self.sij_max)/(10*self.dx)
         index_k1 = x.type(torch.long) # get floor
-        xk = self.sij_min + index_k1*self.dx
+
+        xk = torch.zeros_like(sij, dtype=torch.float32) # the index * dx + sij_min is a float type data
+        xk[mask] = index_k1[mask]*self.dx + self.sij_min
+        xk[~mask] = self.sij_max + index_k1[~mask]*self.dx*10
         f2 = (sij - xk).flatten().unsqueeze(-1)
-    
+        print("max index_k1", index_k1.max())
+        print("self.compress_tab.shape", self.compress_tab.shape)
         coefficient = self.compress_tab[embedding_index, index_k1, :]
+        # G = CalculateCompress.apply(f2, coefficient)
         G = f2**3 *coefficient[:, :, 0] + f2**2 * coefficient[:, :, 1] + \
             f2 * coefficient[:, :, 2] + coefficient[:, :, 3]
         G = G.reshape(S_Rij.shape[0], S_Rij.shape[1], S_Rij.shape[2], G.shape[1])
-        
         return G
     

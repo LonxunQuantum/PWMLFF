@@ -1,0 +1,6 @@
+{
+    "model_type": "NEP",
+    "test_movement_file":["MOVEMENT"],
+    "model_load_file":"nep.txt",
+    "nep_in_file":"nep.in"
+}

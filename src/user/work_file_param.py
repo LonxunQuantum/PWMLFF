@@ -26,6 +26,7 @@ class WorkFileStructure(object):
         self.train_movement_path = []
         self.train_feature_path = []
         self.test_feature_path = []
+        self.model_load_path = ""
 
     def _set_training_path(self, train_movement_path:list, train_feature_path:list, train_dir: str):
         self.train_movement_path = train_movement_path
@@ -76,7 +77,7 @@ class WorkFileStructure(object):
         self.test_feature_path = test_feature_path
         self.test_movement_path = [os.path.abspath(_) for _ in test_movement_path]
 
-        if not json_input['model_type'].upper() == "LINEAR":
+        if not json_input["model_type"].upper() == "LINEAR":
             model_load_path = get_required_parameter("model_load_file", json_input)
             self.model_load_path = os.path.abspath(model_load_path)
             if os.path.exists(self.model_load_path) is False:
@@ -101,22 +102,52 @@ class WorkFileStructure(object):
     def set_test_feature_path(self, feature_path:list):
         self.test_feature_path.extend(feature_path)
 
-    def set_file_paths(self, json_input:dict):
+    '''
+    description: 
+    set workdir structrues of dp/NN/linear model when doing initialization
+    param {*} self
+    param {dict} json_input
+    return {*}
+    author: wuxingxing
+    '''
+    def set_model_file_paths(self, json_input:dict):
         model_load_path = get_parameter("model_load_file", json_input, " ")
         if os.path.exists(model_load_path):
             model_load_path = os.path.abspath(model_load_path)
         self._set_model_load_path(model_load_path)
         # if self.recover_train is True and os.path.isfile(model_load_path):
         #     raise Exception("Error! The recover_train and model_load_path are simultaneously specified, please set recover_train to False or remove param model_load_path")
-        if self.model_type == "NN":
-            model_name = get_parameter("model_name", json_input, "nn_model.ckpt")
-        else:
-            model_name = get_parameter("model_name", json_input, "dp_model.ckpt")
+        if self.model_type == "NN" or self.model_type == "DP":
+            if self.model_type == "NN":
+                model_name = get_parameter("model_name", json_input, "nn_model.ckpt")
+            else:
+                model_name = get_parameter("model_name", json_input, "dp_model.ckpt")
+            best_model_path=os.path.join(self.work_dir, "best.pth.tar")
+            forcefield_name = get_parameter("forcefield_name", json_input, "forcefield.ff")
+            forcefield_dir = get_parameter("forcefield_dir", json_input, "forcefield")
+            self.set_forcefield_path(forcefield_dir, forcefield_name)
+            # p matix, resume p matrix when recover is not realized
+            # p matrix should extract to checkpoint files or a single file.
+            # current not realized
+            save_p_matrix = get_parameter("save_p_matrix", json_input, False)
+            if save_p_matrix is not False:
+                Pmatrix_path = os.path.join(self.work_dir, "P.pkl")
+                self._set_p_matrix_paths(Pmatrix_path, True)
+            else:
+                self._set_p_matrix_paths(None, False)
+            self._set_PWdata_NN_DP_dirs(json_input)
+        elif self.model_type == "NEP":
+            best_model_path = ""
+            model_name = "nep.txt"
+        
+        # common dir
         model_store_dir = get_parameter("model_store_dir", json_input, "model_record")
         model_store_dir = os.path.join(self.work_dir, model_store_dir)
         self._set_model_paths(model_store_dir = model_store_dir, \
-                                    model_name = model_name, best_model_path=os.path.join(self.work_dir, "best.pth.tar"))
+                                    model_name = model_name, best_model_path=best_model_path)
+        
 
+    def set_train_valid_file(self, json_input:dict):
         # set trian movement file path
         train_movement_path = get_parameter("train_movement_file", json_input, [])
         for mvm in train_movement_path:
@@ -124,7 +155,8 @@ class WorkFileStructure(object):
                 raise Exception("Error! train movement: {} file not exist!".format(mvm))
         # set train feature path
         train_movement_path = [os.path.abspath(_) for _ in train_movement_path]
-
+        if len(train_movement_path) > 0:
+            train_movement_path = sorted(train_movement_path)
         train_feature_path = get_parameter("train_feature_path", json_input, [])
         for feat_path in train_feature_path:
             if os.path.exists(feat_path) is False:
@@ -138,6 +170,7 @@ class WorkFileStructure(object):
         alive_atomic_energy = is_alive_atomic_energy(train_movement_path)
         self._set_alive_atomic_energy(alive_atomic_energy)
 
+    def _set_PWdata_NN_DP_dirs(self, json_input:dict):
         # set Pwdata dir file structure, they are used in feature generation
         trainSetDir = get_parameter("trainSetDir", json_input, 'PWdata')
         dRFeatureInputDir = get_parameter("dRFeatureInputDir", json_input, 'input')
@@ -145,22 +178,14 @@ class WorkFileStructure(object):
         trainDataPath = get_parameter("trainDataPath", json_input, 'train')
         validDataPath = get_parameter("validDataPath", json_input, 'valid')
         self._set_data_file_paths(trainSetDir, dRFeatureInputDir, dRFeatureOutputDir, trainDataPath, validDataPath)
-        
-        # set 
-        forcefield_name = get_parameter("forcefield_name", json_input, "forcefield.ff")
-        forcefield_dir = get_parameter("forcefield_dir", json_input, "forcefield")
-        self.set_forcefield_path(forcefield_dir, forcefield_name)
-        
-        # p matix, resume p matrix when recover is not realized
-        # p matrix should extract to checkpoint files or a single file.
-        # current not realized
-        save_p_matrix = get_parameter("save_p_matrix", json_input, False)
-        if save_p_matrix is not False:
-            Pmatrix_path = os.path.join(self.work_dir, "P.pkl")
-            self._set_p_matrix_paths(Pmatrix_path, True)
-        else:
-            self._set_p_matrix_paths(None, False)
-            
+
+    def set_nep_file_paths(self):
+        self.nep_train_xyz_path = os.path.join(self.work_dir, "train.xyz")
+        self.nep_test_xyz_path = os.path.join(self.work_dir, "test.xyz")
+        self.nep_in_file = os.path.join(self.work_dir, "nep.in")
+        self.nep_model_file = os.path.join(self.work_dir, "nep.txt")
+        self.nep_restart_file = os.path.join(self.work_dir, "nep.restart")
+                                 
     def get_data_file_structure(self):
         file_dict = {}
         file_dict["trainSetDir"] = self.trainSetDir

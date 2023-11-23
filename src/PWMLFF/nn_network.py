@@ -25,7 +25,7 @@ import numpy as np
 import pandas as pd
 import torch.nn as nn
 import math
-
+import random
 import torch.optim as optim
 import torch.utils.data as Data
 from torch.autograd import Variable
@@ -148,6 +148,7 @@ class nn_network:
         print ("device used",self.device)
         # set random seed
         if self.dp_params.seed is not None:
+            random.seed(self.dp_params.seed)
             torch.manual_seed(self.dp_params.seed)
             torch.cuda.manual_seed(self.dp_params.seed)
         # set print precision
@@ -453,13 +454,11 @@ class nn_network:
             print("Unsupported optimizer!")
 
         # optionally resume from a checkpoint
-        if self.dp_params.recover_train or os.path.exists(self.dp_params.file_paths.model_load_path):
-            if self.dp_params.recover_train:    #recover from last training
-                model_path = self.dp_params.file_paths.model_save_path  # .../checkpoint.pth.tar
-                print("model recover from the checkpoint: {}".format(model_path))
-            else: # resume model specified by user
+        if self.dp_params.recover_train:
+            if os.path.exists(self.dp_params.file_paths.model_load_path): # recover from user input ckpt file
                 model_path = self.dp_params.file_paths.model_load_path
-                print("model resume from the checkpoint: {}".format(model_path))
+            else: # resume model specified by user
+                model_path = self.dp_params.file_paths.model_save_path  #recover from last training
             if os.path.isfile(model_path):
                 print("=> loading checkpoint '{}'".format(model_path))
                 if not torch.cuda.is_available():

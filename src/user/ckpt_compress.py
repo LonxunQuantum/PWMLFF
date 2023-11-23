@@ -21,9 +21,9 @@ def compress_force_field(ckpt_file):
     #json_file
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('-d', '--dx', help='specify Sij grid partition interval', type=float, default=0.001)
+    parser.add_argument('-d', '--dx', help='specify Sij grid partition interval', type=float, default=0.01)
     parser.add_argument('-s', '--savename', help='specify the compressed model prefix name', type=str, default='cmp_dp_model')
-    parser.add_argument('-o', '--order', help='specify the compressed order', type=int, default='5')
+    parser.add_argument('-o', '--order', help='specify the compressed order', type=int, default=3)
     parser.add_argument('-w', '--work_dir', help='Specify the compressed model storage directory', type=str, default=os.getcwd())
     args = parser.parse_args(sys.argv[3:])
     os.chdir(args.work_dir)
@@ -38,7 +38,7 @@ def compress_force_field(ckpt_file):
     davg = model_checkpoint['davg']
     dstd = model_checkpoint['dstd']
     energy_shift = model_checkpoint['energy_shift']
-    sij_max = float(model_checkpoint["sij_max"])# sij before davg&dstd scaled
+    sij_max = float(model_checkpoint["sij_max"]) # sij before davg&dstd scaled
 
     json_dict = model_checkpoint["json_file"]
     json_dict["work_dir"] = os.getcwd()
@@ -47,16 +47,15 @@ def compress_force_field(ckpt_file):
     dp_trainer = dp_network(dp_param)
     model = dp_trainer.load_model_with_ckpt(davg, dstd, energy_shift)
  
-    sij, scal_min = set_sij_range(davg, dstd, atom_type_order, \
-                        dp_trainer.training_type, dp_trainer.device, \
-                        sij_max*2, dx)
+    sij, scal_min, scal_max, sij_out_max, sij_len, sij_out_len = set_sij_range(davg, dstd, atom_type_order, \
+                        dp_trainer.training_type, dp_trainer.device, sij_max, dx)
 
     type_vector = None
     if dp_param.type_embedding is False:
         if order == 2:
             cmp_tab = dp_model_compress_2order(sij, model)
         elif order == 3:
-            cmp_tab = dp_model_compress_3order(sij, model, dx)
+            cmp_tab = dp_model_compress_3order(sij, model, dx, sij_len, sij_out_len)
         elif order == 5:
             cmp_tab = dp_model_compress_5order(sij, model, dx)
         else:
@@ -65,7 +64,7 @@ def compress_force_field(ckpt_file):
         physical_property = model.config["net_cfg"]["type_embedding_net"]["physical_property"]
         type_vector = get_normalized_data_list(atom_type_order, physical_property)
         if order == 3:
-            cmp_tab = dp_type_model_compress_3order(sij, model, dx, atom_type_order, type_vector)
+            cmp_tab = dp_type_model_compress_3order(sij, model, dx, atom_type_order, type_vector, sij_len, sij_out_len)
         elif order == 5:
             cmp_tab = dp_type_model_compress_5order(sij, model, dx, atom_type_order, type_vector)
         else:
@@ -79,6 +78,10 @@ def compress_force_field(ckpt_file):
     compress["davg"] = davg[:,0]
     compress["dstd"] = dstd[:,0]
     compress["sij_min"] = scal_min
+    compress["sij_max"] = scal_max
+    compress["sij_out_max"] = sij_out_max
+    compress["sij_len"] = sij_len
+    compress["sij_out_len"] = sij_out_len
     compress["type_vector"] = type_vector
     model_checkpoint["compress"] = compress
 
@@ -104,22 +107,20 @@ def dp_model_compress_2order(sij:torch.Tensor, model:DP):
     sij_tab = np.array(sij_tab)
     return sij_tab
 
-def dp_model_compress_3order(sij:torch.Tensor, model:DP, dx:float):
+def dp_model_compress_3order(sij:torch.Tensor, model:DP, dx:float, len_sij: int, len_out_max: int):
     ntypes = model.ntypes
     sij_tab = []
     num_sij = sij.shape[0]
-    done_sij_num = 0
-    all_sij_num = num_sij*ntypes**2
     for type_0 in range(0, ntypes):
         for type_1 in range(0, ntypes):
             embedding_index = type_0 * model.ntypes + type_1
             coef_L = []
-            for index, split in enumerate(range(0, num_sij, 5000)): #split the input sij to 2000 as a group to avoid the out cuda memory in 2 order derivative atuograd step
-                start = index*5000
-                end = (index+1)*5000+1 if (index+1)*5000+1 < num_sij else num_sij
-                print("model compress doing: {:.2f}%".format(done_sij_num / all_sij_num *100))
-                done_sij_num += (end-start)
-                S_Rij = sij[start: end]
+            for index in range(len([len_sij, len_out_max])):
+                if index == 0:
+                    S_Rij = sij[0:len_sij+1]
+                else:
+                    S_Rij = sij[len_sij:]
+                    dx = 10*dx
                 y = model.embedding_net[embedding_index](S_Rij) #S_Rij shape is [1000, 1], out y shape is [1000, 25]
                 am, bm, cm, dm= None, None, None, None
                 # m_coef = None
@@ -227,20 +228,17 @@ def dp_model_compress_5order(sij:torch.Tensor, model:DP, dx:float):
     sij_tab = np.array(sij_tab)
     return sij_tab
 
-def dp_type_model_compress_3order(sij:torch.Tensor, model:TypeDP, dx:float, atom_type_order:list, type_vector:dict):
+def dp_type_model_compress_3order(sij:torch.Tensor, model:TypeDP, dx:float, atom_type_order:list, type_vector:dict, len_sij: int, len_out_max: int):
     sij_tab = []
-    num_sij = sij.shape[0]
-    done_sij_num = 0
-    all_sij_num = num_sij * len(atom_type_order)
     for atom_type in atom_type_order:
         coef_L = []
-        for index, split in enumerate(range(0, num_sij, 5000)): #split the input sij to 2000 as a group to avoid the out cuda memory in 2 order derivative atuograd step
-            start = index*5000
-            end = (index+1)*5000+1 if (index+1)*5000+1 < num_sij else num_sij
-            print("model compress doing: {:.2f}%".format(done_sij_num / all_sij_num *100))
-            done_sij_num += (end-start)
-            S_Rij = sij[start: end]
-            t_vector = torch.tensor(type_vector[atom_type], dtype=model.dtype, device=model.device).repeat(end-start,1)
+        for index in range(len([len_sij, len_out_max])):
+            if index == 0:
+                S_Rij = sij[0:len_sij+1]
+            else:
+                S_Rij = sij[len_sij:]
+                dx = 10*dx
+            t_vector = torch.tensor(type_vector[atom_type], dtype=model.dtype, device=model.device).repeat(S_Rij.shape[0],1)
             S_Rij_input = torch.concat((S_Rij, t_vector), dim=1)
             y = model.embedding_net[-1](S_Rij_input) #S_Rij shape is [1000, 1], out y shape is [1000, 25]
             am, bm, cm, dm= None, None, None, None
@@ -367,9 +365,17 @@ def set_sij_range(davg:list, dstd:list, atom_type_order:list, dtype:str, device:
     while sij_ < scal_max:
         sij_range.append(sij_)
         sij_ += dx
+    len_sij = len(sij_range)
+    sij_out_max = scal_max*10
+    len_out_max = 0
+    while sij_ < sij_out_max:
+        sij_range.append(sij_)
+        sij_ += dx*10
+        len_out_max += 1
+
     Sij = torch.tensor(sij_range, dtype=dtype, device=device, requires_grad=True).unsqueeze(-1)
     # davg = torch.tensor(davg[:,0], dtype=dtype, device=device)
     # dstd = torch.tensor(dstd[:,0], dtype=dtype, device=device)
     # Sij = (Sij-davg)/dstd
     # Sij = Sij.squeeze(-1)
-    return Sij, scal_min
+    return Sij, scal_min, scal_max, sij_out_max, len_sij, len_out_max

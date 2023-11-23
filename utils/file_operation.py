@@ -1,5 +1,6 @@
 import os, subprocess
 import shutil
+import filecmp
 
 import numpy as np
 def write_line_to_file(file_path, line, write_patthen="w"):
@@ -204,3 +205,33 @@ author: wuxingxing
 def smlink_file(source_file, target_fie):
     if os.path.exists(target_fie) is False:
         os.symlink(source_file, target_fie)
+
+
+'''
+description: 
+    compare dir1 and dir2 are same dir
+param {str} dir1
+param {str} dir2
+return {*}
+author: wuxingxing
+'''
+def same_dir(dir1:str, dir2:str):
+    comp = filecmp.dircmp(dir1, dir2)
+    if comp.same_files and not comp.diff_files and not comp.funny_files:
+        return True
+    else:
+        return False
+
+'''
+description: 
+compare file1 and file2 are same file
+param {str} file1
+param {str} file2
+return {*}
+author: wuxingxing
+'''
+def same_file(file1:str, file2:str):
+    if os.path.samefile(file1, file2):
+        return True
+    else:
+        return False

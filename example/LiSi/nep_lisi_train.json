@@ -1,0 +1,28 @@
+{
+    "model_type": "NEP",
+    "atom_type": [
+        3, 14
+    ],
+    "train_movement_file":["MOVEMENT"],
+    "max_neigh_num": 100,
+    "nep_in_file":"nep.in",
+    "model": {
+        "version": 4,
+        "type": "2 Li Si",
+        "model_type": 0,
+        "prediction": 0,
+        "cutoff": [ 8, 4],
+        "n_max": [4,4],
+        "basis_size": [8,8],
+        "l_max": [4,2,0],
+        "neuron": 40,
+        "lambda_1": -1,
+        "lambda_2": -1,
+        "lambda_e": 1.0,
+        "lambda_f": 1.0,
+        "lambda_v": 0.1,
+        "batch": 1000,
+        "population": 30,
+        "generation": 10000
+    }
+}

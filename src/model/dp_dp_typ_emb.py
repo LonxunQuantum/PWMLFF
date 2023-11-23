@@ -1,4 +1,5 @@
 import numpy as np
+import time
 import torch
 from torch import embedding
 import torch.nn as nn
@@ -11,7 +12,7 @@ sys.path.append(os.getcwd())
 # import prepare as pp
 # pp.readFeatnum()
 from src.model.dp_embedding_typ_emb import EmbeddingNet, FittingNet
-from src.model.calculate_force import CalculateForce, CalculateVirialForce
+from src.model.calculate_force import CalculateCompress, CalculateForce, CalculateVirialForce
 from utils.atom_type_emb_dict import get_normalized_data_list
 
 # logging and our extension
@@ -96,6 +97,10 @@ class TypeDP(nn.Module):
         self.davg = compress_dict["davg"]
         self.dstd = compress_dict["dstd"]
         self.sij_min = compress_dict["sij_min"]
+        self.sij_max = compress_dict["sij_max"]
+        self.sij_out_max = compress_dict["sij_out_max"]
+        self.sij_len = compress_dict["sij_len"]
+        self.sij_out_len = compress_dict["sij_out_len"]
         self.order = compress_dict["order"] if "order" in compress_dict.keys() else 5 #the default compress order is 5
         self.type_vector = compress_dict["type_vector"] if "type_vector" in compress_dict.keys() else None #the default compress order is 5
 
@@ -162,6 +167,7 @@ class TypeDP(nn.Module):
         physical_property = self.config["net_cfg"]["type_embedding_net"]["physical_property"]
         type_vector = get_normalized_data_list(atom_type_cpu, physical_property)
         Ei = None
+        # start_forward = time.time()
         for type_emb in emb_list:
             S_Rij = None
             tmp_a = None
@@ -189,7 +195,6 @@ class TypeDP(nn.Module):
                     elif self.order == 5:
                         G5 = self.calc_compress_5order(S_Rij_, ntype_1)
                         G = G5 if G is None else torch.concat((G, G5), dim=2)
-
             tmp_a = tmp_a.transpose(-2, -1)
             # For each neighbor of the central atom 'ntype', obtain the type code by passing it through the type embedding net
             
@@ -278,6 +283,9 @@ class TypeDP(nn.Module):
             F = CalculateForce.apply(list_neigh, dE, Ri_d, F)
             # virial = CalculateVirialForce.apply(list_neigh, dE, Ri[:,:,:,:3], Ri_d)
             Virial = CalculateVirialForce.apply(list_neigh, dE, ImageDR, Ri_d)
+        # end_forward = time.time()
+        # print("forward time:", end_forward - start_forward, 's')
+
         return Etot, Ei, F, Egroup, Virial  #F is Force
     
     def calc_compress_5order(self, S_Rij:torch.Tensor, table_type:int):
@@ -289,23 +297,34 @@ class TypeDP(nn.Module):
         f2 = (sij - xk).flatten().unsqueeze(-1)
     
         coefficient = self.compress_tab[table_type, index_k1, :]
-        G = f2**5 *coefficient[:, :, 0] + f2**4 * coefficient[:, :, 1] + \
-            f2**3 * coefficient[:, :, 2] + f2**2 * coefficient[:, :, 3] + \
-            f2 * coefficient[:, :, 4] + coefficient[:, :, 5]
+
+        G = CalculateCompress.apply(f2, coefficient)
+
+        # G = f2**5 *coefficient[:, :, 0] + f2**4 * coefficient[:, :, 1] + \
+        #     f2**3 * coefficient[:, :, 2] + f2**2 * coefficient[:, :, 3] + \
+        #     f2 * coefficient[:, :, 4] + coefficient[:, :, 5]
         G = G.reshape(S_Rij.shape[0], S_Rij.shape[1], S_Rij.shape[2], G.shape[1])
         return G
 
     def calc_compress_3order(self, S_Rij:torch.Tensor, table_type:int ):
         sij = S_Rij.flatten()
 
-        x = (sij-self.sij_min)/self.dx
+        mask = sij < self.sij_max
+        x = torch.zeros_like(sij)
+        x[mask] = (sij[mask]-self.sij_min)/self.dx
+        x[~mask] = (sij[~mask]-self.sij_max)/(10*self.dx)
         index_k1 = x.type(torch.long) # get floor
-        xk = self.sij_min + index_k1*self.dx
+
+        xk = torch.zeros_like(sij, dtype=torch.float32) # the index * dx + sij_min is a float type data
+        xk[mask] = index_k1[mask]*self.dx + self.sij_min
+        xk[~mask] = self.sij_max + index_k1[~mask]*self.dx*10
         f2 = (sij - xk).flatten().unsqueeze(-1)
-    
+        
         coefficient = self.compress_tab[table_type, index_k1, :]
-        G = f2**3 *coefficient[:, :, 0] + f2**2 * coefficient[:, :, 1] + \
-            f2 * coefficient[:, :, 2] + coefficient[:, :, 3]
+        G = CalculateCompress.apply(f2, coefficient)
+
+        # G = f2**3 *coefficient[:, :, 0] + f2**2 * coefficient[:, :, 1] + \
+        #     f2 * coefficient[:, :, 2] + coefficient[:, :, 3]
         G = G.reshape(S_Rij.shape[0], S_Rij.shape[1], S_Rij.shape[2], G.shape[1])
         
         return G

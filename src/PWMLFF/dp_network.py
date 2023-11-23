@@ -124,8 +124,8 @@ class dp_network:
         cwd = os.getcwd()
         os.chdir(os.path.dirname(pwdata_work_dir))
         data_file_config = self.dp_params.get_data_file_dict()
-        dp_mlff.gen_train_data(data_file_config, self.dp_params.optimizer_param.train_egroup, self.dp_params.optimizer_param.train_virial)
-        dp_mlff.sepper_data_main(data_file_config, self.dp_params.optimizer_param.train_egroup, stat_add=stat_add, valid_random=self.dp_params.valid_shuffle)
+        dp_mlff.gen_train_data(data_file_config, self.dp_params.optimizer_param.train_egroup, self.dp_params.optimizer_param.train_virial, self.dp_params.file_paths.alive_atomic_energy)
+        dp_mlff.sepper_data_main(data_file_config, self.dp_params.optimizer_param.train_egroup, stat_add=stat_add, valid_random=self.dp_params.valid_shuffle, seed = self.dp_params.seed)
         os.chdir(cwd)
         return os.path.dirname(pwdata_work_dir)
 
@@ -238,13 +238,11 @@ class dp_network:
             raise Exception("Error: Unsupported optimizer!")
 
         # optionally resume from a checkpoint
-        if self.dp_params.recover_train or os.path.exists(self.dp_params.file_paths.model_load_path):
-            if self.dp_params.recover_train:    #recover from last training
-                model_path = self.dp_params.file_paths.model_save_path  # .../checkpoint.pth.tar
-                print("model recover from the checkpoint: {}".format(model_path))
-            else: # resume model specified by user
+        if self.dp_params.recover_train:
+            if self.inference and os.path.exists(self.dp_params.file_paths.model_load_path): # recover from user input ckpt file for inference work
                 model_path = self.dp_params.file_paths.model_load_path
-                print("model resume from the checkpoint: {}".format(model_path))
+            else: # resume model specified by user
+                model_path = self.dp_params.file_paths.model_save_path  #recover from last training for training
             if os.path.isfile(model_path):
                 print("=> loading checkpoint '{}'".format(model_path))
                 if not torch.cuda.is_available():
