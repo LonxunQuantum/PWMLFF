@@ -192,24 +192,10 @@ class dp_network:
         if self.dp_params.descriptor.type_embedding:
             model = TypeDP(self.config, self.device, davg, dstd, energy_shift)
         else:
-            model = DP(self.config, self.device, davg, dstd, energy_shift)
+            model = DP(self.config, davg, dstd, energy_shift)
         model = model.to(self.training_type)
 
-        if not torch.cuda.is_available():
-            print("using CPU, this will be slow")
-        # elif self.dp_params.hvd:
-        #     if torch.cuda.is_available():
-        #         if self.dp_params.gpu is not None:
-        #             torch.cuda.set_device(self.dp_params.gpu)
-        #             model.cuda(self.dp_params.gpu)
-        #             self.dp_params.optimizer_param.batch_size = int(self.dp_params.optimizer_param.batch_size / hvd.size())
-        elif self.dp_params.gpu is not None and torch.cuda.is_available():
-            torch.cuda.set_device(self.dp_params.gpu)
-            model = model.cuda(self.dp_params.gpu)
-        else:
-            model = model.cuda()
         # optimizer, and learning rate scheduler
-
         if self.dp_params.optimizer_param.opt_name == "LKF":
             optimizer = LKFOptimizer(
                 model.parameters(),
@@ -267,6 +253,19 @@ class dp_network:
             else:
                 print("=> no checkpoint found at '{}'".format(model_path))
 
+        if not torch.cuda.is_available():
+            print("using CPU, this will be slow")
+        # elif self.dp_params.hvd:
+        #     if torch.cuda.is_available():
+        #         if self.dp_params.gpu is not None:
+        #             torch.cuda.set_device(self.dp_params.gpu)
+        #             model.cuda(self.dp_params.gpu)
+        #             self.dp_params.optimizer_param.batch_size = int(self.dp_params.optimizer_param.batch_size / hvd.size())
+        elif self.dp_params.gpu is not None and torch.cuda.is_available():
+            torch.cuda.set_device(self.dp_params.gpu)
+            model = model.cuda(self.dp_params.gpu)
+        else:
+            model = model.cuda()
         # if self.dp_params.hvd:
         #     optimizer = hvd.DistributedOptimizer(
         #         optimizer, named_parameters=model.named_parameters()

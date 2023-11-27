@@ -1,21 +1,16 @@
 import sys, os
 import time
-import numpy as np
 import torch
-from torch import embedding
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.nn import init
-from torch.autograd import Variable
 import sys, os
 from typing import List, Tuple, Optional
 
 sys.path.append(os.getcwd())
-# import parameters as pm    
-# import prepare as pp
-# pp.readFeatnum()
+
 from src.model.dp_embedding import EmbeddingNet, FittingNet
 from src.model.calculate_force import CalculateCompress, CalculateForce, CalculateVirialForce
+'''
 # logging and our extension
 import logging
 logging_level_DUMP = 5
@@ -36,14 +31,13 @@ def warning(msg, *args, **kwargs):
     logger.warning(msg, *args, **kwargs)
 def error(msg, *args, **kwargs):
     logger.error(msg, *args, **kwargs, exc_info=True)
-    
+'''    
 class DP(nn.Module):
-    def __init__(self, config, device, davg, dstd, energy_shift, magic=False):
+    def __init__(self, config, davg, dstd, energy_shift, magic=False):
         super(DP, self).__init__()
         self.config = config
         self.ntypes = len(config['atomType'])
         self.atom_type = [_['type'] for _ in config['atomType']] #this value in used in forward for hybrid Training
-        self.device = device
         self.M2 = config["M2"]
         self.Rmax = config["Rc_M"]
         self.Rmin = config['atomType'][0]['Rm']
@@ -54,9 +48,9 @@ class DP(nn.Module):
             self.dtype = torch.float32
         else:
             raise RuntimeError("train(): unsupported training data type")
-        self.davg = torch.tensor(davg, device=device, dtype=self.dtype)
-        self.dstd = torch.tensor(dstd, device=device, dtype=self.dtype)
-        self.energy_shift = torch.tensor(energy_shift, device=device, dtype=self.dtype)
+        self.davg = torch.tensor(davg, dtype=self.dtype)
+        self.dstd = torch.tensor(dstd, dtype=self.dtype)
+        self.energy_shift = torch.tensor(energy_shift, dtype=self.dtype)
 
         self.embedding_net = nn.ModuleList()
         self.fitting_net = nn.ModuleList()
@@ -68,22 +62,18 @@ class DP(nn.Module):
                                                        self.config["net_cfg"]["embedding_net"]["bias"], 
                                                        self.config["net_cfg"]["embedding_net"]["resnet_dt"], 
                                                        self.config["net_cfg"]["embedding_net"]["activation"], 
-                                                       self.device, 
                                                        magic))
-                # self.embedding_net.append(EmbeddingNet(self.config["net_cfg"]["embedding_net"], magic))
             fitting_net_input_dim = self.config["net_cfg"]["embedding_net"]["network_size"][-1]
             self.fitting_net.append(FittingNet(self.config["net_cfg"]["fitting_net"]["network_size"], 
                                                self.config["net_cfg"]["fitting_net"]["bias"],
                                                self.config["net_cfg"]["fitting_net"]["resnet_dt"],
                                                self.config["net_cfg"]["fitting_net"]["activation"], 
-                                               self.device, 
                                                self.M2 * fitting_net_input_dim, energy_shift[i], magic))
-            # self.fitting_net.append(FittingNet(config["net_cfg"]["fitting_net"], self.M2 * fitting_net_input_dim, energy_shift[i], magic))
         
         self.compress_tab = None #for dp compress
 
     def set_comp_tab(self, compress_dict:dict):
-        self.compress_tab = torch.tensor(compress_dict["table"], dtype=self.dtype, device=self.device)
+        self.compress_tab = torch.tensor(compress_dict["table"], dtype=self.dtype)
         self.dx = compress_dict["dx"]
         # self.davg = compress_dict["davg"]
         # self.dstd = compress_dict["dstd"]
@@ -158,174 +148,6 @@ class DP(nn.Module):
                 type_2body_list.append(type_2body)
             type_2body.append([i, j])
         return type_2body_list, pair_indices
-
-    '''
-    description: 
-        when we do forward, we should adjust the data input to adapt the model
-    param {*} self
-    param {*} Ri
-    param {*} dfeat
-    param {*} list_neigh
-    param {*} natoms_img
-    param {*} atom_type
-    param {*} ImageDR
-    param {array} is_egroup
-    param {*} is_calc_f
-    return {*}
-    author: wuxingxing
-    '''
-    def forward0(self, Ri, dfeat, list_neigh, natoms_img, atom_type, ImageDR, Egroup_weight = None, divider = None, is_calc_f = True):
-
-        #torch.autograd.set_detect_anomaly(True)
-        # from torchviz import make_dot
-        Ri_d = dfeat
-        # dim of natoms_img: batch size, natom_sum & natom_types ([9, 6, 2, 1])
-        natoms = natoms_img[0, 1:]
-        natoms_sum = Ri.shape[1]
-        batch_size = Ri.shape[0]
-        atom_sum = 0
-        ntype = 0  # 因为for循环外没有定义ntype，但是DR_ntype中却直接用？
-        # emb_list, type_nums =  self.get_train_2body_type(list(np.array(atom_type.cpu())[0]))
-        atom_type_list: List[int] = atom_type.cpu().tolist()
-        emb_list, type_nums = self.get_train_2body_type(atom_type_list[0])
-        Ei = torch.tensor([])
-        for type_emb in emb_list:
-            xyz_scater_a = torch.tensor([])
-            for emb in type_emb:
-                ntype, ntype_1 = emb
-                # print(ntype, "\t\t", ntype_1)
-                # dim of Ri: batch size, natom_sum, ntype*max_neigh_num, local environment matrix , ([10,9,300,4])
-                S_Rij = Ri[:, atom_sum:atom_sum+natoms[ntype], ntype_1 * self.maxNeighborNum:(ntype_1+1) * self.maxNeighborNum, 0].unsqueeze(-1)
-                # determines which embedding net
-                embedding_index = ntype * self.ntypes + ntype_1
-                # itermediate output of embedding net 
-                G = torch.tensor([])
-                found = False
-                for idx, emb_net in enumerate(self.embedding_net):
-                    if idx == embedding_index and not found:
-                        G = emb_net(S_Rij)
-                        found = True
-                # dim of G: batch size, natom of ntype, max_neigh_num, final layer dim
-                tmp_a = Ri[:, atom_sum:atom_sum+natoms[ntype], ntype_1 * self.maxNeighborNum:(ntype_1+1) * self.maxNeighborNum].transpose(-2, -1)
-                # start_emb = time.time()
-                if self.compress_tab is None:
-                    G = self.embedding_net[embedding_index](S_Rij)
-                    # symmetry conserving
-                else:
-                    if self.order == 2:
-                        G = self.calc_compress(S_Rij, embedding_index)
-                    elif self.order == 5:
-                        G = self.calc_compress_5order(S_Rij, embedding_index)
-                    elif self.order == 3:
-                        G = self.calc_compress_3order(S_Rij, embedding_index)
-                # end_emb = time.time()
-                # print("embedding time:", end_emb - start_emb, 's')
-                tmp_b = torch.matmul(tmp_a, G)
-                # xyz_scater_a = tmp_b if xyz_scater_a is None else xyz_scater_a + tmp_b
-                if xyz_scater_a.numel() == 0:  # 检查 tensor 是否为空
-                    xyz_scater_a = tmp_b
-                else:
-                    xyz_scater_a = xyz_scater_a + tmp_b
-            
-            # attention: for hybrid training, the division should be done based on \
-            #   the number of element types in the current image, because the images may from different systems.
-            xyz_scater_a = xyz_scater_a / (self.maxNeighborNum * type_nums)
-            xyz_scater_b = xyz_scater_a[:, :, :, :self.M2]
-            DR_ntype = torch.matmul(xyz_scater_a.transpose(-2, -1), xyz_scater_b)
-            DR_ntype = DR_ntype.reshape(batch_size, natoms[ntype], -1)
-            
-            Ei_ntype = torch.tensor([])
-            found = False
-            for idx, fit_net in enumerate(self.fitting_net):
-                if idx == ntype and not found:
-                    Ei_ntype = fit_net(DR_ntype)
-                    found = True
-            # Ei_ntype = self.fitting_net[ntype](DR_ntype)
-            # Ei = Ei_ntype if Ei is None else torch.concat((Ei, Ei_ntype), dim=1)
-            if Ei.numel() == 0:
-                Ei = Ei_ntype
-            else:
-                Ei = torch.concat((Ei, Ei_ntype), dim=1)
-            atom_sum = atom_sum + natoms[ntype]
-        
-        Etot = torch.sum(Ei, 1)
-
-        if Egroup_weight is not None:
-            Egroup = self.get_egroup(Ei, Egroup_weight, divider)
-        else:
-            Egroup = None
-        #Egroup = 0 
-        # F = torch.zeros((batch_size, atom_sum, 3), device=self.device)
-        # Virial = torch.zeros((batch_size, 9), device=self.device)
-        Ei = torch.squeeze(Ei, 2)
-        Force, Virial = None, None
-        if is_calc_f == False:
-            return Etot, Ei, Force, Egroup, Virial
-        # start_autograd = time.time()
-        # print("fitting time:", start_autograd - start_fitting, 's')
-        
-        # mask = torch.ones_like(Ei)
-        mask: List[Optional[torch.Tensor]] = [torch.ones_like(Ei)]
-        dE = torch.autograd.grad([Ei], [Ri], grad_outputs=mask, retain_graph=True, create_graph=True)
-        valid_grads = []
-        for g in dE:
-            if g is not None:
-                valid_grads.append(g)
-        dE = torch.stack(valid_grads, dim=0).squeeze(0) 
-        # dE = torch.cat([g.unsqueeze(0) for g in dE if g is not None], dim=0).squeeze(0)
-        # dE = torch.stack(list(dE), dim=0).squeeze(0)  #[:,:,:,:-1] #[2,108,100,4]-->[2,108,100,3]
-        Ri_d = Ri_d.reshape(batch_size, natoms_sum, -1, 3)
-        dE = dE.reshape(batch_size, natoms_sum, 1, -1)
-
-        # start_force = time.time()
-        # print("autograd time:", start_force - start_autograd, 's')
-        F = torch.matmul(dE, Ri_d).squeeze(-2) # batch natom 3
-        F = F * (-1)
-        
-        # error code
-        # dE1 = dE.squeeze(2).reshape(batch_size, atom_sum, self.maxNeighborNum*self.ntypes,4).unsqueeze(-1) #[5, 76, 1, 800] -> [5, 76, 800] -> [5, 76, 200, 4] -> [5, 76, 200, 4, 1]
-        # Ri_d1 = Ri_d.reshape(batch_size, atom_sum, self.maxNeighborNum*self.ntypes, 4, 3)#[5, 76, 800, 3] -> [5, 76, 200, 4, 3]
-        # temp_dE_dx = torch.sum(dE1*Ri_d1, dim=3) #[5, 76, 200, 4, 3]->[5, 76, 200, 3]
-        # F_res = F + torch.sum(temp_dE_dx, dim=2)
-
-        # for cpu device
-        if self.device.type == 'cpu':
-            Virial = torch.zeros((batch_size, 9), device=self.device, dtype=self.dtype)
-            for batch_idx in range(batch_size):   
-                for i in range(natoms_sum):
-                    # get atom_idx & neighbor_idx
-                    i_neighbor = list_neigh[batch_idx, i]  #[100]
-                    neighbor_idx = i_neighbor.nonzero().squeeze().type(torch.int64)  #[78]
-                    atom_idx = i_neighbor[neighbor_idx].type(torch.int64) - 1
-                    # calculate Force
-                    for neigh_tmp, neighbor_id in zip(atom_idx, neighbor_idx):
-                        tmpA = dE[batch_idx, i, :, neighbor_id*4:neighbor_id*4+4]
-                        tmpB = Ri_d[batch_idx, i, neighbor_id*4:neighbor_id*4+4]
-                        dE_dx = torch.matmul(tmpA, tmpB).squeeze(0)
-                        F[batch_idx, neigh_tmp] += dE_dx
-
-                        Virial[batch_idx][0] += ImageDR[batch_idx, i, neighbor_id][0]*dE_dx[0] #xx
-                        Virial[batch_idx][4] += ImageDR[batch_idx, i, neighbor_id][1]*dE_dx[1] #yy
-                        Virial[batch_idx][8] += ImageDR[batch_idx, i, neighbor_id][2]*dE_dx[2] #zz
-
-                        Virial[batch_idx][1] += ImageDR[batch_idx, i, neighbor_id][0]*dE_dx[1] 
-                        Virial[batch_idx][2] += ImageDR[batch_idx, i, neighbor_id][0]*dE_dx[2]
-                        Virial[batch_idx][5] += ImageDR[batch_idx, i, neighbor_id][1]*dE_dx[2]
-
-                Virial[batch_idx][3] = Virial[batch_idx][1]
-                Virial[batch_idx][6] = Virial[batch_idx][2]
-                Virial[batch_idx][7] = Virial[batch_idx][5]
-        else:
-            list_neigh = torch.unsqueeze(list_neigh,2)
-            list_neigh = (list_neigh - 1).type(torch.int)
-            F = CalculateForce.apply(list_neigh, dE, Ri_d, F)
-            # virial = CalculateVirialForce.apply(list_neigh, dE, Ri[:,:,:,:3], Ri_d)
-            Virial = CalculateVirialForce.apply(list_neigh, dE, ImageDR, Ri_d)
-        
-        # end_forward = time.time()
-        # print("forward time:", end_forward - start_forward, 's')
-        return Etot, Ei, F, Egroup, Virial  #F is Force
-                      
    
     def forward(self, 
                 list_neigh: torch.Tensor,   # int32
@@ -336,6 +158,22 @@ class DP(nn.Module):
                 Egroup_weight: Optional[torch.Tensor] = None, 
                 divider: Optional[torch.Tensor] = None, 
                 is_calc_f: Optional[bool] = True) -> Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]]:
+        """
+        Forward pass of the model.
+
+        Args:
+            list_neigh (torch.Tensor): Tensor representing the neighbor list. Shape: (batch_size, natoms_sum, max_neighbor * ntypes).
+            Imagetype_map (torch.Tensor): The tensor mapping atom types to image types.. Shape: (natoms_sum).
+            Imagetype (torch.Tensor): Tensor representing the image's atom types. Shape: (batch_size, natoms_sum).
+            ImageDR (torch.Tensor): Tensor representing the image DRneigh. Shape: (batch_size, natoms_sum, max_neighbor * ntypes, 4).
+            nghost (int): Number of ghost atoms.
+            Egroup_weight (Optional[torch.Tensor], optional): Tensor representing the Egroup weight. Defaults to None.
+            divider (Optional[torch.Tensor], optional): Tensor representing the divider. Defaults to None.
+            is_calc_f (Optional[bool], optional): Flag indicating whether to calculate forces and virial. Defaults to True.
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]]: Tuple containing the total energy (Etot), atomic energies (Ei), forces (Force), energy group (Egroup), and virial (Virial).
+        """
         device = ImageDR.device
         dtype = ImageDR.dtype
         # atom_num_per_image = torch.unique(Imagetype_map, sorted=True, return_counts=True)[1]
@@ -373,6 +211,21 @@ class DP(nn.Module):
                      ImagedR: torch.Tensor, 
                      device: torch.device,
                      dtype: torch.dtype) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Calculate the Ri and dfeat tensors.
+
+        Args:
+            natoms_sum (int): The total number of atoms.
+            batch_size (int): The batch size.
+            max_neighbor_type (int): The maximum number of neighbor types.
+            Imagetype_map (torch.Tensor): The tensor mapping atom types to image types.
+            ImagedR (torch.Tensor): The tensor containing the atom's distances and Δ(position vectors).
+            device (torch.device): The device to perform the calculations on.
+            dtype (torch.dtype): The data type of the tensors.
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor]: The Ri and dfeat tensors.
+        """
         # t1 = time.time()
         R = ImagedR[:, :, :, 0]
         R.requires_grad_()
@@ -426,14 +279,13 @@ class DP(nn.Module):
         # t3 = time.time()
         # 0 is that the atom nums is zero, for example, CH4 system in CHO system hybrid training, O atom nums is zero.\
         # beacuse the dstd or davg does not contain O atom, therefore, special treatment is needed here for atoms with 0 elements
-        davg_res = self.davg[Imagetype_map].to(dtype)
-        dstd_res = self.dstd[Imagetype_map].to(dtype)
+        davg_res = self.davg.to(device)[Imagetype_map]
+        dstd_res = self.dstd.to(device)[Imagetype_map]
         davg_res = davg_res.reshape(-1, natoms_sum, max_neighbor_type, 4).repeat(batch_size, 1, 1, 1)
         dstd_res = dstd_res.reshape(-1, natoms_sum, max_neighbor_type, 4).repeat(batch_size, 1, 1, 1) 
         Ri = (Ri - davg_res) / dstd_res
         dstd_res = dstd_res.unsqueeze(-1).repeat(1, 1, 1, 1, 3)
         dfeat = - dfeat / dstd_res
-        print("Ri.max", Ri.max())
         # t4 = time.time()
         # print("\nRi:", t2-t1, "\ndfeat:", t3-t2, "\ndavg_res:", t4-t3, "\n********************")
         return Ri, dfeat
@@ -445,6 +297,20 @@ class DP(nn.Module):
                      emb_list: List[List[List[int]]],
                      type_nums: int, 
                      device: torch.device) -> Optional[torch.Tensor]:
+        """
+        Calculate the energy Ei for each type of atom in the system.
+
+        Args:
+            Imagetype_map (torch.Tensor): The tensor mapping atom types to image types.
+            Ri (torch.Tensor): A tensor representing the atomic descriptors.
+            batch_size (int): The size of the batch.
+            emb_list (List[List[List[int]]]): A list of embedded atom types.
+            type_nums (int): The number of atom types.
+            device (torch.device): The device to perform the calculations on.
+
+        Returns:
+            Optional[torch.Tensor]: The calculated energy Ei for each type of atom, or None if the calculation fails.
+        """
         Ei : Optional[torch.Tensor] = None
         fit_net_dict = {idx: fit_net for idx, fit_net in enumerate(self.fitting_net)}
         for type_emb in emb_list:
@@ -497,6 +363,8 @@ class DP(nn.Module):
                 #         G = emb_net(S_Rij)
                 #         found = True
             else:
+                if self.compress_tab.device != device:
+                    self.compress_tab = self.compress_tab.to(device)
                 if self.order == 2:
                     G = self.calc_compress(S_Rij, embedding_index)
                 elif self.order == 5:
@@ -531,11 +399,26 @@ class DP(nn.Module):
         mask: List[Optional[torch.Tensor]] = [torch.ones_like(Etot)]
         dE = torch.autograd.grad([Etot], [Ri], grad_outputs=mask, retain_graph=True, create_graph=True)[0]
         assert dE is not None
+        dE = torch.unsqueeze(dE, dim=-1)
+        # dE * Ri_d [batch, natom, max_neighbor * len(type_map),4,1] * [batch, natom, max_neighbor * len(type_map), 4, 3]
+        # dE_Rid [batch, natom, max_neighbor * len(type_map), 3]
+        dE_Rid = torch.mul(dE, Ri_d).sum(dim=-2)
         # t2 = time.time()
-        Ri_d = Ri_d.view(batch_size, natoms_sum, -1, 3)
-        dE = dE.view(batch_size, natoms_sum, 1, -1)
-        Force = torch.zeros((batch_size, natoms_sum + nghost, 3), device=device, dtype=dtype)
-        Force[:, :natoms_sum, :] = -1 * torch.matmul(dE, Ri_d).squeeze(-2)
+        Force = torch.zeros((batch_size, natoms_sum + nghost + 1, 3), device=device, dtype=dtype)
+        Force[:, 1:natoms_sum + 1, :] = -1 * dE_Rid.sum(dim=-2)
+        Virial = torch.zeros((batch_size, 9), device=device, dtype=dtype)
+        for batch_idx in range(batch_size):
+            indice = list_neigh[batch_idx].view(-1).unsqueeze(-1).expand(-1, 3).to(torch.int64) # list_neigh's index start from 1, so the Force's dimension should be natoms_sum + 1
+            values = dE_Rid[batch_idx].view(-1, 3)
+            Force[batch_idx].scatter_add_(0, indice, values).view(natoms_sum + nghost + 1, 3)
+            # Virial[batch_idx, 0] = (ImageDR[batch_idx, :, :, 1] * dE_Rid[batch_idx, :, :, 0]).view(-1).sum(dim=0) # xx
+            # Virial[batch_idx, 1] = (ImageDR[batch_idx, :, :, 1] * dE_Rid[batch_idx, :, :, 1]).view(-1).sum(dim=0) # xy
+            # Virial[batch_idx, 2] = (ImageDR[batch_idx, :, :, 1] * dE_Rid[batch_idx, :, :, 2]).view(-1).sum(dim=0) # xz
+            # Virial[batch_idx, 4] = (ImageDR[batch_idx, :, :, 2] * dE_Rid[batch_idx, :, :, 1]).view(-1).sum(dim=0) # yy
+            # Virial[batch_idx, 5] = (ImageDR[batch_idx, :, :, 2] * dE_Rid[batch_idx, :, :, 2]).view(-1).sum(dim=0) # yz
+            # Virial[batch_idx, 8] = (ImageDR[batch_idx, :, :, 3] * dE_Rid[batch_idx, :, :, 2]).view(-1).sum(dim=0) # zz
+            # Virial[batch_idx, [3, 6, 7]] = Virial[batch_idx, [1, 2, 5]]
+        Force = Force[:, 1:, :]
         # t3 = time.time()
         '''this part for cuda version, not support for torchscript
         list_neigh = torch.unsqueeze(list_neigh,2)
@@ -543,6 +426,12 @@ class DP(nn.Module):
         F = CalculateForce.apply(list_neigh, dE, Ri_d, F)
         Virial = CalculateVirialForce.apply(list_neigh, dE, ImageDR, Ri_d)
         '''
+
+        '''
+        Ri_d = Ri_d.view(batch_size, natoms_sum, -1, 3)
+        dE = dE.view(batch_size, natoms_sum, 1, -1)
+        Force = torch.zeros((batch_size, natoms_sum + nghost, 3), device=device, dtype=dtype)
+        Force[:, :natoms_sum, :] = -1 * torch.matmul(dE, Ri_d).squeeze(-2)
         # t4 = time.time()
         # 1. Get atom_idx & neighbor_idx
         non_zero_indices = list_neigh.nonzero()
@@ -554,23 +443,26 @@ class DP(nn.Module):
         dE_selected = torch.gather(dE[batch_indices, atom_indices], -1, gather_indices.unsqueeze(1))
         Ri_d_selected = torch.gather(Ri_d[batch_indices, atom_indices], -2, gather_indices.unsqueeze(-1).expand(-1,-1,3))
         dE_dx = torch.matmul(dE_selected, Ri_d_selected).squeeze(-2)
-        # t5 = time.time()
         for batch_idx in range(batch_size):
             mask_accumulation = batch_indices == batch_idx
             Force[batch_idx].index_add_(0, atom_idx[mask_accumulation], dE_dx[mask_accumulation]).view(natoms_sum + nghost, 3)
-        # t6 = time.time()
+        '''
+        # t5 = time.time()
         # print("autograd:", t2-t1, "\nmatmul:", t3-t2, "\nindexing:", t5-t4, "\naccumulation:", t6-t5, "\n********************")
         # 3. Calculate Virial
+        '''
         Virial = torch.zeros((batch_size, 9), device=device, dtype=dtype)
-        # virial_components = torch.zeros((len(batch_indices), 6), device=Virial.device, dtype=self.dtype)
-        # virial_components[:, 0] = ImageDR[batch_indices, atom_indices, neighbor_indices][:, 1] * dE_dx[:, 0] # xx
-        # virial_components[:, 1] = ImageDR[batch_indices, atom_indices, neighbor_indices][:, 1] * dE_dx[:, 1] # xy
-        # virial_components[:, 2] = ImageDR[batch_indices, atom_indices, neighbor_indices][:, 1] * dE_dx[:, 2] # xz
-        # virial_components[:, 3] = ImageDR[batch_indices, atom_indices, neighbor_indices][:, 2] * dE_dx[:, 1] # yy
-        # virial_components[:, 4] = ImageDR[batch_indices, atom_indices, neighbor_indices][:, 2] * dE_dx[:, 2] # yz 
-        # virial_components[:, 5] = ImageDR[batch_indices, atom_indices, neighbor_indices][:, 3] * dE_dx[:, 2] # zz 
-        # Virial[:, [0, 1, 2, 4, 5, 8]] = virial_components.sum(dim=0)
-        # Virial[:, [3, 6, 7]] = Virial[:, [1, 2, 5]]
+        ImageDR_selected = ImageDR[batch_indices, atom_indices, neighbor_indices]
+        virial_components = torch.zeros((len(batch_indices), 6), device=device, dtype=dtype)
+        virial_components[:, 0] = ImageDR_selected[:, 1] * dE_dx[:, 0] # xx
+        virial_components[:, 1] = ImageDR_selected[:, 1] * dE_dx[:, 1] # xy
+        virial_components[:, 2] = ImageDR_selected[:, 1] * dE_dx[:, 2] # xz
+        virial_components[:, 3] = ImageDR_selected[:, 2] * dE_dx[:, 1] # yy
+        virial_components[:, 4] = ImageDR_selected[:, 2] * dE_dx[:, 2] # yz 
+        virial_components[:, 5] = ImageDR_selected[:, 3] * dE_dx[:, 2] # zz 
+        Virial[:, [0, 1, 2, 4, 5, 8]] = virial_components.sum(dim=0)
+        Virial[:, [3, 6, 7]] = Virial[:, [1, 2, 5]]
+        '''
         return Force, Virial 
        
     '''
@@ -633,7 +525,6 @@ class DP(nn.Module):
     def calc_compress_3order(self, S_Rij:torch.Tensor, embedding_index:int):
         sij = S_Rij.flatten()
         mask = sij < self.sij_max
-        print("self.sij_max", self.sij_max)
         x = torch.zeros_like(sij)
         x[mask] = (sij[mask]-self.sij_min)/self.dx
         x[~mask] = (sij[~mask]-self.sij_max)/(10*self.dx)
@@ -643,8 +534,6 @@ class DP(nn.Module):
         xk[mask] = index_k1[mask]*self.dx + self.sij_min
         xk[~mask] = self.sij_max + index_k1[~mask]*self.dx*10
         f2 = (sij - xk).flatten().unsqueeze(-1)
-        print("max index_k1", index_k1.max())
-        print("self.compress_tab.shape", self.compress_tab.shape)
         coefficient = self.compress_tab[embedding_index, index_k1, :]
         # G = CalculateCompress.apply(f2, coefficient)
         G = f2**3 *coefficient[:, :, 0] + f2**2 * coefficient[:, :, 1] + \

@@ -1,11 +1,10 @@
 from numpy.core.fromnumeric import std
 import torch
 import torch.nn as nn
-import collections
 from torch.nn.init import normal_ as normal
 import numpy as np
 from typing import List
-
+'''
 # logging and o ur extension
 import logging
 logging_level_DUMP = 5
@@ -26,6 +25,7 @@ def warning(msg, *args, **kwargs):
     logger.warning(msg, *args, **kwargs)
 def error(msg, *args, **kwargs):
     logger.error(msg, *args, **kwargs, exc_info=True)
+'''
 
 class LayerModule(nn.Module):
     def __init__(self, 
@@ -43,7 +43,6 @@ class EmbeddingNet(nn.Module):
                  bias: bool, 
                  resnet_dt: bool, 
                  activation: str, 
-                 device: torch.device,
                  magic = False):
         super(EmbeddingNet, self).__init__()
         self.network_size = [1] + network_size
@@ -68,7 +67,7 @@ class EmbeddingNet(nn.Module):
                 resnet_dt = torch.Tensor(1, self.network_size[i])
                 normal(resnet_dt, mean=1, std=0.001)
 
-            self.layers.append(LayerModule(wij, bias, resnet_dt)).to(device)
+            self.layers.append(LayerModule(wij, bias, resnet_dt))
         # print()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -101,7 +100,6 @@ class FittingNet(nn.Module):
                  bias: bool, 
                  resnet_dt: bool, 
                  activation: str, 
-                 device: torch.device, 
                  input_dim: int, 
                  ener_shift: float, 
                  magic = False):
@@ -127,7 +125,7 @@ class FittingNet(nn.Module):
                 resnet_dt = torch.Tensor(1, self.network_size[i])
                 normal(resnet_dt, mean=0.1, std=0.001)
 
-            self.layers.append(LayerModule(wij, bias, resnet_dt)).to(device)
+            self.layers.append(LayerModule(wij, bias, resnet_dt))
         
         i = len(self.network_size) - 1
         wij = torch.randn(self.network_size[i-1], self.network_size[i])
@@ -137,8 +135,7 @@ class FittingNet(nn.Module):
             bias_init = torch.randn(1, self.network_size[i])
             normal(bias_init, mean=ener_shift, std=1.0)
         
-        self.layers.append(LayerModule(wij, bias_init, None)).to(device)    
-
+        self.layers.append(LayerModule(wij, bias_init, None))
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         for i, layer in enumerate(self.layers):
             if i < len(self.layers) - 1:        # 对于非最后一层
@@ -163,14 +160,13 @@ class FittingNet(nn.Module):
                 else:
                     x = torch.matmul(x, layer.weight)
         return x
-    
+'''    
 class EmbeddingNet0(nn.Module):
     def __init__(self, 
                  network_size: List[int], 
                  bias: bool, 
                  resnet_dt: bool, 
                  activation: str,
-                 device: torch.device, 
                  magic = False):
         super(EmbeddingNet, self).__init__()
         self.network_size = [1] + network_size
@@ -222,7 +218,6 @@ class FittingNet0(nn.Module):
                  bias: bool, 
                  resnet_dt: bool, 
                  activation: str,
-                 device: torch.device, 
                  input_dim: int, 
                  ener_shift: float, 
                  magic = False):
@@ -275,3 +270,4 @@ class FittingNet0(nn.Module):
                 else:
                     x = hiden
         return x
+'''

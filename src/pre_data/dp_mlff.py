@@ -546,8 +546,8 @@ def compute_Ri(config, image_dR, list_neigh, natoms_img, ind_img, davg, dstd):
     
     device = torch.device("cpu")
 
-    davg = torch.tensor(davg, device=device, dtype=torch.float64)
-    dstd = torch.tensor(dstd, device=device, dtype=torch.float64)
+    davg = torch.tensor(np.array(davg), device=device, dtype=torch.float64)
+    dstd = torch.tensor(np.array(dstd), device=device, dtype=torch.float64)
 
     image_num = natoms_img.shape[0]
 
@@ -601,9 +601,9 @@ def compute_Ri(config, image_dR, list_neigh, natoms_img, ind_img, davg, dstd):
         mask = list_neigh_i > 0 # 0 means the centor atom i does not have neighor
 
         dR2 = torch.zeros_like(list_neigh_i, dtype=torch.float64)
-        Rij = torch.zeros_like(list_neigh_i, dtype=torch.float64)
+        Rij_temp = torch.zeros_like(list_neigh_i, dtype=torch.float64)
         dR2[mask] = torch.sum(image_dR_i[mask] * image_dR_i[mask], -1)
-        Rij[mask] = torch.sqrt(dR2[mask])
+        Rij_temp[mask] = torch.sqrt(dR2[mask])
 
         nr = torch.zeros_like(dR2)
         inr = torch.zeros_like(dR2)
@@ -611,9 +611,9 @@ def compute_Ri(config, image_dR, list_neigh, natoms_img, ind_img, davg, dstd):
         dR2_copy = dR2.unsqueeze(-1).repeat(1, 1, 1, 3)
         Ri_xyz = torch.zeros_like(dR2_copy)
 
-        nr[mask] = dR2[mask] / Rij[mask]
+        nr[mask] = dR2[mask] / Rij_temp[mask]
         Ri_xyz[mask] = image_dR_i[mask] / dR2_copy[mask]
-        inr[mask] = 1 / Rij[mask]
+        inr[mask] = 1 / Rij_temp[mask]
 
         Ri_i, Ri_d_i, max_ri = smooth(
             config, image_dR_i, nr, Ri_xyz, mask, inr, davg, dstd, natoms_per_type
@@ -621,15 +621,19 @@ def compute_Ri(config, image_dR, list_neigh, natoms_img, ind_img, davg, dstd):
 
         Ri_i = Ri_i.reshape(-1, ntypes * config["maxNeighborNum"], 4)
         Ri_d_i = Ri_d_i.reshape(-1, ntypes * config["maxNeighborNum"], 4, 3)
+        Rij_temp = Rij_temp.reshape(-1, ntypes * config["maxNeighborNum"]).unsqueeze(-1)
 
         if i == 0:
             Ri = Ri_i.detach().cpu().numpy()
             Ri_d = Ri_d_i.detach().cpu().numpy()
+            Rij = Rij_temp.detach().cpu().numpy()
         else:
             Ri_i = Ri_i.detach().cpu().numpy()
             Ri_d_i = Ri_d_i.detach().cpu().numpy()
+            Rij_temp = Rij_temp.detach().cpu().numpy()
             Ri = np.concatenate((Ri, Ri_i), 0)
             Ri_d = np.concatenate((Ri_d, Ri_d_i), 0)
+            Rij = np.concatenate((Rij, Rij_temp), 0)
         max_ri_list.append(max_ri)
 
     if config['gen_egroup_input'] == 1:
@@ -1045,7 +1049,6 @@ def sepper_data(config, Etot, Ei, Force, dR_neigh,\
     
     list_neigh = list_neigh.reshape(-1, max_neighbor_num * ntypes)
     neigh_type = neigh_type.reshape(-1, max_neighbor_num * ntypes)
-    Rij = Rij.reshape(-1, max_neighbor_num * ntypes).unsqueeze(-1).numpy()
     image_dR = image_dR.reshape(-1, max_neighbor_num * ntypes, 3)
     image_dR = np.concatenate((Rij, image_dR), axis=-1)
 
