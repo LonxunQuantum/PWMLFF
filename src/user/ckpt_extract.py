@@ -1,9 +1,7 @@
 import os
 from src.user.input_param import InputParam
 import torch
-import src.aux.extract_ff as extract_ff
-import json
-from src.model.dp_dp import DP
+from src.PWMLFF.dp_network import dp_network
 from src.PWMLFF.dp_param_extract import extract_force_field as dp_extract_force_field
 from src.PWMLFF.nn_param_extract import extract_force_field as nn_extract_force_field
 
@@ -24,16 +22,15 @@ def extract_force_field(ckpt_file, cmd_type):
 
 def tracing_model(ckpt_file):
     # Step 1.
-    if not torch.cuda.is_available():
-        model_checkpoint = torch.load(ckpt_file,map_location=torch.device("cpu"))
-    else:
-        model_checkpoint = torch.load(ckpt_file)
+    model_checkpoint = torch.load(ckpt_file,map_location=torch.device("cpu"))
     stat = [model_checkpoint["davg"], model_checkpoint["dstd"], model_checkpoint["energy_shift"]]
     # Step 2.
     dp_param = InputParam(model_checkpoint["json_file"], "train".upper())
-    dp_model_param = dp_param.get_dp_net_dict()
+    # dp_model_param = dp_param.get_dp_net_dict()
+    dp_trainer = dp_network(dp_param)
     # Step 3. 初始化 DP model
-    model = DP(config=dp_model_param, davg=stat[0], dstd=stat[1], energy_shift=stat[2])
+    model = dp_trainer.load_model_with_ckpt(davg=stat[0], dstd=stat[1], energy_shift=stat[2])
+    # model = DP(config=dp_model_param, davg=stat[0], dstd=stat[1], energy_shift=stat[2])
     model.load_state_dict(model_checkpoint["state_dict"])
     if "compress" in model_checkpoint.keys():
         model.set_comp_tab(model_checkpoint["compress"])

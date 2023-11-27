@@ -195,34 +195,6 @@ class dp_network:
             model = DP(self.config, davg, dstd, energy_shift)
         model = model.to(self.training_type)
 
-        # optimizer, and learning rate scheduler
-        if self.dp_params.optimizer_param.opt_name == "LKF":
-            optimizer = LKFOptimizer(
-                model.parameters(),
-                self.dp_params.optimizer_param.kalman_lambda,
-                self.dp_params.optimizer_param.kalman_nue,
-                self.dp_params.optimizer_param.block_size
-            )
-        elif self.dp_params.optimizer_param.opt_name == "GKF":
-            optimizer = GKFOptimizer(
-                model.parameters(),
-                self.dp_params.optimizer_param.kalman_lambda,
-                self.dp_params.optimizer_param.kalman_nue
-            )
-
-        elif self.dp_params.optimizer_param.opt_name == "ADAM":
-            optimizer = optim.Adam(model.parameters(), 
-                                   self.dp_params.optimizer_param.learning_rate)
-        elif self.dp_params.optimizer_param.opt_name == "SGD":
-            optimizer = optim.SGD(
-                model.parameters(), 
-                self.dp_params.optimizer_param.learning_rate,
-                momentum=self.dp_params.optimizer_param.momentum,
-                weight_decay=self.dp_params.optimizer_param.weight_decay
-            )
-        else:
-            raise Exception("Error: Unsupported optimizer!")
-
         # optionally resume from a checkpoint
         if self.dp_params.recover_train:
             if self.inference and os.path.exists(self.dp_params.file_paths.model_load_path): # recover from user input ckpt file for inference work
@@ -266,6 +238,32 @@ class dp_network:
             model = model.cuda(self.dp_params.gpu)
         else:
             model = model.cuda()
+        # optimizer, and learning rate scheduler
+        if self.dp_params.optimizer_param.opt_name == "LKF":
+            optimizer = LKFOptimizer(
+                model.parameters(),
+                self.dp_params.optimizer_param.kalman_lambda,
+                self.dp_params.optimizer_param.kalman_nue,
+                self.dp_params.optimizer_param.block_size
+            )
+        elif self.dp_params.optimizer_param.opt_name == "GKF":
+            optimizer = GKFOptimizer(
+                model.parameters(),
+                self.dp_params.optimizer_param.kalman_lambda,
+                self.dp_params.optimizer_param.kalman_nue
+            )
+        elif self.dp_params.optimizer_param.opt_name == "ADAM":
+            optimizer = optim.Adam(model.parameters(), 
+                                   self.dp_params.optimizer_param.learning_rate)
+        elif self.dp_params.optimizer_param.opt_name == "SGD":
+            optimizer = optim.SGD(
+                model.parameters(), 
+                self.dp_params.optimizer_param.learning_rate,
+                momentum=self.dp_params.optimizer_param.momentum,
+                weight_decay=self.dp_params.optimizer_param.weight_decay
+            )
+        else:
+            raise Exception("Error: Unsupported optimizer!")
         # if self.dp_params.hvd:
         #     optimizer = hvd.DistributedOptimizer(
         #         optimizer, named_parameters=model.named_parameters()
