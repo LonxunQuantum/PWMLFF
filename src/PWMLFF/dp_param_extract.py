@@ -176,10 +176,10 @@ def extract_model_para(config:dict, dp_params:InputParam):
         for keys in list(raw.keys()):
             tmp = keys.split('.')
             if module_sign:
-                if tmp[1] == "fitting_net" and tmp[2] == '0' and tmp[3] == 'resnet_dt':
+                if tmp[1] == "fitting_net" and tmp[2] == '0' and tmp[4] == 'resnet_dt':
                     numResNet +=1
             else:
-                if tmp[0] == "fitting_net" and tmp[1] == '0' and tmp[2] == 'resnet_dt':
+                if tmp[0] == "fitting_net" and tmp[1] == '0' and tmp[4] == 'resnet_dt':
                     numResNet +=1 
 
         print ("number of resnet: " + str(numResNet))
@@ -282,19 +282,19 @@ def extract_type_physical_property(dp_params:InputParam):
     parameter extraction related functions
 """ 
 def catNameEmbedingW(idxNet, idxLayer, has_module=""):
-    return "{}embedding_net.".format(has_module)+str(idxNet)+".weights.weight"+str(idxLayer)
+    return "{}embedding_net.".format(has_module)+str(idxNet)+".layers."+str(idxLayer)+".weight"
 
 def catNameEmbedingB(idxNet, idxLayer, has_module=""):
-    return "{}embedding_net.".format(has_module)+str(idxNet)+".bias.bias"+str(idxLayer)
+    return "{}embedding_net.".format(has_module)+str(idxNet)+".layers."+str(idxLayer)+".bias"
 
 def catNameFittingW(idxNet, idxLayer, has_module=""):
-    return "{}fitting_net.".format(has_module)+str(idxNet)+".weights.weight"+str(idxLayer)
+    return "{}fitting_net.".format(has_module)+str(idxNet)+".layers."+str(idxLayer)+".weight"
 
 def catNameFittingB(idxNet, idxLayer, has_module=""):
-    return "{}fitting_net.".format(has_module)+str(idxNet)+".bias.bias"+str(idxLayer)
+    return "{}fitting_net.".format(has_module)+str(idxNet)+".layers."+str(idxLayer)+".bias"
 
 def catNameFittingRes(idxNet, idxResNet, has_module=""):
-    return "{}fitting_net.".format(has_module)+str(idxNet)+".resnet_dt.resnet_dt"+str(idxResNet)
+    return "{}fitting_net.".format(has_module)+str(idxNet)+".layers."+str(idxResNet)+".resnet_dt"
 
 def count_net_nums(net_list:list):
     net = {}
