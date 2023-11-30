@@ -52,7 +52,7 @@ class KFOptimizerWrapper:
         else:
             raise Exception("Error! the train type {} is not realized!".format(train_type))
         # natoms_sum = inputs[2][0, 0]
-        natoms_sum = len(inputs[2])
+        natoms_sum = len(inputs[1])
         self.optimizer.set_grad_prefactor(natoms_sum)
 
         self.optimizer.zero_grad()
@@ -254,7 +254,7 @@ class KFOptimizerWrapper:
     def update_force(
         self, inputs: list, Force_label: torch.Tensor, update_prefactor: float = 1, train_type = "DP"
     ) -> None:
-        natoms_sum = len(inputs[2])
+        natoms_sum = len(inputs[1])
         bs = Force_label.shape[0]
         self.optimizer.set_grad_prefactor(natoms_sum * self.atoms_per_group * 3)
 

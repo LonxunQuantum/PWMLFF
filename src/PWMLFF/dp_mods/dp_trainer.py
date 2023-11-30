@@ -131,8 +131,8 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
                 ) as prof:
                     with record_function("model_inference"):
                         Etot_predict, Ei_predict, Force_predict, _ = model(
-                            dR_neigh_list, atom_type_map_cpu[0], Imagetype[0], ImageDR, 0, None, None
-                        )   # Imagetype: we only need the first element, because it is same for each image of MOVEMENT
+                            dR_neigh_list, atom_type_map_cpu[0], atom_type[0], ImageDR, 0, None, None
+                        )   # atom_type_map_cpu: we only need the first element, because it is same for each image of MOVEMENT
 
                 print(prof.key_averages().table(sort_by="cuda_time_total"))
                 print("=" * 60, "Profiling model inference end", "=" * 60)
@@ -142,9 +142,9 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
                     Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
                         dR_neigh_list, natoms_img, atom_type, ImageDR, Egroup_weight, Divider)
                 else:
-                    # Imagetype: we only need the first element, because it is same for each image of MOVEMENT
+                    # atom_type_map_cpu: we only need the first element, because it is same for each image of MOVEMENT
                     Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
-                        dR_neigh_list, atom_type_map_cpu[0], Imagetype[0], ImageDR, 0, None, None)
+                        dR_neigh_list, atom_type_map_cpu[0], atom_type[0], ImageDR, 0, None, None)
                     
             optimizer.zero_grad()
 
@@ -402,8 +402,8 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
             if args.optimizer_param.train_egroup is True:
                 kalman_inputs = [Ri, Ri_d, dR_neigh_list, natoms_img, atom_type, ImageDR, Egroup_weight, Divider]
             else:
-                # Imagetype: we only need the first element, because it is same for each image of MOVEMENT
-                kalman_inputs = [dR_neigh_list, atom_type_map_cpu[0], Imagetype[0], ImageDR, None, None]
+                # atom_type_map_cpu: we only need the first element, because it is same for each image of MOVEMENT
+                kalman_inputs = [dR_neigh_list, atom_type_map_cpu[0], atom_type[0], ImageDR, None, None]
 
             if args.profiling:
                 print("=" * 60, "Start profiling KF update energy", "=" * 60)
@@ -622,9 +622,9 @@ def valid(val_loader, model, criterion, device, args:InputParam):
                     Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
                         Ri, Ri_d, dR_neigh_list, natoms_img, atom_type, ImageDR, Egroup_weight, Divider)
                 else:
-                    # Imagetype: we only need the first element, because it is same for each image of MOVEMENT
+                    # atom_type_map_cpu: we only need the first element, because it is same for each image of MOVEMENT
                     Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
-                        dR_neigh_list, atom_type_map_cpu[0], Imagetype[0], ImageDR, 0, None, None)
+                        dR_neigh_list, atom_type_map_cpu[0], atom_type[0], ImageDR, 0, None, None)
                 
                 #return 
                 loss_F_val = criterion(Force_predict, Force_label)
@@ -830,9 +830,9 @@ def predict(val_loader, model, criterion, device, args:InputParam, isprofile=Fal
                             Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
                                 Ri, Ri_d, dR_neigh_list, natoms_img, atom_type, ImageDR, Egroup_weight, Divider)
                         else:
-                            # Imagetype: we only need the first element, because it is same for each image of MOVEMENT
+                            # atom_type_map_cpu: we only need the first element, because it is same for each image of MOVEMENT
                             Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
-                                dR_neigh_list, atom_type_map_cpu[0], Imagetype[0], ImageDR, 0, None, None 
+                                dR_neigh_list, atom_type_map_cpu[0], atom_type[0], ImageDR, 0, None, None 
                             )
                 print(prof.key_averages().table(sort_by="cuda_time_total"))
                 print("=" * 60, "Profiling model inference", "=" * 60)
@@ -842,9 +842,9 @@ def predict(val_loader, model, criterion, device, args:InputParam, isprofile=Fal
                     Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
                         Ri, Ri_d, dR_neigh_list, natoms_img, atom_type, ImageDR, Egroup_weight, Divider)
                 else:
-                    # Imagetype: we only need the first element, because it is same for each image of MOVEMENT
+                    # atom_type_map_cpu: we only need the first element, because it is same for each image of MOVEMENT
                     Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
-                        dR_neigh_list, atom_type_map_cpu[0], Imagetype[0], ImageDR, 0, None, None 
+                        dR_neigh_list, atom_type_map_cpu[0], atom_type[0], ImageDR, 0, None, None 
                     )
             # mse
             loss_Etot_val = criterion(Etot_predict, Etot_label)

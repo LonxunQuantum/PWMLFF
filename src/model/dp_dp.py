@@ -50,7 +50,7 @@ class DP(nn.Module):
             raise RuntimeError("train(): unsupported training data type")
         self.davg = torch.tensor(davg, dtype=self.dtype)
         self.dstd = torch.tensor(dstd, dtype=self.dtype)
-        self.energy_shift = torch.tensor(energy_shift, dtype=self.dtype)
+        # self.energy_shift = torch.tensor(energy_shift, dtype=self.dtype)
 
         self.embedding_net = nn.ModuleList()
         self.fitting_net = nn.ModuleList()
@@ -124,14 +124,11 @@ class DP(nn.Module):
     return {*}
     author: wuxingxing
     '''
-    def get_train_2body_type(self, atom_type_data: List[int]) -> Tuple[List[List[List[int]]], int]:
+    def get_train_2body_type(self, type_map: torch.Tensor) -> Tuple[List[List[List[int]]], int]:
         type_2body_list: List[List[List[int]]] = []         
         type_2body_index: List[int] = []
-        # for i, atom_type in enumerate(atom_type_data):
-        #     if atom_type != 0 and atom_type in self.atom_type:
-        #         type_2body_index.append(i)
         for i, atom in enumerate(self.atom_type):
-            if atom in atom_type_data:
+            if type_map.eq(atom).any():
                 type_2body_index.append(i)
 
         for atom in type_2body_index:
@@ -157,7 +154,7 @@ class DP(nn.Module):
     def forward(self, 
                 list_neigh: torch.Tensor,   # int32
                 Imagetype_map: torch.Tensor,    # int32
-                Imagetype: torch.Tensor,    # int32
+                type_map: torch.Tensor,    # int32
                 ImageDR: torch.Tensor,      # float64
                 nghost: int, 
                 Egroup_weight: Optional[torch.Tensor] = None, 
@@ -169,7 +166,7 @@ class DP(nn.Module):
         Args:
             list_neigh (torch.Tensor): Tensor representing the neighbor list. Shape: (batch_size, natoms_sum, max_neighbor * ntypes).
             Imagetype_map (torch.Tensor): The tensor mapping atom types to image types.. Shape: (natoms_sum).
-            Imagetype (torch.Tensor): Tensor representing the image's atom types. Shape: (batch_size, natoms_sum).
+            type_map (torch.Tensor): Tensor representing the image's atom types. Shape: (ntypes).
             ImageDR (torch.Tensor): Tensor representing the image DRneigh. Shape: (batch_size, natoms_sum, max_neighbor * ntypes, 4).
             nghost (int): Number of ghost atoms.
             Egroup_weight (Optional[torch.Tensor], optional): Tensor representing the Egroup weight. Defaults to None.
@@ -181,19 +178,10 @@ class DP(nn.Module):
         """
         device = ImageDR.device
         dtype = ImageDR.dtype
-        # atom_num_per_image = torch.unique(Imagetype_map, sorted=True, return_counts=True)[1]
-        # atom_num_per_image = torch.zeros(len(self.atom_type), dtype=torch.int32, device=device)
-        # for i, atom_type in enumerate(self.atom_type):
-        #     atom_num_per_image[i] = (Imagetype == atom_type).sum()
-        atom_type_list: List[int] = []
-        atom_types: List[int] = Imagetype.to(torch.long).cpu().tolist()
-        for atom in self.atom_type:
-            if atom in atom_types:
-                atom_type_list.append(atom)
         batch_size = list_neigh.shape[0]
         natoms_sum = list_neigh.shape[1]
         max_neighbor_type = list_neigh.shape[2]  # ntype * max_neighbor_num
-        emb_list, type_nums = self.get_train_2body_type(atom_type_list)
+        emb_list, type_nums = self.get_train_2body_type(type_map)
         # t1 = time.time()
         Ri, Ri_d = self.calculate_Ri(natoms_sum, batch_size, max_neighbor_type, Imagetype_map, ImageDR, device, dtype)
         Ri.requires_grad_()
