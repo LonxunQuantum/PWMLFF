@@ -127,26 +127,31 @@ class DP(nn.Module):
     def get_train_2body_type(self, atom_type_data: List[int]) -> Tuple[List[List[List[int]]], int]:
         type_2body_list: List[List[List[int]]] = []         
         type_2body_index: List[int] = []
-        for i, atom_type in enumerate(atom_type_data):
-            if atom_type != 0 and atom_type in self.atom_type:
+        # for i, atom_type in enumerate(atom_type_data):
+        #     if atom_type != 0 and atom_type in self.atom_type:
+        #         type_2body_index.append(i)
+        for i, atom in enumerate(self.atom_type):
+            if atom in atom_type_data:
                 type_2body_index.append(i)
-        # for atom in type_2body_index:
-        #     type_2body: List[List[int]] = []        # 整数列表的列表
-        #     for atom2 in type_2body_index:
-        #         type_2body.append([atom, atom2])        # 整数列表
-        #     type_2body_list.append(type_2body)
+
+        for atom in type_2body_index:
+            type_2body: List[List[int]] = []        # 整数列表的列表
+            for atom2 in type_2body_index:
+                type_2body.append([atom, atom2])        # 整数列表
+            type_2body_list.append(type_2body)
         pair_indices = len(type_2body_index)
-        num_pairs = int(pair_indices ** 2)
-        type_2body: List[List[int]] = []
-        for n in range(num_pairs):
-            i = n // pair_indices
-            j = n % pair_indices
-            # atom = type_2body_index[i]
-            # atom2 = type_2body_index[j]
-            if j == 0:
-                type_2body = []
-                type_2body_list.append(type_2body)
-            type_2body.append([i, j])
+
+        # num_pairs = int(pair_indices ** 2)
+        # type_2body: List[List[int]] = []
+        # for n in range(num_pairs):
+        #     i = n // pair_indices
+        #     j = n % pair_indices
+        #     # atom = type_2body_index[i]
+        #     # atom2 = type_2body_index[j]
+        #     if j == 0:
+        #         type_2body = []
+        #         type_2body_list.append(type_2body)
+        #     type_2body.append([i, j])
         return type_2body_list, pair_indices
    
     def forward(self, 
@@ -180,10 +185,15 @@ class DP(nn.Module):
         # atom_num_per_image = torch.zeros(len(self.atom_type), dtype=torch.int32, device=device)
         # for i, atom_type in enumerate(self.atom_type):
         #     atom_num_per_image[i] = (Imagetype == atom_type).sum()
+        atom_type_list: List[int] = []
+        atom_types: List[int] = Imagetype.to(torch.long).cpu().tolist()
+        for atom in self.atom_type:
+            if atom in atom_types:
+                atom_type_list.append(atom)
         batch_size = list_neigh.shape[0]
         natoms_sum = list_neigh.shape[1]
         max_neighbor_type = list_neigh.shape[2]  # ntype * max_neighbor_num
-        emb_list, type_nums = self.get_train_2body_type(self.atom_type)
+        emb_list, type_nums = self.get_train_2body_type(atom_type_list)
         # t1 = time.time()
         Ri, Ri_d = self.calculate_Ri(natoms_sum, batch_size, max_neighbor_type, Imagetype_map, ImageDR, device, dtype)
         Ri.requires_grad_()
