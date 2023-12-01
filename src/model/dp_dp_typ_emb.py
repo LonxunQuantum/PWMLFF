@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import sys, os
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict
 sys.path.append(os.getcwd())
 
 from src.model.dp_embedding_typ_emb import EmbeddingNet, FittingNet
@@ -89,6 +89,10 @@ class TypeDP(nn.Module):
                                                self.M2 * fitting_net_input_dim, energy_shift[i], magic))
 
         self.compress_tab = None #for dp compress
+
+        # set type embedding physical infos
+        self.type_vector = get_normalized_data_list(self.atom_type, self.physical_property)
+        # torch.tensor(compress_dict["table"], dtype=self.dtype)
         
     def get_egroup(self,
                    Ei: torch.Tensor,
@@ -122,7 +126,7 @@ class TypeDP(nn.Module):
         self.sij_len = compress_dict["sij_len"]
         self.sij_out_len = compress_dict["sij_out_len"]
         self.order = compress_dict["order"] if "order" in compress_dict.keys() else 5 #the default compress order is 5
-        self.type_vector = compress_dict["type_vector"] if "type_vector" in compress_dict.keys() else None #the default compress order is 5
+        # self.type_vector = compress_dict["type_vector"] if "type_vector" in compress_dict.keys() else None #the default compress order is 5
 
     '''
     description: 
@@ -189,12 +193,9 @@ class TypeDP(nn.Module):
         natoms_sum = list_neigh.shape[1]
         max_neighbor_type = list_neigh.shape[2]  # ntype * max_neighbor_num
         emb_list, type_nums =  self.get_train_2body_type(type_map)
-        # get type_embedding_vector
-        # physical_property = self.config["net_cfg"]["type_embedding_net"]["physical_property"]
-        type_vector = get_normalized_data_list(type_map.tolist(), self.physical_property)
         Ri, Ri_d = self.calculate_Ri(natoms_sum, batch_size, max_neighbor_type, Imagetype_map, ImageDR, device, dtype)
         Ri.requires_grad_()
-        Ei = self.calculate_Ei(Imagetype_map, Ri, batch_size, emb_list, type_nums, type_vector, device, dtype)
+        Ei = self.calculate_Ei(Imagetype_map, Ri, batch_size, emb_list, type_nums, device, dtype)
         assert Ei is not None
         Etot = torch.sum(Ei, 1)  
         Egroup = self.get_egroup(Ei, Egroup_weight, divider) if Egroup_weight is not None else None
@@ -299,7 +300,6 @@ class TypeDP(nn.Module):
                      batch_size: int,
                      emb_list: List[List[List[int]]],
                      type_nums: int, 
-                     type_vector: List[List[float]],
                      device: torch.device, 
                      dtype: torch.dtype) -> Optional[torch.Tensor]:
         """
@@ -320,7 +320,7 @@ class TypeDP(nn.Module):
         fit_net_dict = {idx: fit_net for idx, fit_net in enumerate(self.fitting_net)}
         for type_emb in emb_list:
             # t1 = time.time()
-            xyz_scater_a, xyz_scater_b, ntype = self.calculate_xyz_scater(Imagetype_map, Ri, type_emb, type_nums, type_vector, device, dtype)
+            xyz_scater_a, xyz_scater_b, ntype = self.calculate_xyz_scater(Imagetype_map, Ri, type_emb, type_nums, device, dtype)
             if xyz_scater_a.any() == 0:
                 continue
             DR_ntype = torch.matmul(xyz_scater_a.transpose(-2, -1), xyz_scater_b)
@@ -342,7 +342,6 @@ class TypeDP(nn.Module):
                              Ri: torch.Tensor,
                              type_emb: List[List[int]],
                              type_nums: int, 
-                             type_vector: List[List[float]],
                              device: torch.device, 
                              dtype: torch.dtype) -> Tuple[torch.Tensor, torch.Tensor, int]:
         ntype = 0
@@ -366,7 +365,7 @@ class TypeDP(nn.Module):
             assert tmp_a_ is not None
             tmp_a = tmp_a_ if tmp_a is None else torch.concat((tmp_a, tmp_a_), dim=2)
 
-            type_emb_ = torch.tensor(type_vector[self.atom_type[ntype_1]], dtype=dtype, device=device).repeat(self.maxNeighborNum,1)
+            type_emb_ = torch.tensor(self.type_vector[self.atom_type[ntype_1]], dtype=dtype, device=device).repeat(self.maxNeighborNum,1)
             assert type_emb_ is not None
             type_emb_feat = type_emb_ if type_emb_feat is None else torch.concat((type_emb_feat, type_emb_), dim=0)
             # t2 = time.time()
@@ -384,7 +383,7 @@ class TypeDP(nn.Module):
                     G5 = self.calc_compress_5order(S_Rij_, ntype_1)
                     assert G5 is not None
                     G = G5 if G is None else torch.concat((G, G5), dim=2)
-        if S_Rij is None:
+        if tmp_a is None:
             return torch.zeros(1, device=device), torch.zeros(1, device=device), ntype
         tmp_a = tmp_a.transpose(-2, -1)
         # For each neighbor of the central atom 'ntype', obtain the type code by passing it through the type embedding net
@@ -396,6 +395,8 @@ class TypeDP(nn.Module):
         # else:
         #     S_Rij_type = torch.concat((S_Rij, type_emb_feat.unsqueeze(0).unsqueeze(0).expand(S_Rij.shape[0], S_Rij.shape[1], -1, -1)), dim=3)
         #-------------------------------------------------------#
+        assert type_emb_feat is not None
+        assert S_Rij is not None
         if self.compress_tab is None:
             S_Rij_type = torch.concat((S_Rij, type_emb_feat.unsqueeze(0).unsqueeze(0).expand(S_Rij.shape[0], S_Rij.shape[1], -1, -1)), dim=3)
             G = self.embedding_net[-1](S_Rij_type) #[4, 60, 200, 25] li-si S_Rij_type     
