@@ -127,7 +127,7 @@ for typ in physical.keys():
     max_value = np.max(data)
     physical_scale[typ] = [min_value, max_value]
 
-def get_normalized_data(atom_type, type_list:list):
+def get_normalized_data(atom_type, type_list):
     dicts = {}
     atom_name = physical["atomic_number"][atom_type]
     # atomic_number
@@ -139,9 +139,9 @@ def get_normalized_data(atom_type, type_list:list):
         dicts[typ] = normalized_data
     return dicts
 
-def get_normalized_data_list(atom_type_list: list, type_list:list):
+def get_normalized_data_list(type_map, type_list):
     dicts = {}
-    for atom in atom_type_list:
+    for atom in type_map:
         if atom == 0:
             continue
         dicts[atom] = list(get_normalized_data(atom, type_list).values())

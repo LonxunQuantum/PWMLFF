@@ -383,7 +383,7 @@ class DP(nn.Module):
             # print("calculate_Rij:", t2-t1, "\nembedding_net:", t3-t2, "\nconcat:", t4-t3, "\n********************")
         # assert xyz_scater_a is not None
         if xyz_scater_a is None:
-            return torch.zeros(1, 1, 1, 1, device=device), torch.zeros(1, 1, 1, 1, device=device), ntype
+            return torch.zeros(1, device=device), torch.zeros(1, device=device), ntype
         xyz_scater_a = xyz_scater_a / (self.maxNeighborNum * type_nums)
         xyz_scater_b = xyz_scater_a[:, :, :, :self.M2]
         return xyz_scater_a, xyz_scater_b, ntype
