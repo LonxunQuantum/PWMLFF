@@ -190,7 +190,7 @@ class dp_network:
         # create model 
         # when running evaluation, nothing needs to be done with davg.npy
         if self.dp_params.descriptor.type_embedding:
-            model = TypeDP(self.config, self.device, davg, dstd, energy_shift)
+            model = TypeDP(self.config, davg, dstd, energy_shift)
         else:
             model = DP(self.config, davg, dstd, energy_shift)
         model = model.to(self.training_type)

@@ -314,6 +314,8 @@ class DP(nn.Module):
         for type_emb in emb_list:
             # t1 = time.time()
             xyz_scater_a, xyz_scater_b, ntype = self.calculate_xyz_scater(Imagetype_map, Ri, type_emb, type_nums, device)
+            if xyz_scater_a.any() == 0:
+                continue
             DR_ntype = torch.matmul(xyz_scater_a.transpose(-2, -1), xyz_scater_b)
             DR_ntype = DR_ntype.reshape(batch_size, xyz_scater_a.shape[1], -1)
             # t2 = time.time()
@@ -346,6 +348,8 @@ class DP(nn.Module):
             # t1 = time.time()
             ntype, ntype_1 = emb
             mask = (Imagetype_map == ntype).flatten()
+            if not mask.any():
+                continue
             indices = torch.arange(len(Imagetype_map.flatten()),device=device)[mask]      
             S_Rij = Ri[:, indices, ntype_1 * self.maxNeighborNum:(ntype_1+1) * self.maxNeighborNum, 0].unsqueeze(-1)
             # t2 = time.time()
@@ -377,7 +381,9 @@ class DP(nn.Module):
             xyz_scater_a = tmp_b if xyz_scater_a is None else xyz_scater_a + tmp_b
             # t4 = time.time()
             # print("calculate_Rij:", t2-t1, "\nembedding_net:", t3-t2, "\nconcat:", t4-t3, "\n********************")
-        assert xyz_scater_a is not None
+        # assert xyz_scater_a is not None
+        if xyz_scater_a is None:
+            return torch.zeros(1, 1, 1, 1, device=device), torch.zeros(1, 1, 1, 1, device=device), ntype
         xyz_scater_a = xyz_scater_a / (self.maxNeighborNum * type_nums)
         xyz_scater_b = xyz_scater_a[:, :, :, :self.M2]
         return xyz_scater_a, xyz_scater_b, ntype
