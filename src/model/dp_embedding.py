@@ -136,6 +136,7 @@ class FittingNet(nn.Module):
             normal(bias_init, mean=ener_shift, std=1.0)
         
         self.layers.append(LayerModule(wij, bias_init, None))
+        
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         for i, layer in enumerate(self.layers):
             if i < len(self.layers) - 1:        # 对于非最后一层

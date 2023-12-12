@@ -102,6 +102,24 @@ void launch_calculate_force(
     dim3 block_grid(nblock, natoms, batch_size);
     dim3 thread_grid(LEN, 3);
     force_calc<<<block_grid, thread_grid>>>(force, dE, Ri_d, nblist, natoms, neigh_num);
+
+    // std::cout << "batch_size: " << batch_size << std::endl;
+    // std::cout << "natoms: " << natoms << std::endl;
+    // std::cout << "neigh_num: " << neigh_num << std::endl;
+    // std::vector<int> h_nblist(neigh_num * natoms * batch_size);
+    // std::vector<DType> h_dE(neigh_num * 4 * natoms * batch_size);
+    // std::vector<DType> h_Ri_d(neigh_num * 4 * 3 * natoms * batch_size);
+    // std::vector<DType> h_force(natoms * 3 * batch_size);
+    // cudaMemcpy(h_nblist.data(), nblist, sizeof(int) * neigh_num * natoms * batch_size, cudaMemcpyDeviceToHost);
+    // cudaMemcpy(h_dE.data(), dE, sizeof(DType) * neigh_num * 4 * natoms * batch_size, cudaMemcpyDeviceToHost);
+    // cudaMemcpy(h_Ri_d.data(), Ri_d, sizeof(DType) * neigh_num * 4 * 3 * natoms * batch_size, cudaMemcpyDeviceToHost);
+    // cudaMemcpy(h_force.data(), force, sizeof(DType) * natoms * 3 * batch_size, cudaMemcpyDeviceToHost);
+    // for (int i = 0; i < neigh_num * natoms * batch_size; i++) {
+    //     std::cout << "nblist[" << i << "]: " << h_nblist[i] << std::endl;
+    // }
+    // for (int i = 0; i < natoms * 3 * batch_size; i++) {
+    //     std::cout << "force[" << i << "]: " << h_force[i] << std::endl;
+    // }
 #endif
 }
 

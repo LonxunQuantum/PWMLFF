@@ -9,7 +9,15 @@ from typing import List, Tuple, Optional
 sys.path.append(os.getcwd())
 
 from src.model.dp_embedding import EmbeddingNet, FittingNet
-from src.model.calculate_force import CalculateCompress, CalculateForce, CalculateVirialForce
+# from src.model.calculate_force import CalculateCompress, CalculateForce, CalculateVirialForce
+if torch.cuda.is_available():
+    lib_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "op/build/lib/libCalcOps_bind.so")
+    torch.ops.load_library(lib_path)
+    CalcOps = torch.ops.CalcOps_cuda
+else:
+    lib_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "op/build/lib/libCalcOps_bind_cpu.so")
+    torch.ops.load_library(lib_path)    # load the custom op, no use for cpu version
+    CalcOps = torch.ops.CalcOps_cpu     # only for compile while no cuda device
 '''
 # logging and our extension
 import logging
@@ -368,11 +376,11 @@ class DP(nn.Module):
                 if self.compress_tab.device != device:
                     self.compress_tab = self.compress_tab.to(device)
                 if self.order == 2:
-                    G = self.calc_compress(S_Rij, embedding_index)
+                    G = self.calc_compress(S_Rij, embedding_index, device)
                 elif self.order == 5:
-                    G = self.calc_compress_5order(S_Rij, embedding_index)
+                    G = self.calc_compress_5order(S_Rij, embedding_index, device)
                 elif self.order == 3:
-                    G = self.calc_compress_3order(S_Rij, embedding_index)
+                    G = self.calc_compress_3order(S_Rij, embedding_index, device)
             # t3 = time.time()
             tmp_a = Ri[:, indices, ntype_1 * self.maxNeighborNum:(ntype_1+1) * self.maxNeighborNum].transpose(-2, -1)
 
@@ -399,44 +407,47 @@ class DP(nn.Module):
                                nghost: int,
                                device: torch.device,
                                dtype: torch.dtype) -> Tuple[torch.Tensor, torch.Tensor]:
-        # t1 = time.time()          
         mask: List[Optional[torch.Tensor]] = [torch.ones_like(Etot)]
         dE = torch.autograd.grad([Etot], [Ri], grad_outputs=mask, retain_graph=True, create_graph=True)[0]
         assert dE is not None
-        dE = torch.unsqueeze(dE, dim=-1)
-        # dE * Ri_d [batch, natom, max_neighbor * len(type_map),4,1] * [batch, natom, max_neighbor * len(type_map), 4, 3]
-        # dE_Rid [batch, natom, max_neighbor * len(type_map), 3]
-        dE_Rid = torch.mul(dE, Ri_d).sum(dim=-2)
-        # t2 = time.time()
-        Force = torch.zeros((batch_size, natoms_sum + nghost + 1, 3), device=device, dtype=dtype)
-        Force[:, 1:natoms_sum + 1, :] = -1 * dE_Rid.sum(dim=-2)
-        Virial = torch.zeros((batch_size, 9), device=device, dtype=dtype)
-        for batch_idx in range(batch_size):
-            indice = list_neigh[batch_idx].view(-1).unsqueeze(-1).expand(-1, 3).to(torch.int64) # list_neigh's index start from 1, so the Force's dimension should be natoms_sum + 1
-            values = dE_Rid[batch_idx].view(-1, 3)
-            Force[batch_idx].scatter_add_(0, indice, values).view(natoms_sum + nghost + 1, 3)
-            Virial[batch_idx, 0] = (ImageDR[batch_idx, :, :, 1] * dE_Rid[batch_idx, :, :, 0]).view(-1).sum(dim=0) # xx
-            Virial[batch_idx, 1] = (ImageDR[batch_idx, :, :, 1] * dE_Rid[batch_idx, :, :, 1]).view(-1).sum(dim=0) # xy
-            Virial[batch_idx, 2] = (ImageDR[batch_idx, :, :, 1] * dE_Rid[batch_idx, :, :, 2]).view(-1).sum(dim=0) # xz
-            Virial[batch_idx, 4] = (ImageDR[batch_idx, :, :, 2] * dE_Rid[batch_idx, :, :, 1]).view(-1).sum(dim=0) # yy
-            Virial[batch_idx, 5] = (ImageDR[batch_idx, :, :, 2] * dE_Rid[batch_idx, :, :, 2]).view(-1).sum(dim=0) # yz
-            Virial[batch_idx, 8] = (ImageDR[batch_idx, :, :, 3] * dE_Rid[batch_idx, :, :, 2]).view(-1).sum(dim=0) # zz
-            Virial[batch_idx, [3, 6, 7]] = Virial[batch_idx, [1, 2, 5]]
-        Force = Force[:, 1:, :]
+        # t1 = time.time()          
+        if device.type == "cpu":
+            dE = torch.unsqueeze(dE, dim=-1)
+            # dE * Ri_d [batch, natom, max_neighbor * len(type_map),4,1] * [batch, natom, max_neighbor * len(type_map), 4, 3]
+            # dE_Rid [batch, natom, max_neighbor * len(type_map), 3]
+            dE_Rid = torch.mul(dE, Ri_d).sum(dim=-2)
+            Force = torch.zeros((batch_size, natoms_sum + nghost + 1, 3), device=device, dtype=dtype)
+            Force[:, 1:natoms_sum + 1, :] = -1 * dE_Rid.sum(dim=-2)
+            Virial = torch.zeros((batch_size, 9), device=device, dtype=dtype)
+            for batch_idx in range(batch_size):
+                indice = list_neigh[batch_idx].view(-1).unsqueeze(-1).expand(-1, 3).to(torch.int64) # list_neigh's index start from 1, so the Force's dimension should be natoms_sum + 1
+                values = dE_Rid[batch_idx].view(-1, 3)
+                Force[batch_idx].scatter_add_(0, indice, values).view(natoms_sum + nghost + 1, 3)
+                Virial[batch_idx, 0] = (ImageDR[batch_idx, :, :, 1] * dE_Rid[batch_idx, :, :, 0]).view(-1).sum(dim=0) # xx
+                Virial[batch_idx, 1] = (ImageDR[batch_idx, :, :, 1] * dE_Rid[batch_idx, :, :, 1]).view(-1).sum(dim=0) # xy
+                Virial[batch_idx, 2] = (ImageDR[batch_idx, :, :, 1] * dE_Rid[batch_idx, :, :, 2]).view(-1).sum(dim=0) # xz
+                Virial[batch_idx, 4] = (ImageDR[batch_idx, :, :, 2] * dE_Rid[batch_idx, :, :, 1]).view(-1).sum(dim=0) # yy
+                Virial[batch_idx, 5] = (ImageDR[batch_idx, :, :, 2] * dE_Rid[batch_idx, :, :, 2]).view(-1).sum(dim=0) # yz
+                Virial[batch_idx, 8] = (ImageDR[batch_idx, :, :, 3] * dE_Rid[batch_idx, :, :, 2]).view(-1).sum(dim=0) # zz
+                Virial[batch_idx, [3, 6, 7]] = Virial[batch_idx, [1, 2, 5]]
+            Force = Force[:, 1:, :]
+        else:
+            Ri_d = Ri_d.view(batch_size, natoms_sum, -1, 3)
+            dE = dE.view(batch_size, natoms_sum, 1, -1)
+            Force = -1 * torch.matmul(dE, Ri_d).squeeze(-2)
+            ImageDR = ImageDR[:,:,:,1:]
+            list_neigh = torch.unsqueeze(list_neigh,2)
+            list_neigh = (list_neigh - 1).type(torch.int)                               
+            Force = CalcOps.calculateForce(list_neigh, dE, Ri_d, Force)[0]                
+            Virial = CalcOps.calculateVirial(list_neigh, dE, ImageDR, Ri_d)[0]            
+            # t2 = time.time()
         # t3 = time.time()
-        '''this part for cuda version, not support for torchscript
-        list_neigh = torch.unsqueeze(list_neigh,2)
-        list_neigh = (list_neigh - 1).type(torch.int)
-        F = CalculateForce.apply(list_neigh, dE, Ri_d, F)
-        Virial = CalculateVirialForce.apply(list_neigh, dE0, ImageDR0, Ri_d0)
-        '''
 
         '''
         Ri_d = Ri_d.view(batch_size, natoms_sum, -1, 3)
         dE = dE.view(batch_size, natoms_sum, 1, -1)
         Force = torch.zeros((batch_size, natoms_sum + nghost, 3), device=device, dtype=dtype)
         Force[:, :natoms_sum, :] = -1 * torch.matmul(dE, Ri_d).squeeze(-2)
-        # t4 = time.time()
         # 1. Get atom_idx & neighbor_idx
         non_zero_indices = list_neigh.nonzero()
         batch_indices, atom_indices, neighbor_indices = non_zero_indices.unbind(1)
@@ -450,11 +461,7 @@ class DP(nn.Module):
         for batch_idx in range(batch_size):
             mask_accumulation = batch_indices == batch_idx
             Force[batch_idx].index_add_(0, atom_idx[mask_accumulation], dE_dx[mask_accumulation]).view(natoms_sum + nghost, 3)
-        '''
-        # t5 = time.time()
-        # print("autograd:", t2-t1, "\nmatmul:", t3-t2, "\nindexing:", t5-t4, "\naccumulation:", t6-t5, "\n********************")
-        # 3. Calculate Virial
-        '''
+
         Virial = torch.zeros((batch_size, 9), device=device, dtype=dtype)
         ImageDR_selected = ImageDR[batch_indices, atom_indices, neighbor_indices]
         virial_components = torch.zeros((len(batch_indices), 6), device=device, dtype=dtype)
@@ -466,6 +473,34 @@ class DP(nn.Module):
         virial_components[:, 5] = ImageDR_selected[:, 3] * dE_dx[:, 2] # zz 
         Virial[:, [0, 1, 2, 4, 5, 8]] = virial_components.sum(dim=0)
         Virial[:, [3, 6, 7]] = Virial[:, [1, 2, 5]]
+        '''
+        
+        '''
+        Virial0 = torch.zeros((batch_size, 9), device=device, dtype=dtype)
+        for batch_idx in range(batch_size):   
+            for i in range(natoms_sum):
+                # get atom_idx & neighbor_idx
+                i_neighbor = list_neigh[batch_idx, i]  #[100]
+                neighbor_idx = i_neighbor.nonzero().squeeze().type(torch.int64)  #[78]
+                atom_idx = i_neighbor[neighbor_idx].type(torch.int64) - 1
+                # calculate Force
+                for neigh_tmp, neighbor_id in zip(atom_idx, neighbor_idx):
+                    tmpA = dE0[batch_idx, i, :, neighbor_id*4:neighbor_id*4+4]
+                    tmpB = Ri_d0[batch_idx, i, neighbor_id*4:neighbor_id*4+4]
+                    dE_dx = torch.matmul(tmpA, tmpB).squeeze(0)
+                    F[batch_idx, neigh_tmp] += dE_dx
+
+                    Virial0[batch_idx][0] += ImageDR0[batch_idx, i, neighbor_id][0]*dE_dx[0] #xx
+                    Virial0[batch_idx][4] += ImageDR0[batch_idx, i, neighbor_id][1]*dE_dx[1] #yy
+                    Virial0[batch_idx][8] += ImageDR0[batch_idx, i, neighbor_id][2]*dE_dx[2] #zz
+
+                    Virial0[batch_idx][1] += ImageDR0[batch_idx, i, neighbor_id][0]*dE_dx[1] 
+                    Virial0[batch_idx][2] += ImageDR0[batch_idx, i, neighbor_id][0]*dE_dx[2]
+                    Virial0[batch_idx][5] += ImageDR0[batch_idx, i, neighbor_id][1]*dE_dx[2]
+
+            Virial0[batch_idx][3] = Virial0[batch_idx][1]
+            Virial0[batch_idx][6] = Virial0[batch_idx][2]
+            Virial0[batch_idx][7] = Virial0[batch_idx][5]
         '''
         return Force, Virial 
        
@@ -490,7 +525,7 @@ class DP(nn.Module):
     return {*}
     author: wuxingxing
     '''    
-    def calc_compress(self, S_Rij:torch.Tensor, embedding_index:int):
+    def calc_compress(self, S_Rij:torch.Tensor, embedding_index:int, device: torch.device):
         sij = S_Rij.flatten()
         out_len = int(self.compress_tab.shape[-1]/2)
         x = (sij-self.sij_min)/self.dx
@@ -507,26 +542,26 @@ class DP(nn.Module):
         G = G.reshape(S_Rij.shape[0], S_Rij.shape[1], S_Rij.shape[2], G.shape[1])
         return G
     
-    def calc_compress_5order(self, S_Rij:torch.Tensor, embedding_index:int):
+    def calc_compress_5order(self, S_Rij:torch.Tensor, embedding_index:int, device: torch.device):
         sij = S_Rij.flatten()
 
         x = (sij-self.sij_min)/self.dx
         index_k1 = x.type(torch.long) # get floor
         xk = self.sij_min + index_k1*self.dx
         f2 = (sij - xk).flatten().unsqueeze(-1)
-
         coefficient = self.compress_tab[embedding_index, index_k1, :]
-
         # G = CalculateCompress.apply(f2, coefficient)
-
-        G = f2**5 *coefficient[:, :, 0] + f2**4 * coefficient[:, :, 1] + \
-            f2**3 * coefficient[:, :, 2] + f2**2 * coefficient[:, :, 3] + \
-            f2 * coefficient[:, :, 4] + coefficient[:, :, 5]
+        if device.type == "cpu":
+            G = f2**5 *coefficient[:, :, 0] + f2**4 * coefficient[:, :, 1] + \
+                f2**3 * coefficient[:, :, 2] + f2**2 * coefficient[:, :, 3] + \
+                f2 * coefficient[:, :, 4] + coefficient[:, :, 5]
+        else:
+            G = torch.ops.CalcOps.calculateCompress(f2, coefficient)[0]
         
         G = G.reshape(S_Rij.shape[0], S_Rij.shape[1], S_Rij.shape[2], G.shape[1])
         return G
 
-    def calc_compress_3order(self, S_Rij:torch.Tensor, embedding_index:int):
+    def calc_compress_3order(self, S_Rij:torch.Tensor, embedding_index:int, device: torch.device):
         sij = S_Rij.flatten()
         mask = sij < self.sij_max
         x = torch.zeros_like(sij)
@@ -540,8 +575,11 @@ class DP(nn.Module):
         f2 = (sij - xk).flatten().unsqueeze(-1)
         coefficient = self.compress_tab[embedding_index, index_k1, :]
         # G = CalculateCompress.apply(f2, coefficient)
-        G = f2**3 *coefficient[:, :, 0] + f2**2 * coefficient[:, :, 1] + \
-            f2 * coefficient[:, :, 2] + coefficient[:, :, 3]
+        if device.type == "cpu":
+            G = f2**3 *coefficient[:, :, 0] + f2**2 * coefficient[:, :, 1] + \
+                f2 * coefficient[:, :, 2] + coefficient[:, :, 3]
+        else:
+            G = torch.ops.CalcOps.calculateCompress(f2, coefficient)[0]
         G = G.reshape(S_Rij.shape[0], S_Rij.shape[1], S_Rij.shape[2], G.shape[1])
         return G
     
