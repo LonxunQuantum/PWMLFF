@@ -409,8 +409,13 @@ class DP(nn.Module):
                                dtype: torch.dtype) -> Tuple[torch.Tensor, torch.Tensor]:
         mask: List[Optional[torch.Tensor]] = [torch.ones_like(Etot)]
         dE = torch.autograd.grad([Etot], [Ri], grad_outputs=mask, retain_graph=True, create_graph=True)[0]
+        '''
+        # this result is same as the above code
+        mask: List[Optional[torch.Tensor]] = [torch.ones_like(Ei)]
+        dE = torch.autograd.grad([Ei], [Ri], grad_outputs=mask, retain_graph=True, create_graph=True)[0]
+        '''
         assert dE is not None
-        # t1 = time.time()          
+        # t1 = time.time()     
         if device.type == "cpu":
             dE = torch.unsqueeze(dE, dim=-1)
             # dE * Ri_d [batch, natom, max_neighbor * len(type_map),4,1] * [batch, natom, max_neighbor * len(type_map), 4, 3]
@@ -437,10 +442,11 @@ class DP(nn.Module):
             Force = -1 * torch.matmul(dE, Ri_d).squeeze(-2)
             ImageDR = ImageDR[:,:,:,1:]
             list_neigh = torch.unsqueeze(list_neigh,2)
-            list_neigh = (list_neigh - 1).type(torch.int)                               
-            Force = CalcOps.calculateForce(list_neigh, dE, Ri_d, Force)[0]                
-            Virial = CalcOps.calculateVirial(list_neigh, dE, ImageDR, Ri_d)[0]            
-            # t2 = time.time()
+            list_neigh = (list_neigh - 1).type(torch.int)
+            Force = CalcOps.calculateForce(list_neigh, dE, Ri_d, Force, torch.tensor(nghost, device=device, dtype=torch.int64))[0]
+            Virial = CalcOps.calculateVirial(list_neigh, dE, ImageDR, Ri_d, torch.tensor(nghost, device=device, dtype=torch.int64))[0] # not true value
+        # print(torch.allclose(Force, Force0, atol=1e-10))
+        # t2 = time.time()
         # t3 = time.time()
 
         '''
@@ -556,7 +562,7 @@ class DP(nn.Module):
                 f2**3 * coefficient[:, :, 2] + f2**2 * coefficient[:, :, 3] + \
                 f2 * coefficient[:, :, 4] + coefficient[:, :, 5]
         else:
-            G = torch.ops.CalcOps.calculateCompress(f2, coefficient)[0]
+            G = CalcOps.calculateCompress(f2, coefficient)[0]
         
         G = G.reshape(S_Rij.shape[0], S_Rij.shape[1], S_Rij.shape[2], G.shape[1])
         return G
@@ -579,7 +585,7 @@ class DP(nn.Module):
             G = f2**3 *coefficient[:, :, 0] + f2**2 * coefficient[:, :, 1] + \
                 f2 * coefficient[:, :, 2] + coefficient[:, :, 3]
         else:
-            G = torch.ops.CalcOps.calculateCompress(f2, coefficient)[0]
+            G = CalcOps.calculateCompress(f2, coefficient)[0]
         G = G.reshape(S_Rij.shape[0], S_Rij.shape[1], S_Rij.shape[2], G.shape[1])
         return G
     

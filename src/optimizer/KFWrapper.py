@@ -92,11 +92,9 @@ class KFOptimizerWrapper:
                 inputs[1],
                 inputs[2],
                 inputs[3],
+                0,
                 inputs[4],
                 inputs[5],
-                inputs[6],
-                inputs[7],
-                inputs[8],
                 is_calc_f=False,
             )
         elif train_type == "NN": # nn training
@@ -112,7 +110,7 @@ class KFOptimizerWrapper:
             )
         else:
             raise Exception("Error! the train type {} is not realized!".format(train_type))
-        natoms_sum = inputs[3][0, 0]
+        natoms_sum = len(inputs[1])
         self.optimizer.set_grad_prefactor(1.0)
 
         self.optimizer.zero_grad()
@@ -153,11 +151,9 @@ class KFOptimizerWrapper:
                 inputs[1],
                 inputs[2],
                 inputs[3],
+                0,
                 inputs[4],
-                inputs[5],
-                inputs[6],
-                inputs[7],
-                inputs[8]
+                inputs[5]
             )
         elif train_type == "NN":
             Etot_predict, _, _, Virial_predict = self.model(
@@ -172,7 +168,7 @@ class KFOptimizerWrapper:
         else:
             raise Exception("Error! the train type {} is not realized!".format(train_type))
 
-        natoms_sum = inputs[3][0, 0]
+        natoms_sum = len(inputs[1])
         self.optimizer.set_grad_prefactor(natoms_sum)
         
         self.optimizer.zero_grad()
@@ -314,11 +310,9 @@ class KFOptimizerWrapper:
                 inputs[1],
                 inputs[2],
                 inputs[3],
+                0,
                 inputs[4],
                 inputs[5],
-                inputs[6],
-                inputs[7],
-                inputs[8],
                 is_calc_f=False,
             )
         elif train_type == "NN": # nn training
@@ -335,7 +329,7 @@ class KFOptimizerWrapper:
         else:
             raise Exception("Error! the train type {} is not realized!".format(train_type))
 
-        natoms_sum = inputs[3][0, 0]
+        natoms_sum = len(inputs[1])
         #print ("natoms_sum",natoms_sum)
         bs = Ei_label.shape[0]
         self.optimizer.set_grad_prefactor(1.0)

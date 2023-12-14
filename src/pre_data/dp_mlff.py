@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import os
-import yaml
 import numpy as np
-import math
 import torch
 from collections import Counter
 import subprocess as sp
@@ -227,8 +225,8 @@ def save_npy_files(data_path, data_set):
     np.save(os.path.join(data_path, "ImageDR.npy"), data_set["ImageDR"])
     print("    ListNeighbor.npy", data_set["ListNeighbor"].shape)
     np.save(os.path.join(data_path, "ListNeighbor.npy"), data_set["ListNeighbor"])
-    print("    NeighborType.npy", data_set["NeighborType"].shape)
-    np.save(os.path.join(data_path, "NeighborType.npy"), data_set["NeighborType"])
+    # print("    NeighborType.npy", data_set["NeighborType"].shape)
+    # np.save(os.path.join(data_path, "NeighborType.npy"), data_set["NeighborType"])
     print("    Ei.npy", data_set["Ei"].shape)
     np.save(os.path.join(data_path, "Ei.npy"), data_set["Ei"])
     
@@ -242,10 +240,10 @@ def save_npy_files(data_path, data_set):
         print("    Egroup_weight.npy", data_set["Egroup_weight"].shape)
         np.save(os.path.join(data_path, "Egroup_weight.npy"), data_set["Egroup_weight"])
 
-    print("    Ri.npy", data_set["Ri"].shape)
-    np.save(os.path.join(data_path, "Ri.npy"), data_set["Ri"])
-    print("    Ri_d.npy", data_set["Ri_d"].shape)
-    np.save(os.path.join(data_path, "Ri_d.npy"), data_set["Ri_d"])
+    # print("    Ri.npy", data_set["Ri"].shape)
+    # np.save(os.path.join(data_path, "Ri.npy"), data_set["Ri"])
+    # print("    Ri_d.npy", data_set["Ri_d"].shape)
+    # np.save(os.path.join(data_path, "Ri_d.npy"), data_set["Ri_d"])
     print("    Force.npy", data_set["Force"].shape)
     np.save(os.path.join(data_path, "Force.npy"), data_set["Force"])
     if "Virial" in data_set.keys():
@@ -371,6 +369,7 @@ def smooth(config, image_dR, x, Ri_xyz, mask, inr, davg, dstd, natoms):
     batch_size = image_dR.shape[0]
     ntypes = len(natoms)
 
+    """
     inr2 = torch.zeros_like(inr)
     inr3 = torch.zeros_like(inr)
     inr4 = torch.zeros_like(inr)
@@ -378,23 +377,24 @@ def smooth(config, image_dR, x, Ri_xyz, mask, inr, davg, dstd, natoms):
     inr2[mask] = inr[mask] * inr[mask]
     inr4[mask] = inr2[mask] * inr2[mask]
     inr3[mask] = inr4[mask] * x[mask]
+    """
 
     uu = torch.zeros_like(x)
     vv = torch.zeros_like(x)
-    dvv = torch.zeros_like(x)
+    # dvv = torch.zeros_like(x)
 
     res = torch.zeros_like(x)
 
-    # x < rcut_min vv = 1
+    # x < rcut_min vv = 1;
     mask_min = x < config["atomType"][0]["Rm"]
     mask_1 = mask & mask_min  # [2,108,100]
     vv[mask_1] = 1
-    dvv[mask_1] = 0
+    # dvv[mask_1] = 0
 
-    # rcut_min< x < rcut_max
+    # rcut_min< x < rcut_max;
     mask_max = x < config["atomType"][0]["Rc"]
     mask_2 = ~mask_min & mask_max & mask
-    # uu = (xx - rmin) / (rmax - rmin) ;
+    # uu = (xx - rmin) / (rmax - rmin);
     uu[mask_2] = (x[mask_2] - config["atomType"][0]["Rm"]) / (
         config["atomType"][0]["Rc"] - config["atomType"][0]["Rm"]
     )
@@ -405,6 +405,7 @@ def smooth(config, image_dR, x, Ri_xyz, mask, inr, davg, dstd, natoms):
         * (-6 * uu[mask_2] * uu[mask_2] + 15 * uu[mask_2] - 10)
         + 1
     )
+    """
     du = 1.0 / (config["atomType"][0]["Rc"] - config["atomType"][0]["Rm"])
     # dd = ( 3 * uu*uu * (-6 * uu*uu + 15 * uu - 10) + uu*uu*uu * (-12 * uu + 15) ) * du;
     dvv[mask_2] = (
@@ -414,13 +415,14 @@ def smooth(config, image_dR, x, Ri_xyz, mask, inr, davg, dstd, natoms):
         * (-6 * uu[mask_2] * uu[mask_2] + 15 * uu[mask_2] - 10)
         + uu[mask_2] * uu[mask_2] * uu[mask_2] * (-12 * uu[mask_2] + 15)
     ) * du
-
+    """
     mask_3 = ~mask_max & mask
     vv[mask_3] = 0
-    dvv[mask_3] = 0
+    # dvv[mask_3] = 0
 
     res[mask] = 1.0 / x[mask]
     Ri = torch.cat((res.unsqueeze(-1), Ri_xyz), dim=-1)
+    """
     Ri_d = torch.zeros_like(Ri).unsqueeze(-1).repeat(1, 1, 1, 1, 3)  # 2 108 100 4 3
     tmp = torch.zeros_like(x)
 
@@ -503,7 +505,7 @@ def smooth(config, image_dR, x, Ri_xyz, mask, inr, davg, dstd, natoms):
         mask
     ]
     Ri_d[:, :, :, 3, 2][mask] = tmp[mask]
-
+    """
     vv_copy = vv.unsqueeze(-1).repeat(1, 1, 1, 4)
     Ri[mask] *= vv_copy[mask]
 
@@ -522,17 +524,12 @@ def smooth(config, image_dR, x, Ri_xyz, mask, inr, davg, dstd, natoms):
         )  # [32,100,4]
         davg_res = davg_ntype if davg_res is None else torch.concat((davg_res, davg_ntype), dim=1)
         dstd_res = dstd_ntype if dstd_res is None else torch.concat((dstd_res, dstd_ntype), dim=1)
-        # if ntype == 0:
-        #     davg_res = davg_ntype
-        #     dstd_res = dstd_ntype
-        # else:
-        #     davg_res = torch.concat((davg_res, davg_ntype), dim=1)
-        #     dstd_res = torch.concat((dstd_res, dstd_ntype), dim=1)
+
     max_ri = torch.max(Ri[:,:,:,0])
     Ri = (Ri - davg_res) / dstd_res
-    dstd_res = dstd_res.unsqueeze(-1).repeat(1, 1, 1, 1, 3)
-    Ri_d = Ri_d / dstd_res
-    return Ri, Ri_d, max_ri
+    # dstd_res = dstd_res.unsqueeze(-1).repeat(1, 1, 1, 1, 3)
+    # Ri_d = Ri_d / dstd_res
+    return Ri, None, max_ri
 
 
 def compute_Ri(config, image_dR, list_neigh, natoms_img, ind_img, davg, dstd):
@@ -619,20 +616,20 @@ def compute_Ri(config, image_dR, list_neigh, natoms_img, ind_img, davg, dstd):
             config, image_dR_i, nr, Ri_xyz, mask, inr, davg, dstd, natoms_per_type
         )
 
-        Ri_i = Ri_i.reshape(-1, ntypes * config["maxNeighborNum"], 4)
-        Ri_d_i = Ri_d_i.reshape(-1, ntypes * config["maxNeighborNum"], 4, 3)
+        # Ri_i = Ri_i.reshape(-1, ntypes * config["maxNeighborNum"], 4)
+        # Ri_d_i = Ri_d_i.reshape(-1, ntypes * config["maxNeighborNum"], 4, 3)
         Rij_temp = Rij_temp.reshape(-1, ntypes * config["maxNeighborNum"]).unsqueeze(-1)
 
         if i == 0:
-            Ri = Ri_i.detach().cpu().numpy()
-            Ri_d = Ri_d_i.detach().cpu().numpy()
+            # Ri = Ri_i.detach().cpu().numpy()
+            # Ri_d = Ri_d_i.detach().cpu().numpy()
             Rij = Rij_temp.detach().cpu().numpy()
         else:
-            Ri_i = Ri_i.detach().cpu().numpy()
-            Ri_d_i = Ri_d_i.detach().cpu().numpy()
+            # Ri_i = Ri_i.detach().cpu().numpy()
+            # Ri_d_i = Ri_d_i.detach().cpu().numpy()
             Rij_temp = Rij_temp.detach().cpu().numpy()
-            Ri = np.concatenate((Ri, Ri_i), 0)
-            Ri_d = np.concatenate((Ri_d, Ri_d_i), 0)
+            # Ri = np.concatenate((Ri, Ri_i), 0)
+            # Ri_d = np.concatenate((Ri_d, Ri_d_i), 0)
             Rij = np.concatenate((Rij, Rij_temp), 0)
         max_ri_list.append(max_ri)
 
@@ -655,7 +652,7 @@ def compute_Ri(config, image_dR, list_neigh, natoms_img, ind_img, davg, dstd):
         egroup_weight_all = None
         divider = None
 
-    return Ri, Ri_d, egroup_weight_all, divider, max(max_ri_list), Rij
+    return None, None, egroup_weight_all, divider, max(max_ri_list), Rij
 
 '''
 description:
@@ -1070,10 +1067,10 @@ def sepper_data(config, Etot, Ei, Force, dR_neigh,\
                 "ListNeighbor": list_neigh[
                     image_index[start_index] : image_index[end_index]
                 ],
-                "NeighborType": neigh_type[image_index[start_index] : image_index[end_index]],
+                # "NeighborType": neigh_type[image_index[start_index] : image_index[end_index]],
                 "Ei": Ei[image_index[start_index] : image_index[end_index]],
-                "Ri": Ri[image_index[start_index] : image_index[end_index]],
-                "Ri_d": Ri_d[image_index[start_index] : image_index[end_index]],
+                # "Ri": Ri[image_index[start_index] : image_index[end_index]],
+                # "Ri_d": Ri_d[image_index[start_index] : image_index[end_index]],
                 "Force": Force[image_index[start_index] : image_index[end_index]],
                 "Etot": Etot[start_index:end_index],
                 "ImageAtomNum": atom_num_per_image[start_index:end_index],
@@ -1113,10 +1110,10 @@ def sepper_data(config, Etot, Ei, Force, dR_neigh,\
                 "ListNeighbor": list_neigh[
                     image_index[start_index] : image_index[end_index]
                 ],
-                "NeighborType": neigh_type[image_index[start_index] : image_index[end_index]],
+                # "NeighborType": neigh_type[image_index[start_index] : image_index[end_index]],
                 "Ei": Ei[image_index[start_index] : image_index[end_index]],
-                "Ri": Ri[image_index[start_index] : image_index[end_index]],
-                "Ri_d": Ri_d[image_index[start_index] : image_index[end_index]],
+                # "Ri": Ri[image_index[start_index] : image_index[end_index]],
+                # "Ri_d": Ri_d[image_index[start_index] : image_index[end_index]],
                 "Force": Force[image_index[start_index] : image_index[end_index]],
                 "Etot": Etot[start_index:end_index],
                 "ImageAtomNum": atom_num_per_image[start_index:end_index],

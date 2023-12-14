@@ -7,14 +7,18 @@ torch::autograd::variable_list CalculateForceFuncs::forward(
     at::Tensor list_neigh,
     at::Tensor dE,
     at::Tensor Ri_d,
-    at::Tensor F) 
+    at::Tensor F,
+    at::Tensor nghost_tensor) 
     {
         auto dims = list_neigh.sizes();
         int batch_size = dims[0];
         int natoms = dims[1];
         int neigh_num = dims[2] * dims[3];
-        torch_launch_calculate_force(list_neigh, dE, Ri_d, batch_size, natoms, neigh_num, F);
-        return {F};
+        int nghost = nghost_tensor.item<int>();
+        auto force = torch::zeros({batch_size, natoms + nghost, 3}, dE.options());
+        force.slice(1, 0, natoms) = F;
+        torch_launch_calculate_force(list_neigh, dE, Ri_d, batch_size, natoms, neigh_num, force);
+        return {force};
         
     }
 
@@ -30,7 +34,7 @@ torch::autograd::variable_list CalculateForceFuncs::backward(
         int neigh_num = dims[2] * dims[3];
         auto grad = torch::zeros_like(dE);
         torch_launch_calculate_force_grad(list_neigh, Ri_d, grad_output[0], batch_size, natoms, neigh_num, grad);
-        return {torch::autograd::Variable(), grad, torch::autograd::Variable(), torch::autograd::Variable()};
+        return {torch::autograd::Variable(), grad, torch::autograd::Variable(), torch::autograd::Variable(), torch::autograd::Variable()};
     }
 
 torch::autograd::variable_list CalculateForce::forward(
@@ -38,10 +42,11 @@ torch::autograd::variable_list CalculateForce::forward(
     at::Tensor list_neigh,
     at::Tensor dE,
     at::Tensor Ri_d,
-    at::Tensor F) 
+    at::Tensor F,
+    at::Tensor nghost_tensor) 
     {
         ctx->save_for_backward({list_neigh, dE, Ri_d});
-        return CalculateForceFuncs::forward(list_neigh, dE, Ri_d, F);
+        return CalculateForceFuncs::forward(list_neigh, dE, Ri_d, F, nghost_tensor);
     }
 
 torch::autograd::variable_list CalculateForce::backward(
@@ -59,9 +64,10 @@ torch::autograd::variable_list calculateForce(
     at::Tensor list_neigh,
     at::Tensor dE,
     at::Tensor Ri_d,
-    at::Tensor F) 
+    at::Tensor F,
+    at::Tensor nghost_tensor) 
     {
-        return CalculateForce::apply(list_neigh, dE, Ri_d, F);
+        return CalculateForce::apply(list_neigh, dE, Ri_d, F, nghost_tensor);
     }
 
 // the following is the code virial
@@ -69,16 +75,18 @@ torch::autograd::variable_list CalculateVirialFuncs::forward(
     at::Tensor list_neigh,
     at::Tensor dE,
     at::Tensor Rij,
-    at::Tensor Ri_d) 
+    at::Tensor Ri_d,
+    at::Tensor nghost_tensor) 
     {
         auto dims = list_neigh.sizes();
         int batch_size = dims[0];
         int natoms = dims[1];
         int neigh_num = dims[2] * dims[3];
+        int nghost = nghost_tensor.item<int>();
         auto virial = torch::zeros({batch_size, 9}, dE.options());
-        auto atom_virial = torch::zeros({batch_size, natoms, 9}, dE.options());
-        torch_launch_calculate_virial_force(list_neigh, dE, Rij, Ri_d, batch_size, natoms, neigh_num, virial, atom_virial);
-        return {virial};
+        auto atom_virial = torch::zeros({batch_size, natoms + nghost, 9}, dE.options());
+        torch_launch_calculate_virial_force(list_neigh, dE, Rij, Ri_d, batch_size, natoms, neigh_num, virial, atom_virial, nghost);
+        return {virial, atom_virial};
     }
 
 torch::autograd::variable_list CalculateVirialFuncs::backward(
@@ -102,10 +110,11 @@ torch::autograd::variable_list CalculateVirial::forward(
     at::Tensor list_neigh,
     at::Tensor dE,
     at::Tensor Rij,
-    at::Tensor Ri_d) 
+    at::Tensor Ri_d,
+    at::Tensor nghost_tensor) 
     {
         ctx->save_for_backward({list_neigh, dE, Rij, Ri_d});
-        return CalculateVirialFuncs::forward(list_neigh, dE, Rij, Ri_d);
+        return CalculateVirialFuncs::forward(list_neigh, dE, Rij, Ri_d, nghost_tensor);
     }
 
 torch::autograd::variable_list CalculateVirial::backward(
@@ -124,9 +133,10 @@ torch::autograd::variable_list calculateVirial(
     at::Tensor list_neigh,
     at::Tensor dE,
     at::Tensor Rij,
-    at::Tensor Ri_d) 
+    at::Tensor Ri_d,
+    at::Tensor nghost_tensor) 
     {
-        return CalculateVirial::apply(list_neigh, dE, Rij, Ri_d);
+        return CalculateVirial::apply(list_neigh, dE, Rij, Ri_d, nghost_tensor);
     }
     
 // the following is the code compress

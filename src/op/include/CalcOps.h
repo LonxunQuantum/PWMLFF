@@ -7,7 +7,8 @@ class CalculateForceFuncs {
             at::Tensor list_neigh,
             at::Tensor dE,
             at::Tensor Ri_d,
-            at::Tensor F);
+            at::Tensor F,
+            at::Tensor nghost_tensor);
 
         static torch::autograd::variable_list backward(
             torch::autograd::variable_list grad_output,
@@ -23,7 +24,8 @@ class CalculateForce : public torch::autograd::Function<CalculateForce> {
             at::Tensor list_neigh,
             at::Tensor dE,
             at::Tensor Ri_d,
-            at::Tensor F);
+            at::Tensor F,
+            at::Tensor nghost_tensor);
 
         static torch::autograd::variable_list backward(
             torch::autograd::AutogradContext *ctx,
@@ -34,7 +36,8 @@ torch::autograd::variable_list calculateForce(
     at::Tensor list_neigh,
     at::Tensor dE,
     at::Tensor Ri_d,
-    at::Tensor F);
+    at::Tensor F,
+    at::Tensor nghost_tensor);
 
 torch::autograd::variable_list calculateForce_cpu(
     at::Tensor list_neigh,
@@ -49,7 +52,8 @@ class CalculateVirialFuncs {
             at::Tensor list_neigh,
             at::Tensor dE,
             at::Tensor Rij,
-            at::Tensor Ri_d
+            at::Tensor Ri_d,
+            at::Tensor nghost_tensor
         );
 
         static torch::autograd::variable_list backward(
@@ -68,7 +72,8 @@ class CalculateVirial : public torch::autograd::Function<CalculateVirial> {
             at::Tensor list_neigh,
             at::Tensor dE,
             at::Tensor Rij,
-            at::Tensor Ri_d);
+            at::Tensor Ri_d,
+            at::Tensor nghost_tensor);
 
         static torch::autograd::variable_list backward(
             torch::autograd::AutogradContext *ctx,
@@ -79,7 +84,8 @@ torch::autograd::variable_list calculateVirial(
     at::Tensor list_neigh,
     at::Tensor dE,
     at::Tensor Rij,
-    at::Tensor Ri_d);
+    at::Tensor Ri_d,
+    at::Tensor nghost_tensor);
 
 torch::autograd::variable_list calculateVirial_cpu(
     at::Tensor list_neigh,

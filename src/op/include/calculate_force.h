@@ -19,5 +19,6 @@ void launch_calculate_virial_force(
     const int natoms,
     const int neigh_num,
     DType * virial,
-    DType * atom_virial
+    DType * atom_virial,
+    const int nghost
 );

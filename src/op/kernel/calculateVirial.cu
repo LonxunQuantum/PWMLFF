@@ -1,5 +1,5 @@
 #include <iostream>
-// #include "calculate_force.h"
+#include "../include/calculate_force.h"
 
 template <typename DType, int THREADS_PER_BLOCK>
 __global__ void atom_virial_reduction(
@@ -81,7 +81,8 @@ void launch_calculate_virial_force(
     const int natoms,
     const int neigh_num,
     DType * virial,
-    DType * atom_virial
+    DType * atom_virial,
+    const int nghost
 )
 {
     // cudaMemset(virial, 0, sizeof(DTYPE) * 9 * batch_size);
@@ -97,7 +98,8 @@ void launch_calculate_virial_force(
 
     block_grid = dim3(9, batch_size);
     // reduction atom_virial to virial
-    atom_virial_reduction<DType, 256> <<<block_grid, 256>>>(virial, atom_virial, natoms);
+    const int nall = natoms + nghost;
+    atom_virial_reduction<DType, 256> <<<block_grid, 256>>>(virial, atom_virial, nall);
 
 }
 
@@ -111,7 +113,8 @@ template void launch_calculate_virial_force(
     const int natoms,
     const int neigh_num,
     float * virial,
-    float * atom_virial
+    float * atom_virial,
+    const int nghost
 );
 
 template void launch_calculate_virial_force(
@@ -123,5 +126,6 @@ template void launch_calculate_virial_force(
     const int natoms,
     const int neigh_num,
     double * virial,
-    double * atom_virial
+    double * atom_virial,
+    const int nghost
 );

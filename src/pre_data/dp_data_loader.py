@@ -20,7 +20,7 @@ class MovementDataset(Dataset):
 
         for data_path in data_paths:
             for current_dir, child_dir, child_file in os.walk(data_path):
-                if len(child_dir) == 0 and "Ri.npy" in child_file:
+                if len(child_dir) == 0 and "AtomType.npy" in child_file:
                     self.dirs.append(current_dir)
 
         self.dirs = sorted(self.dirs, key=lambda x: int(x.split('_')[-1]))
@@ -56,10 +56,10 @@ class MovementDataset(Dataset):
             data["Egroup_weight"] = np.load(os.path.join(path, "Egroup_weight.npy"))
 
         data["ListNeighbor"] = np.load(os.path.join(path, "ListNeighbor.npy"))
-        data["NeighborType"] = np.load(os.path.join(path, "NeighborType.npy"))
+        # data["NeighborType"] = np.load(os.path.join(path, "NeighborType.npy"))
         data["ImageDR"] = np.load(os.path.join(path, "ImageDR.npy"))
-        data["Ri"] = np.load(os.path.join(path, "Ri.npy"))
-        data["Ri_d"] = np.load(os.path.join(path, "Ri_d.npy"))
+        # data["Ri"] = np.load(os.path.join(path, "Ri.npy"))
+        # data["Ri_d"] = np.load(os.path.join(path, "Ri_d.npy"))
         data["ImageAtomNum"] = np.load(os.path.join(path, "ImageAtomNum.npy")).reshape(-1)
         data["Imagetype"] = np.load(os.path.join(path, "AtomType.npy"))
         atom_type_list = list(data["Imagetype"])
@@ -78,10 +78,10 @@ class MovementDataset(Dataset):
                 data["Egroup_weight"].resize((self.img_max_atom_num, self.img_max_atom_num), refcheck=False)
             
             data["ListNeighbor"].resize((self.img_max_atom_num, data["ListNeighbor"].shape[1]), refcheck=False)
-            data["NeighborType"].resize((self.img_max_atom_num, data["NeighborType"].shape[1]), refcheck=False)
+            # data["NeighborType"].resize((self.img_max_atom_num, data["NeighborType"].shape[1]), refcheck=False)
             data["ImageDR"].resize((self.img_max_atom_num, data["ImageDR"].shape[1], data["ImageDR"].shape[2]), refcheck=False)
-            data["Ri"].resize((self.img_max_atom_num, data["Ri"].shape[1], data["Ri"].shape[2]), refcheck=False)
-            data["Ri_d"].resize((self.img_max_atom_num, data["Ri_d"].shape[1], data["Ri_d"].shape[2], data["Ri_d"].shape[3]), refcheck=False)
+            # data["Ri"].resize((self.img_max_atom_num, data["Ri"].shape[1], data["Ri"].shape[2]), refcheck=False)
+            # data["Ri_d"].resize((self.img_max_atom_num, data["Ri_d"].shape[1], data["Ri_d"].shape[2], data["Ri_d"].shape[3]), refcheck=False)
         if len(data["AtomType"]) < self.img_max_types:
             data["AtomType"] = np.append(data["AtomType"], [0 for _ in range(0,self.img_max_types-len(data["AtomType"]))])
         
@@ -199,10 +199,10 @@ def main():
         #print(sample_batches["Egroup_weight"].shape)
 
         print(sample_batches["ListNeighbor"].shape)
-        print(sample_batches["NeighborType"].shape)
-        print(sample_batches["Ri"].shape)
+        # print(sample_batches["NeighborType"].shape)
+        # print(sample_batches["Ri"].shape)
         print(sample_batches["ImageDR"].shape)
-        print(sample_batches["Ri_d"].shape)
+        # print(sample_batches["Ri_d"].shape)
         print(sample_batches["ImageAtomNum"].shape)
 
 

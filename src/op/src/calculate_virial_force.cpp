@@ -9,7 +9,8 @@ void torch_launch_calculate_virial_force(torch::Tensor &nblist,
                        int64_t natoms,
                        int64_t neigh_num,
                        const torch::Tensor &virial_force,
-                       const torch::Tensor &atom_virial_force
+                       const torch::Tensor &atom_virial_force,
+                       int64_t nghost
 ) 
 {
     auto dtype = dE.dtype();
@@ -25,7 +26,8 @@ void torch_launch_calculate_virial_force(torch::Tensor &nblist,
             (const float *) Ri_d.data_ptr(),
             batch_size, natoms, neigh_num,
             (float *) virial_force.data_ptr(),
-            (float *) atom_virial_force.data_ptr()
+            (float *) atom_virial_force.data_ptr(),
+            nghost
         );
     } else if (dtype == torch::kFloat64)
     {
@@ -36,7 +38,8 @@ void torch_launch_calculate_virial_force(torch::Tensor &nblist,
             (const double *) Ri_d.data_ptr(),
             batch_size, natoms, neigh_num,
             (double *) virial_force.data_ptr(),
-            (double *) atom_virial_force.data_ptr()
+            (double *) atom_virial_force.data_ptr(),
+            nghost
         );
     }
     else
