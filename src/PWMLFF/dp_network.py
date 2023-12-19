@@ -276,6 +276,23 @@ class dp_network:
             hvd.broadcast_parameters(model.state_dict(), root_rank=0)
         # """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
         # scheduler = StepLR(optimizer, step_size=30, gamma=0.1)
+        
+        if not torch.cuda.is_available():
+            print("using CPU, this will be slow")
+        elif self.dp_params.hvd:
+            if torch.cuda.is_available():
+                if self.dp_params.gpu is not None:
+                    torch.cuda.set_device(self.dp_params.gpu)
+                    model.cuda(self.dp_params.gpu)
+                    self.dp_params.optimizer_param.batch_size = int(self.dp_params.optimizer_param.batch_size / hvd.size())
+        elif self.dp_params.gpu is not None and torch.cuda.is_available():
+            torch.cuda.set_device(self.dp_params.gpu)
+            model = model.cuda(self.dp_params.gpu)
+        else:
+            model = model.cuda()
+            if model.compress_tab is not None:
+                model.compress_tab.to(device=model.device)
+
         return model, optimizer
 
     def inference(self):

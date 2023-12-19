@@ -157,18 +157,104 @@ class MOVEMENT(object):
                 for line in self.image_list[i].content:
                     wf.write(line)
 
-    def save_to_2parts(self, mid):
-        part_1 = "part_1_movement_{}".format(mid)
-        part_2 = "part_2_movement_{}".format(self.image_nums-mid)
-        with open(part_1, 'w') as wf:
+    def save_to_2parts(self, mid, write_patten="w", part_1=None, part_2=None):
+        if part_1 is None:
+            part_1 = "part_1_movement_{}".format(mid)
+        if part_2 is None:
+            part_2 = "part_2_movement_{}".format(self.image_nums-mid)
+        with open(part_1, write_patten) as wf:
             for i in range(0, mid):
                 for line in self.image_list[i].content:
                     wf.write(line)
 
-        with open(part_2, 'w') as wf:
+        with open(part_2, write_patten) as wf:
             for i in range(mid, self.image_nums):
                 for line in self.image_list[i].content:
                     wf.write(line)
+
+    def separate_mvms():
+        os.chdir("/data/home/wuxingxing/codespace/PWMLFF/pwmat_mlff_workdir/alloy")
+        train_movement_file = [
+        "./mvm_files/movement_0",   
+        "./mvm_files/movement_11",  
+        "./mvm_files/movement_14",  
+        "./mvm_files/movement_17",  
+        "./mvm_files/movement_2",   
+        "./mvm_files/movement_22",  
+        "./mvm_files/movement_25",  
+        "./mvm_files/movement_28",  
+        "./mvm_files/movement_30",  
+        "./mvm_files/movement_33",  
+        "./mvm_files/movement_36",  
+        "./mvm_files/movement_5",  
+        "./mvm_files/movement_8",
+        "./mvm_files/movement_1",   
+        "./mvm_files/movement_12",  
+        "./mvm_files/movement_15",  
+        "./mvm_files/movement_18",  
+        "./mvm_files/movement_20",  
+        "./mvm_files/movement_23",  
+        "./mvm_files/movement_26",  
+        "./mvm_files/movement_29",  
+        "./mvm_files/movement_31",  
+        "./mvm_files/movement_34",  
+        "./mvm_files/movement_37",  
+        "./mvm_files/movement_6",  
+        "./mvm_files/movement_9",
+        "./mvm_files/movement_10",  
+        "./mvm_files/movement_13",  
+        "./mvm_files/movement_16",  
+        "./mvm_files/movement_19",  
+        "./mvm_files/movement_21",  
+        "./mvm_files/movement_24",  
+        "./mvm_files/movement_27",  
+        "./mvm_files/movement_3",   
+        "./mvm_files/movement_32",  
+        "./mvm_files/movement_35",  
+        "./mvm_files/movement_4",   
+        "./mvm_files/movement_7",
+        "./mvm_init/movement_0",
+        "./mvm_init/movement_10",
+        "./mvm_init/movement_12",
+        "./mvm_init/movement_14",
+        "./mvm_init/movement_16",
+        "./mvm_init/movement_18",
+        "./mvm_init/movement_2",
+        "./mvm_init/movement_21",
+        "./mvm_init/movement_23",
+        "./mvm_init/movement_25",
+        "./mvm_init/movement_4",
+        "./mvm_init/movement_6",
+        "./mvm_init/movement_8",
+        "./mvm_init/movement_1",
+        "./mvm_init/movement_11",
+        "./mvm_init/movement_13",
+        "./mvm_init/movement_15",
+        "./mvm_init/movement_17",
+        "./mvm_init/movement_19",
+        "./mvm_init/movement_20",
+        "./mvm_init/movement_22",
+        "./mvm_init/movement_24",
+        "./mvm_init/movement_3",
+        "./mvm_init/movement_5",
+        "./mvm_init/movement_7",
+        "./mvm_init/movement_9"
+    ]
+        train_file = "train_mvm"
+        valid_file = "valid_mvm"
+        sperate_log = "split_norand.log"
+        is_shaffule = False
+        ratio = 0
+        with open(sperate_log, "w") as wf:
+            wf.readline("is shaffule: {}\t ratio is: {}".format(is_shaffule, ratio))
+        for mvm in train_movement_file:
+            mvm = MOVEMENT(source_movement_file)
+            mid = int(mvm.image_nums * ratio)
+            mvm.save_to_2parts(mid, write_patten="a", part_1=train_file, part_2=valid_file)
+            with open(sperate_log, "a") as wf:
+                wf.readline("mvm: {}\t atomlist: {}\t train: {}\t valid:{}\n"\
+                            .format(mvm, mvm.image_list[0].atom_type, mid, mvm.image_nums-mid))    
+
 
 if __name__ == "__main__":
     import argparse

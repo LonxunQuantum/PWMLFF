@@ -13,6 +13,8 @@ sys.path.append(os.getcwd())
 # pp.readFeatnum()
 from src.model.dp_embedding import EmbeddingNet, FittingNet
 from src.model.calculate_force import CalculateCompress, CalculateForce, CalculateVirialForce
+from utils.debug_operation import check_cuda_forward
+
 # logging and our extension
 import logging
 logging_level_DUMP = 5
@@ -65,6 +67,10 @@ class DP(nn.Module):
 
     def set_comp_tab(self, compress_dict:dict):
         self.compress_tab = torch.tensor(compress_dict["table"], dtype=self.dtype, device=self.device)
+        self.compress_tab_shape = self.compress_tab.shape
+        self.compress_tab = self.compress_tab.reshape(self.compress_tab_shape[0]*self.compress_tab_shape[1],
+                                                      self.compress_tab_shape[2],
+                                                      self.compress_tab_shape[3])
         self.dx = compress_dict["dx"]
         self.davg = compress_dict["davg"]
         self.dstd = compress_dict["dstd"]
@@ -121,8 +127,36 @@ class DP(nn.Module):
             for atom2 in type_2body_index:
                 type_2body.append([atom, atom2])
             type_2body_list.append(type_2body)
-        return type_2body_list, len(type_2body_index)
+        return type_2body_list, len(type_2body_index), type_2body_index
 
+    '''
+    description: 
+    get the neighbor list of atom type 'ntype'
+    param {*} self
+    param {list} type_emb
+    return {*}
+    author: wuxingxing
+    '''
+    def get_neighs(self, type_emb:list[int]):
+        indexs = []
+        embedding_nums = 0
+        for emb in type_emb:
+            ntype, ntype_1 = emb
+            indexs.extend(list(range(ntype_1 * self.maxNeighborNum, (ntype_1+1) * self.maxNeighborNum)))
+        return indexs
+
+    def get_emb_indexs(self, type_emb:list[int],centor_atom_nums:int ):
+        emb_indexs = None
+        embedding_nums = 0
+        for emb in type_emb:
+            ntype, ntype_1 = emb
+            embedding_index = ntype * self.ntypes + ntype_1
+            emb_indexs_ = torch.tensor(embedding_index, dtype=torch.int, device=self.device).repeat(self.maxNeighborNum*centor_atom_nums)
+            emb_indexs = emb_indexs_ if emb_indexs is None else torch.concat((emb_indexs, emb_indexs_), dim=0)
+            embedding_nums += 1
+        # emb_indexs = emb_indexs.repeat(centor_atom_nums,1)
+        return embedding_nums, emb_indexs.flatten()
+    
     '''
     description: 
         when we do forward, we should adjust the data input to adapt the model
@@ -141,56 +175,101 @@ class DP(nn.Module):
     def forward(self, Ri, dfeat, list_neigh, natoms_img, atom_type, ImageDR, Egroup_weight = None, divider = None, is_calc_f=True):
         #torch.autograd.set_detect_anomaly(True)
         # from torchviz import make_dot
+        # check_cuda_forward(info="1. start forward")
+
+        start_forward = time.time()
         Ri_d = dfeat
         # dim of natoms_img: batch size, natom_sum & natom_types ([9, 6, 2, 1])
         natoms = natoms_img[0, 1:]
         natoms_sum = Ri.shape[1]
         batch_size = Ri.shape[0]
         atom_sum = 0
-        emb_list, type_nums =  self.get_train_2body_type(list(np.array(atom_type.cpu())[0]))
+        atom_type_cpu = list(np.array(atom_type.cpu())[0])
+        emb_list, type_nums, type_2body_index =  self.get_train_2body_type(atom_type_cpu)
         Ei = None
-        # start_forward = time.time()
-        for type_emb in emb_list:
+        for center_idx, type_emb in enumerate(emb_list):
             xyz_scater_a = None
-            for emb in type_emb:
-                ntype, ntype_1 = emb
-                # print(ntype, "\t\t", ntype_1)
-                # dim of Ri: batch size, natom_sum, ntype*max_neigh_num, local environment matrix , ([10,9,300,4])
-                S_Rij = Ri[:, atom_sum:atom_sum+natoms[ntype], ntype_1 * self.maxNeighborNum:(ntype_1+1) * self.maxNeighborNum, 0].unsqueeze(-1)
-                # determines which embedding net
-                embedding_index = ntype * self.ntypes + ntype_1
-                # itermediate output of embedding net 
-                # dim of G: batch size, natom of ntype, max_neigh_num, final layer dim
-                tmp_a = Ri[:, atom_sum:atom_sum+natoms[ntype], ntype_1 * self.maxNeighborNum:(ntype_1+1) * self.maxNeighborNum].transpose(-2, -1)
-                # start_emb = time.time()
-                if self.compress_tab is None:
-                    G = self.embedding_net[embedding_index](S_Rij)
-                    # symmetry conserving
-                else:
-                    if self.order == 2:
-                        G = self.calc_compress(S_Rij, embedding_index)
-                    elif self.order == 5:
-                        G = self.calc_compress_5order(S_Rij, embedding_index)
-                    elif self.order == 3:
-                        G = self.calc_compress_3order(S_Rij, embedding_index)
-                # end_emb = time.time()
-                # print("embedding time:", end_emb - start_emb, 's')
+            # embedding_nums = 0
+            start_emb = time.time()
+            # check_cuda_forward(info="2. start compress or G emb")
+            if self.compress_tab is not None:
+                start_c = time.time()
+                # check_cuda_forward(info="3. start s_rij and tmp_a")
+                ntype = type_2body_index[center_idx]
+                centor_atom_num = natoms[ntype]
+                neigh_indexs = self.get_neighs(type_emb)
+                embedding_nums, emd_indexs = self.get_emb_indexs(type_emb, centor_atom_num)
+                # get rij by their type indexs
+                S_Rij = Ri[:, atom_sum:atom_sum+natoms[ntype], neigh_indexs, 0]
+                S_Rij = S_Rij.reshape(S_Rij.shape[0],S_Rij.shape[1],int(S_Rij.shape[2]/self.maxNeighborNum),self.maxNeighborNum).transpose(-3,-2)
+                S_Rij = S_Rij.flatten()
+                tmp_a = Ri[:, atom_sum:atom_sum+natoms[ntype], neigh_indexs].transpose(-2, -1)
+                tmp_a = tmp_a.reshape(tmp_a.shape[0], tmp_a.shape[1], tmp_a.shape[2], int(tmp_a.shape[-1]/self.maxNeighborNum), self.maxNeighborNum)
+                tmp_a = tmp_a.transpose(-3,-2).transpose(-4,-3)
+                # check_cuda_forward(info="4. end s_rij and tmp_a")
+                # wating fixed
+                end_c = time.time()
+                print("start c time:", end_c - start_c, 's')
+                
+                # if self.order == 2:
+                #     G = self.calc_compress(S_Rij, embedding_index)
+                # elif self.order == 5:
+                #     G = self.calc_compress_5order(S_Rij, embedding_index)
+                # elif self.order == 3:
+                #     G = self.calc_compress_3order(S_Rij_, emd_indexs, embedding_nums)
+                
+                start_c2 = time.time() 
+                G = self.calc_compress_3order(S_Rij, emd_indexs, embedding_nums, centor_atom_num, batch_size)
+                # check_cuda_forward(info="5. end calc_compress_3order")
+                # tmp = tmp_a_.reshape([tmp_a_.shape[0], tmp_a_.shape[1], embedding_nums, int(tmp_a_.shape[2]/embedding_nums), tmp_a_.shape[3]])
                 tmp_b = torch.matmul(tmp_a, G)
-                xyz_scater_a = tmp_b if xyz_scater_a is None else xyz_scater_a + tmp_b
-            
+                end_c2 = time.time()
+                print("start c2 time:", end_c2 - start_c2, 's')
+                xyz_scater_a = torch.sum(tmp_b, dim=1)
+                # check_cuda_forward(info="6. end symmetry conserving ")
+                end_c3 = time.time()
+                print("start c3 time:", end_c3 - end_c2, 's')
+            else:
+                for emb in type_emb:
+                    # check_cuda_forward(info="3. start G emb")
+                    ntype, ntype_1 = emb
+                    # print(ntype, "\t\t", ntype_1)
+                    # dim of Ri: batch size, natom_sum, ntype*max_neigh_num, local environment matrix , ([10,9,300,4])
+                    S_Rij = Ri[:, atom_sum:atom_sum+natoms[ntype], ntype_1 * self.maxNeighborNum:(ntype_1+1) * self.maxNeighborNum, 0].unsqueeze(-1)
+                    # determines which embedding net
+                    embedding_index = ntype * self.ntypes + ntype_1
+                    # itermediate output of embedding net 
+                    # dim of G: batch size, natom of ntype, max_neigh_num, final layer dim
+                    tmp_a = Ri[:, atom_sum:atom_sum+natoms[ntype], ntype_1 * self.maxNeighborNum:(ntype_1+1) * self.maxNeighborNum].transpose(-2, -1)
+                    # check_cuda_forward(info="4. end s_rij and tmp_a")
+                    if self.compress_tab is None:
+                        # start_g = time.time()
+                        G = self.embedding_net[embedding_index](S_Rij)
+                        # check_cuda_forward(info="5. end embedding_net")
+                        tmp_b = torch.matmul(tmp_a, G)
+                        xyz_scater_a = tmp_b if xyz_scater_a is None else xyz_scater_a + tmp_b
+                        # check_cuda_forward(info="6. end symmetry conserving ")
+                        # end_g = time.time()
+                        # print("start g time:", end_g - start_g, 's')
             # attention: for hybrid training, the division should be done based on \
             #   the number of element types in the current image, because the images may from different systems.
+            # check_cuda_forward(info="7. end compress or G emb {}".format(center_idx))
+            end_emb = time.time()
+            print("embedding time:", end_emb - start_emb, 's')
             xyz_scater_a = xyz_scater_a / (self.maxNeighborNum * type_nums)
             xyz_scater_b = xyz_scater_a[:, :, :, :self.M2]
             DR_ntype = torch.matmul(xyz_scater_a.transpose(-2, -1), xyz_scater_b)
             DR_ntype = DR_ntype.reshape(batch_size, natoms[ntype], -1)
-
+            symmetry_time = time.time()
+            print("symmetry_time time:", symmetry_time - end_emb, 's')
             Ei_ntype = self.fitting_net[ntype](DR_ntype)
             Ei = Ei_ntype if Ei is None else torch.concat((Ei, Ei_ntype), dim=1)
             atom_sum = atom_sum + natoms[ntype]
-        
+            # check_cuda_forward(info="8. end fitting {}".format(center_idx))
+            end_fit = time.time()
+            print("fitting time:", end_fit - symmetry_time, 's')
         Etot = torch.sum(Ei, 1)
-
+        # check_cuda_forward(info="99. end fitting all")
         if Egroup_weight is not None:
             Egroup = self.get_egroup(Ei, Egroup_weight, divider)
         else:
@@ -202,14 +281,14 @@ class DP(nn.Module):
         Force, Virial = None, None
         if is_calc_f == False:
             return Etot, Ei, Force, Egroup, Virial
-        # start_autograd = time.time()
-        # print("fitting time:", start_autograd - start_fitting, 's')
-        
+        # check_cuda_forward(info="10. before grad")
         mask = torch.ones_like(Ei)
-        # start_autograd = time.time()
+        start_autograd = time.time()
         dE = torch.autograd.grad(Ei, Ri, grad_outputs=mask, retain_graph=True, create_graph=True)
-        # end_autograd = time.time()
-        # print("autograd time:", end_autograd - start_autograd, 's')
+        # check_cuda_forward(info="11. end grad")
+        end_autograd = time.time()
+        print("autograd time:", end_autograd - start_autograd, 's')
+        start_force = time.time()
         # dot = make_dot(Ei, params={"x":Ri})
         # dot.render("compute_graph.png", format="png")
         dE = torch.stack(list(dE), dim=0).squeeze(0)  #[:,:,:,:-1] #[2,108,100,4]-->[2,108,100,3]
@@ -217,8 +296,6 @@ class DP(nn.Module):
         Ri_d = Ri_d.reshape(batch_size, natoms_sum, -1, 3)
         dE = dE.reshape(batch_size, natoms_sum, 1, -1)
 
-        # start_force = time.time()
-        # print("autograd time:", start_force - start_autograd, 's')
         F = torch.matmul(dE, Ri_d).squeeze(-2) # batch natom 3
         F = F * (-1)
         
@@ -262,10 +339,12 @@ class DP(nn.Module):
             # virial = CalculateVirialForce.apply(list_neigh, dE, Ri[:,:,:,:3], Ri_d)
             Virial = CalculateVirialForce.apply(list_neigh, dE, ImageDR, Ri_d)
         
-        # end_forward = time.time()
-        # print("forward time:", end_forward - start_forward, 's')
+        end_force = time.time()
+        # check_cuda_forward(info="12. end force")
+        print("force time:", end_force - start_force, 's')        
+        print("forward all time:", end_force - start_forward, 's')
         return Etot, Ei, F, Egroup, Virial  #F is Force
-                      
+              
     '''
     description: 
         F(x) = f2*(F(k+1)-F(k))+F(k)
@@ -322,26 +401,61 @@ class DP(nn.Module):
         G = G.reshape(S_Rij.shape[0], S_Rij.shape[1], S_Rij.shape[2], G.shape[1])
         return G
 
-    def calc_compress_3order(self, S_Rij:torch.Tensor, embedding_index:int):
-        sij = S_Rij.flatten()
+    # def calc_compress_3order(self, S_Rij:torch.Tensor, embedding_index:int):
+    #     sij = S_Rij.flatten()
+    #     mask = sij < self.sij_max
+
+    #     x = torch.zeros_like(sij)
+    #     x[mask] = (sij[mask]-self.sij_min)/self.dx
+    #     x[~mask] = (sij[~mask]-self.sij_max)/(10*self.dx)
+    #     index_k1 = x.type(torch.long) # get floor
+
+    #     xk = torch.zeros_like(sij, dtype=torch.float32) # the index * dx + sij_min is a float type data
+    #     xk[mask] = index_k1[mask]*self.dx + self.sij_min
+    #     xk[~mask] = self.sij_max + index_k1[~mask]*self.dx*10
+    #     f2 = (sij - xk).flatten().unsqueeze(-1)
+        
+    #     coefficient = self.compress_tab[embedding_index, index_k1, :]
+    #     G = CalculateCompress.apply(f2, coefficient)
+    #     # G = f2**3 *coefficient[:, :, 0] + f2**2 * coefficient[:, :, 1] + \
+    #     #     f2 * coefficient[:, :, 2] + coefficient[:, :, 3]
+    #     G = G.reshape(S_Rij.shape[0], S_Rij.shape[1], S_Rij.shape[2], G.shape[1])
+    #     return G
+
+    def calc_compress_3order(self, S_Rij:torch.Tensor, embedding_index:torch.Tensor, embedding_nums:int, centor_atom_num:int, batch_size:int=1):
+        calc1 = time.time()
+        sij = S_Rij
         mask = sij < self.sij_max
 
         x = torch.zeros_like(sij)
         x[mask] = (sij[mask]-self.sij_min)/self.dx
         x[~mask] = (sij[~mask]-self.sij_max)/(10*self.dx)
         index_k1 = x.type(torch.long) # get floor
-
+        calc2 = time.time()
+        print("end calc2 time:", calc2 - calc1, 's')        
         xk = torch.zeros_like(sij, dtype=torch.float32) # the index * dx + sij_min is a float type data
         xk[mask] = index_k1[mask]*self.dx + self.sij_min
         xk[~mask] = self.sij_max + index_k1[~mask]*self.dx*10
         f2 = (sij - xk).flatten().unsqueeze(-1)
-        
-        coefficient = self.compress_tab[embedding_index, index_k1, :]
-        G = CalculateCompress.apply(f2, coefficient)
-        # G = f2**3 *coefficient[:, :, 0] + f2**2 * coefficient[:, :, 1] + \
-        #     f2 * coefficient[:, :, 2] + coefficient[:, :, 3]
-        G = G.reshape(S_Rij.shape[0], S_Rij.shape[1], S_Rij.shape[2], G.shape[1])
-        return G
+        calc3 = time.time()
+        print("end calc3 time:", calc3 - calc2, 's')
+        index_k1 = index_k1 + embedding_index*self.compress_tab_shape[1] # real index if compress table
+        calc4 = time.time()
+        print("end calc4 time:", calc4 - calc3, 's')
+        coefficient = self.compress_tab[index_k1, :]
+        calc5 = time.time()
+        print("end calc5 time:", calc5 - calc4, 's')
+        # G = CalculateCompress.apply(f2, coefficient)
 
+        G = f2**3 *coefficient[:, :, 0] + f2**2 * coefficient[:, :, 1] + \
+            f2 * coefficient[:, :, 2] + coefficient[:, :, 3]
+        
+        calc6 = time.time()
+        print("end calc6 time:", calc6 - calc5, 's')
+
+        G2 = G.reshape(batch_size, embedding_nums, centor_atom_num, self.maxNeighborNum, G.shape[1])
+        calc7 = time.time()
+        print("end calc7 time:", calc7 - calc6, 's')
+        return G2
 
     
