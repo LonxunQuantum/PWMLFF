@@ -415,7 +415,6 @@ class DP(nn.Module):
         dE = torch.autograd.grad([Ei], [Ri], grad_outputs=mask, retain_graph=True, create_graph=True)[0]
         '''
         assert dE is not None
-        # t1 = time.time()     
         if device.type == "cpu":
             dE = torch.unsqueeze(dE, dim=-1)
             # dE * Ri_d [batch, natom, max_neighbor * len(type_map),4,1] * [batch, natom, max_neighbor * len(type_map), 4, 3]
@@ -446,9 +445,6 @@ class DP(nn.Module):
             Force = CalcOps.calculateForce(list_neigh, dE, Ri_d, Force, torch.tensor(nghost, device=device, dtype=torch.int64))[0]
             Virial = CalcOps.calculateVirial(list_neigh, dE, ImageDR, Ri_d, torch.tensor(nghost, device=device, dtype=torch.int64))[0] # not true value
         # print(torch.allclose(Force, Force0, atol=1e-10))
-        # t2 = time.time()
-        # t3 = time.time()
-
         '''
         Ri_d = Ri_d.view(batch_size, natoms_sum, -1, 3)
         dE = dE.view(batch_size, natoms_sum, 1, -1)

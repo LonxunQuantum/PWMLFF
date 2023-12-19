@@ -58,5 +58,9 @@ fi
 ##################################################################
 cd op
 rm build -r
-python setup.py install --user
+# python setup.py install --user
+mkdir build
+cd build
+cmake ..
+make
 echo "Environment variables have been written ~/.bashrc"

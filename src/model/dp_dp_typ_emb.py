@@ -385,11 +385,11 @@ class TypeDP(nn.Module):
                 if self.compress_tab.device != device:
                     self.compress_tab = self.compress_tab.to(device)
                 if self.order == 3:
-                    G3 = self.calc_compress_3order(S_Rij_, ntype_1)
+                    G3 = self.calc_compress_3order(S_Rij_, ntype_1, device)
                     assert G3 is not None
                     G = G3 if G is None else torch.concat((G, G3), dim=2)
                 elif self.order == 5:
-                    G5 = self.calc_compress_5order(S_Rij_, ntype_1)
+                    G5 = self.calc_compress_5order(S_Rij_, ntype_1, device)
                     assert G5 is not None
                     G = G5 if G is None else torch.concat((G, G5), dim=2)
         if tmp_a is None:
@@ -466,7 +466,7 @@ class TypeDP(nn.Module):
             Virial = CalcOps.calculateVirial(list_neigh, dE, ImageDR, Ri_d, torch.tensor(nghost, device=device, dtype=torch.int64))[0]
         return Force, Virial
     
-    def calc_compress_5order(self, S_Rij:torch.Tensor, table_type:int):
+    def calc_compress_5order(self, S_Rij:torch.Tensor, table_type:int, device: torch.device):
         sij = S_Rij.flatten()
 
         x = (sij-self.sij_min)/self.dx
@@ -477,14 +477,16 @@ class TypeDP(nn.Module):
         coefficient = self.compress_tab[table_type, index_k1, :]
 
         # G = CalculateCompress.apply(f2, coefficient)
-
-        G = f2**5 *coefficient[:, :, 0] + f2**4 * coefficient[:, :, 1] + \
-            f2**3 * coefficient[:, :, 2] + f2**2 * coefficient[:, :, 3] + \
-            f2 * coefficient[:, :, 4] + coefficient[:, :, 5]
+        if device.type == "cpu":
+            G = f2**5 *coefficient[:, :, 0] + f2**4 * coefficient[:, :, 1] + \
+                f2**3 * coefficient[:, :, 2] + f2**2 * coefficient[:, :, 3] + \
+                f2 * coefficient[:, :, 4] + coefficient[:, :, 5]
+        else:
+            G = CalcOps.calculateCompress(f2, coefficient)[0]
         G = G.reshape(S_Rij.shape[0], S_Rij.shape[1], S_Rij.shape[2], G.shape[1])
         return G
 
-    def calc_compress_3order(self, S_Rij:torch.Tensor, table_type:int ):
+    def calc_compress_3order(self, S_Rij:torch.Tensor, table_type:int, device: torch.device):
         sij = S_Rij.flatten()
 
         mask = sij < self.sij_max
@@ -500,9 +502,12 @@ class TypeDP(nn.Module):
         
         coefficient = self.compress_tab[table_type, index_k1, :]
         # G = CalculateCompress.apply(f2, coefficient)
+        if device.type == "cpu":
+            G = f2**3 *coefficient[:, :, 0] + f2**2 * coefficient[:, :, 1] + \
+                f2 * coefficient[:, :, 2] + coefficient[:, :, 3]
+        else:
+            G = CalcOps.calculateCompress(f2, coefficient)[0]
 
-        G = f2**3 *coefficient[:, :, 0] + f2**2 * coefficient[:, :, 1] + \
-            f2 * coefficient[:, :, 2] + coefficient[:, :, 3]
         G = G.reshape(S_Rij.shape[0], S_Rij.shape[1], S_Rij.shape[2], G.shape[1])
         
         return G

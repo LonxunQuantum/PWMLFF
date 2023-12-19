@@ -8,7 +8,8 @@ torch::autograd::variable_list calculateForce_cpu(
     at::Tensor list_neigh,
     at::Tensor dE,
     at::Tensor Ri_d,
-    at::Tensor F) 
+    at::Tensor F,
+    at::Tensor nghost_tensor) 
     {
         return {torch::autograd::Variable()};
     }
@@ -19,7 +20,8 @@ torch::autograd::variable_list calculateVirial_cpu(
     at::Tensor list_neigh,
     at::Tensor dE,
     at::Tensor Rij,
-    at::Tensor Ri_d) 
+    at::Tensor Ri_d,
+    at::Tensor nghost_tensor) 
     {
         return {torch::autograd::Variable()};
     }
