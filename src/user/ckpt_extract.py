@@ -20,7 +20,7 @@ def extract_force_field(ckpt_file, cmd_type):
     else:
         raise Exception("Error! The extract command {} not realized. ".format(cmd_type))
 
-def tracing_model(ckpt_file):
+def script_model(ckpt_file):
     # Step 1.
     model_checkpoint = torch.load(ckpt_file,map_location=torch.device("cpu"))
     stat = [model_checkpoint["davg"], model_checkpoint["dstd"], model_checkpoint["energy_shift"]]
