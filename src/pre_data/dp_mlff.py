@@ -1010,7 +1010,7 @@ def sepper_data(config, Etot, Ei, Force, dR_neigh,\
     
     image_dR = dR_neigh[:, :3]
     list_neigh = dR_neigh[:, 3]
-    neigh_type = dR_neigh[:, 4]
+    # neigh_type = dR_neigh[:, 4]
     
     image_index = np.insert(
         atom_num_per_image, 0, 0
@@ -1045,7 +1045,7 @@ def sepper_data(config, Etot, Ei, Force, dR_neigh,\
         os.makedirs(valid_data_path)
     
     list_neigh = list_neigh.reshape(-1, max_neighbor_num * ntypes)
-    neigh_type = neigh_type.reshape(-1, max_neighbor_num * ntypes)
+    # neigh_type = neigh_type.reshape(-1, max_neighbor_num * ntypes)
     image_dR = image_dR.reshape(-1, max_neighbor_num * ntypes, 3)
     image_dR = np.concatenate((Rij, image_dR), axis=-1)
 
@@ -1064,9 +1064,7 @@ def sepper_data(config, Etot, Ei, Force, dR_neigh,\
                 "AtomType": atom_type[image_index[start_index] : image_index[end_index]],
                 "AtomTypeMap": atom_type_map[image_index[start_index] : image_index[end_index]],
                 "ImageDR": image_dR[image_index[start_index] : image_index[end_index]],
-                "ListNeighbor": list_neigh[
-                    image_index[start_index] : image_index[end_index]
-                ],
+                "ListNeighbor": list_neigh[image_index[start_index] : image_index[end_index]],
                 # "NeighborType": neigh_type[image_index[start_index] : image_index[end_index]],
                 "Ei": Ei[image_index[start_index] : image_index[end_index]],
                 # "Ri": Ri[image_index[start_index] : image_index[end_index]],
@@ -1107,9 +1105,7 @@ def sepper_data(config, Etot, Ei, Force, dR_neigh,\
                 "AtomType": atom_type[image_index[start_index] : image_index[end_index]],
                 "AtomTypeMap": atom_type_map[image_index[start_index] : image_index[end_index]],
                 "ImageDR": image_dR[image_index[start_index] : image_index[end_index]],
-                "ListNeighbor": list_neigh[
-                    image_index[start_index] : image_index[end_index]
-                ],
+                "ListNeighbor": list_neigh[image_index[start_index] : image_index[end_index]],
                 # "NeighborType": neigh_type[image_index[start_index] : image_index[end_index]],
                 "Ei": Ei[image_index[start_index] : image_index[end_index]],
                 # "Ri": Ri[image_index[start_index] : image_index[end_index]],

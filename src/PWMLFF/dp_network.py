@@ -237,7 +237,7 @@ class dp_network:
         else:
             model = model.cuda()
             if model.compress_tab is not None:
-                model.compress_tab.to(device=model.device)
+                model.compress_tab.to(device=self.device)
         # optimizer, and learning rate scheduler
         if self.dp_params.optimizer_param.opt_name == "LKF":
             optimizer = LKFOptimizer(
