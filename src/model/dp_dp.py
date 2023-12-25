@@ -457,11 +457,12 @@ class DP(nn.Module):
             Ri_d = Ri_d.view(batch_size, natoms_sum, -1, 3)
             dE = dE.view(batch_size, natoms_sum, 1, -1)
             Force = -1 * torch.matmul(dE, Ri_d).squeeze(-2)
-            ImageDR = ImageDR[:,:,:,1:]
+            ImageDR = ImageDR[:,:,:,1:].clone()
+            nghost_tensor = torch.tensor(nghost, device=device, dtype=torch.int64)
             list_neigh = torch.unsqueeze(list_neigh,2)
             list_neigh = (list_neigh - 1).type(torch.int)
-            Force = CalcOps.calculateForce(list_neigh, dE, Ri_d, Force, torch.tensor(nghost, device=device, dtype=torch.int64))[0]
-            Virial = CalcOps.calculateVirial(list_neigh, dE, ImageDR, Ri_d, torch.tensor(nghost, device=device, dtype=torch.int64))[0] # not true value
+            Force = CalcOps.calculateForce(list_neigh, dE, Ri_d, Force, nghost_tensor)[0]
+            Virial = CalcOps.calculateVirial(list_neigh, dE, ImageDR, Ri_d, nghost_tensor)[0]
         # print(torch.allclose(Force, Force0, atol=1e-10))
         '''
         Ri_d = Ri_d.view(batch_size, natoms_sum, -1, 3)
