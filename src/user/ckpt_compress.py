@@ -57,16 +57,16 @@ def compress_force_field(ckpt_file):
         elif order == 3:
             cmp_tab = dp_model_compress_3order(sij, model, dx, sij_len, sij_out_len)
         elif order == 5:
-            cmp_tab = dp_model_compress_5order(sij, model, dx)
+            cmp_tab = dp_model_compress_5order(sij, model, dx, sij_len, sij_out_len)
         else:
             raise Exception("Error ! The input compress order {} not realized yet. Order options: 2, 3, or 5".format(order))
     else:
         physical_property = model.config["net_cfg"]["type_embedding_net"]["physical_property"]
         type_vector = get_normalized_data_list(atom_type_order, physical_property)
         if order == 3:
-            cmp_tab = dp_type_model_compress_3order(sij, model, dx, atom_type_order, type_vector, sij_len, sij_out_len)
+            cmp_tab = dp_type_model_compress_3order(sij, model, dx, atom_type_order, type_vector, sij_len, sij_out_len, dp_trainer.device)
         elif order == 5:
-            cmp_tab = dp_type_model_compress_5order(sij, model, dx, atom_type_order, type_vector)
+            cmp_tab = dp_type_model_compress_5order(sij, model, dx, atom_type_order, type_vector, sij_len, sij_out_len, dp_trainer.device)
         else:
             raise Exception("Error ! The input compress order {} not realized yet. Order options: 2, 3, or 5".format(order))
         
@@ -154,12 +154,10 @@ def dp_model_compress_3order(sij:torch.Tensor, model:DP, dx:float, len_sij: int,
     sij_tab = np.array(sij_tab)
     return sij_tab
 
-def dp_model_compress_5order(sij:torch.Tensor, model:DP, dx:float):
+def dp_model_compress_5order(sij:torch.Tensor, model:DP, dx:float, len_sij: int, len_out_max: int):
     ntypes = model.ntypes
     sij_tab = []
     num_sij = sij.shape[0]
-    done_sij_num = 0
-    all_sij_num = num_sij*ntypes**2
     for type_0 in range(0, ntypes):
         for type_1 in range(0, ntypes):
             # print(type_0, "\t\t", ntype_1)
@@ -167,12 +165,12 @@ def dp_model_compress_5order(sij:torch.Tensor, model:DP, dx:float):
             # S_Rij = sij[:,type_0].unsqueeze(-1)
             embedding_index = type_0 * model.ntypes + type_1
             coef_L = []
-            for index, split in enumerate(range(0, num_sij, 5000)): #split the input sij to 2000 as a group to avoid the out cuda memory in 2 order derivative atuograd step
-                start = index*5000
-                end = (index+1)*5000+1 if (index+1)*5000+1 < num_sij else num_sij
-                print("model compress doing: {:.2f}%".format(done_sij_num / all_sij_num *100))
-                done_sij_num += (end-start)
-                S_Rij = sij[start: end]
+            for index in range(len([len_sij, len_out_max])):
+                if index == 0:
+                    S_Rij = sij[0:len_sij+1]
+                else:
+                    S_Rij = sij[len_sij:]
+                    dx = 10*dx
                 # determines which embedding net
                 # itermediate output of embedding net 
                 # dim of G: batch size, natom of ntype, max_neigh_num, final layer dim
@@ -228,7 +226,7 @@ def dp_model_compress_5order(sij:torch.Tensor, model:DP, dx:float):
     sij_tab = np.array(sij_tab)
     return sij_tab
 
-def dp_type_model_compress_3order(sij:torch.Tensor, model:TypeDP, dx:float, atom_type_order:list, type_vector:dict, len_sij: int, len_out_max: int):
+def dp_type_model_compress_3order(sij:torch.Tensor, model:TypeDP, dx:float, atom_type_order:list, type_vector:dict, len_sij: int, len_out_max: int, device:torch.device):
     sij_tab = []
     for atom_type in atom_type_order:
         coef_L = []
@@ -238,7 +236,7 @@ def dp_type_model_compress_3order(sij:torch.Tensor, model:TypeDP, dx:float, atom
             else:
                 S_Rij = sij[len_sij:]
                 dx = 10*dx
-            t_vector = torch.tensor(type_vector[atom_type], dtype=model.dtype, device=model.device).repeat(S_Rij.shape[0],1)
+            t_vector = torch.tensor(type_vector[atom_type], dtype=model.dtype, device=device).repeat(S_Rij.shape[0],1)
             S_Rij_input = torch.concat((S_Rij, t_vector), dim=1)
             y = model.embedding_net[-1](S_Rij_input) #S_Rij shape is [1000, 1], out y shape is [1000, 25]
             am, bm, cm, dm= None, None, None, None
@@ -275,20 +273,18 @@ def dp_type_model_compress_3order(sij:torch.Tensor, model:TypeDP, dx:float, atom
     sij_tab = np.array(sij_tab)
     return sij_tab
 
-def dp_type_model_compress_5order(sij:torch.Tensor, model:TypeDP, dx:float, atom_type_order:list, type_vector:dict):
+def dp_type_model_compress_5order(sij:torch.Tensor, model:TypeDP, dx:float, atom_type_order:list, type_vector:dict, len_sij: int, len_out_max: int, device:torch.device):
     sij_tab = []
     num_sij = sij.shape[0]
-    done_sij_num = 0
-    all_sij_num = num_sij * len(atom_type_order)
     for atom_type in atom_type_order:
         coef_L = []
-        for index, split in enumerate(range(0, num_sij, 5000)): #split the input sij to 2000 as a group to avoid the out cuda memory in 2 order derivative atuograd step
-            start = index*5000
-            end = (index+1)*5000+1 if (index+1)*5000+1 < num_sij else num_sij
-            print("model compress doing: {:.2f}%".format(done_sij_num / all_sij_num *100))
-            done_sij_num += (end-start)
-            S_Rij = sij[start: end]
-            t_vector = torch.tensor(type_vector[atom_type], dtype=model.dtype, device=model.device).repeat(end-start,1)
+        for index in range(len([len_sij, len_out_max])):
+            if index == 0:
+                S_Rij = sij[0:len_sij+1]
+            else:
+                S_Rij = sij[len_sij:]
+                dx = 10*dx
+            t_vector = torch.tensor(type_vector[atom_type], dtype=model.dtype, device=device).repeat(S_Rij.shape[0],1)
             S_Rij_input = torch.concat((S_Rij, t_vector), dim=1)
             y = model.embedding_net[-1](S_Rij_input) #S_Rij shape is [1000, 1], out y shape is [1000, 25]
             am, bm, cm, dm, em, fm= None, None, None, None, None, None

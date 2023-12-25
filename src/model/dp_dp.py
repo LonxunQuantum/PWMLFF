@@ -137,12 +137,18 @@ class DP(nn.Module):
     author: wuxingxing
     '''
     def get_train_2body_type(self, type_map: torch.Tensor) -> Tuple[List[List[List[int]]], int]:
+        def get_index(user_input_order: List[int], key:torch.Tensor):
+            for i, v in enumerate(user_input_order):
+                if v == key:
+                    return i
+            return None
+        
         type_2body_list: List[List[List[int]]] = []         
         type_2body_index: List[int] = []
-        for i, atom in enumerate(self.atom_type):
-            if type_map.eq(atom).any():
-                type_2body_index.append(i)
-
+        for i, atom in enumerate(type_map):
+            # if self.atom_type.eq(atom).any():
+            #     type_2body_index.append(i)
+            type_2body_index.append(get_index(self.atom_type, atom))
         for atom in type_2body_index:
             type_2body: List[List[int]] = []        # 整数列表的列表
             for atom2 in type_2body_index:
@@ -320,7 +326,7 @@ class DP(nn.Module):
             DR_ntype = DR_ntype.reshape(batch_size, xyz_scater_a.shape[1], -1)
             # t2 = time.time()
             Ei_ntype: Optional[torch.Tensor] = None
-            fit_net = fit_net_dict.get(ntype) 
+            fit_net = fit_net_dict.get(type_emb[0][0]) 
             assert fit_net is not None
             Ei_ntype = fit_net.forward(DR_ntype)
             # found = False
@@ -390,25 +396,22 @@ class DP(nn.Module):
                 start = int(i_jtype[i, 1].item() * self.maxNeighborNum)
                 end = int((i_jtype[i, 1].item() + 1) * self.maxNeighborNum)
                 neigh_index.extend(list(range(start, end)))
+            neigh_index = torch.tensor(neigh_index, device=device).reshape(type_nums, -1)
             S_Rij = Ri[:, indices][:, :, neigh_index, 0]    # S_Rij.shape: [batch, natoms_ntype, max_neighbor * type_nums], natoms_ntype is the number of atoms of the jtype (neighbors, include itself)
+
             type_indices = i_jtype[:, 0] * self.ntypes + i_jtype[:, 1]  # include itself
+            
             G: Optional[torch.Tensor] = None
             if self.compress_tab.device != device:
                 self.compress_tab = self.compress_tab.to(device)
-            if self.order == 2:
-                G = self.calc_compress(S_Rij, type_indices, type_nums, device)
-            elif self.order == 3:
-                G = self.calc_compress_3order(S_Rij, type_indices, type_nums, device)
-            elif self.order == 5:
-                G = self.calc_compress_5order(S_Rij, type_indices, type_nums, device)
-            neigh_index = torch.tensor(neigh_index, device=device).reshape(type_nums, -1)
+            G = self.calc_compress_3order(S_Rij, type_indices, type_nums, device)
             # tmp_a.shape: [batch, natoms_ntype, type_nums, max_neighbor, 4] -> [batch, type_nums, natoms_ntype, max_neighbor, 4] -> [batch, type_nums, natoms_ntype, 4, max_neighbor]
             tmp_a = Ri[:, indices][:, :, neigh_index].transpose(1, 2).transpose(-1,-2)
             assert G is not None
             xyz_scater_a = torch.matmul(tmp_a, G).sum(1)
         xyz_scater_a = xyz_scater_a / (self.maxNeighborNum * type_nums)
         xyz_scater_b = xyz_scater_a[:, :, :, :self.M2]
-        return xyz_scater_a, xyz_scater_b, ntype
+        return xyz_scater_a, xyz_scater_b, i_jtype[0][0]
 
     def calculate_force_virial(self, 
                                Ri: torch.Tensor,
@@ -545,6 +548,8 @@ class DP(nn.Module):
     param {int} itype
     return {*}
     author: wuxingxing
+
+    Due to accuracy issues, second-order polynomial (calc_compress function) is no longer maintained and be discontinued on December 12, 2023
     '''    
     def calc_compress(self, S_Rij:torch.Tensor, type_indices:torch.Tensor, type_nums: int, device: torch.device):
         sij = S_Rij.flatten()
@@ -562,52 +567,34 @@ class DP(nn.Module):
         G = self.compress_tab[type_indices][index_k1][:, :out_len] + f2*deriv_sij
         G = G.reshape(S_Rij.shape[0], S_Rij.shape[1], S_Rij.shape[2], G.shape[1])
         return G
-    
-    def calc_compress_5order(self, S_Rij:torch.Tensor, type_indices:torch.Tensor, type_nums: int, device: torch.device):
-        sij = S_Rij.flatten()
-
-        x = (sij-self.sij_min)/self.dx
-        index_k1 = x.type(torch.long) # get floor
-        xk = self.sij_min + index_k1*self.dx
-        f2 = (sij - xk).flatten().unsqueeze(-1)
-        coefficient = self.compress_tab[type_indices, index_k1, :]
-        # G = CalculateCompress.apply(f2, coefficient)
-        if device.type == "cpu":
-            G = f2**5 *coefficient[:, :, 0] + f2**4 * coefficient[:, :, 1] + \
-                f2**3 * coefficient[:, :, 2] + f2**2 * coefficient[:, :, 3] + \
-                f2 * coefficient[:, :, 4] + coefficient[:, :, 5]
-        else:
-            G = CalcOps.calculateCompress(f2, coefficient)[0]
-        
-        G = G.reshape(S_Rij.shape[0], S_Rij.shape[1], S_Rij.shape[2], G.shape[1])
-        return G
 
     def calc_compress_3order(self, S_Rij:torch.Tensor, type_indices:torch.Tensor, type_nums: int, device: torch.device):
-        embedding_nums = len(type_indices)
-        sij = S_Rij.flatten()
+        _S_Rij = S_Rij.transpose(-3,-2) #Sji [1, 6, 500] ->[1, 6, 5, 100] -> [1, 5, 6, 100]
+        sij = _S_Rij.flatten()
+        
         mask = sij < self.sij_max
+
         x = torch.zeros_like(sij)
         x[mask] = (sij[mask]-self.sij_min)/self.dx
         x[~mask] = (sij[~mask]-self.sij_max)/(10*self.dx)
         index_k1 = x.type(torch.long) # get floor
-
         xk = torch.zeros_like(sij, dtype=torch.float32) # the index * dx + sij_min is a float type data
         xk[mask] = index_k1[mask]*self.dx + self.sij_min
         xk[~mask] = self.sij_max + index_k1[~mask]*self.dx*10
-        # f2 = (sij - xk).flatten().unsqueeze(-1)
-        f2 = (sij - xk).reshape(type_nums, -1, 1)
-        # index_k1.shape: [batch_size * natoms_ntype * max_neighbor * type_nums] -> [natoms_ntype, type_nums, max_neighbor] -> [type_nums, natoms_ntype, max_neighbor] -> [type_nums, natoms_ntype * max_neighbor]
-        index_k1 = index_k1.reshape(S_Rij.shape[1],type_nums,-1).transpose(0, 1).reshape(type_nums, -1) + (type_indices*self.compress_tab_shape[1]).reshape(type_nums, -1)
-        # coefficient = self.compress_tab[type_indices, index_k1, :]
+        f2 = (sij - xk).flatten().unsqueeze(-1)
+        # f2 = (sij - xk).reshape(type_nums, -1, 1)
+        
+        index_k1 = index_k1 + (type_indices*self.compress_tab_shape[1]).repeat(S_Rij.shape[1]*self.maxNeighborNum, 1).transpose(0,1).flatten() # real index if compress table
         coefficient = self.compress_tab[index_k1, :]
-        # G = CalculateCompress.apply(f2, coefficient)
-        # if device.type == "cpu":
-        G = f2**3 *coefficient[:, :, :, 0] + f2**2 * coefficient[:, :, :, 1] + \
-            f2 * coefficient[:, :, :, 2] + coefficient[:, :, :, 3]
-        # G = f2**3 *coefficient[:, :, 0] + f2**2 * coefficient[:, :, 1] + \
-        #     f2 * coefficient[:, :, 2] + coefficient[:, :, 3]
-        # else:
-        #     G = CalcOps.calculateCompress(f2, coefficient)[0]
-        G = G.reshape(S_Rij.shape[0], type_nums, S_Rij.shape[1], self.maxNeighborNum, G.shape[2])
-        return G
-    
+        if device.type == "cpu":
+            if self.order == 3:
+                G = f2**3 *coefficient[:, :, 0] + f2**2 * coefficient[:, :, 1] + \
+                    f2 * coefficient[:, :, 2] + coefficient[:, :, 3]
+            else:
+                G = f2**5 *coefficient[:, :, 0] + f2**4 * coefficient[:, :, 1] + \
+                    f2**3 * coefficient[:, :, 2] + f2**2 * coefficient[:, :, 3] + \
+                    f2 * coefficient[:, :, 4] + coefficient[:, :, 5]
+        else:# calucluate by GPU
+            G = CalcOps.calculateCompress(f2, coefficient)[0]
+        G2 = G.reshape(_S_Rij.shape[0],_S_Rij.shape[1],_S_Rij.shape[2],_S_Rij.shape[3],self.compress_tab_shape[2])
+        return G2
