@@ -136,19 +136,20 @@ class DP(nn.Module):
     return {*}
     author: wuxingxing
     '''
+    def get_index(self, user_input_order: List[int], key:torch.Tensor):
+        for i, v in enumerate(user_input_order):
+            if v == key:
+                return i
+        return -1
     def get_train_2body_type(self, type_map: torch.Tensor) -> Tuple[List[List[List[int]]], int]:
-        def get_index(user_input_order: List[int], key:torch.Tensor):
-            for i, v in enumerate(user_input_order):
-                if v == key:
-                    return i
-            return None
-        
         type_2body_list: List[List[List[int]]] = []         
         type_2body_index: List[int] = []
         for i, atom in enumerate(type_map):
             # if self.atom_type.eq(atom).any():
             #     type_2body_index.append(i)
-            type_2body_index.append(get_index(self.atom_type, atom))
+            index = self.get_index(self.atom_type, atom)
+            if index != -1:
+                type_2body_index.append(self.get_index(self.atom_type, atom))
         for atom in type_2body_index:
             type_2body: List[List[int]] = []        # 整数列表的列表
             for atom2 in type_2body_index:
@@ -319,23 +320,16 @@ class DP(nn.Module):
         fit_net_dict = {idx: fit_net for idx, fit_net in enumerate(self.fitting_net)}
         for type_emb in emb_list:
             # t1 = time.time()
-            xyz_scater_a, xyz_scater_b, ntype = self.calculate_xyz_scater(Imagetype_map, Ri, type_emb, type_nums, device)
+            xyz_scater_a, xyz_scater_b = self.calculate_xyz_scater(Imagetype_map, Ri, type_emb, type_nums, device)
             if xyz_scater_a.any() == 0:
                 continue
             DR_ntype = torch.matmul(xyz_scater_a.transpose(-2, -1), xyz_scater_b)
             DR_ntype = DR_ntype.reshape(batch_size, xyz_scater_a.shape[1], -1)
             # t2 = time.time()
-            Ei_ntype: Optional[torch.Tensor] = None
             fit_net = fit_net_dict.get(type_emb[0][0]) 
             assert fit_net is not None
             Ei_ntype = fit_net.forward(DR_ntype)
-            # found = False
-            # for idx, fit_net in enumerate(self.fitting_net):
-            #     if idx == ntype and not found:
-            #         Ei_ntype = fit_net(DR_ntype)
-            #         found = True 
             # t3 = time.time()
-            assert Ei_ntype is not None
             Ei = Ei_ntype if Ei is None else torch.concat((Ei, Ei_ntype), dim=1)
             # t4 = time.time()
             # print("calculate_xyz_scater:", t2-t1, "\nfitting_net:", t3-t2, "\nconcat:", t4-t3, "\n********************")
@@ -346,10 +340,10 @@ class DP(nn.Module):
                              Ri: torch.Tensor,
                              type_emb: List[List[int]],
                              type_nums: int, 
-                             device: torch.device) -> Tuple[torch.Tensor, torch.Tensor, int]:
-        xyz_scater_a : Optional[torch.Tensor] = None
-        ntype = 0
+                             device: torch.device) -> Tuple[torch.Tensor, torch.Tensor]:
         if self.compress_tab is None:
+            xyz_scater_a : Optional[torch.Tensor] = None
+            ntype = 0
             emb_net_dict = {idx: emb_net for idx, emb_net in enumerate(self.embedding_net)}
             for emb in type_emb:
                 # t1 = time.time()
@@ -361,57 +355,58 @@ class DP(nn.Module):
                 S_Rij = Ri[:, indices, ntype_1 * self.maxNeighborNum:(ntype_1+1) * self.maxNeighborNum, 0].unsqueeze(-1)
                 # t2 = time.time()
                 embedding_index = ntype * self.ntypes + ntype_1
-                G: Optional[torch.Tensor] = None
                 emb_net = emb_net_dict.get(embedding_index)
                 assert emb_net is not None
                 G = emb_net.forward(S_Rij)
-                    # found = False
-                    # for idx, emb_net in enumerate(self.embedding_net):
-                    #     if idx == embedding_index and not found:
-                    #         G = emb_net(S_Rij)
-                    #         found = True
                 # t3 = time.time()
                 tmp_a = Ri[:, indices, ntype_1 * self.maxNeighborNum:(ntype_1+1) * self.maxNeighborNum].transpose(-2, -1)
-
-                assert G is not None
                 tmp_b = torch.matmul(tmp_a, G)
                 xyz_scater_a = tmp_b if xyz_scater_a is None else xyz_scater_a + tmp_b
                 # t4 = time.time()
                 # print("calculate_Rij:", t2-t1, "\nembedding_net:", t3-t2, "\nconcat:", t4-t3, "\n********************")
             # assert xyz_scater_a is not None
             if xyz_scater_a is None:
-                return torch.zeros(1, device=device), torch.zeros(1, device=device), ntype
+                return torch.zeros(1, device=device), torch.zeros(1, device=device)
         else:
             i_jtype = torch.tensor(type_emb, device=device)
             mask = (Imagetype_map == i_jtype[0][0])
             if not mask.any():
-                return torch.zeros(1, device=device), torch.zeros(1, device=device), ntype
+                return torch.zeros(1, device=device), torch.zeros(1, device=device)
             indices = torch.arange(len(Imagetype_map.flatten()),device=device)[mask]  
             # mask = (Imagetype_map == i_jtype[:, 0].unsqueeze(-1))
             # indices = torch.arange(len(Imagetype_map.flatten()), device=device).unsqueeze(0).expand(len(i_jtype), -1)[mask]
             neigh_index: List[int] = []
             # for i in range(len(i_jtype)):
             for i in range(type_nums):
-                # neigh_index.extend(list(range(i_jtype[i, 1] * self.maxNeighborNum, (i_jtype[i, 1] + 1) * self.maxNeighborNum)))
                 start = int(i_jtype[i, 1].item() * self.maxNeighborNum)
                 end = int((i_jtype[i, 1].item() + 1) * self.maxNeighborNum)
                 neigh_index.extend(list(range(start, end)))
             neigh_index = torch.tensor(neigh_index, device=device).reshape(type_nums, -1)
-            S_Rij = Ri[:, indices][:, :, neigh_index, 0]    # S_Rij.shape: [batch, natoms_ntype, max_neighbor * type_nums], natoms_ntype is the number of atoms of the jtype (neighbors, include itself)
-
-            type_indices = i_jtype[:, 0] * self.ntypes + i_jtype[:, 1]  # include itself
-            
-            G: Optional[torch.Tensor] = None
+            S_Rij = Ri[:, indices][:, :, neigh_index, 0]
+            """
+            Example:
+            max_neighbor = 5;
+            i_jtype = [[0, 0], [0, 1]];
+            jtype = [0, 1]; --> type_nums = 2;
+            natoms_ntype = 1;
+            neigh_index: [0,1,2,3,4] + [5,6,7,8,9] --> tensor([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]) --> torch.Size([2, 5])
+            Ri[:, indices].shape: [batch, natoms_ntype, max_neighbor * type_nums, 4]
+            S_Rij.shape: [batch, natoms_ntype, max_neighbor * type_nums], natoms_ntype is the number of atoms of the jtype (neighbors, include itself)
+            """
+            type_indices = i_jtype[:, 0] * self.ntypes + i_jtype[:, 1]  # return jtype (include itself), --> tensor([0, 1]) --> tensor([2, 3]) for next loop
             if self.compress_tab.device != device:
                 self.compress_tab = self.compress_tab.to(device)
-            G = self.calc_compress_3order(S_Rij, type_indices, type_nums, device)
-            # tmp_a.shape: [batch, natoms_ntype, type_nums, max_neighbor, 4] -> [batch, type_nums, natoms_ntype, max_neighbor, 4] -> [batch, type_nums, natoms_ntype, 4, max_neighbor]
+            G = self.calc_compress_polynomial(S_Rij, type_indices, type_nums, device)
+            """
+            tmp_a.shape: [batch, natoms_ntype, type_nums, max_neighbor, 4] -> 
+                         [batch, type_nums, natoms_ntype, max_neighbor, 4] -> 
+                         [batch, type_nums, natoms_ntype, 4, max_neighbor]
+            """
             tmp_a = Ri[:, indices][:, :, neigh_index].transpose(1, 2).transpose(-1,-2)
-            assert G is not None
             xyz_scater_a = torch.matmul(tmp_a, G).sum(1)
         xyz_scater_a = xyz_scater_a / (self.maxNeighborNum * type_nums)
         xyz_scater_b = xyz_scater_a[:, :, :, :self.M2]
-        return xyz_scater_a, xyz_scater_b, i_jtype[0][0]
+        return xyz_scater_a, xyz_scater_b
 
     def calculate_force_virial(self, 
                                Ri: torch.Tensor,
@@ -568,7 +563,7 @@ class DP(nn.Module):
         G = G.reshape(S_Rij.shape[0], S_Rij.shape[1], S_Rij.shape[2], G.shape[1])
         return G
 
-    def calc_compress_3order(self, S_Rij:torch.Tensor, type_indices:torch.Tensor, type_nums: int, device: torch.device):
+    def calc_compress_polynomial(self, S_Rij:torch.Tensor, type_indices:torch.Tensor, type_nums: int, device: torch.device):
         _S_Rij = S_Rij.transpose(-3,-2) #Sji [1, 6, 500] ->[1, 6, 5, 100] -> [1, 5, 6, 100]
         sij = _S_Rij.flatten()
         
@@ -598,3 +593,16 @@ class DP(nn.Module):
             G = CalcOps.calculateCompress(f2, coefficient)[0]
         G2 = G.reshape(_S_Rij.shape[0],_S_Rij.shape[1],_S_Rij.shape[2],_S_Rij.shape[3],self.compress_tab_shape[2])
         return G2
+        """
+        Example:
+        max_neighbor = 5;
+        type_nums = 2;
+        batch_size = 1;
+        natoms_ntype = 1;
+        self.compress_tab_shape: compress_tab before reshape; --> torch.Size([4, 511, 25, 4]): [type_nums**2, grid_tab, network_nodes, 4], 4 here is the const (a, b, c, d) of the 3-order polynomial;
+        self.compress_tab.shape: compress_tab after reshape; --> torch.Size([2044, 25, 4])
+        f2.shape: [batch_size * natoms_ntype * max_neighbor * type_nums] -> [type_nums * natoms_ntype * max_neighbor, 1]
+        index_k1.shape: [batch_size * natoms_ntype * max_neighbor * type_nums]
+        coefficient.shape: torch.Size([10, 25, 4]) --> [type_nums * natoms_ntype * max_neighbor, network_nodes, 4]
+        G.shape: torch.Size([10, 25]) --> torch.Size([1, 2, 1, 5, 25]) : [type_nums * natoms_ntype * max_neighbor, network_nodes] --> [batch_size, type_nums, natoms_ntype, max_neighbor, network_nodes]
+        """
