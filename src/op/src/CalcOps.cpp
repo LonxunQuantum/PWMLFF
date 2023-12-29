@@ -17,7 +17,7 @@ torch::autograd::variable_list CalculateForceFuncs::forward(
         int nghost = nghost_tensor.item<int>();
         auto force = torch::zeros({batch_size, natoms + nghost, 3}, dE.options());
         force.slice(1, 0, natoms) = F;
-        torch_launch_calculate_force(list_neigh, dE, Ri_d, batch_size, natoms, neigh_num, force);
+        torch_launch_calculate_force(list_neigh, dE, Ri_d, batch_size, natoms, neigh_num, force, nghost);
         return {force};
         
     }

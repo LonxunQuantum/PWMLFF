@@ -13,13 +13,15 @@ void torch_launch_calculate_compress(
     auto dtype = f2.dtype();
     assert(coefficient.dtype() == dtype);
     assert(G.dtype() == dtype);
+    int device_id = G.device().index();
     if (dtype == torch::kFloat32)
     {
         launch_calculate_compress<float>(
             (const float *) f2.data_ptr(),
             (const float *) coefficient.data_ptr(),
             sij_num, layer_node, coe_num,
-            (float *) G.data_ptr()
+            (float *) G.data_ptr(),
+            device_id
         );
     } else if (dtype == torch::kFloat64)
     {
@@ -27,7 +29,8 @@ void torch_launch_calculate_compress(
             (const double *) f2.data_ptr(),
             (const double *) coefficient.data_ptr(),
             sij_num, layer_node, coe_num,
-            (double *) G.data_ptr()
+            (double *) G.data_ptr(),
+            device_id
         );
     }
     else

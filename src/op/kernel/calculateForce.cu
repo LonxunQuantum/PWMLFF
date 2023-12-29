@@ -85,7 +85,9 @@ void launch_calculate_force(
     const int batch_size,
     const int natoms,
     const int neigh_num,
-    DType * force
+    DType * force,
+    const int nghost,
+    const int device_id
 ) {
 
 #if 0
@@ -97,6 +99,7 @@ void launch_calculate_force(
 #endif
 
 #if 1
+    cudaSetDevice(device_id);
     const int LEN = 256;
     const int nblock = (neigh_num + LEN - 1) / LEN;
     dim3 block_grid(nblock, natoms, batch_size);
@@ -129,7 +132,9 @@ template void launch_calculate_force(const int * nblist,
     const int batch_size,
     const int natoms,
     const int neigh_num,
-    float * force);
+    float * force,
+    const int nghost,
+    const int device_id);
 
 template void launch_calculate_force(const int * nblist,
     const double * dE,
@@ -137,4 +142,6 @@ template void launch_calculate_force(const int * nblist,
     const int batch_size,
     const int natoms,
     const int neigh_num,
-    double * force);
+    double * force,
+    const int nghost,
+    const int device_id);

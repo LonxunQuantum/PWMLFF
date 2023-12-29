@@ -44,8 +44,10 @@ void launch_calculate_compress(
     const int sij_num,
     const int layer_node,
     const int coe_num,
-    DType * G
+    DType * G,
+    const int device_id
 ) {
+    cudaSetDevice(device_id);
     const int blockSize = 256;
     const int gridSize = (sij_num + blockSize -1) / blockSize;
     // Launch the kernel
@@ -58,7 +60,8 @@ template void launch_calculate_compress(
     const int sij_num,
     const int layer_node,
     const int coe_num,
-    float * G
+    float * G,
+    const int device_id
     );
 
 template void launch_calculate_compress(
@@ -67,5 +70,6 @@ template void launch_calculate_compress(
     const int sij_num,
     const int layer_node,
     const int coe_num,
-    double * G
+    double * G,
+    const int device_id
     );

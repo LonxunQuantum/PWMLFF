@@ -5,5 +5,6 @@ void launch_calculate_compress(
     const int sij_num,
     const int layer_node,
     const int coe_num,
-    DType * G
+    DType * G,
+    const int device
 );

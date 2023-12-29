@@ -82,9 +82,11 @@ void launch_calculate_virial_force(
     const int neigh_num,
     DType * virial,
     DType * atom_virial,
-    const int nghost
+    const int nghost,
+    const int device_id
 )
 {
+    cudaSetDevice(device_id);
     // cudaMemset(virial, 0, sizeof(DTYPE) * 9 * batch_size);
     // cudaMemset(atom_virial, 0, sizeof(DTYPE) * 9 * natoms * batch_size);
         
@@ -221,7 +223,8 @@ template void launch_calculate_virial_force(
     const int neigh_num,
     float * virial,
     float * atom_virial,
-    const int nghost
+    const int nghost,
+    const int device_id
 );
 
 template void launch_calculate_virial_force(
@@ -234,5 +237,6 @@ template void launch_calculate_virial_force(
     const int neigh_num,
     double * virial,
     double * atom_virial,
-    const int nghost
+    const int nghost,
+    const int device_id
 );
