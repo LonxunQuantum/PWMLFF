@@ -137,7 +137,9 @@ class dp_network:
             valid_dataset = None
         else:            
             train_dataset = MovementDataset([os.path.join(_, "train") for _ in self.dp_params.file_paths.all_movement_path])
-            valid_dataset = MovementDataset([os.path.join(_, "valid") for _ in self.dp_params.file_paths.all_movement_path])
+            valid_dataset = MovementDataset([os.path.join(_, "valid") 
+                                             for _ in self.dp_params.file_paths.all_movement_path
+                                             if os.path.exists(os.path.join(_, "valid"))])
         
         davg, dstd, energy_shift, atom_map = train_dataset.get_stat()
 

@@ -209,7 +209,7 @@ class Save_Data(object):
             train_data.append([])
             val_data.append([])
 
-        if self.train_ratio == 1.0:
+        if self.train_ratio == 1.0 or self.image_nums == 1:
             data_path = os.path.join(data_path, train_path)
             if not os.path.exists(data_path):
                 os.makedirs(data_path)
@@ -234,16 +234,14 @@ class Save_Data(object):
         formats = ["%.8f", "%.16f", "%.8f", "%.16f", "%d", "%d", "%d", "%.8f", "%.8f"]
         # for i in tqdm(range(len(data)), desc="Saving to raw files"):
         for i in range(len(data)):
-            np.savetxt(os.path.join(directory, filenames[i]), data[i], fmt=formats[i])
-            if i == 8 and len(data[8]) != 0:
+            if i != 8 or (i == 8 and len(data[8]) != 0):
                 np.savetxt(os.path.join(directory, filenames[i]), data[i], fmt=formats[i])
 
     def save_to_npy(self, data, directory):
         filenames = ["lattice.npy", "position.npy", "energies.npy", "forces.npy", "type_maps.npy", "atom_type.npy", "ImgPerMVT.npy", "ei.npy", "virials.npy"]
         # for i in tqdm(range(len(data)), desc="Saving to npy files"):
         for i in range(len(data)):
-            np.save(os.path.join(directory, filenames[i]), data[i])
-            if i == 8 and len(data[8]) != 0:
+            if i != 8 or (i == 8 and len(data[8]) != 0):
                 np.save(os.path.join(directory, filenames[i]), data[i])
         
 
