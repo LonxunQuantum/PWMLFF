@@ -209,7 +209,7 @@ class Save_Data(object):
             train_data.append([])
             val_data.append([])
 
-        if self.train_ratio == 1.0 or self.image_nums == 1:
+        if self.train_ratio == 1.0 or len(val_indices) == 0:
             data_path = os.path.join(data_path, train_path)
             if not os.path.exists(data_path):
                 os.makedirs(data_path)
