@@ -7,12 +7,14 @@ void torch_launch_calculate_force(torch::Tensor &nblist,
                        int64_t batch_size,
                        int64_t natoms,
                        int64_t neigh_num,
-                       const torch::Tensor &force
+                       const torch::Tensor &force,
+                       int64_t nghost
 ) 
 {
     auto dtype = dE.dtype();
     assert(Ri_d.dtype() == dtype);
     assert(force.dtype() == dtype);
+    int device_id = force.device().index();
     if (dtype == torch::kFloat32)
     {
         launch_calculate_force<float>(
@@ -20,7 +22,8 @@ void torch_launch_calculate_force(torch::Tensor &nblist,
             (const float *) dE.data_ptr(),
             (const float *) Ri_d.data_ptr(),
             batch_size, natoms, neigh_num,
-            (float *) force.data_ptr()
+            (float *) force.data_ptr(),
+            nghost, device_id
         );
     } else if (dtype == torch::kFloat64)
     {
@@ -29,7 +32,8 @@ void torch_launch_calculate_force(torch::Tensor &nblist,
             (const double *) dE.data_ptr(),
             (const double *) Ri_d.data_ptr(),
             batch_size, natoms, neigh_num,
-            (double *) force.data_ptr()
+            (double *) force.data_ptr(),
+            nghost, device_id
         );
     }
     else

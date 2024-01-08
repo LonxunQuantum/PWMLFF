@@ -120,21 +120,26 @@ class dp_network:
         cwd = os.getcwd()
         os.chdir(os.path.dirname(pwdata_work_dir))
         data_file_config = self.dp_params.get_data_file_dict()
-        dp_mlff.gen_train_data(data_file_config, self.dp_params.optimizer_param.train_egroup, self.dp_params.optimizer_param.train_virial, self.dp_params.file_paths.alive_atomic_energy)
-        dp_mlff.sepper_data_main(data_file_config, self.dp_params.optimizer_param.train_egroup, stat_add=stat_add, valid_random=self.dp_params.valid_shuffle, seed = self.dp_params.seed)
+        movement_paths = dp_mlff.gen_train_data_bk(data_file_config, self.dp_params.optimizer_param.train_egroup, 
+                                  self.dp_params.valid_shuffle, self.dp_params.seed)
+        dp_mlff.get_stat(data_file_config, self.dp_params.optimizer_param.train_egroup, 
+                          stat_add, self.dp_params.valid_shuffle, self.dp_params.seed, movement_paths)
+        # dp_mlff.gen_train_data(data_file_config, self.dp_params.optimizer_param.train_egroup, self.dp_params.optimizer_param.train_virial, self.dp_params.file_paths.alive_atomic_energy)
+        # dp_mlff.sepper_data_main(data_file_config, self.dp_params.optimizer_param.train_egroup, stat_add=stat_add, valid_random=self.dp_params.valid_shuffle, seed = self.dp_params.seed)
         os.chdir(cwd)
-        return os.path.dirname(pwdata_work_dir)
+        return os.path.dirname(pwdata_work_dir), movement_paths
 
     def load_data(self):
         # Create dataset
         if self.dp_params.inference:
-            train_dataset = MovementDataset([os.path.join(_, "train") for _ in self.dp_params.file_paths.test_feature_path])
-            valid_dataset = MovementDataset([os.path.join(_, "valid") for _ in self.dp_params.file_paths.test_feature_path])
+            train_dataset = MovementDataset([os.path.join(_, "train") for _ in self.dp_params.file_paths.all_movement_path])
+            # valid_dataset = MovementDataset([os.path.join(_, "valid") for _ in self.dp_params.file_paths.all_movement_path])
+            valid_dataset = None
         else:            
-            train_dataset = MovementDataset([os.path.join(_, "train") for _ in self.dp_params.file_paths.train_feature_path])
-            valid_dataset = MovementDataset([os.path.join(_, "valid") for _ in self.dp_params.file_paths.train_feature_path])
+            train_dataset = MovementDataset([os.path.join(_, "train") for _ in self.dp_params.file_paths.all_movement_path])
+            valid_dataset = MovementDataset([os.path.join(_, "valid") for _ in self.dp_params.file_paths.all_movement_path])
         
-        davg, dstd, energy_shift, atom_map, sij_max = train_dataset.get_stat()
+        davg, dstd, energy_shift, atom_map = train_dataset.get_stat()
 
         # if self.dp_params.hvd:
         #     train_sampler = torch.utils.data.distributed.DistributedSampler(
@@ -157,15 +162,18 @@ class dp_network:
             sampler=train_sampler,
         )
         
-        val_loader = torch.utils.data.DataLoader(
-            valid_dataset,
-            batch_size=self.dp_params.optimizer_param.batch_size,
-            shuffle=False,
-            num_workers=self.dp_params.workers,
-            pin_memory=True,
-            sampler=val_sampler,
-        )
-        return davg, dstd, energy_shift, atom_map, sij_max, train_loader, val_loader
+        if self.dp_params.inference:
+            val_loader = None
+        else:
+            val_loader = torch.utils.data.DataLoader(
+                valid_dataset,
+                batch_size=self.dp_params.optimizer_param.batch_size,
+                shuffle=False,
+                num_workers=self.dp_params.workers,
+                pin_memory=True,
+                sampler=val_sampler,
+            )
+        return davg, dstd, energy_shift, atom_map, train_loader, val_loader
     
     '''
     description:
@@ -278,7 +286,7 @@ class dp_network:
 
     def inference(self):
         # do inference
-        davg, dstd, energy_shift, atom_map, sij_max, train_loader, val_loader = self.load_data()
+        davg, dstd, energy_shift, atom_map, train_loader, val_loader = self.load_data()
         model, optimizer = self.load_model_optimizer(davg, dstd, energy_shift)
         start = time.time()
         res_pd, etot_label_list, etot_predict_list, ei_label_list, ei_predict_list, force_label_list, force_predict_list\
@@ -321,7 +329,7 @@ class dp_network:
         return 
 
     def train(self):
-        davg, dstd, energy_shift, atom_map, sij_max, train_loader, val_loader = self.load_data() #davg, dstd, energy_shift, atom_map
+        davg, dstd, energy_shift, atom_map, train_loader, val_loader = self.load_data() #davg, dstd, energy_shift, atom_map
         model, optimizer = self.load_model_optimizer(davg, dstd, energy_shift)
         if not os.path.exists(self.dp_params.file_paths.model_store_dir):
             os.makedirs(self.dp_params.file_paths.model_store_dir)
@@ -387,7 +395,7 @@ class dp_network:
             # train for one epoch
             time_start = time.time()
             if self.dp_params.optimizer_param.opt_name == "LKF" or self.dp_params.optimizer_param.opt_name == "GKF":
-                loss, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_egroup, loss_virial, loss_virial_per_atom = train_KF(
+                loss, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_egroup, loss_virial, loss_virial_per_atom, Sij_max = train_KF(
                     train_loader, model, self.criterion, optimizer, epoch, self.device, self.dp_params
                 )
             else:
@@ -461,7 +469,7 @@ class dp_network:
                     "dstd":dstd,
                     "energy_shift":energy_shift,
                     "atom_type_order": atom_map,    #atom type order of davg/dstd/energy_shift
-                    "sij_max":sij_max,
+                    "sij_max":Sij_max,
                     "optimizer":optimizer.state_dict()
                     },
                     self.dp_params.file_paths.model_name,
@@ -477,7 +485,7 @@ class dp_network:
                     "dstd":dstd,
                     "energy_shift":energy_shift,
                     "atom_type_order": atom_map,    #atom type order of davg/dstd/energy_shift
-                    "sij_max":sij_max
+                    "sij_max":Sij_max
                     },
                     self.dp_params.file_paths.model_name,
                     self.dp_params.file_paths.model_store_dir,

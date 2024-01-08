@@ -1,10 +1,12 @@
-all:gen_dR.x gen_3b_feature.x gen_2b_feature.x gen_2bgauss_feature.x gen_3bcos_feature.x gen_MTP_feature.x gen_SNAP_feature.x write_egroup.x gen_deepMD1_feature.x gen_deepMD2_feature.x
+all:gen_dR.x gen_3b_feature.x gen_2b_feature.x gen_2bgauss_feature.x gen_3bcos_feature.x gen_MTP_feature.x gen_SNAP_feature.x write_egroup.x gen_deepMD1_feature.x gen_deepMD2_feature.x NeighConst.so
 	\cp *.x ../../bin/
+	\cp *.so ../../lib/
 
 # FFLAG = -g -traceback
 FFLAG = -O3 -I/opt/iotk/src/
 MKL = -mkl
-
+# lib_path=../../lib
+# .PHONY: py
 # LeastSquaresSolver.mod: least_squares.f90
 # 	ifort $(FFLAG) $(MKL) -c $<
 
@@ -12,6 +14,9 @@ MKL = -mkl
 # 	ifort scan_title.f90 transform_to_upper.f90  gen_egroup.f90 \
 #         find_neighbore00.f90 find_neighbore.f90  \
 #         -o $@
+
+# py: NeighConst.so
+# 	mv *.so $(lib_path)
 
 gen_dR.x: 
 	ifort -O3 scan_title.f90 transform_to_upper.f90 \
@@ -70,5 +75,10 @@ write_egroup.x:
 	ifort scan_title.f90 transform_to_upper.f90  write_egroup.f90 \
         find_neighbore00.f90 find_neighbore.f90  \
 		-o $@
+
+NeighConst.so: NeighConst.f90
+	python3 -m numpy.f2py -c -m NeighConst --fcompiler=intelem --compiler=intelem -L$(MKLROOT)/lib/intel64/ -lmkl_rt NeighConst.f90
+	mv NeighConst.cpython-*-x86_64-linux-gnu.so NeighConst.so		
+
 clean:
-	rm -f *.x *.mod
+	rm -f *.x *.mod *.so

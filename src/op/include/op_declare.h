@@ -25,7 +25,8 @@ void torch_launch_calculate_force(torch::Tensor &nblist,
                        int64_t batch_size,
                        int64_t natoms,
                        int64_t neigh_num,
-                       const torch::Tensor &force
+                       const torch::Tensor &force,
+                       int64_t nghost
 );
 
 void torch_launch_calculate_force_grad(torch::Tensor &nblist,

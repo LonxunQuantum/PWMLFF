@@ -21,8 +21,9 @@ def dp_train(input_json: json, cmd:str):
     dp_param.print_input_params(json_file_save_name="std_input.json")
     dp_trainer = dp_network(dp_param)
     if len(dp_param.file_paths.train_movement_path) > 0:
-        feature_path = dp_trainer.generate_data()
+        feature_path, movement_paths = dp_trainer.generate_data()
         dp_param.file_paths.set_train_feature_path([feature_path])
+        dp_param.file_paths.set_all_movement_path(movement_paths)
     dp_trainer.train()
     if os.path.exists(dp_param.file_paths.model_save_path) is False:
         if os.path.exists(dp_param.file_paths.model_load_path):
@@ -73,8 +74,9 @@ def dp_test(input_json: json, cmd:str):
 
     dp_trainer = dp_network(dp_param)
     if len(dp_param.file_paths.test_movement_path) > 0:
-        gen_feat_dir = dp_trainer.generate_data()
+        gen_feat_dir, movement_paths = dp_trainer.generate_data()
         dp_param.file_paths.set_test_feature_path([gen_feat_dir])
+        dp_param.file_paths.set_all_movement_path(movement_paths)
     dp_trainer.inference()
     if os.path.realpath(dp_param.file_paths.json_dir) != os.path.realpath(dp_param.file_paths.work_dir) :
         copy_test_result(dp_param.file_paths.json_dir, dp_param.file_paths.test_dir)

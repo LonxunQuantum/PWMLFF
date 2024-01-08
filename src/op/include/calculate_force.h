@@ -6,7 +6,9 @@ void launch_calculate_force(
     const int batch_size,
     const int natoms,
     const int neigh_num,
-    DType * force
+    DType * force,
+    const int nghost,
+    const int device
 );
 
 template<typename DType>
@@ -20,5 +22,6 @@ void launch_calculate_virial_force(
     const int neigh_num,
     DType * virial,
     DType * atom_virial,
-    const int nghost
+    const int nghost,
+    const int device
 );

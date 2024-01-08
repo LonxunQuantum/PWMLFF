@@ -26,6 +26,7 @@ class WorkFileStructure(object):
         self.train_movement_path = []
         self.train_feature_path = []
         self.test_feature_path = []
+        self.all_movement_path = []
         self.model_load_path = ""
 
     def _set_training_path(self, train_movement_path:list, train_feature_path:list, train_dir: str):
@@ -102,6 +103,9 @@ class WorkFileStructure(object):
     def set_test_feature_path(self, feature_path:list):
         self.test_feature_path.extend(feature_path)
 
+    # collect all movement path in work_dir
+    def set_all_movement_path(self, movement_path:list):
+        self.all_movement_path.extend(movement_path)
     '''
     description: 
     set workdir structrues of dp/NN/linear model when doing initialization

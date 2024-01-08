@@ -3,6 +3,7 @@ import os
 from torch.utils.data import Dataset
 import torch
 import yaml
+from NeighConst import neighconst
 
 class MovementDataset(Dataset):
     '''
@@ -16,116 +17,190 @@ class MovementDataset(Dataset):
     def __init__(self, data_paths):
         super(MovementDataset, self).__init__()
 
-        self.dirs = []
-
-        for data_path in data_paths:
-            for current_dir, child_dir, child_file in os.walk(data_path):
-                if len(child_dir) == 0 and "AtomType.npy" in child_file:
-                    self.dirs.append(current_dir)
-
-        self.dirs = sorted(self.dirs, key=lambda x: int(x.split('_')[-1]))
-        self.img_max_atom_num, self.img_max_types, file_index = self.__set_max_atoms()
-        # self.__compute_stat_output(10, 1e-3)
-        if file_index is not None:
-            data_path = os.path.dirname(file_index)
-            self.davg = np.load(os.path.join(data_path, "davg.npy"))
-            self.dstd = np.load(os.path.join(data_path, "dstd.npy"))
-            self.ener_shift = np.loadtxt(os.path.join(data_path, "energy_shift.raw"))
-            if self.ener_shift.size == 1:
-                self.ener_shift = [self.ener_shift.tolist()]
-            self.atom_map = np.loadtxt(os.path.join(data_path, "atom_map.raw"), dtype=int)
-            self.sij_max = np.loadtxt(os.path.join(data_path, "sij_max.raw"))
-        else:
-            self.davg, self.dstd, self.ener_shift, self.atom_map, self.sij_max = None, None, None, None, None
+        self.dirs = data_paths  # include all movement data path
+        self.normalized_data_path = os.path.dirname(os.path.dirname(self.dirs[0]))
+        self.img_max_atom_num = np.load(os.path.join(self.normalized_data_path, "max_atom_nums.npy")).tolist()
+        self.img_max_types = np.load(os.path.join(self.normalized_data_path, "max_types.npy")).tolist()
+        self.m_neigh = np.load(os.path.join(self.normalized_data_path, "m_neigh.npy")).tolist()
+        self.davg = np.load(os.path.join(self.normalized_data_path, "davg.npy"))
+        self.dstd = np.load(os.path.join(self.normalized_data_path, "dstd.npy"))
+        self.ener_shift = np.load(os.path.join(self.normalized_data_path, "energy_shift.npy"))
+        if self.ener_shift.size == 1:
+            self.ener_shift = [self.ener_shift.tolist()]
+        self.atom_map = np.load(os.path.join(self.normalized_data_path, "input_atom_type.npy"))
+        self.Rc_M = np.load(os.path.join(self.normalized_data_path, "Rc_M.npy")).tolist()
+        self.Rc_type = np.load(os.path.join(self.normalized_data_path, "Rc_type.npy"))
+        self.Rm_type = np.load(os.path.join(self.normalized_data_path, "Rm_type.npy"))
+        self.all_movement_data, self.total_images, self.images_per_dir, self.atoms_per_dir = self.__concatenate_data()
             
-    def __load_data(self, path):
-
+    def __load_data(self, index):
+        type_index = np.searchsorted(np.cumsum(self.images_per_dir), index + 1)
         data = {}
+        data["Force"] = self.all_movement_data["forces.npy"][index]
+        data["Ei"] = self.all_movement_data["ei.npy"][index]
+        data["Etot"] = self.all_movement_data["energies.npy"][index]
+        # data["ListNeighbor"] = self.all_movement_data["ListNeighbor"][index]
+        # data["ImageDR"] = self.all_movement_data["ImageDR"][index]
+        data["Position"] = self.all_movement_data["position.npy"][index]
+        data["Lattice"] = self.all_movement_data["lattice.npy"][index]
+        data["AtomType"] = self.all_movement_data["atom_type.npy"][type_index]
+        data["AtomTypeMap"] = self.all_movement_data["type_maps.npy"][type_index]
+        data["ImageAtomNum"] = self.atoms_per_dir[type_index]
 
-        data["Force"] = -1 * np.load(os.path.join(path, "Force.npy"))
-
-        if os.path.exists(os.path.join(path, "Virial.npy")):
-            data["Virial"] = np.load(os.path.join(path, "Virial.npy"))
-
-        data["Ei"] = np.load(os.path.join(path, "Ei.npy"))
-        data["Etot"] = np.load(os.path.join(path, "Etot.npy"))
-
-        if os.path.exists(os.path.join(path, "Egroup.npy")):
-            data["Egroup"] = np.load(os.path.join(path, "Egroup.npy"))
-            data["Divider"] = np.load(os.path.join(path, "Divider.npy"))
-            data["Egroup_weight"] = np.load(os.path.join(path, "Egroup_weight.npy"))
-
-        data["ListNeighbor"] = np.load(os.path.join(path, "ListNeighbor.npy"))
-        # data["NeighborType"] = np.load(os.path.join(path, "NeighborType.npy"))
-        data["ImageDR"] = np.load(os.path.join(path, "ImageDR.npy"))
-        # data["Ri"] = np.load(os.path.join(path, "Ri.npy"))
-        # data["Ri_d"] = np.load(os.path.join(path, "Ri_d.npy"))
-        data["ImageAtomNum"] = np.load(os.path.join(path, "ImageAtomNum.npy")).reshape(-1)
-        data["Imagetype"] = np.load(os.path.join(path, "AtomType.npy"))
-        atom_type_list = list(data["Imagetype"])
-        data["AtomType"] = np.array(sorted(set(atom_type_list), key=atom_type_list.index))
-        data["AtomTypeMap"] = np.load(os.path.join(path, "AtomTypeMap.npy"))
+        list_neigh, dR_neigh, max_ri = self.find_neighbore(data["AtomTypeMap"], data["Position"], data["Lattice"], data["ImageAtomNum"])
+        if list_neigh.shape[0] < self.img_max_atom_num:
+            list_neigh = np.pad(list_neigh, ((0, self.img_max_atom_num - list_neigh.shape[0]), (0, 0)))
+            dR_neigh = np.pad(dR_neigh, ((0, self.img_max_atom_num - dR_neigh.shape[0]), (0, 0), (0, 0)))
+        data["ListNeighbor"] = list_neigh
+        data["ImageDR"] = dR_neigh
+        data["max_ri"] = max_ri
         
-        # this block is used for hybrid training
-        if data["ImageAtomNum"][0] < self.img_max_atom_num:
-            # pad_num = self.img_max_atom_num - data["Force"].shape[0]
-            data["Force"].resize((self.img_max_atom_num, data["Force"].shape[1]), refcheck=False)
-            data["Ei"].resize(self.img_max_atom_num, refcheck=False)
-            if "Egroup" in data.keys():
-                # doing Egroup things 
-                data["Egroup"].resize(self.img_max_atom_num, refcheck=False)
-                data["Divider"].resize(self.img_max_atom_num, refcheck=False)
-                data["Egroup_weight"].resize((self.img_max_atom_num, self.img_max_atom_num), refcheck=False)
-            
-            data["ListNeighbor"].resize((self.img_max_atom_num, data["ListNeighbor"].shape[1]), refcheck=False)
-            # data["NeighborType"].resize((self.img_max_atom_num, data["NeighborType"].shape[1]), refcheck=False)
-            data["ImageDR"].resize((self.img_max_atom_num, data["ImageDR"].shape[1], data["ImageDR"].shape[2]), refcheck=False)
-            # data["Ri"].resize((self.img_max_atom_num, data["Ri"].shape[1], data["Ri"].shape[2]), refcheck=False)
-            # data["Ri_d"].resize((self.img_max_atom_num, data["Ri_d"].shape[1], data["Ri_d"].shape[2], data["Ri_d"].shape[3]), refcheck=False)
-        if len(data["AtomType"]) < self.img_max_types:
-            data["AtomType"] = np.append(data["AtomType"], [0 for _ in range(0,self.img_max_types-len(data["AtomType"]))])
-        
+        if "virials.npy" in self.all_movement_data.keys():
+            data["Virial"] = self.all_movement_data["virials.npy"][index]
+
         return data
+
         
     def __getitem__(self, index):
 
-        file_path = self.dirs[index]
-        data = self.__load_data(file_path)
+        data = self.__load_data(index)
         # if self.train_hybrid is True:
         #     data = self.__completing_tensor_rows(data)
         return data
     
     def __len__(self): 
-        return len(self.dirs)
+        return self.total_images
 
     def get_stat(self):
-        return self.davg, self.dstd, self.ener_shift, self.atom_map, self.sij_max
+        return self.davg, self.dstd, self.ener_shift, self.atom_map
     
+    def __concatenate_data(self):
+        data = {}
+        images_per_dir = []
+        atoms_per_dir = []
+        for dir in self.dirs:
+            npy_files = [f for f in os.listdir(dir) if f.endswith(".npy")]
+            file_data_dict = {}
+            for npy_file in npy_files:
+                file_path = os.path.join(dir, npy_file)
+                if npy_file == "ImgPerMVT.npy":
+                    continue
+                file_data = np.load(file_path)
+
+                if npy_file == "forces.npy":
+                    images = file_data.shape[0]
+                    file_data = file_data.reshape(images, -1, 3)
+                    images_per_dir.append(images)
+                    atoms_per_dir.append(file_data.shape[1])
+                elif npy_file == "lattice.npy":
+                    file_data = file_data.reshape(-1, 3, 3)
+                elif npy_file == "position.npy":
+                    images = file_data.shape[0]
+                    file_data = file_data.reshape(images, -1, 3)
+
+                file_data_dict[npy_file] = file_data
+            # list_neigh, dR_neigh, max_ri, natoms = self.find_neighbore(file_data_dict)
+            # file_data_dict["ListNeighbor"] = list_neigh
+            # file_data_dict["ImageDR"] = dR_neigh
+
+            for vars_file, file_data in file_data_dict.items():
+                if vars_file == "atom_type.npy" and file_data.shape[1] < self.img_max_types:
+                    file_data = np.pad(file_data, ((0, 0), (0, self.img_max_types - file_data.shape[1])))
+                elif vars_file == "ei.npy" and file_data.shape[1] < self.img_max_atom_num:
+                    file_data = np.pad(file_data, ((0, 0), (0, self.img_max_atom_num - file_data.shape[1])))
+                elif vars_file == "forces.npy" and file_data.shape[1] < self.img_max_atom_num:
+                    file_data = np.pad(file_data, ((0, 0), (0, self.img_max_atom_num - file_data.shape[1]), (0, 0)))
+                elif vars_file == "type_maps.npy" and file_data.shape[1] < self.img_max_atom_num:
+                    file_data = np.pad(file_data, ((0, 0), (0, self.img_max_atom_num - file_data.shape[1])), mode='constant', constant_values=-1)
+                elif vars_file == "position.npy":
+                    file_data = np.pad(file_data, ((0, 0), (0, self.img_max_atom_num - file_data.shape[1]), (0, 0)))
+                # elif vars_file == "ListNeighbor" and file_data.shape[1] < self.img_max_atom_num:
+                #     file_data = np.pad(file_data, ((0, 0), (0, self.img_max_atom_num - file_data.shape[1]), (0, 0)))
+                # elif vars_file == "ImageDR" and file_data.shape[1] < self.img_max_atom_num:
+                #     file_data = np.pad(file_data, ((0, 0), (0, self.img_max_atom_num - file_data.shape[1]), (0, 0), (0, 0)))
+
+                if vars_file not in data:
+                    data[vars_file] = file_data
+                else:
+                    data[vars_file] = np.concatenate((data[vars_file], file_data), axis=0)
+        total_images = data["energies.npy"].shape[0]    
+        return data, total_images, images_per_dir, atoms_per_dir
     
-    '''
-    description: 
-        get the max atom num of images in training set
-        file_index is the image index which has max atom num
-    param {*} self
-    return {*}
-    author: wuxingxing
-    '''    
-    def __set_max_atoms(self):
-        ImageAtomNum = []
-        AtomType = []
-        AtomType_size_list = []
-        for path in self.dirs:
-            ImageAtomNum.append(np.load(os.path.join(path, "ImageAtomNum.npy")).reshape(-1)[0])
-            atom_type_list = list(np.load(os.path.join(path, "AtomType.npy")))
-            AtomType.append(np.array(sorted(set(atom_type_list), key=atom_type_list.index)))
-            AtomType_size_list.append(len(AtomType[-1]))
+    def find_neighbore(self, AtomTypeMap, Position, Lattice, ImageAtomNum):
+        images = 1
+        ntypes = self.img_max_types
+        natoms = ImageAtomNum
+        Rc_type = np.asfortranarray(self.Rc_type)
+        type_maps = np.asfortranarray(AtomTypeMap[:natoms] + 1)
+        lattice = np.asfortranarray(Lattice.reshape(images, 3, 3))
+        position = np.asfortranarray(Position[:natoms].reshape(images, natoms, 3))
+
+        neighconst.find_neighbore(images, lattice, position, ntypes, natoms, 
+                                  self.m_neigh, self.Rc_M, Rc_type, type_maps)
+        _list_neigh = neighconst.list_neigh
+        _dR_neigh = neighconst.dr_neigh
+        list_neigh = np.transpose(_list_neigh.copy(), (3, 2, 1, 0)).reshape(images, natoms, ntypes*self.m_neigh)
+        dR_neigh = np.transpose(_dR_neigh.copy(), (4, 3, 2, 1, 0)).reshape(images, natoms, ntypes*self.m_neigh, 3)
+        neighconst.dealloc()
         
-        if len(self.dirs) == 0:
-            return 0, 0, None
-        else:
-            file_index = self.dirs[AtomType_size_list.index(max(AtomType_size_list))]
-            return max(ImageAtomNum), max(AtomType_size_list), file_index
-    
+        Egroup_weight, Divider, max_ri, Rij = self.compute_Ri(list_neigh, dR_neigh)
+        ImageDR = np.concatenate((Rij, dR_neigh), axis=-1)
+        return list_neigh.squeeze(0), ImageDR.squeeze(0), max_ri
+
+    def compute_Ri(self, list_neigh, dR_neigh):
+        device = torch.device("cpu")
+        image_dR = torch.tensor(dR_neigh, device=device, dtype=torch.float64)
+        list_neigh = torch.tensor(list_neigh, device=device, dtype=torch.int64)
+
+        mask = list_neigh > 0
+        dR2 = torch.zeros_like(list_neigh, dtype=torch.float64)
+        Rij = torch.zeros_like(list_neigh, dtype=torch.float64)
+        dR2[mask] = torch.sum(image_dR[mask] * image_dR[mask], -1)
+        Rij[mask] = torch.sqrt(dR2[mask])
+
+        nr = torch.zeros_like(dR2)
+        inr = torch.zeros_like(dR2)
+
+        dR2_copy = dR2.unsqueeze(-1).repeat(1, 1, 1, 3)
+        Ri_xyz = torch.zeros_like(dR2_copy)
+
+        nr[mask] = dR2[mask] / Rij[mask]
+        Ri_xyz[mask] = image_dR[mask] / dR2_copy[mask]
+        inr[mask] = 1 / Rij[mask]
+
+        uu = torch.zeros_like(nr)
+        vv = torch.zeros_like(nr)
+        res = torch.zeros_like(nr)
+
+        # x < rcut_min vv = 1;
+        mask_min = nr < self.Rm_type[0] # why just use the first element of Rm_type?
+        mask_1 = mask & mask_min
+        vv[mask_1] = 1
+
+        # rcut_min< x < rcut_max;
+        mask_max = nr < self.Rc_type[0]
+        mask_2 = ~mask_min & mask_max & mask
+        # uu = (xx - rmin) / (rmax - rmin);
+        uu[mask_2] = (nr[mask_2] - self.Rm_type[0]) / (self.Rc_type[0] - self.Rm_type[0])
+        vv[mask_2] = (
+            uu[mask_2]
+            * uu[mask_2]
+            * uu[mask_2]
+            * (-6 * uu[mask_2] * uu[mask_2] + 15 * uu[mask_2] - 10)
+            + 1
+        )
+        mask_3 = ~mask_max & mask
+        vv[mask_3] = 0
+
+        res[mask] = 1.0 / nr[mask] 
+        Ri = torch.cat((res.unsqueeze(-1), Ri_xyz), dim=-1)
+
+        vv_copy = vv.unsqueeze(-1).repeat(1, 1, 1, 4)
+        Ri[mask] *= vv_copy[mask]
+        max_ri = torch.max(Ri[:,:,:,0])
+        Rij = Rij.unsqueeze(-1).numpy()
+        return None, None, max_ri, Rij
+
     '''
     description: 
     In mixed training, during the automatic loading process of DataLoader objects, \

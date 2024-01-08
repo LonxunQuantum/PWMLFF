@@ -9,6 +9,9 @@ import random
 import time
 from utils.random_utils import random_index
 from utils.extract_movement import MOVEMENT
+import src.pre_data.pwdata as pwdata
+from NeighConst import neighconst
+
 '''
 description: 
  get all movement files under the dir 'workDir'
@@ -89,6 +92,161 @@ def set_Ei_dat_by_Ep(movement_files,train_set_dir):
                 for i in range(len(atom_type_nums_list)):
                     for j in range(atom_type_nums_list[i]):
                         Ei_out.write(str(tmp_Ep_shift[i]) + "\n")
+
+def gen_train_data_bk(config, is_egroup = True, data_shuffle = True, seed = 2024):
+    train_ratio = config['ratio']
+    trainset_dir = config["trainSetDir"]
+    train_data_path = config["trainDataPath"] 
+    valid_data_path = config["validDataPath"]
+    input_atom_type = np.array([(_['type']) for _ in config["atomType"]]) # get atom types,the order is consistent with user input order
+    # directories that contain MOVEMENT 
+    movement_paths = collect_all_sourcefiles(trainset_dir, "MOVEMENT")
+    for movement_path in movement_paths:
+        pwdata.Save_Data(movement_path, train_data_path, valid_data_path, input_atom_type, train_ratio, data_shuffle, seed)
+    return movement_paths
+def get_stat(config, is_egroup = True, stat_add = None, data_shuffle = True, seed = 2024, movement_paths = None):
+    train_data_path = config["trainDataPath"] 
+    ntypes = len(config["atomType"])
+    input_atom_type = np.array([(_['type']) for _ in config["atomType"]])   # MOVEMENT atom type order
+    if stat_add is not None:
+        # load from prescribed path
+        print("davg and dstd are from model checkpoint")
+        davg, dstd, atom_type_order, energy_shift = stat_add
+    else:
+        davg, dstd = None, None
+    
+    max_atom_nums = 0
+    for movement_path in movement_paths:
+        type_maps = np.load(os.path.join(movement_path, train_data_path, "type_maps.npy"))
+        max_atom_nums = max(max_atom_nums, type_maps.shape[1])
+        if davg is None:
+            _atom_types = np.load(os.path.join(movement_path, train_data_path, "atom_type.npy"))
+            if _atom_types.shape[1] != ntypes:
+                continue
+            # the davg and dstd only need calculate one time
+            # the davg, dstd and energy_shift atom order are the same --> movement's atom order
+            lattice = np.load(os.path.join(movement_path, train_data_path, "lattice.npy"))
+            position = np.load(os.path.join(movement_path, train_data_path, "position.npy"))
+            img_per_mvmt = np.load(os.path.join(movement_path, train_data_path, "ImgPerMVT.npy"))
+            _Ei = np.load(os.path.join(movement_path, train_data_path, "ei.npy"))
+            davg, dstd, atom_types_nums = calculate_davg_dstd_bk(config, lattice, position, img_per_mvmt, _atom_types[0], input_atom_type, ntypes, type_maps)
+            energy_shift = calculate_energy_shift_bk(img_per_mvmt, _Ei, atom_types_nums)
+            davg, dstd, energy_shift = adjust_order_same_as_user_input(davg, dstd, energy_shift, _atom_types[0].tolist(), input_atom_type)
+
+    if os.path.exists(os.path.join(os.path.dirname(movement_path), "davg.npy")) is False:
+        np.save(os.path.join(os.path.dirname(movement_path), "davg.npy"), davg)
+        np.save(os.path.join(os.path.dirname(movement_path), "dstd.npy"), dstd)
+        np.save(os.path.join(os.path.dirname(movement_path), "energy_shift.npy"), energy_shift)
+        np.save(os.path.join(os.path.dirname(movement_path), "input_atom_type.npy"), input_atom_type)
+        np.save(os.path.join(os.path.dirname(movement_path), "max_atom_nums.npy"), max_atom_nums)
+        np.save(os.path.join(os.path.dirname(movement_path), "max_types.npy"), ntypes)
+        np.save(os.path.join(os.path.dirname(movement_path), "Rc_type.npy"), np.array([(_['Rc']) for _ in config["atomType"]]))
+        np.save(os.path.join(os.path.dirname(movement_path), "Rm_type.npy"), np.array([(_['Rm']) for _ in config["atomType"]]))
+        np.save(os.path.join(os.path.dirname(movement_path), "Rc_M.npy"), config["Rc_M"])
+        np.save(os.path.join(os.path.dirname(movement_path), "m_neigh.npy"), config["maxNeighborNum"])
+
+def calculate_davg_dstd_bk(config, lattice, position, img_per_mvmt, _atom_types, input_atom_type, ntypes, type_maps, chunk_size = 10):
+    Rc_m = config["Rc_M"]
+    m_neigh = config["maxNeighborNum"]
+    if (img_per_mvmt -1) < chunk_size:
+        chunk_size = img_per_mvmt -1
+    types, type_incides, atom_types_nums = np.unique(type_maps, return_index=True, return_counts=True)
+    atom_types_nums = atom_types_nums[np.argsort(type_incides)]
+    Rc_type = np.asfortranarray(np.array([(_['Rc']) for _ in config["atomType"]]))
+    type_maps = np.asfortranarray(type_maps + 1)    # fortran index start from 1
+    lattice = np.asfortranarray(lattice[:chunk_size].reshape(chunk_size, 3, 3))
+    position = np.asfortranarray(position[:chunk_size].reshape(chunk_size, -1, 3))
+    natoms = position.shape[1]
+
+    neighconst.find_neighbore(chunk_size, lattice, position, ntypes, natoms, m_neigh, Rc_m, Rc_type, type_maps)
+    _list_neigh = neighconst.list_neigh
+    _dR_neigh = neighconst.dr_neigh
+    list_neigh = np.transpose(_list_neigh, (3, 2, 1, 0))   # m_neigh, ntypes, natoms, images -> images, natoms, ntypes, m_neigh
+    dR_neigh = np.transpose(_dR_neigh, (4, 3, 2, 1, 0))    # 3, m_neigh, ntypes, natoms, images -> images, natoms, ntypes, m_neigh, 3
+    davg, dstd = calc_stat_bk(config, dR_neigh, list_neigh, m_neigh, natoms, ntypes, atom_types_nums, input_atom_type)
+    neighconst.dealloc()
+    return davg, dstd, atom_types_nums
+
+def calc_stat_bk(config, dR_neigh, list_neigh, m_neigh, natoms, ntypes, atom_types_nums, input_atom_type):
+    davg = []
+    dstd = []
+    image_dR = np.reshape(dR_neigh, (-1, natoms, ntypes * m_neigh, 3))
+    list_neigh = np.reshape(list_neigh, (-1, natoms, ntypes * m_neigh))
+    image_dR = torch.tensor(image_dR, dtype=torch.float64)
+    list_neigh = torch.tensor(list_neigh, dtype=torch.int)
+
+    mask = list_neigh > 0
+    dR2 = torch.zeros_like(list_neigh, dtype=torch.float64)
+    Rij = torch.zeros_like(list_neigh, dtype=torch.float64)
+    dR2[mask] = torch.sum(image_dR[mask] * image_dR[mask], -1)
+    Rij[mask] = torch.sqrt(dR2[mask])
+
+    nr = torch.zeros_like(dR2)
+    inr = torch.zeros_like(dR2)
+
+    dR2_copy = dR2.unsqueeze(-1).repeat(1, 1, 1, 3)
+    Ri_xyz = torch.zeros_like(dR2_copy)
+
+    nr[mask] = dR2[mask] / Rij[mask]
+    Ri_xyz[mask] = image_dR[mask] / dR2_copy[mask]
+    inr[mask] = 1 / Rij[mask]
+
+    davg_tensor = torch.zeros((ntypes, m_neigh * ntypes, 4), dtype=torch.float64)
+    dstd_tensor = torch.ones((ntypes, m_neigh * ntypes, 4), dtype=torch.float64)
+    Ri, _, _ = smooth(config, 
+                      image_dR, 
+                      nr, 
+                      Ri_xyz, 
+                      mask, 
+                      inr, 
+                      davg_tensor, 
+                      dstd_tensor, 
+                      atom_types_nums)
+    Ri2 = Ri * Ri
+    atom_sum = 0
+    for i in range(ntypes):
+        Ri_ntype = Ri[:, atom_sum : atom_sum + atom_types_nums[i]].reshape(-1, 4)
+        Ri2_ntype = Ri2[:, atom_sum : atom_sum + atom_types_nums[i]].reshape(-1, 4)
+        sum_Ri = Ri_ntype.sum(axis=0).tolist()
+        sum_Ri_r = sum_Ri[0]
+        sum_Ri_a = np.average(sum_Ri[1:])
+        sum_Ri2 = Ri2_ntype.sum(axis=0).tolist()
+        sum_Ri2_r = sum_Ri2[0]
+        sum_Ri2_a = np.average(sum_Ri2[1:])
+        sum_n = Ri_ntype.shape[0]
+
+        davg_unit = [sum_Ri[0] / (sum_n + 1e-15), 0, 0, 0]
+        dstd_unit = [
+            compute_std(sum_Ri2_r, sum_Ri_r, sum_n),
+            compute_std(sum_Ri2_a, sum_Ri_a, sum_n),
+            compute_std(sum_Ri2_a, sum_Ri_a, sum_n),
+            compute_std(sum_Ri2_a, sum_Ri_a, sum_n),
+        ]
+            
+        davg.append(
+            np.tile(davg_unit, m_neigh * ntypes).reshape(-1, 4)
+        )
+        dstd.append(
+            np.tile(dstd_unit, m_neigh * ntypes).reshape(-1, 4)
+        )
+        atom_sum = atom_sum + atom_types_nums[i]
+
+    davg = np.array(davg).reshape(ntypes, -1)
+    dstd = np.array(dstd).reshape(ntypes, -1)
+    return davg, dstd
+
+def calculate_energy_shift_bk(img_per_mvmt, _Ei, atom_types_nums, chunk_size = 10):
+    if chunk_size > img_per_mvmt:
+        chunk_size = img_per_mvmt
+    Ei = _Ei[:chunk_size]
+    res = []
+    current_type = 0
+    for atom_type_num in atom_types_nums:
+        current_type_indices = current_type + atom_type_num
+        avg_Ei = np.mean(Ei[:, current_type:current_type_indices])
+        res.append(avg_Ei)
+        current_type = current_type_indices
+    return res
 
 def gen_train_data(config, is_egroup = True, is_virial = True, alive_atomic_energy = True):
 
@@ -364,10 +522,10 @@ def compute_std(sum2, sum, sumn):
     return val
 
 
-def smooth(config, image_dR, x, Ri_xyz, mask, inr, davg, dstd, natoms):
+def smooth(config, image_dR, x, Ri_xyz, mask, inr, davg, dstd, atom_types_nums):
 
     batch_size = image_dR.shape[0]
-    ntypes = len(natoms)
+    ntypes = len(atom_types_nums)
 
     """
     inr2 = torch.zeros_like(inr)
@@ -512,10 +670,10 @@ def smooth(config, image_dR, x, Ri_xyz, mask, inr, davg, dstd, natoms):
     davg_res, dstd_res = None, None
     # 0 is that the atom nums is zero, for example, CH4 system in CHO system hybrid training, O atom nums is zero.\
     # beacuse the dstd or davg does not contain O atom, therefore, special treatment is needed here for atoms with 0 elements
-    natoms = [_ for _ in natoms if _ != 0]
-    ntypes = len(natoms)
+    # atom_types_nums = [_ for _ in atom_types_nums if _ != 0]
+    # ntypes = len(atom_types_nums)
     for ntype in range(ntypes):
-        atom_num_ntype = natoms[ntype]
+        atom_num_ntype = atom_types_nums[ntype]
         davg_ntype = (
             davg[ntype].reshape(-1, 4).repeat(batch_size, atom_num_ntype, 1, 1)
         )  # [32,100,4]
@@ -946,7 +1104,7 @@ def adjust_order_same_as_user_input(davg:list, dstd:list, energy_shift:list, ato
         davg_res.append(davg[atom_type_order.index(atom)])
         dstd_res.append(dstd[atom_type_order.index(atom)])
         energy_shift_res.append(energy_shift[atom_type_order.index(atom)])
-    return davg_res, dstd_res, energy_shift_res, atom_type_list
+    return davg_res, dstd_res, energy_shift_res
         
 '''
 description: 
