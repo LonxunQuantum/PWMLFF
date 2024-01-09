@@ -123,7 +123,8 @@ class dp_network:
         movement_paths = dp_mlff.gen_train_data_bk(data_file_config, self.dp_params.optimizer_param.train_egroup, 
                                   self.dp_params.valid_shuffle, self.dp_params.seed)
         dp_mlff.get_stat(data_file_config, self.dp_params.optimizer_param.train_egroup, 
-                          stat_add, self.dp_params.valid_shuffle, self.dp_params.seed, movement_paths)
+                          stat_add, self.dp_params.valid_shuffle, self.dp_params.seed, 
+                          movement_paths, self.dp_params.chunk_size)
         # dp_mlff.gen_train_data(data_file_config, self.dp_params.optimizer_param.train_egroup, self.dp_params.optimizer_param.train_virial, self.dp_params.file_paths.alive_atomic_energy)
         # dp_mlff.sepper_data_main(data_file_config, self.dp_params.optimizer_param.train_egroup, stat_add=stat_add, valid_random=self.dp_params.valid_shuffle, seed = self.dp_params.seed)
         os.chdir(cwd)

@@ -155,6 +155,7 @@ class InputParam(object):
         self.dwidth = get_parameter("dwidth", json_input, 3.0)
         self.seed = get_parameter("seed", json_input, 2023)
         self.precision = get_parameter("precision", json_input, "float64")
+        self.chunk_size = get_parameter("chunk_size", json_input, 10)
 
     '''
     description: 

@@ -104,7 +104,7 @@ def gen_train_data_bk(config, is_egroup = True, data_shuffle = True, seed = 2024
     for movement_path in movement_paths:
         pwdata.Save_Data(movement_path, train_data_path, valid_data_path, input_atom_type, train_ratio, data_shuffle, seed)
     return movement_paths
-def get_stat(config, is_egroup = True, stat_add = None, data_shuffle = True, seed = 2024, movement_paths = None):
+def get_stat(config, is_egroup = True, stat_add = None, data_shuffle = True, seed = 2024, movement_paths = None, chunk_size = 10):
     train_data_path = config["trainDataPath"] 
     ntypes = len(config["atomType"])
     input_atom_type = np.array([(_['type']) for _ in config["atomType"]])   # MOVEMENT atom type order
@@ -116,6 +116,7 @@ def get_stat(config, is_egroup = True, stat_add = None, data_shuffle = True, see
         davg, dstd = None, None
     
     max_atom_nums = 0
+    valid_chunk = False
     for movement_path in movement_paths:
         type_maps = np.load(os.path.join(movement_path, train_data_path, "type_maps.npy"))
         max_atom_nums = max(max_atom_nums, type_maps.shape[1])
@@ -126,12 +127,18 @@ def get_stat(config, is_egroup = True, stat_add = None, data_shuffle = True, see
             # the davg and dstd only need calculate one time
             # the davg, dstd and energy_shift atom order are the same --> movement's atom order
             lattice = np.load(os.path.join(movement_path, train_data_path, "lattice.npy"))
+            img_per_mvmt = lattice.shape[0]
+            if img_per_mvmt < chunk_size:
+                continue
+            valid_chunk = True
             position = np.load(os.path.join(movement_path, train_data_path, "position.npy"))
-            img_per_mvmt = np.load(os.path.join(movement_path, train_data_path, "ImgPerMVT.npy"))
             _Ei = np.load(os.path.join(movement_path, train_data_path, "ei.npy"))
-            davg, dstd, atom_types_nums = calculate_davg_dstd_bk(config, lattice, position, img_per_mvmt, _atom_types[0], input_atom_type, ntypes, type_maps)
-            energy_shift = calculate_energy_shift_bk(img_per_mvmt, _Ei, atom_types_nums)
+            davg, dstd, atom_types_nums = calculate_davg_dstd_bk(config, lattice, position, chunk_size, _atom_types[0], input_atom_type, ntypes, type_maps)
+            energy_shift = calculate_energy_shift_bk(chunk_size, _Ei, atom_types_nums)
             davg, dstd, energy_shift = adjust_order_same_as_user_input(davg, dstd, energy_shift, _atom_types[0].tolist(), input_atom_type)
+    
+    if not valid_chunk:
+        raise ValueError("Invalid chunk size, the number of images (include all atom types) in the movement is too small, \nPlease set a smaller chunk_size (default: 10) or add more images in the movement")
 
     if os.path.exists(os.path.join(os.path.dirname(movement_path), "davg.npy")) is False:
         np.save(os.path.join(os.path.dirname(movement_path), "davg.npy"), davg)
@@ -145,11 +152,9 @@ def get_stat(config, is_egroup = True, stat_add = None, data_shuffle = True, see
         np.save(os.path.join(os.path.dirname(movement_path), "Rc_M.npy"), config["Rc_M"])
         np.save(os.path.join(os.path.dirname(movement_path), "m_neigh.npy"), config["maxNeighborNum"])
 
-def calculate_davg_dstd_bk(config, lattice, position, img_per_mvmt, _atom_types, input_atom_type, ntypes, type_maps, chunk_size = 10):
+def calculate_davg_dstd_bk(config, lattice, position, chunk_size, _atom_types, input_atom_type, ntypes, type_maps):
     Rc_m = config["Rc_M"]
     m_neigh = config["maxNeighborNum"]
-    if (img_per_mvmt -1) < chunk_size:
-        chunk_size = img_per_mvmt -1
     types, type_incides, atom_types_nums = np.unique(type_maps, return_index=True, return_counts=True)
     atom_types_nums = atom_types_nums[np.argsort(type_incides)]
     Rc_type = np.asfortranarray(np.array([(_['Rc']) for _ in config["atomType"]]))
@@ -235,9 +240,7 @@ def calc_stat_bk(config, dR_neigh, list_neigh, m_neigh, natoms, ntypes, atom_typ
     dstd = np.array(dstd).reshape(ntypes, -1)
     return davg, dstd
 
-def calculate_energy_shift_bk(img_per_mvmt, _Ei, atom_types_nums, chunk_size = 10):
-    if chunk_size > img_per_mvmt:
-        chunk_size = img_per_mvmt
+def calculate_energy_shift_bk(chunk_size, _Ei, atom_types_nums):
     Ei = _Ei[:chunk_size]
     res = []
     current_type = 0

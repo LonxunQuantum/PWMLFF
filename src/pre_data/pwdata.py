@@ -191,16 +191,16 @@ class Save_Data(object):
         train_size = ceil(self.image_nums * self.train_ratio)
         train_indices = indices[:train_size]
         val_indices = indices[train_size:]
-        image_nums = [self.image_nums]
+        # image_nums = [self.image_nums]
         # atom_types_image = self.atom_types_image.reshape(1, -1)
         type_maps = np.array(self.type_maps).reshape(1, -1)
 
         train_data = [self.lattice[train_indices], self.position[train_indices], self.energies[train_indices], 
                       self.forces[train_indices], type_maps, self.atom_type,
-                      image_nums, self.ei[train_indices]]
+                      self.ei[train_indices]]
         val_data = [self.lattice[val_indices], self.position[val_indices], self.energies[val_indices], 
                     self.forces[val_indices], type_maps, self.atom_type,
-                    image_nums, self.ei[val_indices]]
+                    self.ei[val_indices]]
 
         if len(self.virials) != 0:
             train_data.append(self.virials[train_indices])
@@ -230,18 +230,18 @@ class Save_Data(object):
             self.save_to_npy(val_data, val_path)
                 
     def save_to_raw(self, data, directory):
-        filenames = ["lattice.dat", "position.dat", "energies.dat", "forces.dat", "type_maps.dat", "atom_type.dat", "ImgPerMVT.dat", "ei.dat", "virials.dat"]
-        formats = ["%.8f", "%.16f", "%.8f", "%.16f", "%d", "%d", "%d", "%.8f", "%.8f"]
+        filenames = ["lattice.dat", "position.dat", "energies.dat", "forces.dat", "type_maps.dat", "atom_type.dat", "ei.dat", "virials.dat"]
+        formats = ["%.8f", "%.16f", "%.8f", "%.16f", "%d", "%d", "%.8f", "%.8f"]
         # for i in tqdm(range(len(data)), desc="Saving to raw files"):
         for i in range(len(data)):
-            if i != 8 or (i == 8 and len(data[8]) != 0):
+            if i != 7 or (i == 7 and len(data[7]) != 0):
                 np.savetxt(os.path.join(directory, filenames[i]), data[i], fmt=formats[i])
 
     def save_to_npy(self, data, directory):
-        filenames = ["lattice.npy", "position.npy", "energies.npy", "forces.npy", "type_maps.npy", "atom_type.npy", "ImgPerMVT.npy", "ei.npy", "virials.npy"]
+        filenames = ["lattice.npy", "position.npy", "energies.npy", "forces.npy", "type_maps.npy", "atom_type.npy", "ei.npy", "virials.npy"]
         # for i in tqdm(range(len(data)), desc="Saving to npy files"):
         for i in range(len(data)):
-            if i != 8 or (i == 8 and len(data[8]) != 0):
+            if i != 7 or (i == 7 and len(data[7]) != 0):
                 np.save(os.path.join(directory, filenames[i]), data[i])
         
 

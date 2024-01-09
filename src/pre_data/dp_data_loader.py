@@ -83,8 +83,6 @@ class MovementDataset(Dataset):
             file_data_dict = {}
             for npy_file in npy_files:
                 file_path = os.path.join(dir, npy_file)
-                if npy_file == "ImgPerMVT.npy":
-                    continue
                 file_data = np.load(file_path)
 
                 if npy_file == "forces.npy":
