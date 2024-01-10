@@ -137,7 +137,7 @@ def get_stat(config, is_egroup = True, stat_add = None, data_shuffle = True, see
             energy_shift = calculate_energy_shift_bk(chunk_size, _Ei, atom_types_nums)
             davg, dstd, energy_shift = adjust_order_same_as_user_input(davg, dstd, energy_shift, _atom_types[0].tolist(), input_atom_type)
     
-    if not valid_chunk:
+    if not valid_chunk and davg is None:
         raise ValueError("Invalid chunk size, the number of images (include all atom types) in the movement is too small, \nPlease set a smaller chunk_size (default: 10) or add more images in the movement")
 
     if os.path.exists(os.path.join(os.path.dirname(movement_path), "davg.npy")) is False:
@@ -155,6 +155,9 @@ def get_stat(config, is_egroup = True, stat_add = None, data_shuffle = True, see
 def calculate_davg_dstd_bk(config, lattice, position, chunk_size, _atom_types, input_atom_type, ntypes, type_maps):
     Rc_m = config["Rc_M"]
     m_neigh = config["maxNeighborNum"]
+    input_atom_type_nums = []       # the number of each atom type in input_atom_type
+    for itype, iatom in enumerate(input_atom_type):
+        input_atom_type_nums.append(np.sum(itype == type_maps))
     types, type_incides, atom_types_nums = np.unique(type_maps, return_index=True, return_counts=True)
     atom_types_nums = atom_types_nums[np.argsort(type_incides)]
     Rc_type = np.asfortranarray(np.array([(_['Rc']) for _ in config["atomType"]]))
@@ -168,11 +171,11 @@ def calculate_davg_dstd_bk(config, lattice, position, chunk_size, _atom_types, i
     _dR_neigh = neighconst.dr_neigh
     list_neigh = np.transpose(_list_neigh, (3, 2, 1, 0))   # m_neigh, ntypes, natoms, images -> images, natoms, ntypes, m_neigh
     dR_neigh = np.transpose(_dR_neigh, (4, 3, 2, 1, 0))    # 3, m_neigh, ntypes, natoms, images -> images, natoms, ntypes, m_neigh, 3
-    davg, dstd = calc_stat_bk(config, dR_neigh, list_neigh, m_neigh, natoms, ntypes, atom_types_nums, input_atom_type)
+    davg, dstd = calc_stat_bk(config, dR_neigh, list_neigh, m_neigh, natoms, ntypes, input_atom_type_nums)
     neighconst.dealloc()
     return davg, dstd, atom_types_nums
 
-def calc_stat_bk(config, dR_neigh, list_neigh, m_neigh, natoms, ntypes, atom_types_nums, input_atom_type):
+def calc_stat_bk(config, dR_neigh, list_neigh, m_neigh, natoms, ntypes, input_atom_type_nums):
     davg = []
     dstd = []
     image_dR = np.reshape(dR_neigh, (-1, natoms, ntypes * m_neigh, 3))
@@ -206,12 +209,12 @@ def calc_stat_bk(config, dR_neigh, list_neigh, m_neigh, natoms, ntypes, atom_typ
                       inr, 
                       davg_tensor, 
                       dstd_tensor, 
-                      atom_types_nums)
+                      input_atom_type_nums)
     Ri2 = Ri * Ri
     atom_sum = 0
     for i in range(ntypes):
-        Ri_ntype = Ri[:, atom_sum : atom_sum + atom_types_nums[i]].reshape(-1, 4)
-        Ri2_ntype = Ri2[:, atom_sum : atom_sum + atom_types_nums[i]].reshape(-1, 4)
+        Ri_ntype = Ri[:, atom_sum : atom_sum + input_atom_type_nums[i]].reshape(-1, 4)
+        Ri2_ntype = Ri2[:, atom_sum : atom_sum + input_atom_type_nums[i]].reshape(-1, 4)
         sum_Ri = Ri_ntype.sum(axis=0).tolist()
         sum_Ri_r = sum_Ri[0]
         sum_Ri_a = np.average(sum_Ri[1:])
@@ -234,7 +237,7 @@ def calc_stat_bk(config, dR_neigh, list_neigh, m_neigh, natoms, ntypes, atom_typ
         dstd.append(
             np.tile(dstd_unit, m_neigh * ntypes).reshape(-1, 4)
         )
-        atom_sum = atom_sum + atom_types_nums[i]
+        atom_sum = atom_sum + input_atom_type_nums[i]
 
     davg = np.array(davg).reshape(ntypes, -1)
     dstd = np.array(dstd).reshape(ntypes, -1)

@@ -33,6 +33,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
     model.train()
 
     end = time.time()
+    Sij_max = 0.0   # max Rij before davg and dstd cacled
     for i, sample_batches in enumerate(train_loader):
         # measure data loading time
         data_time.update(time.time() - end)
@@ -49,6 +50,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
             Ei_label_cpu = sample_batches["Ei"].double()
             Etot_label_cpu = sample_batches["Etot"].double()
             Force_label_cpu = sample_batches["Force"][:, :, :].double()
+            Sij_max_cpu = sample_batches["max_ri"].double()
 
             if args.optimizer_param.train_egroup is True:
                 Egroup_label_cpu = sample_batches["Egroup"].double()
@@ -66,6 +68,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
             Ei_label_cpu = sample_batches["Ei"].float()
             Etot_label_cpu = sample_batches["Etot"].float()
             Force_label_cpu = sample_batches["Force"][:, :, :].float()
+            Sij_max_cpu = sample_batches["max_ri"].float()
 
             if args.optimizer_param.train_egroup is True:
                 Egroup_label_cpu = sample_batches["Egroup"].float()
@@ -81,6 +84,9 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
         else:
             raise Exception("Error! Please specify floating point type: float32 or float64 by the parameter --datatype! ")
         
+        if max(Sij_max_cpu) > Sij_max:
+            Sij_max = max(Sij_max_cpu)
+
         dR_neigh_list_cpu = sample_batches["ListNeighbor"].int()
         natoms_img_cpu = sample_batches["ImageAtomNum"].int()
         atom_type_cpu = sample_batches["AtomType"].int()
@@ -281,7 +287,8 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
         loss_Egroup.root,
         loss_Virial.root,
         loss_Virial_per_atom.root,
-        real_lr,    
+        real_lr,
+        Sij_max,    
     )
 
 
@@ -940,11 +947,11 @@ class ProgressMeter(object):
     def display(self, batch):
         entries = [self.prefix + self.batch_fmtstr.format(batch)]
         entries += [str(meter) for meter in self.meters]
-        print("\t".join(entries))
+        print("\t".join(entries), flush=True)
 
     def display_summary(self, entries=[" *"]):
         entries += [meter.summary() for meter in self.meters]
-        print(" ".join(entries))
+        print(" ".join(entries), flush=True)
 
     def _get_batch_fmtstr(self, num_batches):
         num_digits = len(str(num_batches // 1))

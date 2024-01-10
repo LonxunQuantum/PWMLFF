@@ -141,10 +141,10 @@ class DP(nn.Module):
             if v == key:
                 return i
         return -1
-    def get_train_2body_type(self, type_map: torch.Tensor) -> Tuple[List[List[List[int]]], int]:
+    def get_train_2body_type(self, atom_type: torch.Tensor) -> Tuple[List[List[List[int]]], int]:
         type_2body_list: List[List[List[int]]] = []         
         type_2body_index: List[int] = []
-        for i, atom in enumerate(type_map):
+        for i, atom in enumerate(atom_type):
             # if self.atom_type.eq(atom).any():
             #     type_2body_index.append(i)
             index = self.get_index(self.atom_type, atom)
@@ -161,7 +161,7 @@ class DP(nn.Module):
     def forward(self, 
                 list_neigh: torch.Tensor,   # int32
                 Imagetype_map: torch.Tensor,    # int32
-                type_map: torch.Tensor,    # int32
+                atom_type: torch.Tensor,    # int32
                 ImageDR: torch.Tensor,      # float64
                 nghost: int, 
                 Egroup_weight: Optional[torch.Tensor] = None, 
@@ -173,7 +173,7 @@ class DP(nn.Module):
         Args:
             list_neigh (torch.Tensor): Tensor representing the neighbor list. Shape: (batch_size, natoms_sum, max_neighbor * ntypes).
             Imagetype_map (torch.Tensor): The tensor mapping atom types to image types.. Shape: (natoms_sum).
-            type_map (torch.Tensor): Tensor representing the image's atom types. Shape: (ntypes).
+            atom_type (torch.Tensor): Tensor representing the image's atom types. Shape: (ntypes).
             ImageDR (torch.Tensor): Tensor representing the image DRneigh. Shape: (batch_size, natoms_sum, max_neighbor * ntypes, 4).
             nghost (int): Number of ghost atoms.
             Egroup_weight (Optional[torch.Tensor], optional): Tensor representing the Egroup weight. Defaults to None.
@@ -188,7 +188,7 @@ class DP(nn.Module):
         batch_size = list_neigh.shape[0]
         natoms_sum = list_neigh.shape[1]
         max_neighbor_type = list_neigh.shape[2]  # ntype * max_neighbor_num
-        emb_list, type_nums = self.get_train_2body_type(type_map)
+        emb_list, type_nums = self.get_train_2body_type(atom_type)
         # t1 = time.time()
         Ri, Ri_d = self.calculate_Ri(natoms_sum, batch_size, max_neighbor_type, Imagetype_map, ImageDR, device, dtype)
         Ri.requires_grad_()
@@ -284,8 +284,8 @@ class DP(nn.Module):
         # t3 = time.time()
         # 0 is that the atom nums is zero, for example, CH4 system in CHO system hybrid training, O atom nums is zero.\
         # beacuse the dstd or davg does not contain O atom, therefore, special treatment is needed here for atoms with 0 elements
-        davg_res = self.davg.to(device)[Imagetype_map]
-        dstd_res = self.dstd.to(device)[Imagetype_map]
+        davg_res = self.davg[:, :max_neighbor_type*4].to(device)[Imagetype_map]
+        dstd_res = self.dstd[:, :max_neighbor_type*4].to(device)[Imagetype_map]
         davg_res = davg_res.reshape(-1, natoms_sum, max_neighbor_type, 4).repeat(batch_size, 1, 1, 1)
         dstd_res = dstd_res.reshape(-1, natoms_sum, max_neighbor_type, 4).repeat(batch_size, 1, 1, 1) 
         Ri = (Ri - davg_res) / dstd_res
@@ -429,8 +429,8 @@ class DP(nn.Module):
         assert dE is not None
         if device.type == "cpu":
             dE = torch.unsqueeze(dE, dim=-1)
-            # dE * Ri_d [batch, natom, max_neighbor * len(type_map),4,1] * [batch, natom, max_neighbor * len(type_map), 4, 3]
-            # dE_Rid [batch, natom, max_neighbor * len(type_map), 3]
+            # dE * Ri_d [batch, natom, max_neighbor * len(atom_type),4,1] * [batch, natom, max_neighbor * len(atom_type), 4, 3]
+            # dE_Rid [batch, natom, max_neighbor * len(atom_type), 3]
             dE_Rid = torch.mul(dE, Ri_d).sum(dim=-2)
             Force = torch.zeros((batch_size, natoms_sum + nghost + 1, 3), device=device, dtype=dtype)
             Force[:, 1:natoms_sum + 1, :] = -1 * dE_Rid.sum(dim=-2)

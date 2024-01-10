@@ -402,7 +402,7 @@ class dp_network:
                     train_loader, model, self.criterion, optimizer, epoch, self.device, self.dp_params
                 )
             else:
-                loss, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_egroup, loss_virial, loss_virial_per_atom, real_lr = train(
+                loss, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_egroup, loss_virial, loss_virial_per_atom, real_lr, Sij_max = train(
                     train_loader, model, self.criterion, optimizer, epoch, \
                         self.dp_params.optimizer_param.learning_rate, self.device, self.dp_params
                 )
