@@ -28,7 +28,7 @@ def collect_all_sourcefiles(workDir, sourceFileName="MOVEMENT"):
         if sourceFileName in fileList:
             movement_dir.append(os.path.abspath(path))
     return movement_dir
-    
+""" ********************************************* disuse **********************************
 def gen_config_inputfile(config):
     output_path = os.path.join(config["dRFeatureInputDir"], "gen_dR_feature.in")
     with open(output_path, "w") as GenFeatInput:
@@ -92,8 +92,19 @@ def set_Ei_dat_by_Ep(movement_files,train_set_dir):
                 for i in range(len(atom_type_nums_list)):
                     for j in range(atom_type_nums_list[i]):
                         Ei_out.write(str(tmp_Ep_shift[i]) + "\n")
+********************************************* disuse **********************************"""    
+def gen_train_data(config, data_shuffle=True, seed=2024):
+    """
+    Generate training data for MLFF model.
 
-def gen_train_data_bk(config, is_egroup = True, data_shuffle = True, seed = 2024):
+    Args:
+        config (dict): Configuration parameters for generating training data.
+        data_shuffle (bool, optional): Whether to shuffle the data. Defaults to True.
+        seed (int, optional): Random seed for shuffling the data. Defaults to 2024.
+
+    Returns:
+        list: List of paths to the movement files used for generating training data.
+    """
     train_ratio = config['ratio']
     trainset_dir = config["trainSetDir"]
     train_data_path = config["trainDataPath"] 
@@ -104,14 +115,27 @@ def gen_train_data_bk(config, is_egroup = True, data_shuffle = True, seed = 2024
     for movement_path in movement_paths:
         pwdata.Save_Data(movement_path, train_data_path, valid_data_path, input_atom_type, train_ratio, data_shuffle, seed)
     return movement_paths
-def get_stat(config, is_egroup = True, stat_add = None, data_shuffle = True, seed = 2024, movement_paths = None, chunk_size = 10):
-    train_data_path = config["trainDataPath"] 
+
+def get_stat(config, stat_add=None, movement_paths=None, chunk_size=10):
+    """
+    Calculate statistical properties of the training data.
+
+    Args:
+        config (dict): Configuration parameters for the training data.
+        stat_add (tuple, optional): Additional statistical properties. Defaults to None.
+        movement_paths (list, optional): List of paths to movement data. Defaults to None.
+        chunk_size (int, optional): Number of images each chunk. Defaults to 10.
+
+    Returns:
+        None
+    """
+    train_data_path = config["trainDataPath"]
     ntypes = len(config["atomType"])
-    input_atom_type = np.array([(_['type']) for _ in config["atomType"]])   # MOVEMENT atom type order
+    input_atom_type = np.array([(_['type']) for _ in config["atomType"]])   # input atom type order
     if stat_add is not None:
         # load from prescribed path
         print("davg and dstd are from model checkpoint")
-        davg, dstd, atom_type_order, energy_shift = stat_add
+        davg, dstd, input_atom_type, energy_shift = stat_add
     else:
         davg, dstd = None, None
     
@@ -133,8 +157,8 @@ def get_stat(config, is_egroup = True, stat_add = None, data_shuffle = True, see
             valid_chunk = True
             position = np.load(os.path.join(movement_path, train_data_path, "position.npy"))
             _Ei = np.load(os.path.join(movement_path, train_data_path, "ei.npy"))
-            davg, dstd, atom_types_nums = calculate_davg_dstd_bk(config, lattice, position, chunk_size, _atom_types[0], input_atom_type, ntypes, type_maps)
-            energy_shift = calculate_energy_shift_bk(chunk_size, _Ei, atom_types_nums)
+            davg, dstd, atom_types_nums = calculate_davg_dstd(config, lattice, position, chunk_size, _atom_types[0], input_atom_type, ntypes, type_maps)
+            energy_shift = calculate_energy_shift(chunk_size, _Ei, atom_types_nums)
             davg, dstd, energy_shift = adjust_order_same_as_user_input(davg, dstd, energy_shift, _atom_types[0].tolist(), input_atom_type)
     
     if not valid_chunk and davg is None:
@@ -144,24 +168,37 @@ def get_stat(config, is_egroup = True, stat_add = None, data_shuffle = True, see
         np.save(os.path.join(os.path.dirname(movement_path), "davg.npy"), davg)
         np.save(os.path.join(os.path.dirname(movement_path), "dstd.npy"), dstd)
         np.save(os.path.join(os.path.dirname(movement_path), "energy_shift.npy"), energy_shift)
-        np.save(os.path.join(os.path.dirname(movement_path), "input_atom_type.npy"), input_atom_type)
         np.save(os.path.join(os.path.dirname(movement_path), "max_atom_nums.npy"), max_atom_nums)
-        np.save(os.path.join(os.path.dirname(movement_path), "max_types.npy"), ntypes)
-        np.save(os.path.join(os.path.dirname(movement_path), "Rc_type.npy"), np.array([(_['Rc']) for _ in config["atomType"]]))
-        np.save(os.path.join(os.path.dirname(movement_path), "Rm_type.npy"), np.array([(_['Rm']) for _ in config["atomType"]]))
-        np.save(os.path.join(os.path.dirname(movement_path), "Rc_M.npy"), config["Rc_M"])
-        np.save(os.path.join(os.path.dirname(movement_path), "m_neigh.npy"), config["maxNeighborNum"])
 
-def calculate_davg_dstd_bk(config, lattice, position, chunk_size, _atom_types, input_atom_type, ntypes, type_maps):
+def calculate_davg_dstd(config, lattice, position, chunk_size, _atom_types, input_atom_type, ntypes, type_maps):
+    """
+    Calculate the average and standard deviation of the pairwise distances between atoms.
+
+    neighconst is a fortran module, which is used to calculate the pairwise distances between atoms.
+
+    Args:
+        config (dict): Configuration parameters.
+        lattice (ndarray): Lattice vectors.
+        position (ndarray): Atomic positions.
+        chunk_size (int): Number of images in each chunk.
+        _atom_types (list): List of atom types in the movement.
+        input_atom_type (ndarray): Atom types in the input file.
+        ntypes (int): Number of atom types.
+        type_maps (ndarray): Mapping of atom types.
+
+    Returns:
+        tuple: A tuple containing the average (davg) and standard deviation (dstd) of the pairwise distances,
+               as well as the number of atoms for each atom type (atom_types_nums).
+    """
     Rc_m = config["Rc_M"]
     m_neigh = config["maxNeighborNum"]
-    input_atom_type_nums = []       # the number of each atom type in input_atom_type
-    for itype, iatom in enumerate(input_atom_type):
-        input_atom_type_nums.append(np.sum(itype == type_maps))
+    # input_atom_type_nums = []       # the number of each atom type in input_atom_type
+    # for itype, iatom in enumerate(input_atom_type):
+    #     input_atom_type_nums.append(np.sum(itype == type_maps))
     types, type_incides, atom_types_nums = np.unique(type_maps, return_index=True, return_counts=True)
     atom_types_nums = atom_types_nums[np.argsort(type_incides)]
     Rc_type = np.asfortranarray(np.array([(_['Rc']) for _ in config["atomType"]]))
-    type_maps = np.asfortranarray(type_maps + 1)    # fortran index start from 1
+    type_maps = np.asfortranarray(type_maps + 1)
     lattice = np.asfortranarray(lattice[:chunk_size].reshape(chunk_size, 3, 3))
     position = np.asfortranarray(position[:chunk_size].reshape(chunk_size, -1, 3))
     natoms = position.shape[1]
@@ -169,13 +206,13 @@ def calculate_davg_dstd_bk(config, lattice, position, chunk_size, _atom_types, i
     neighconst.find_neighbore(chunk_size, lattice, position, ntypes, natoms, m_neigh, Rc_m, Rc_type, type_maps)
     _list_neigh = neighconst.list_neigh
     _dR_neigh = neighconst.dr_neigh
-    list_neigh = np.transpose(_list_neigh, (3, 2, 1, 0))   # m_neigh, ntypes, natoms, images -> images, natoms, ntypes, m_neigh
-    dR_neigh = np.transpose(_dR_neigh, (4, 3, 2, 1, 0))    # 3, m_neigh, ntypes, natoms, images -> images, natoms, ntypes, m_neigh, 3
-    davg, dstd = calc_stat_bk(config, dR_neigh, list_neigh, m_neigh, natoms, ntypes, input_atom_type_nums)
+    list_neigh = np.transpose(_list_neigh, (3, 2, 1, 0))
+    dR_neigh = np.transpose(_dR_neigh, (4, 3, 2, 1, 0))
+    davg, dstd = calc_stat(config, dR_neigh, list_neigh, m_neigh, natoms, ntypes, atom_types_nums)
     neighconst.dealloc()
     return davg, dstd, atom_types_nums
 
-def calc_stat_bk(config, dR_neigh, list_neigh, m_neigh, natoms, ntypes, input_atom_type_nums):
+def calc_stat(config, dR_neigh, list_neigh, m_neigh, natoms, ntypes, atom_types_nums):
     davg = []
     dstd = []
     image_dR = np.reshape(dR_neigh, (-1, natoms, ntypes * m_neigh, 3))
@@ -209,12 +246,12 @@ def calc_stat_bk(config, dR_neigh, list_neigh, m_neigh, natoms, ntypes, input_at
                       inr, 
                       davg_tensor, 
                       dstd_tensor, 
-                      input_atom_type_nums)
+                      atom_types_nums)
     Ri2 = Ri * Ri
     atom_sum = 0
     for i in range(ntypes):
-        Ri_ntype = Ri[:, atom_sum : atom_sum + input_atom_type_nums[i]].reshape(-1, 4)
-        Ri2_ntype = Ri2[:, atom_sum : atom_sum + input_atom_type_nums[i]].reshape(-1, 4)
+        Ri_ntype = Ri[:, atom_sum : atom_sum + atom_types_nums[i]].reshape(-1, 4)
+        Ri2_ntype = Ri2[:, atom_sum : atom_sum + atom_types_nums[i]].reshape(-1, 4)
         sum_Ri = Ri_ntype.sum(axis=0).tolist()
         sum_Ri_r = sum_Ri[0]
         sum_Ri_a = np.average(sum_Ri[1:])
@@ -237,13 +274,13 @@ def calc_stat_bk(config, dR_neigh, list_neigh, m_neigh, natoms, ntypes, input_at
         dstd.append(
             np.tile(dstd_unit, m_neigh * ntypes).reshape(-1, 4)
         )
-        atom_sum = atom_sum + input_atom_type_nums[i]
+        atom_sum = atom_sum + atom_types_nums[i]
 
     davg = np.array(davg).reshape(ntypes, -1)
     dstd = np.array(dstd).reshape(ntypes, -1)
     return davg, dstd
 
-def calculate_energy_shift_bk(chunk_size, _Ei, atom_types_nums):
+def calculate_energy_shift(chunk_size, _Ei, atom_types_nums):
     Ei = _Ei[:chunk_size]
     res = []
     current_type = 0
@@ -253,7 +290,7 @@ def calculate_energy_shift_bk(chunk_size, _Ei, atom_types_nums):
         res.append(avg_Ei)
         current_type = current_type_indices
     return res
-
+""" ********************************************* disuse **********************************
 def gen_train_data(config, is_egroup = True, is_virial = True, alive_atomic_energy = True):
 
     trainset_dir = config["trainSetDir"]
@@ -517,7 +554,7 @@ def calc_stat(config, image_dR, list_neigh, natoms_img):
     davg = np.array(davg).reshape(ntypes, -1)
     dstd = np.array(dstd).reshape(ntypes, -1)
     return davg, dstd
-
+********************************************* disuse **********************************"""
 def compute_std(sum2, sum, sumn):
 
     if sumn == 0:
@@ -695,7 +732,7 @@ def smooth(config, image_dR, x, Ri_xyz, mask, inr, davg, dstd, atom_types_nums):
     # Ri_d = Ri_d / dstd_res
     return Ri, None, max_ri
 
-
+""" ********************************************* disuse **********************************
 def compute_Ri(config, image_dR, list_neigh, natoms_img, ind_img, davg, dstd):
     natoms_sum = natoms_img[0, 0]
     natoms_per_type = natoms_img[0, 1:]
@@ -1092,7 +1129,7 @@ def _calculate_energy_shift(Ei, atom_type, atom_num_per_image,  chunk_size=10):
     for t in type_dict.keys():
         res.append(np.mean(type_dict[t]))
     return res, list(type_dict.keys())
-
+********************************************* disuse **********************************"""
 '''
 description: 
 adjust atom ordor of davg, dstd, energy_shift to same as user input order
@@ -1111,7 +1148,7 @@ def adjust_order_same_as_user_input(davg:list, dstd:list, energy_shift:list, ato
         dstd_res.append(dstd[atom_type_order.index(atom)])
         energy_shift_res.append(energy_shift[atom_type_order.index(atom)])
     return davg_res, dstd_res, energy_shift_res
-        
+""" ********************************************* disuse **********************************        
 '''
 description: 
     calculate davg and dstd, the atom type order of davg and dstd is same as input paramter atom_type 
@@ -1300,4 +1337,4 @@ def sepper_data(config, Etot, Ei, Force, dR_neigh,\
 
     Rij_max = max_ri # for model compress
     return accum_train_num, accum_valid_num, Rij_max
-
+********************************************* disuse **********************************"""

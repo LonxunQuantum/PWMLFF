@@ -120,27 +120,26 @@ class dp_network:
         cwd = os.getcwd()
         os.chdir(os.path.dirname(pwdata_work_dir))
         data_file_config = self.dp_params.get_data_file_dict()
-        movement_paths = dp_mlff.gen_train_data_bk(data_file_config, self.dp_params.optimizer_param.train_egroup, 
-                                  self.dp_params.valid_shuffle, self.dp_params.seed)
-        dp_mlff.get_stat(data_file_config, self.dp_params.optimizer_param.train_egroup, 
-                          stat_add, self.dp_params.valid_shuffle, self.dp_params.seed, 
-                          movement_paths, self.dp_params.chunk_size)
+        movement_paths = dp_mlff.gen_train_data(data_file_config, self.dp_params.valid_shuffle, self.dp_params.seed)
+        dp_mlff.get_stat(data_file_config, stat_add, movement_paths, self.dp_params.chunk_size)
         # dp_mlff.gen_train_data(data_file_config, self.dp_params.optimizer_param.train_egroup, self.dp_params.optimizer_param.train_virial, self.dp_params.file_paths.alive_atomic_energy)
         # dp_mlff.sepper_data_main(data_file_config, self.dp_params.optimizer_param.train_egroup, stat_add=stat_add, valid_random=self.dp_params.valid_shuffle, seed = self.dp_params.seed)
         os.chdir(cwd)
         return os.path.dirname(pwdata_work_dir), movement_paths
 
     def load_data(self):
+        config = self.dp_params.get_data_file_dict()
         # Create dataset
         if self.dp_params.inference:
-            train_dataset = MovementDataset([os.path.join(_, "train") for _ in self.dp_params.file_paths.all_movement_path])
+            train_dataset = MovementDataset([os.path.join(_, "train") for _ in self.dp_params.file_paths.all_movement_path], config)
             # valid_dataset = MovementDataset([os.path.join(_, "valid") for _ in self.dp_params.file_paths.all_movement_path])
             valid_dataset = None
         else:            
-            train_dataset = MovementDataset([os.path.join(_, "train") for _ in self.dp_params.file_paths.all_movement_path])
+            train_dataset = MovementDataset([os.path.join(_, "train") for _ in self.dp_params.file_paths.all_movement_path], config)
             valid_dataset = MovementDataset([os.path.join(_, "valid") 
                                              for _ in self.dp_params.file_paths.all_movement_path
-                                             if os.path.exists(os.path.join(_, "valid"))])
+                                             if os.path.exists(os.path.join(_, "valid"))],
+                                             config)
         
         davg, dstd, energy_shift, atom_map = train_dataset.get_stat()
 

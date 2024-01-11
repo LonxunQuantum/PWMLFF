@@ -4,6 +4,10 @@ module NeighConst
 
     integer, allocatable, dimension(:,:,:,:) :: list_neigh
     real(8), allocatable, dimension(:,:,:,:,:) :: dR_neigh
+
+    real(8), allocatable, dimension(:,:,:) :: fact
+    real(8), allocatable, dimension(:,:) :: energy_group
+    real(8), allocatable, dimension(:,:) :: divider
     
     contains
 
@@ -144,8 +148,67 @@ module NeighConst
         enddo
     end subroutine find_neighbore
 
+    subroutine calc_egroup(images, lattice, position, natoms, Rc_M, type_maps, Ei)
+        implicit none
+        integer, intent(in) :: images, natoms
+        real(8), intent(in) :: Rc_M
+        real(8), dimension(:), intent(in) :: type_maps
+        real(8), dimension(:,:), intent(in) :: Ei
+        real(8), dimension(:,:,:), intent(inout) :: lattice, position
+
+        real(8) :: dwidth
+
+        integer :: n, i, j, k, itype  ! loop index
+        real(8) :: Esum, sum, d, Rc2, dx1, dx2, dx3, dx, dy, dz, dd    ! tmp variables
+
+        ! initialize
+        allocate(fact(natoms, natoms, images))
+        allocate(energy_group(natoms, images))
+        allocate(divider(natoms, images))
+        fact = 0
+        energy_group = 0
+        divider = 0
+        dwidth = sqrt(-Rc_M**2/log(0.01)) ! log(0.01)=-4.60517018598809 = ln(0.01)
+
+        ! loop over all images
+        do n=1,images
+            do i=1,natoms !  center position (not even call it atom)
+                Esum = 0.d0
+                sum = 0.d0
+                do j=1,natoms ! neighbor position
+                    itype = type_maps(j)
+
+                    dx1 = position(n,j,1)-position(n,i,1)
+                    dx2 = position(n,j,2)-position(n,i,2)
+                    dx3 = position(n,j,3)-position(n,i,3)
+                    if (abs(dx1+1).lt.abs(dx1)) dx1=dx1+1
+                    if (abs(dx1-1).lt.abs(dx1)) dx1=dx1-1
+                    if (abs(dx2+1).lt.abs(dx2)) dx2=dx2+1
+                    if (abs(dx2-1).lt.abs(dx2)) dx2=dx2-1
+                    if (abs(dx3+1).lt.abs(dx3)) dx3=dx3+1
+                    if (abs(dx3-1).lt.abs(dx3)) dx3=dx3-1
+                    dx = lattice(n,1,1)*dx1+lattice(n,2,1)*dx2+lattice(n,3,1)*dx3
+                    dy = lattice(n,1,2)*dx1+lattice(n,2,2)*dx2+lattice(n,3,2)*dx3
+                    dz = lattice(n,1,3)*dx1+lattice(n,2,3)*dx2+lattice(n,3,3)*dx3
+                    dd = dx**2+dy**2+dz**2
+
+                    if (dd.lt.Rc_M) then
+                        fact(j,i,n) = exp(-dd/dwidth**2)
+                        Esum = Esum + (Ei(n,j))*fact(j,i,n)
+                        sum = sum + fact(j,i,n)
+                    endif
+                enddo
+                divider(i,n) = sum
+                energy_group(i,n) = Esum/sum
+            enddo
+        enddo
+    end subroutine calc_egroup
+
     subroutine dealloc()
-        deallocate(list_neigh)
-        deallocate(dR_neigh)
+        if (allocated(list_neigh)) deallocate(list_neigh)
+        if (allocated(dR_neigh)) deallocate(dR_neigh)
+        if (allocated(fact)) deallocate(fact)
+        if (allocated(energy_group)) deallocate(energy_group)
+        if (allocated(divider)) deallocate(divider)
     end subroutine dealloc
 end module NeighConst

@@ -65,18 +65,18 @@ param {*} source_movement_paths
 param {*} target_dir
 param {*} trainSetDir
 param {*} movement_name
-return pwdata_work_dir
+return data_work_dir
 author: wuxingxing
 '''
 def copy_movements_to_work_dir(source_movement_paths, target_dir, trainSetDir, movement_name):
     if os.path.exists(target_dir) is True:
         shutil.rmtree(target_dir)
-    pwdata_work_dir = os.path.join(target_dir, trainSetDir)
+    data_work_dir = os.path.join(target_dir, trainSetDir)
     for i, mvm in enumerate(source_movement_paths):
-        mvm_dir = os.path.join(pwdata_work_dir, "{}_{}".format(os.path.basename(mvm), i))
+        mvm_dir = os.path.join(data_work_dir, "{}_{}".format(os.path.basename(mvm), i))
         target_mvm = os.path.join(mvm_dir, movement_name)
         copy_file(mvm, target_mvm)
-    return pwdata_work_dir
+    return data_work_dir
 
 '''
 description: delete diractory

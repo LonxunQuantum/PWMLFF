@@ -152,7 +152,6 @@ class InputParam(object):
         self.valid_shuffle = get_parameter("valid_shuffle", json_input, False)
         self.data_shuffle = get_parameter("data_shuffle", json_input, True)
         self.train_valid_ratio = get_parameter("train_valid_ratio", json_input, 0.8)
-        self.dwidth = get_parameter("dwidth", json_input, 3.0)
         self.seed = get_parameter("seed", json_input, 2023)
         self.precision = get_parameter("precision", json_input, "float64")
         self.chunk_size = get_parameter("chunk_size", json_input, 10)
@@ -225,11 +224,7 @@ class InputParam(object):
         data_file_dict["atomType"]=self.atom_type_dict
         data_file_dict["Rc_M"] = self.descriptor.Rmax
         data_file_dict["E_tolerance"] = self.descriptor.E_tolerance
-        # data_file_dict["dwidth"] = self.dwidth
-        if self.optimizer_param.train_egroup:           # setting calculate flag for egroup (Fortran code)
-            data_file_dict["gen_egroup_input"] = 1      
-        else:
-            data_file_dict["gen_egroup_input"] = 0
+        data_file_dict["train_egroup"] = self.optimizer_param.train_egroup
         data_file_dict["ratio"] = self.train_valid_ratio
 
         return data_file_dict
@@ -250,7 +245,6 @@ class InputParam(object):
         if self.cmd == "train".upper():
             params_dict["train_valid_ratio"] = self.train_valid_ratio
         
-        # params_dict["dwidth"] = self.dwidth
         # params_dict["precision"] = self.precision
 
         # params_dict["profiling"] = self.profiling

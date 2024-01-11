@@ -44,7 +44,7 @@ def gen_dp_feature(input_json: json, cmd:str):
     dp_param.print_input_params(json_file_save_name="std_input.json")
     dp_trainer = dp_network(dp_param)
     if len(dp_param.file_paths.train_movement_path) > 0:
-        feature_path = dp_trainer.generate_data()
+        feature_path, movement_paths = dp_trainer.generate_data()
     print("feature generated done, the dir path is: \n{}".format(feature_path))
     return feature_path
 

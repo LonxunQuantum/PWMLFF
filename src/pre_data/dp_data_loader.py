@@ -6,31 +6,24 @@ import yaml
 from NeighConst import neighconst
 
 class MovementDataset(Dataset):
-    '''
-    description: 
-    param {*} self
-    param {*} data_path
-    param {*} train_hybrid False is for single system training, True is for multi different systems training.
-    return {*}
-    author: wuxingxing
-    '''    
-    def __init__(self, data_paths):
+    def __init__(self, data_paths, config):
         super(MovementDataset, self).__init__()
 
         self.dirs = data_paths  # include all movement data path
         self.normalized_data_path = os.path.dirname(os.path.dirname(self.dirs[0]))
+        self.m_neigh = config['maxNeighborNum']
+        self.img_max_types = len(config["atomType"])
+        self.atom_map = np.array([(_['type']) for _ in config["atomType"]])   # input atom type order
+        self.Rc_M = config['Rc_M']
+        self.Rc_type = np.array([(_['Rc']) for _ in config["atomType"]])
+        self.Rm_type = np.array([(_['Rm']) for _ in config["atomType"]])
+        self.Egroup = config['train_egroup']
         self.img_max_atom_num = np.load(os.path.join(self.normalized_data_path, "max_atom_nums.npy")).tolist()
-        self.img_max_types = np.load(os.path.join(self.normalized_data_path, "max_types.npy")).tolist()
-        self.m_neigh = np.load(os.path.join(self.normalized_data_path, "m_neigh.npy")).tolist()
         self.davg = np.load(os.path.join(self.normalized_data_path, "davg.npy"))
         self.dstd = np.load(os.path.join(self.normalized_data_path, "dstd.npy"))
         self.ener_shift = np.load(os.path.join(self.normalized_data_path, "energy_shift.npy"))
         if self.ener_shift.size == 1:
             self.ener_shift = [self.ener_shift.tolist()]
-        self.atom_map = np.load(os.path.join(self.normalized_data_path, "input_atom_type.npy"))
-        self.Rc_M = np.load(os.path.join(self.normalized_data_path, "Rc_M.npy")).tolist()
-        self.Rc_type = np.load(os.path.join(self.normalized_data_path, "Rc_type.npy"))
-        self.Rm_type = np.load(os.path.join(self.normalized_data_path, "Rm_type.npy"))
         self.all_movement_data, self.total_images, self.images_per_dir, self.atoms_per_dir = self.__concatenate_data()
             
     def __load_data(self, index):
@@ -47,14 +40,21 @@ class MovementDataset(Dataset):
         data["AtomTypeMap"] = self.all_movement_data["type_maps.npy"][type_index]
         data["ImageAtomNum"] = self.atoms_per_dir[type_index]
 
-        list_neigh, dR_neigh, max_ri = self.find_neighbore(data["AtomTypeMap"], data["Position"], data["Lattice"], data["ImageAtomNum"])
+        list_neigh, dR_neigh, max_ri, Egroup_weight, Divider, Egroup = self.find_neighbore(data["AtomTypeMap"], data["Position"], data["Lattice"], data["ImageAtomNum"], data["Ei"])
         if list_neigh.shape[0] < self.img_max_atom_num:
             list_neigh = np.pad(list_neigh, ((0, self.img_max_atom_num - list_neigh.shape[0]), (0, 0)))
             dR_neigh = np.pad(dR_neigh, ((0, self.img_max_atom_num - dR_neigh.shape[0]), (0, 0), (0, 0)))
         data["ListNeighbor"] = list_neigh
         data["ImageDR"] = dR_neigh
         data["max_ri"] = max_ri
-        
+        if self.Egroup:
+            if Egroup.shape[0] < self.img_max_atom_num:
+                Egroup_weight = np.pad(Egroup_weight, ((0, self.img_max_atom_num - Egroup.shape[0]), (0, self.img_max_atom_num - Egroup.shape[0])))
+                Divider = np.pad(Divider, ((0, self.img_max_atom_num - Egroup.shape[0])))
+                Egroup = np.pad(Egroup, ((0, self.img_max_atom_num - Egroup.shape[0])))
+            data["Egroup_weight"] = Egroup_weight
+            data["Divider"] = Divider
+            data["Egroup"] = Egroup
         if "virials.npy" in self.all_movement_data.keys():
             data["Virial"] = self.all_movement_data["virials.npy"][index]
 
@@ -75,6 +75,15 @@ class MovementDataset(Dataset):
         return self.davg, self.dstd, self.ener_shift, self.atom_map
     
     def __concatenate_data(self):
+        """
+        Concatenates the data from multiple directories into a single dictionary.
+
+        Returns:
+            data (dict): A dictionary containing the concatenated data.
+            total_images (int): The total number of images in the concatenated data.
+            images_per_dir (list): A list containing the number of images in each directory.
+            atoms_per_dir (list): A list containing the number of atoms in each directory.
+        """
         data = {}
         images_per_dir = []
         atoms_per_dir = []
@@ -124,7 +133,23 @@ class MovementDataset(Dataset):
         total_images = data["energies.npy"].shape[0]    
         return data, total_images, images_per_dir, atoms_per_dir
     
-    def find_neighbore(self, AtomTypeMap, Position, Lattice, ImageAtomNum):
+    def find_neighbore(self, AtomTypeMap, Position, Lattice, ImageAtomNum, Ei):
+        """
+        Call the Fortran subroutine that finds the neighbors for each atom in the system.
+
+        Args:
+            AtomTypeMap (numpy.ndarray): List of atom types to index.
+            Position (numpy.ndarray): List of atomic positions.
+            Lattice (numpy.ndarray): List of lattice vectors.
+            ImageAtomNum (int): The number of atoms in the system.
+            Ei (numpy.ndarray): List of atomic energies.
+
+        Returns:
+            tuple: A tuple containing list_neigh, ImageDR, and max_ri.
+                - list_neigh (numpy.ndarray): The list of neighbors.
+                - ImageDR (numpy.ndarray): The displacement vectors for each neighbor.
+                - max_ri (float): The maximum value of Ri.
+        """
         images = 1
         ntypes = self.img_max_types
         natoms = ImageAtomNum
@@ -134,18 +159,43 @@ class MovementDataset(Dataset):
         position = np.asfortranarray(Position[:natoms].reshape(images, natoms, 3))
 
         neighconst.find_neighbore(images, lattice, position, ntypes, natoms, 
-                                  self.m_neigh, self.Rc_M, Rc_type, type_maps)
+                                    self.m_neigh, self.Rc_M, Rc_type, type_maps)
         _list_neigh = neighconst.list_neigh
         _dR_neigh = neighconst.dr_neigh
         list_neigh = np.transpose(_list_neigh.copy(), (3, 2, 1, 0)).reshape(images, natoms, ntypes*self.m_neigh)
         dR_neigh = np.transpose(_dR_neigh.copy(), (4, 3, 2, 1, 0)).reshape(images, natoms, ntypes*self.m_neigh, 3)
+        if self.Egroup:
+            Ei = np.asfortranarray(Ei[:natoms].reshape(images, natoms))
+            neighconst.calc_egroup(images, lattice, position, natoms, self.Rc_M, type_maps, Ei)
+            _Egroup_weight = neighconst.fact
+            _Divider = neighconst.divider
+            _Egroup = neighconst.energy_group
+            Egroup_weight = np.transpose(_Egroup_weight.copy(), (2, 1, 0)).squeeze(0)
+            Divider = np.transpose(_Divider.copy(), (1, 0)).squeeze(0)
+            Egroup = np.transpose(_Egroup.copy(), (1, 0)).squeeze(0)
+        else:
+            Egroup_weight = None
+            Divider = None
+            Egroup = None
         neighconst.dealloc()
         
-        Egroup_weight, Divider, max_ri, Rij = self.compute_Ri(list_neigh, dR_neigh)
+        max_ri, Rij = self.compute_Ri(list_neigh, dR_neigh)
         ImageDR = np.concatenate((Rij, dR_neigh), axis=-1)
-        return list_neigh.squeeze(0), ImageDR.squeeze(0), max_ri
+        return list_neigh.squeeze(0), ImageDR.squeeze(0), max_ri, Egroup_weight, Divider, Egroup
 
     def compute_Ri(self, list_neigh, dR_neigh):
+        """
+        Compute the Ri values for a given list of neighbors and their displacement vectors.
+
+        Args:
+            list_neigh (list): List of neighbor indices.
+            dR_neigh (list): List of displacement vectors for each neighbor.
+
+        Returns:
+            tuple: A tuple containing max_ri, and Rij.
+                - max_ri (torch.Tensor): The maximum value of Ri.
+                - Rij (numpy.ndarray): The squared root of the sum of the squared displacement vectors.
+        """
         device = torch.device("cpu")
         image_dR = torch.tensor(dR_neigh, device=device, dtype=torch.float64)
         list_neigh = torch.tensor(list_neigh, device=device, dtype=torch.int64)
@@ -197,7 +247,7 @@ class MovementDataset(Dataset):
         Ri[mask] *= vv_copy[mask]
         max_ri = torch.max(Ri[:,:,:,0])
         Rij = Rij.unsqueeze(-1).numpy()
-        return None, None, max_ri, Rij
+        return max_ri, Rij
 
     '''
     description: 

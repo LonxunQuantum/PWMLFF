@@ -284,8 +284,8 @@ class DP(nn.Module):
         # t3 = time.time()
         # 0 is that the atom nums is zero, for example, CH4 system in CHO system hybrid training, O atom nums is zero.\
         # beacuse the dstd or davg does not contain O atom, therefore, special treatment is needed here for atoms with 0 elements
-        davg_res = self.davg[:, :max_neighbor_type*4].to(device)[Imagetype_map]
-        dstd_res = self.dstd[:, :max_neighbor_type*4].to(device)[Imagetype_map]
+        davg_res = self.davg.to(device)[Imagetype_map]
+        dstd_res = self.dstd.to(device)[Imagetype_map]
         davg_res = davg_res.reshape(-1, natoms_sum, max_neighbor_type, 4).repeat(batch_size, 1, 1, 1)
         dstd_res = dstd_res.reshape(-1, natoms_sum, max_neighbor_type, 4).repeat(batch_size, 1, 1, 1) 
         Ri = (Ri - davg_res) / dstd_res
