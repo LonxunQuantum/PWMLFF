@@ -3,13 +3,11 @@
 import os
 import numpy as np
 import torch
-from collections import Counter
-import subprocess as sp
-import random
-import time
-from utils.random_utils import random_index
-from utils.extract_movement import MOVEMENT
-import src.pre_data.pwdata as pwdata
+# from collections import Counter
+# import subprocess as sp
+# import time
+# from utils.random_utils import random_index
+# from utils.extract_movement import MOVEMENT
 from NeighConst import neighconst
 
 '''
@@ -93,37 +91,16 @@ def set_Ei_dat_by_Ep(movement_files,train_set_dir):
                     for j in range(atom_type_nums_list[i]):
                         Ei_out.write(str(tmp_Ep_shift[i]) + "\n")
 ********************************************* disuse **********************************"""    
-def gen_train_data(config, data_shuffle=True, seed=2024):
-    """
-    Generate training data for MLFF model.
 
-    Args:
-        config (dict): Configuration parameters for generating training data.
-        data_shuffle (bool, optional): Whether to shuffle the data. Defaults to True.
-        seed (int, optional): Random seed for shuffling the data. Defaults to 2024.
-
-    Returns:
-        list: List of paths to the movement files used for generating training data.
-    """
-    train_ratio = config['ratio']
-    trainset_dir = config["trainSetDir"]
-    train_data_path = config["trainDataPath"] 
-    valid_data_path = config["validDataPath"]
-    input_atom_type = np.array([(_['type']) for _ in config["atomType"]]) # get atom types,the order is consistent with user input order
-    # directories that contain MOVEMENT 
-    movement_paths = collect_all_sourcefiles(trainset_dir, "MOVEMENT")
-    for movement_path in movement_paths:
-        pwdata.Save_Data(movement_path, train_data_path, valid_data_path, input_atom_type, train_ratio, data_shuffle, seed)
-    return movement_paths
-
-def get_stat(config, stat_add=None, movement_paths=None, chunk_size=10):
+def get_stat(config, stat_add=None, datasets_path=None, work_dir=None, chunk_size=10):
     """
     Calculate statistical properties of the training data.
 
     Args:
         config (dict): Configuration parameters for the training data.
         stat_add (tuple, optional): Additional statistical properties. Defaults to None.
-        movement_paths (list, optional): List of paths to movement data. Defaults to None.
+        datasets_path (list, optional): List of paths to data. Defaults to None.
+        work_dir (str, optional): Path to working directory. Defaults to None.
         chunk_size (int, optional): Number of images each chunk. Defaults to 10.
 
     Returns:
@@ -141,22 +118,23 @@ def get_stat(config, stat_add=None, movement_paths=None, chunk_size=10):
     
     max_atom_nums = 0
     valid_chunk = False
-    for movement_path in movement_paths:
-        type_maps = np.load(os.path.join(movement_path, train_data_path, "type_maps.npy"))
-        max_atom_nums = max(max_atom_nums, type_maps.shape[1])
+    for dataset_path in datasets_path:
+        atom_types_image = np.load(os.path.join(dataset_path, train_data_path, "image_type.npy"))
+        max_atom_nums = max(max_atom_nums, atom_types_image.shape[1])
         if davg is None:
-            _atom_types = np.load(os.path.join(movement_path, train_data_path, "atom_type.npy"))
+            _atom_types = np.load(os.path.join(dataset_path, train_data_path, "atom_type.npy"))
             if _atom_types.shape[1] != ntypes:
                 continue
             # the davg and dstd only need calculate one time
             # the davg, dstd and energy_shift atom order are the same --> movement's atom order
-            lattice = np.load(os.path.join(movement_path, train_data_path, "lattice.npy"))
+            lattice = np.load(os.path.join(dataset_path, train_data_path, "lattice.npy"))
             img_per_mvmt = lattice.shape[0]
             if img_per_mvmt < chunk_size:
                 continue
             valid_chunk = True
-            position = np.load(os.path.join(movement_path, train_data_path, "position.npy"))
-            _Ei = np.load(os.path.join(movement_path, train_data_path, "ei.npy"))
+            position = np.load(os.path.join(dataset_path, train_data_path, "position.npy"))
+            _Ei = np.load(os.path.join(dataset_path, train_data_path, "ei.npy"))
+            type_maps = np.array(type_map(atom_types_image[0], input_atom_type))
             davg, dstd, atom_types_nums = calculate_davg_dstd(config, lattice, position, chunk_size, _atom_types[0], input_atom_type, ntypes, type_maps)
             energy_shift = calculate_energy_shift(chunk_size, _Ei, atom_types_nums)
             davg, dstd, energy_shift = adjust_order_same_as_user_input(davg, dstd, energy_shift, _atom_types[0].tolist(), input_atom_type)
@@ -164,11 +142,38 @@ def get_stat(config, stat_add=None, movement_paths=None, chunk_size=10):
     if not valid_chunk and davg is None:
         raise ValueError("Invalid chunk size, the number of images (include all atom types) in the movement is too small, \nPlease set a smaller chunk_size (default: 10) or add more images in the movement")
 
-    if os.path.exists(os.path.join(os.path.dirname(movement_path), "davg.npy")) is False:
-        np.save(os.path.join(os.path.dirname(movement_path), "davg.npy"), davg)
-        np.save(os.path.join(os.path.dirname(movement_path), "dstd.npy"), dstd)
-        np.save(os.path.join(os.path.dirname(movement_path), "energy_shift.npy"), energy_shift)
-        np.save(os.path.join(os.path.dirname(movement_path), "max_atom_nums.npy"), max_atom_nums)
+    if os.path.exists(os.path.join(work_dir, "davg.npy")) is False:
+        np.save(os.path.join(work_dir, "davg.npy"), davg)
+        np.save(os.path.join(work_dir, "dstd.npy"), dstd)
+        np.save(os.path.join(work_dir, "energy_shift.npy"), energy_shift)
+        np.save(os.path.join(work_dir, "max_atom_nums.npy"), max_atom_nums)
+
+def type_map(atom_types_image, atom_type):
+    """
+    Maps the atom types to their corresponding indices in the atom_type array.
+
+    Args:
+    atom_types_image (numpy.ndarray): Array of atom types to be mapped.
+    atom_type (numpy.ndarray): Array of integers representing the atom type of each atom in the system.
+
+    Returns:
+    list: List of indices corresponding to the atom types in the atom_type array.
+
+    Raises:
+    AssertionError: If no atom types in atom_types_image are found in atom_type.
+
+    Examples: CH4 molecule
+    >>> atom_types_image = array([6, 1, 1, 1, 1])
+    >>> atom_type = array([6, 1])
+    >>> type_map(atom_types_image, atom_type)
+    [0, 1, 1, 1, 1]
+    """
+    atom_type_map = []
+    for elem in atom_types_image:
+        if elem in atom_type:
+            atom_type_map.append(np.where(atom_type == elem)[0][0])
+    assert len(atom_type_map) != 0, "this atom type didn't found"
+    return atom_type_map
 
 def calculate_davg_dstd(config, lattice, position, chunk_size, _atom_types, input_atom_type, ntypes, type_maps):
     """

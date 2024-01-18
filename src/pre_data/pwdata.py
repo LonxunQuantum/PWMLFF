@@ -1,14 +1,10 @@
-"""
-This is a movement utility class that encapsulates movements into an image list and adds some methods 
-for manipulating the movement, such as interval-based image extraction.
-"""
 import numpy as np
-import os, re, sys
+import os, re, sys, glob
 from math import ceil
 from tqdm import tqdm
 from collections import Counter
-import time
-os.chdir(os.path.dirname(os.path.abspath(__file__)))
+# import time
+# os.chdir(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append("../lib")
 
 class Image(object):
@@ -145,15 +141,76 @@ class MOVEMENT(object):
             atomic_energy.append(float(numbers[1]))
         return {"atomic_energy": atomic_energy}
     
-class Save_Data(object):
-    def __init__(self, data_path, train_data_path, valid_data_path, input_atom_type, train_ratio = 0.8, random = True, seed = 2024, retain_raw = False) -> None:
-        movement_file = os.path.join(data_path, "MOVEMENT")
-        self.image_data = MOVEMENT(movement_file)
-        self.lattice, self.position, self.energies, self.ei, self.forces, self.virials, self.type_maps, self.atom_type, self.atom_types_image, self.image_nums = self.get_all(self.image_data, input_atom_type)
-        self.train_ratio = train_ratio        
-        self.split_and_save_data(seed, random, data_path, train_data_path, valid_data_path, retain_raw)
+class CONFIG(object):
+    def __init__(self, config_file) -> None:
+        self.image_list:list[Image] = []
+        self.number_pattern = re.compile(r"[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?")
+        self.load_config_file(config_file)
+
+    def load_config_file(self, config_file):
+        # seperate content to image contents
+        with open(config_file, 'r') as rf:
+            config_contents = rf.readlines()
         
-    def get_all(self, image_data, input_atom_type):
+        for idx, ii in tqdm(enumerate(config_contents), total=len(config_contents), desc="Loading data"):
+            if "lattice" in ii.lower():
+                atom_num = int(config_contents[idx-1].split()[0])
+                lattice_info = self.parse_lattice(config_contents[idx+1:idx+4])
+                image = Image(**lattice_info)
+                self.image_list.append(image)
+                image.atom_num = atom_num
+            elif "position" in ii.lower():
+                position = self.parse_position(config_contents[idx+1:idx+image.atom_num+1])
+                image.position = position["position"]
+                image.atom_type = position["atom_type"]
+                image.atom_type_num = position["atom_type_num"]
+                image.atom_types_image = position["atom_types_image"]
+        image.image_nums = len(self.image_list)
+        print("Load data %s successfully!" % config_file)
+    
+    def parse_lattice(self, lattice_content):
+        lattice1 = [float(_) for _ in self.number_pattern.findall(lattice_content[0])]
+        lattice2 = [float(_) for _ in self.number_pattern.findall(lattice_content[1])]
+        lattice3 = [float(_) for _ in self.number_pattern.findall(lattice_content[2])]
+        lattice = [lattice1[:3], lattice2[:3], lattice3[:3]]
+        return {"lattice": lattice}
+    
+    def parse_position(self, position_content):
+        atom_types_image = []
+        position = []
+        for i in range(0, len(position_content)):
+            numbers = self.number_pattern.findall(position_content[i])
+            atom_types_image.append(int(numbers[0]))
+            position.append([float(_) for _ in numbers[1:4]])
+        counter = Counter(atom_types_image)
+        atom_type = list(counter.keys())
+        atom_type_num = list(counter.values())
+        assert sum(atom_type_num) == len(position)
+        return {"atom_type": atom_type, "atom_type_num": atom_type_num, "atom_types_image": atom_types_image, "position": position}
+    
+class Save_Data(object):
+    def __init__(self, data_path, datasets_path = "./PWdata", train_data_path = "train", valid_data_path = "valid", 
+                 train_ratio = None, random = False, seed = 2024, retain_raw = False, format = "movement") -> None:
+        if format == "config":
+            self.image_data = CONFIG(data_path)
+        elif format == "movement":
+            self.data_name = os.path.basename(data_path)
+            self.labels_path = os.path.join(datasets_path, self.data_name)
+            if os.path.exists(datasets_path) is False:
+                os.makedirs(datasets_path, exist_ok=True)
+            if not os.path.exists(self.labels_path):
+                os.makedirs(self.labels_path, exist_ok=True)
+            if len(glob.glob(os.path.join(self.labels_path, train_data_path, "*.npy"))) > 0:
+                print("Data %s has been processed!" % self.data_name)
+                return
+            self.image_data = MOVEMENT(data_path)
+        self.lattice, self.position, self.energies, self.ei, self.forces, self.virials, self.atom_type, self.atom_types_image, self.image_nums = self.get_all(self.image_data)
+
+        if format != "config" and train_ratio is not None:  # inference 时不存数据
+            self.train_ratio = train_ratio        
+            self.split_and_save_data(seed, random, self.labels_path, train_data_path, valid_data_path, retain_raw)
+        
+    def get_all(self, image_data):
         # Initialize variables to store data
         all_lattices = []
         all_postions = []
@@ -172,7 +229,6 @@ class Save_Data(object):
         image_nums = image.image_nums
         atom_type = np.array(image.atom_type).reshape(1, -1)
         atom_types_image = np.array(image.atom_types_image)
-        type_maps = type_map(atom_types_image, input_atom_type)
         all_lattices = np.array(all_lattices).reshape(image_nums, 9)
         all_postions = np.array(all_postions).reshape(image_nums, -1)
         all_energies = np.array(all_energies).reshape(image_nums, 1)
@@ -180,9 +236,9 @@ class Save_Data(object):
         all_ei = np.array(all_ei).reshape(image_nums, -1)
         if len(all_virials) != 0:
             all_virials = np.array(all_virials).reshape(image_nums, -1)
-        return all_lattices, all_postions, all_energies, all_ei, all_forces, all_virials, type_maps, atom_type, atom_types_image, image_nums
+        return all_lattices, all_postions, all_energies, all_ei, all_forces, all_virials, atom_type, atom_types_image, image_nums
     
-    def split_and_save_data(self, seed, random, data_path, train_path, val_path, retain_raw):
+    def split_and_save_data(self, seed, random, labels_path, train_path, val_path, retain_raw):
         if seed:
             np.random.seed(seed)
         indices = np.arange(self.image_nums)    # 0, 1, 2, ..., image_nums-1
@@ -192,14 +248,13 @@ class Save_Data(object):
         train_indices = indices[:train_size]
         val_indices = indices[train_size:]
         # image_nums = [self.image_nums]
-        # atom_types_image = self.atom_types_image.reshape(1, -1)
-        type_maps = np.array(self.type_maps).reshape(1, -1)
+        atom_types_image = self.atom_types_image.reshape(1, -1)
 
         train_data = [self.lattice[train_indices], self.position[train_indices], self.energies[train_indices], 
-                      self.forces[train_indices], type_maps, self.atom_type,
+                      self.forces[train_indices], atom_types_image, self.atom_type,
                       self.ei[train_indices]]
         val_data = [self.lattice[val_indices], self.position[val_indices], self.energies[val_indices], 
-                    self.forces[val_indices], type_maps, self.atom_type,
+                    self.forces[val_indices], atom_types_image, self.atom_type,
                     self.ei[val_indices]]
 
         if len(self.virials) != 0:
@@ -210,15 +265,15 @@ class Save_Data(object):
             val_data.append([])
 
         if self.train_ratio == 1.0 or len(val_indices) == 0:
-            data_path = os.path.join(data_path, train_path)
-            if not os.path.exists(data_path):
-                os.makedirs(data_path)
+            labels_path = os.path.join(labels_path, train_path)
+            if not os.path.exists(labels_path):
+                os.makedirs(labels_path)
             if retain_raw:
                 self.save_to_raw(train_data, train_path)
-            self.save_to_npy(train_data, data_path)
+            self.save_to_npy(train_data, labels_path)
         else:
-            train_path = os.path.join(data_path, train_path) 
-            val_path = os.path.join(data_path, val_path)
+            train_path = os.path.join(labels_path, train_path) 
+            val_path = os.path.join(labels_path, val_path)
             if not os.path.exists(train_path):
                 os.makedirs(train_path)
             if not os.path.exists(val_path):
@@ -230,7 +285,7 @@ class Save_Data(object):
             self.save_to_npy(val_data, val_path)
                 
     def save_to_raw(self, data, directory):
-        filenames = ["lattice.dat", "position.dat", "energies.dat", "forces.dat", "type_maps.dat", "atom_type.dat", "ei.dat", "virials.dat"]
+        filenames = ["lattice.dat", "position.dat", "energies.dat", "forces.dat", "image_type.dat", "atom_type.dat", "ei.dat", "virials.dat"]
         formats = ["%.8f", "%.16f", "%.8f", "%.16f", "%d", "%d", "%.8f", "%.8f"]
         # for i in tqdm(range(len(data)), desc="Saving to raw files"):
         for i in range(len(data)):
@@ -238,67 +293,11 @@ class Save_Data(object):
                 np.savetxt(os.path.join(directory, filenames[i]), data[i], fmt=formats[i])
 
     def save_to_npy(self, data, directory):
-        filenames = ["lattice.npy", "position.npy", "energies.npy", "forces.npy", "type_maps.npy", "atom_type.npy", "ei.npy", "virials.npy"]
+        filenames = ["lattice.npy", "position.npy", "energies.npy", "forces.npy", "image_type.npy", "atom_type.npy", "ei.npy", "virials.npy"]
         # for i in tqdm(range(len(data)), desc="Saving to npy files"):
         for i in range(len(data)):
             if i != 7 or (i == 7 and len(data[7]) != 0):
                 np.save(os.path.join(directory, filenames[i]), data[i])
-        
-
-def type_map(atom_types_image, atom_type):
-    """
-    Maps the atom types to their corresponding indices in the atom_type array.
-
-    Args:
-    atom_types_image (numpy.ndarray): Array of atom types to be mapped.
-    atom_type (numpy.ndarray): Array of integers representing the atom type of each atom in the system.
-
-    Returns:
-    list: List of indices corresponding to the atom types in the atom_type array.
-
-    Raises:
-    AssertionError: If no atom types in atom_types_image are found in atom_type.
-
-    Examples: CH4 molecule
-    >>> atom_types_image = array([6, 1, 1, 1, 1])
-    >>> atom_type = array([6, 1])
-    >>> type_map(atom_types_image, atom_type)
-    [0, 1, 1, 1, 1]
-    """
-    atom_type_map = []
-    for elem in atom_types_image:
-        if elem in atom_type:
-            atom_type_map.append(np.where(atom_type == elem)[0][0])
-    assert len(atom_type_map) != 0, "this atom type didn't found"
-    return atom_type_map
-
-    """
-    This function finds the neighbors of each atom in a given system.
-
-    Args:
-    iatom (tensor): An array of integers representing the atomic number of each atom in the system.
-    atom_num (tensor): The total number of atoms in the system.
-    xyz_postion (tensor): A 2D array of floats representing the x, y, and z coordinates of each atom in the system.
-    lattice (tensor): A 2D array of floats representing the lattice vectors of the system.
-    Rc_M (float): The cutoff radius for the neighbor search.
-    m_neigh (int): The maximum number of neighbors for each atom.
-    ntype (int): The total number of atom types in the system.
-    iat_type_atom: Which element type does the atom of the corresponding index belong to.
-
-    Returns:
-    num_neigh (tensor): A list of tensors containing the number of neighbors of each atom for each atom type.
-    list_neigh (list): A list of lists containing the indices of the neighbors of each atom for each atom type.
-    iat_neigh (list): A list of tensors containing the atomic numbers of the neighbors of each atom for each atom type.
-    dR_neigh (list): A list of tensors containing the displacement vector between each atom and its neighbors within the maximum neighbor cutoff.
-
-    Examples:
-    >>> iatom = tensor([6, 1, 1, 1, 1])
-    >>> atom_num = 5
-    >>> iat_type_atom = tensor([0, 1, 1, 1, 1])
-    >>> num_neigh = [tensor([0, 4]), tensor([1, 3]), tensor([1, 3]), tensor([1, 3]), tensor([1, 3])]
-    >>> list_neigh = [[[], [1, 2, 3, 4]], [[0], [2, 3, 4]], [[0], [1, 3, 4]], [[0], [1, 2, 4]], [[0], [1, 2, 3]]]
-    >>> iat_neigh = [[[], [tensor(1), tensor(1), tensor(1), tensor(1)]], [[tensor(6)], [tensor(1), tensor(1), tensor(1)]], [[tensor(6)], [tensor(1), tensor(1), tensor(1)]], ..., ]
-    """
 
 if __name__ == "__main__":
 

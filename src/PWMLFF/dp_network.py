@@ -40,6 +40,7 @@ from src.model.dp_dp_typ_emb import TypeDP
 from src.model.dp_dp import DP
 from src.optimizer.GKF import GKFOptimizer
 from src.optimizer.LKF import LKFOptimizer
+import src.pre_data.dp_mlff as dp_mlff
 from src.pre_data.dp_data_loader import MovementDataset
 from src.PWMLFF.dp_mods.dp_trainer import train_KF, train, valid, save_checkpoint, predict
 from src.PWMLFF.dp_param_extract import load_davg_dstd_from_checkpoint, load_davg_dstd_from_feature_path
@@ -127,18 +128,39 @@ class dp_network:
         os.chdir(cwd)
         return os.path.dirname(pwdata_work_dir), movement_paths
 
+    def _get_stat(self):
+        data_file_config = self.dp_params.get_data_file_dict()
+        if self.dp_params.inference:
+            if os.path.exists(self.dp_params.file_paths.model_load_path):
+                # load davg, dstd from checkpoint of model
+                davg, dstd, atom_map, energy_shift = load_davg_dstd_from_checkpoint(self.dp_params.file_paths.model_load_path)
+            elif os.path.exists(self.dp_params.file_paths.model_save_path):
+                davg, dstd, atom_map, energy_shift = load_davg_dstd_from_checkpoint(self.dp_params.file_paths.model_save_path)
+            else:
+                raise Exception("Erorr! Loading model for inference can not find checkpoint: \
+                                \nmodel load path: {} \n or model at work path: {}\n"\
+                                .format(self.dp_params.file_paths.model_load_path, self.dp_params.file_paths.model_save_path))
+            stat_add = [davg, dstd, atom_map, energy_shift]
+        else:
+            stat_add = None
+        
+        dp_mlff.get_stat(data_file_config, stat_add, self.dp_params.file_paths.datasets_path, 
+                         self.dp_params.file_paths.json_dir, self.dp_params.chunk_size)
+
     def load_data(self):
         config = self.dp_params.get_data_file_dict()
         # Create dataset
         if self.dp_params.inference:
-            train_dataset = MovementDataset([os.path.join(_, "train") for _ in self.dp_params.file_paths.all_movement_path], config)
-            # valid_dataset = MovementDataset([os.path.join(_, "valid") for _ in self.dp_params.file_paths.all_movement_path])
+            train_dataset = MovementDataset([os.path.join(_, "train") for _ in self.dp_params.file_paths.datasets_path], 
+                                            self.dp_params.file_paths.json_dir, config)
             valid_dataset = None
         else:            
-            train_dataset = MovementDataset([os.path.join(_, "train") for _ in self.dp_params.file_paths.all_movement_path], config)
+            train_dataset = MovementDataset([os.path.join(_, "train") for _ in self.dp_params.file_paths.datasets_path], 
+                                            self.dp_params.file_paths.json_dir, config)
             valid_dataset = MovementDataset([os.path.join(_, "valid") 
-                                             for _ in self.dp_params.file_paths.all_movement_path
+                                             for _ in self.dp_params.file_paths.datasets_path
                                              if os.path.exists(os.path.join(_, "valid"))],
+                                             self.dp_params.file_paths.json_dir, 
                                              config)
         
         davg, dstd, energy_shift, atom_map = train_dataset.get_stat()

@@ -24,6 +24,7 @@ ln -s ../../utils/read_torch_wij_dp.py .
 ln -s ../../utils/otr2mvt.py ./outcar2movement 
 ln -s ../md/fortran_code/main_MD.x .
 ln -s ../../pwmlff_main.py ./PWMLFF
+ln -s ../../pwdata_main.py pwdata
 
 ln -s ../GPUMD/src/gpumd .
 ln -s ../GPUMD/src/nep .

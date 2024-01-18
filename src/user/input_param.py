@@ -170,8 +170,7 @@ class InputParam(object):
                             work_dir=os.path.abspath(get_parameter("work_dir", json_input, "work_dir")), 
                             reserve_work_dir=get_parameter("reserve_work_dir", json_input, False), 
                             reserve_feature = get_parameter("reserve_feature", json_input, False), 
-                            model_type=self.model_type, 
-                            cmd=self.cmd)
+                            model_type=self.model_type)
 
     '''
     description: 
@@ -242,8 +241,8 @@ class InputParam(object):
         # params_dict["Rmin"] = self.Rmin
         # params_dict["M2"] = self.descriptor.M2
         # params_dict["data_shuffle"] = self.data_shuffle
-        if self.cmd == "train".upper():
-            params_dict["train_valid_ratio"] = self.train_valid_ratio
+        # if self.cmd == "train".upper():
+        #     params_dict["train_valid_ratio"] = self.train_valid_ratio
         
         # params_dict["precision"] = self.precision
 

@@ -20,33 +20,12 @@ def dp_train(input_json: json, cmd:str):
     dp_param = InputParam(input_json, cmd) 
     dp_param.print_input_params(json_file_save_name="std_input.json")
     dp_trainer = dp_network(dp_param)
-    if len(dp_param.file_paths.train_movement_path) > 0:
-        feature_path, movement_paths = dp_trainer.generate_data()
-        dp_param.file_paths.set_train_feature_path([feature_path])
-        dp_param.file_paths.set_all_movement_path(movement_paths)
+    dp_trainer._get_stat()
     dp_trainer.train()
     if os.path.exists(dp_param.file_paths.model_save_path) is False:
         if os.path.exists(dp_param.file_paths.model_load_path):
             dp_param.file_paths.model_save_path = dp_param.file_paths.model_load_path
     extract_force_field(dp_param)
-
-    if os.path.realpath(dp_param.file_paths.json_dir) != os.path.realpath(dp_param.file_paths.work_dir) :
-        copy_train_result(dp_param.file_paths.json_dir, dp_param.file_paths.model_store_dir, dp_param.file_paths.forcefield_dir)
-        if dp_param.file_paths.reserve_feature is False:
-            delete_tree(dp_param.file_paths.train_dir)
-
-        if dp_param.file_paths.reserve_work_dir is False:
-            delete_tree(dp_param.file_paths.work_dir)
-
-
-def gen_dp_feature(input_json: json, cmd:str):
-    dp_param = InputParam(input_json, cmd) 
-    dp_param.print_input_params(json_file_save_name="std_input.json")
-    dp_trainer = dp_network(dp_param)
-    if len(dp_param.file_paths.train_movement_path) > 0:
-        feature_path, movement_paths = dp_trainer.generate_data()
-    print("feature generated done, the dir path is: \n{}".format(feature_path))
-    return feature_path
 
 '''
 description: 
@@ -64,29 +43,13 @@ def dp_test(input_json: json, cmd:str):
     model_load_path = get_required_parameter("model_load_file", input_json)
     model_checkpoint = torch.load(model_load_path, map_location=torch.device("cpu"))
     json_dict_train = model_checkpoint["json_file"]
-
-    json_dict_train["work_dir"] = get_parameter("work_dir", input_json, "work_test_dir")
-    
     dp_param = InputParam(json_dict_train, "test".upper())
     # set inference param
     dp_param.set_test_relative_params(input_json)
     dp_param.print_input_params(json_file_save_name="std_input.json")
-
     dp_trainer = dp_network(dp_param)
-    if len(dp_param.file_paths.test_movement_path) > 0:
-        gen_feat_dir, movement_paths = dp_trainer.generate_data()
-        dp_param.file_paths.set_test_feature_path([gen_feat_dir])
-        dp_param.file_paths.set_all_movement_path(movement_paths)
+    dp_trainer._get_stat()
     dp_trainer.inference()
-    if os.path.realpath(dp_param.file_paths.json_dir) != os.path.realpath(dp_param.file_paths.work_dir) :
-        copy_test_result(dp_param.file_paths.json_dir, dp_param.file_paths.test_dir)
-        
-        if dp_param.file_paths.reserve_feature is False:
-            delete_tree(dp_param.file_paths.train_dir)
-            
-        if dp_param.file_paths.reserve_work_dir is False:
-            delete_tree(dp_param.file_paths.work_dir)
-
 
 '''
 description: 

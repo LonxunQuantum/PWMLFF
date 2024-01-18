@@ -1,0 +1,12 @@
+{
+    "seed": 666,
+    "valid_shuffle": false,
+    "train_valid_ratio": 0.8,
+    "raw_files": [
+        "./MOVEMENT",
+        "./MOVEMENT_ec"
+    ],
+    "trainSetDir": "PWdata",
+    "trainDataPath": "train",
+    "validDataPath": "valid"
+}
