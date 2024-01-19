@@ -18,6 +18,7 @@ if __name__ == "__main__":
     cmd_type = sys.argv[1].upper()
     # cmd_type = "test".upper()
     # cmd_type = "train".upper()
+    # cmd_type = "infer".upper()
     # cmd_type = "explore".upper()
     if cmd_type == "help".upper():
         help_info()
@@ -34,8 +35,8 @@ if __name__ == "__main__":
         ckpt_file = sys.argv[2]
         structrues_file = sys.argv[3]
         # ckpt_file = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/4-CH4-dbg/model_record/dp_model.ckpt"
-        # structrues_file = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/4-CH4-dbg/atom.config"
-        infer_main(ckpt_file, structrues_file)
+        # structrues_file = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/4-CH4-dbg/POSCAR"
+        infer_main(ckpt_file, structrues_file, format= "config") # or "poscar"
     else:
         json_path = sys.argv[2]
         # cmd_type = "test".upper()

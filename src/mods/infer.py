@@ -18,6 +18,7 @@ class Inference(object):
         model_checkpoint = torch.load(ckpt_file, map_location = torch.device("cpu"))
         stat = [model_checkpoint["davg"], model_checkpoint["dstd"], model_checkpoint["energy_shift"]]
         model_checkpoint["json_file"]["model_load_file"] = ckpt_file
+        model_checkpoint["json_file"]["datasets_path"] = []
         dp_param = InputParam(model_checkpoint["json_file"], "train".upper())
         dp_param.inference = True 
         dp_trainer = dp_network(dp_param)
@@ -29,12 +30,12 @@ class Inference(object):
         model.eval()
         return model
             
-    def inference(self, structrue_file):
+    def inference(self, structrue_file, format="config"):
         model_config = self.model.config
         Ei = np.zeros(1)
         Egroup = 0
         nghost = 0
-        list_neigh, type_maps, atom_types, ImageDR = self.processed_data(structrue_file, model_config, Ei, Egroup)
+        list_neigh, type_maps, atom_types, ImageDR = self.processed_data(structrue_file, model_config, Ei, Egroup, format)
         Etot, Ei, Force, Egroup, Virial = self.model(list_neigh, type_maps, atom_types, ImageDR, nghost)
         Etot = Etot.cpu().detach().numpy()
         Ei = Ei.cpu().detach().numpy()
@@ -50,8 +51,8 @@ class Inference(object):
         print("----------Virial-------------\n", Virial)
         return Etot, Ei, Force, Egroup, Virial      
                                                               
-    def processed_data(self, structrue_file, model_config, Ei, Egroup):
-        infer = Save_Data(structrue_file, format="config")
+    def processed_data(self, structrue_file, model_config, Ei, Egroup, format):
+        infer = Save_Data(data_path=structrue_file, format=format)
         struc_num = 1
         if infer.image_nums != struc_num:
             raise Exception("Error! the image num in structrue file is not 1!")

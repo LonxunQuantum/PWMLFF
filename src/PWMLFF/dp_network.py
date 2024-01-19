@@ -151,15 +151,15 @@ class dp_network:
         config = self.dp_params.get_data_file_dict()
         # Create dataset
         if self.dp_params.inference:
-            train_dataset = MovementDataset([os.path.join(_, "train") for _ in self.dp_params.file_paths.datasets_path], 
+            train_dataset = MovementDataset([os.path.join(_, config['trainDataPath']) for _ in self.dp_params.file_paths.datasets_path], 
                                             self.dp_params.file_paths.json_dir, config)
             valid_dataset = None
         else:            
-            train_dataset = MovementDataset([os.path.join(_, "train") for _ in self.dp_params.file_paths.datasets_path], 
+            train_dataset = MovementDataset([os.path.join(_, config['trainDataPath']) for _ in self.dp_params.file_paths.datasets_path], 
                                             self.dp_params.file_paths.json_dir, config)
-            valid_dataset = MovementDataset([os.path.join(_, "valid") 
+            valid_dataset = MovementDataset([os.path.join(_, config['validDataPath']) 
                                              for _ in self.dp_params.file_paths.datasets_path
-                                             if os.path.exists(os.path.join(_, "valid"))],
+                                             if os.path.exists(os.path.join(_, config['validDataPath']))],
                                              self.dp_params.file_paths.json_dir, 
                                              config)
         

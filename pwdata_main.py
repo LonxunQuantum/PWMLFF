@@ -19,6 +19,7 @@ if __name__ == "__main__":
     train_ratio = params.train_valid_ratio
     data_shuffle = params.valid_shuffle
     seed = params.seed
+    format = params.format
     for data_path in raw_data_path:
-        Save_Data(data_path, datasets_path, train_data_path, valid_data_path, train_ratio, data_shuffle, seed)        
-        
+        Save_Data(data_path, datasets_path, train_data_path, valid_data_path, 
+                  train_ratio, data_shuffle, seed, format)

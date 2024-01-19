@@ -18,7 +18,7 @@ class Extract_Param(object):
     author: wuxingxing
     '''
     def __init__(self, json_input:dict) -> None:
-        self.set_feature_params(json_input)
+        self.set_params(json_input)
         self.set_workdir_structures(json_input)
         self.file_paths._set_PWdata_NN_DP_dirs(json_input)
         self.file_paths.set_train_valid_file(json_input)
@@ -31,11 +31,12 @@ class Extract_Param(object):
     return {*}
     author: wuxingxing
     '''    
-    def set_feature_params(self, json_input:dict):
+    def set_params(self, json_input:dict):
         # set feature related params
         self.valid_shuffle = get_parameter("valid_shuffle", json_input, False)
         self.train_valid_ratio = get_parameter("train_valid_ratio", json_input, 0.8)
-        self.seed = get_parameter("seed", json_input, 2023)
+        self.seed = get_parameter("seed", json_input, 2024)
+        self.format = get_parameter("format", json_input, "movement")
     '''
     description: 
     set common workdir
