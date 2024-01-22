@@ -10,6 +10,8 @@ src/bin
 src/op/build
 src/op/dist
 src/op/op.egg-info
+src/GPUMD/src/gpumd
+src/GPUMD/src/nep
 __pycache__
 .gitignore
 src/md/fortran_code/*.a
