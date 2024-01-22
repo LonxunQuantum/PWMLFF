@@ -91,6 +91,33 @@ def set_Ei_dat_by_Ep(movement_files,train_set_dir):
                     for j in range(atom_type_nums_list[i]):
                         Ei_out.write(str(tmp_Ep_shift[i]) + "\n")
 ********************************************* disuse **********************************"""    
+def gen_train_data(train_ratio, raw_data_path, datasets_path,
+                   train_data_path, valid_data_path, 
+                   data_shuffle=True, seed=2024, format="movement"):
+    """
+    Generate training data for MLFF model.
+
+    Args:
+        train_ratio (float): Ratio of training data to total data.
+        raw_data_path (list): List of paths to raw data. MOVEMENT, OUTCAR, etc.
+        datasets_path (str): Path to the directory containing the temp *.npy files.
+        train_data_path (str): Path to the directory containing the training data.
+        valid_data_path (str): Path to the directory containing the validation data.
+        data_shuffle (bool, optional): Whether to shuffle the data. Defaults to True.
+        seed (int, optional): Random seed for shuffling the data. Defaults to 2024.
+        format (str, optional): Format of the raw data. Defaults to "movement".
+
+    Returns:
+        list: List of paths to the labels.
+    """
+    from src.pre_data.pwdata import Save_Data
+    labels_path = []
+    for data_path in raw_data_path:
+        data_name = os.path.basename(data_path)
+        labels_path.append(os.path.join(datasets_path, data_name))
+        Save_Data(data_path, datasets_path, train_data_path, valid_data_path, 
+                    train_ratio, data_shuffle, seed, format)
+    return labels_path
 
 def get_stat(config, stat_add=None, datasets_path=None, work_dir=None, chunk_size=10):
     """

@@ -80,53 +80,23 @@ class dp_network:
 
         self.criterion = nn.MSELoss().to(self.device)
         
-    def generate_data(self):
-        if self.dp_params.inference:
-            if os.path.exists(self.dp_params.file_paths.model_load_path):
-                # load davg, dstd from checkpoint of model
-                davg, dstd, atom_map, energy_shift = load_davg_dstd_from_checkpoint(self.dp_params.file_paths.model_load_path)
-            elif os.path.exists(self.dp_params.file_paths.model_save_path):
-                davg, dstd, atom_map, energy_shift = load_davg_dstd_from_checkpoint(self.dp_params.file_paths.model_save_path)
-            else:
-                raise Exception("Erorr! Loading model for inference can not find checkpoint: \
-                                \nmodel load path: {} \n or model at work path: {}\n"\
-                                .format(self.dp_params.file_paths.model_load_path, self.dp_params.file_paths.model_save_path))
-            stat_add = [davg, dstd, atom_map, energy_shift]
+    def generate_data(self):    
+        """
+        Generate training data for MLFF model.
 
-        elif len(self.dp_params.file_paths.train_feature_path) > 0:
-            # load davg, dstd from feature paths
-            davg, dstd, atom_map, energy_shift = load_davg_dstd_from_feature_path(self.dp_params.file_paths.train_feature_path)
-            stat_add = [davg, dstd, atom_map, energy_shift]
-        else:
-            stat_add = None
-        
-        # for inference movment file, copy them to work_dir/test_dir
-        if self.dp_params.inference:
-            pwdata_work_dir = copy_movements_to_work_dir(self.dp_params.file_paths.test_movement_path,\
-                                    self.dp_params.file_paths.test_dir, \
-                                       self.dp_params.file_paths.trainSetDir, \
-                                        self.dp_params.file_paths.movement_name)
-            
-        # for training, copy movement file to work_dir/PWdata
-        elif len(self.dp_params.file_paths.train_movement_path) > 0:
-            pwdata_work_dir = copy_movements_to_work_dir(self.dp_params.file_paths.train_movement_path,\
-                                self.dp_params.file_paths.train_dir, \
-                                    self.dp_params.file_paths.trainSetDir, \
-                                        self.dp_params.file_paths.movement_name)
-        # the data are located with ./PWdata, and work_dir is same as json.file dir
-        else:
-            pwdata_work_dir = os.path.abspath(self.dp_params.file_paths.trainSetDir)
-
-        import src.pre_data.dp_mlff as dp_mlff
-        cwd = os.getcwd()
-        os.chdir(os.path.dirname(pwdata_work_dir))
+        Returns:
+            list: list of labels path
+        """
         data_file_config = self.dp_params.get_data_file_dict()
-        movement_paths = dp_mlff.gen_train_data(data_file_config, self.dp_params.valid_shuffle, self.dp_params.seed)
-        dp_mlff.get_stat(data_file_config, stat_add, movement_paths, self.dp_params.chunk_size)
-        # dp_mlff.gen_train_data(data_file_config, self.dp_params.optimizer_param.train_egroup, self.dp_params.optimizer_param.train_virial, self.dp_params.file_paths.alive_atomic_energy)
-        # dp_mlff.sepper_data_main(data_file_config, self.dp_params.optimizer_param.train_egroup, stat_add=stat_add, valid_random=self.dp_params.valid_shuffle, seed = self.dp_params.seed)
-        os.chdir(cwd)
-        return os.path.dirname(pwdata_work_dir), movement_paths
+        raw_data_path = self.dp_params.file_paths.raw_path
+        datasets_path = os.path.join(self.dp_params.file_paths.json_dir, data_file_config["trainSetDir"])
+        train_ratio = data_file_config['ratio']
+        train_data_path = data_file_config["trainDataPath"]
+        valid_data_path = data_file_config["validDataPath"]
+        labels_path = dp_mlff.gen_train_data(train_ratio, raw_data_path, datasets_path, 
+                               train_data_path, valid_data_path, 
+                               self.dp_params.valid_shuffle, self.dp_params.seed, self.dp_params.format)
+        return labels_path
 
     def _get_stat(self):
         data_file_config = self.dp_params.get_data_file_dict()

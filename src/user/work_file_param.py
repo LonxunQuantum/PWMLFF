@@ -58,6 +58,12 @@ class WorkFileStructure(object):
 
     def set_inference_paths(self, json_input:dict):
         # load test files and check if they are exist
+        raw_path = get_parameter("raw_files", json_input, [])
+        for raw_data in raw_path:
+            if os.path.exists(raw_data) is False:
+                raise Exception("Error! test data: {} file not exist!".format(raw_data))
+        raw_path = [os.path.abspath(_) for _ in raw_path]
+        self.raw_path = raw_path
         datasets_path = get_parameter("datasets_path", json_input, [])
         if isinstance(datasets_path, list) is False:
             datasets_path = [datasets_path]
@@ -100,6 +106,9 @@ class WorkFileStructure(object):
 
     def set_test_feature_path(self, feature_path:list):
         self.test_feature_path.extend(feature_path)
+
+    def set_datasets_path(self, datasets_path:list):
+        self.datasets_path.extend(datasets_path)
 
     '''
     description: 

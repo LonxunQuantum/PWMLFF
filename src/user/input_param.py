@@ -149,12 +149,13 @@ class InputParam(object):
     '''    
     def set_feature_params(self, json_input:dict):
         # set feature related params
-        self.valid_shuffle = get_parameter("valid_shuffle", json_input, False)
+        self.valid_shuffle = get_parameter("valid_shuffle", json_input, True)
         self.data_shuffle = get_parameter("data_shuffle", json_input, True)
         self.train_valid_ratio = get_parameter("train_valid_ratio", json_input, 0.8)
         self.seed = get_parameter("seed", json_input, 2023)
         self.precision = get_parameter("precision", json_input, "float64")
         self.chunk_size = get_parameter("chunk_size", json_input, 10)
+        self.format = get_parameter("format", json_input, "movement")
 
     '''
     description: 
