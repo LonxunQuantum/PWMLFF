@@ -99,7 +99,7 @@ class MOVEMENT(object):
                     atomic_energy, _, _, _ = np.linalg.lstsq([image.atom_type_num], np.array([image.Ep]), rcond=1e-3)
                     atomic_energy = np.repeat(atomic_energy, image.atom_type_num)
                     image.atomic_energy = atomic_energy.tolist()
-        print("Load data %s successfully!" % movement_file)
+        print("Load data %s successfully! \t\t\t\t Image nums: %d" % (movement_file, image.image_nums))
         image.image_nums = len(self.image_list)
     
     def parse_energy_info(self, energy_content):
@@ -256,7 +256,7 @@ class OUTCAR(object):
                     # temp_images[idx] = outcar_contents[prev_idx:idx]
                     if max_insw < nelm:
                         converged_images.append(outcar_contents[max_scf_idx:idx])
-                max_insw = 1
+                max_insw = 0
             if "Iteration" in ii:
                 scf_index = int(ii.split()[3][:-1])
                 if scf_index > max_insw:
@@ -296,7 +296,7 @@ class OUTCAR(object):
                 image.atomic_energy = atomic_energy.tolist()
         # atom_type_num = list(counter.values())
         image.image_nums = len(self.image_list)
-        print("Load data %s successfully!" % outcar_file)         
+        print("Load data %s successfully! \t\t\t\t Image nums: %d" % (outcar_file, image.image_nums))
     
     def parse_virial_info(self, virial_content):
         numbers = self.number_pattern.findall(virial_content)
@@ -516,6 +516,24 @@ class OUTCAR2MOVEMENT(object):
         output_file.close()
 
 def elements_to_order(atom_names, atom_types_image, atom_nums):
+    """
+    Replaces the atom types's order (from 1) to the order of the elements in the atom_names list.
+
+    Args:
+        atom_names (list): List of atom names.
+        atom_types_image (list): List of atom types.
+        atom_nums (int): Number of atoms.
+
+    Example:
+        >>> atom_names = ['C', 'N']
+        >>> atom_types_image = [1, 1, 1, 1, 1, ... , 2, 2, 2, 2, 2, ... , 2]
+        >>> atom_nums = 56
+        >>> elements_to_order(atom_names, atom_types_image, atom_nums)
+        [6, 6, 6, 6, 6, ... , 7, 7, 7, 7, 7, ... , 7]
+        
+    Returns:
+        list: Updated list of atom types per atom.
+    """
     for idx, name in enumerate(atom_names):
         for ii in range(atom_nums):
             if name in elements and atom_types_image[ii] == idx+1:
