@@ -99,8 +99,8 @@ class MOVEMENT(object):
                     atomic_energy, _, _, _ = np.linalg.lstsq([image.atom_type_num], np.array([image.Ep]), rcond=1e-3)
                     atomic_energy = np.repeat(atomic_energy, image.atom_type_num)
                     image.atomic_energy = atomic_energy.tolist()
-        print("Load data %s successfully! \t\t\t\t Image nums: %d" % (movement_file, image.image_nums))
         image.image_nums = len(self.image_list)
+        print("Load data %s successfully! \t\t\t\t Image nums: %d" % (movement_file, image.image_nums))
     
     def parse_energy_info(self, energy_content):
         # "76 atoms,Iteration (fs) =   -0.1000000000E+01, Etot,Ep,Ek (eV) =   -0.1335474369E+05  -0.1335474369E+05   0.0000000000E+00, SCF =    14"
@@ -386,7 +386,7 @@ class POSCAR(object):
 
 class Save_Data(object):
     def __init__(self, data_path, datasets_path = "./PWdata", train_data_path = "train", valid_data_path = "valid", 
-                 train_ratio = None, random = False, seed = 2024, format = None, retain_raw = False) -> None:
+                 train_ratio = None, random = True, seed = 2024, format = None, retain_raw = False) -> None:
         if format == "config":
             self.image_data = CONFIG(data_path)
         elif format == "poscar":
