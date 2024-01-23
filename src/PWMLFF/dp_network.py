@@ -114,24 +114,24 @@ class dp_network:
         else:
             stat_add = None
         
-        dp_mlff.get_stat(data_file_config, stat_add, self.dp_params.file_paths.datasets_path, 
+        davg, dstd, energy_shift, max_atom_nums = dp_mlff.get_stat(data_file_config, stat_add, self.dp_params.file_paths.datasets_path, 
                          self.dp_params.file_paths.json_dir, self.dp_params.chunk_size)
-
-    def load_data(self):
+        return davg, dstd, energy_shift, max_atom_nums
+    
+    def load_data(self, davg, dstd, energy_shift, max_atom_nums):
         config = self.dp_params.get_data_file_dict()
         # Create dataset
         if self.dp_params.inference:
             train_dataset = MovementDataset([os.path.join(_, config['trainDataPath']) for _ in self.dp_params.file_paths.datasets_path], 
-                                            self.dp_params.file_paths.json_dir, config)
+                                            config, davg, dstd, energy_shift, max_atom_nums)
             valid_dataset = None
         else:            
             train_dataset = MovementDataset([os.path.join(_, config['trainDataPath']) for _ in self.dp_params.file_paths.datasets_path], 
-                                            self.dp_params.file_paths.json_dir, config)
+                                            config, davg, dstd, energy_shift, max_atom_nums)
             valid_dataset = MovementDataset([os.path.join(_, config['validDataPath']) 
                                              for _ in self.dp_params.file_paths.datasets_path
                                              if os.path.exists(os.path.join(_, config['validDataPath']))],
-                                             self.dp_params.file_paths.json_dir, 
-                                             config)
+                                             config, davg, dstd, energy_shift, max_atom_nums)
         
         davg, dstd, energy_shift, atom_map = train_dataset.get_stat()
 
@@ -278,9 +278,9 @@ class dp_network:
         '''
         return model, optimizer
 
-    def inference(self):
+    def inference(self, davg, dstd, energy_shift, max_atom_nums):
         # do inference
-        davg, dstd, energy_shift, atom_map, train_loader, val_loader = self.load_data()
+        davg, dstd, energy_shift, atom_map, train_loader, val_loader = self.load_data(davg, dstd, energy_shift, max_atom_nums)
         model, optimizer = self.load_model_optimizer(davg, dstd, energy_shift)
         start = time.time()
         res_pd, etot_label_list, etot_predict_list, ei_label_list, ei_predict_list, force_label_list, force_predict_list\
@@ -322,8 +322,8 @@ class dp_network:
             wf.writelines(inference_cout)
         return 
 
-    def train(self):
-        davg, dstd, energy_shift, atom_map, train_loader, val_loader = self.load_data() #davg, dstd, energy_shift, atom_map
+    def train(self, davg, dstd, energy_shift, max_atom_nums):
+        davg, dstd, energy_shift, atom_map, train_loader, val_loader = self.load_data(davg, dstd, energy_shift, max_atom_nums) #davg, dstd, energy_shift, atom_map
         model, optimizer = self.load_model_optimizer(davg, dstd, energy_shift)
         if not os.path.exists(self.dp_params.file_paths.model_store_dir):
             os.makedirs(self.dp_params.file_paths.model_store_dir)

@@ -131,7 +131,8 @@ def get_stat(config, stat_add=None, datasets_path=None, work_dir=None, chunk_siz
         chunk_size (int, optional): Number of images each chunk. Defaults to 10.
 
     Returns:
-        None
+        tuple: A tuple containing the average (davg) and standard deviation (dstd) of the pairwise distances,
+               as well as the energy shift (energy_shift) and the maximum number of atoms in the movement (max_atom_nums).
     """
     train_data_path = config["trainDataPath"]
     ntypes = len(config["atomType"])
@@ -169,11 +170,12 @@ def get_stat(config, stat_add=None, datasets_path=None, work_dir=None, chunk_siz
     if not valid_chunk and davg is None:
         raise ValueError("Invalid chunk size, the number of images (include all atom types) in the movement is too small, \nPlease set a smaller chunk_size (default: 10) or add more images in the movement")
 
-    if os.path.exists(os.path.join(work_dir, "davg.npy")) is False:
-        np.save(os.path.join(work_dir, "davg.npy"), davg)
-        np.save(os.path.join(work_dir, "dstd.npy"), dstd)
-        np.save(os.path.join(work_dir, "energy_shift.npy"), energy_shift)
-        np.save(os.path.join(work_dir, "max_atom_nums.npy"), max_atom_nums)
+    return davg, dstd, energy_shift, max_atom_nums
+    # if os.path.exists(os.path.join(work_dir, "davg.npy")) is False:
+    #     np.save(os.path.join(work_dir, "davg.npy"), davg)
+    #     np.save(os.path.join(work_dir, "dstd.npy"), dstd)
+    #     np.save(os.path.join(work_dir, "energy_shift.npy"), energy_shift)
+    #     np.save(os.path.join(work_dir, "max_atom_nums.npy"), max_atom_nums)
 
 def type_map(atom_types_image, atom_type):
     """

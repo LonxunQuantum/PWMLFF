@@ -6,7 +6,7 @@ import yaml
 from NeighConst import neighconst
 
 class MovementDataset(Dataset):
-    def __init__(self, data_paths, normalized_data_path, config):
+    def __init__(self, data_paths, config, davg, dstd, energy_shift, max_atom_nums):
         super(MovementDataset, self).__init__()
 
         self.dirs = data_paths  # include all movement data path
@@ -17,10 +17,10 @@ class MovementDataset(Dataset):
         self.Rc_type = np.array([(_['Rc']) for _ in config["atomType"]])
         self.Rm_type = np.array([(_['Rm']) for _ in config["atomType"]])
         self.Egroup = config['train_egroup']
-        self.img_max_atom_num = np.load(os.path.join(normalized_data_path, "max_atom_nums.npy")).tolist()
-        self.davg = np.load(os.path.join(normalized_data_path, "davg.npy"))
-        self.dstd = np.load(os.path.join(normalized_data_path, "dstd.npy"))
-        self.ener_shift = np.load(os.path.join(normalized_data_path, "energy_shift.npy"))
+        self.img_max_atom_num = max_atom_nums
+        self.davg = np.array(davg)
+        self.dstd = np.array(dstd)
+        self.ener_shift = np.array(energy_shift)
         self.all_movement_data, self.total_images, self.images_per_dir, self.atoms_per_dir = self.__concatenate_data()
             
     def __load_data(self, index):

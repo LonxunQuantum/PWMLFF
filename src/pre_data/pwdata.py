@@ -394,6 +394,7 @@ class Save_Data(object):
         elif format == "dump":
             pass
         else:
+            assert train_ratio is not None, "train_ratio must be set when format is not config or poscar (inference)"
             self.data_name = os.path.basename(data_path)
             self.labels_path = os.path.join(datasets_path, self.data_name)
             if os.path.exists(datasets_path) is False:
@@ -407,11 +408,13 @@ class Save_Data(object):
                 self.image_data = MOVEMENT(data_path)
             elif format == "outcar":
                 self.image_data = OUTCAR(data_path)
+            elif format == "xyz":
+                pass
             elif format == "xml":
                 pass
         self.lattice, self.position, self.energies, self.ei, self.forces, self.virials, self.atom_type, self.atom_types_image, self.image_nums = get_all(self.image_data)
 
-        if format != "config" and train_ratio is not None:  # inference 时不存数据
+        if train_ratio is not None:  # inference 时不存数据
             self.train_ratio = train_ratio        
             self.split_and_save_data(seed, random, self.labels_path, train_data_path, valid_data_path, retain_raw)
     
@@ -478,6 +481,17 @@ class Save_Data(object):
 
 class OUTCAR2MOVEMENT(object):
     def __init__(self, outcar_file, output_path, output_file) -> None:
+        """
+        Convert OUTCAR file to MOVEMENT file.
+
+        Args:
+            outcar_file (str): Path to the OUTCAR file.
+            output_path (str): Path to the output directory.
+            output_file (str): Name of the output file.
+
+        Returns:
+            None
+        """
         self.image_data = OUTCAR(outcar_file)
         self.lattice, self.position, self.energies, self.ei, self.forces, self.virials, self.atom_type, self.atom_types_image, self.image_nums = get_all(self.image_data)
         self.output_path = os.path.abspath(output_path)
@@ -514,6 +528,47 @@ class OUTCAR2MOVEMENT(object):
                                   % (image_data.atom_types_image[j], -image_data.force[j][0], -image_data.force[j][1], -image_data.force[j][2]))
             output_file.write(" -------------------------------------\n")
         output_file.close()
+        print("Convert %s to %s successfully!" % (self.image_data.__class__.__name__, self.output_file))
+
+class MOVEMENT2XYZ(object):
+    def __init__(self, movement_file, output_path, output_file) -> None:
+        """
+        Convert MOVEMENT file to XYZ file.
+
+        Args:
+            movement_file (str): Path to the MOVEMENT file.
+            output_path (str): Path to the output directory.
+            output_file (str): Name of the output file.
+
+        Returns:
+            None
+        """
+        self.image_data = MOVEMENT(movement_file)
+        self.lattice, self.position, self.energies, self.ei, self.forces, self.virials, self.atom_type, self.atom_types_image, self.image_nums = get_all(self.image_data)
+        self.output_path = os.path.abspath(output_path)
+        self.output_file = output_file
+        self.save_to_xyz()
+
+    def save_to_xyz(self):
+        output_file = open(os.path.join(self.output_path, self.output_file), 'w')
+        for i in range(self.image_nums):
+            image_data = self.image_data.image_list[i]
+            image_data.position = frac2cart(image_data.position, image_data.lattice)
+            output_file.write("%d\n" % image_data.atom_nums)
+            # output_file.write("Iteration: %s\n" % image_data.iteration)
+            output_head = 'Lattice="%.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f" Properties=species:S:1:pos:R:3:force:R:3:local_energy:R:1 pbc="T T T"\n'
+            output_extended = (image_data.lattice[0][0], image_data.lattice[0][1], image_data.lattice[0][2], 
+                                 image_data.lattice[1][0], image_data.lattice[1][1], image_data.lattice[1][2], 
+                                 image_data.lattice[2][0], image_data.lattice[2][1], image_data.lattice[2][2])
+            output_file.write(output_head % output_extended)
+            for j in range(image_data.atom_nums):
+                properties_format = "%s %14.8f %14.8f %14.8f %14.8f %14.8f %14.8f %14.8f\n"
+                properties = (elements[image_data.atom_types_image[j]], image_data.position[j][0], image_data.position[j][1], image_data.position[j][2], 
+                              image_data.force[j][0], image_data.force[j][1], image_data.force[j][2], 
+                              image_data.atomic_energy[j])
+                output_file.write(properties_format % properties)
+        output_file.close()
+        print("Convert %s to %s successfully!" % (self.image_data.__class__.__name__, self.output_file))
 
 def elements_to_order(atom_names, atom_types_image, atom_nums):
     """
@@ -539,6 +594,27 @@ def elements_to_order(atom_names, atom_types_image, atom_nums):
             if name in elements and atom_types_image[ii] == idx+1:
                 atom_types_image[ii] = elements.index(name)
     return atom_types_image
+
+def frac2cart(position, lattice):
+    """
+    Convert fractional coordinates to Cartesian coordinates.
+
+    Args:
+        position (list): List of fractional coordinates.
+        lattice (list): List of lattice vectors.
+
+    Example:
+        >>> position = [[0.5, 0.5, 0.5], [0.5, 0.5, 0.5]]
+        >>> lattice = [[10, 0, 0], [0, 10, 0], [0, 0, 10]]
+        >>> frac2cart(position, lattice)
+        [[5.0, 5.0, 5.0], [5.0, 5.0, 5.0]]
+
+    Returns:
+        list: List of Cartesian coordinates.
+    """
+    position = np.array(position)
+    lattice = np.array(lattice)
+    return np.dot(position, lattice)
 
 def get_all(image_data):
     # Initialize variables to store data
@@ -579,8 +655,14 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='Convert OUTCAR to MOVEMENT')
     parser.add_argument('--outcar_file', type=str, required=True, help='Path to the OUTCAR file')
+    parser.add_argument('--movement_file', type=str, required=True, help='Path to the OUTCAR file')
     parser.add_argument('--output_path', type=str, required=False, help='Path to the output directory', default="./")
     parser.add_argument('--output_file', type=str, required=False, help='Name of the output file', default="MOVEMENT")
 
     args = parser.parse_args()
-    OUTCAR2MOVEMENT(args.outcar_file, args.output_path, args.output_file)
+    # OUTCAR2MOVEMENT(args.outcar_file, args.output_path, args.output_file)
+    # MOVEMENT2XYZ(args.movement_file, args.output_path, args.output_file)
+    args.movement_file = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/4-CH4-dbg/MOVEMENT"
+    args.output_path = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/4-CH4-dbg"
+    args.output_file = "XYZ_test"
+    MOVEMENT2XYZ(args.movement_file, args.output_path, args.output_file)
