@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 import json
 import os, sys
-from src.pre_data.pwdata import Save_Data, MOVEMENT2XYZ
+from src.pre_data.pwdata import Save_Data
 from src.user.extract_raw import Extract_Param
 
 if __name__ == "__main__":
-    # json_path = sys.argv[1]
-    json_path = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/4-CH4-dbg/extract.json"
+    json_path = sys.argv[1]
+    # json_path = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/4-CH4-dbg/extract.json"
     os.chdir(os.path.dirname(os.path.abspath(json_path)))
     json_file = json.load(open(json_path))
         
@@ -23,6 +23,3 @@ if __name__ == "__main__":
     for data_path in raw_data_path:
         Save_Data(data_path, datasets_path, train_data_path, valid_data_path, 
                   train_ratio, data_shuffle, seed, format)
-    MOVEMENT2XYZ("/data/home/hfhuang/2_MLFF/2-DP/19-json-version/4-CH4-dbg/MOVEMENT", 
-                 "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/4-CH4-dbg", 
-                 "XYZ_test")

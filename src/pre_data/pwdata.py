@@ -645,24 +645,23 @@ def get_all(image_data):
     return all_lattices, all_postions, all_energies, all_ei, all_forces, all_virials, atom_type, atom_types_image, image_nums
 
 if __name__ == "__main__":
-
+    import argparse
+    # os.chdir(os.path.dirname(os.path.abspath(__file__)))
     # MOVEMENT("/data/home/hfhuang/2_MLFF/2-DP/19-json-version/4-CH4-dbg/MOVEMENT")
     # start = time.time()
-    Save_Data("/data/home/hfhuang/2_MLFF/2-DP/19-json-version/4-CH4-dbg/pwdata/MOVEMENT", 0.8)
+    # Save_Data("/data/home/hfhuang/2_MLFF/2-DP/19-json-version/4-CH4-dbg/pwdata/MOVEMENT", 0.8, format="movement")
     # end = time.time()
     # print(end-start)
-    import argparse
 
     parser = argparse.ArgumentParser(description='Convert OUTCAR to MOVEMENT')
-    parser.add_argument('--outcar_file', type=str, required=True, help='Path to the OUTCAR file')
-    parser.add_argument('--movement_file', type=str, required=True, help='Path to the OUTCAR file')
+    parser.add_argument('--outcar_file', type=str, required=False, help='Path to the OUTCAR file')
+    parser.add_argument('--movement_file', type=str, required=False, help='Path to the MOVEMENT file')
     parser.add_argument('--output_path', type=str, required=False, help='Path to the output directory', default="./")
     parser.add_argument('--output_file', type=str, required=False, help='Name of the output file', default="MOVEMENT")
 
     args = parser.parse_args()
     # OUTCAR2MOVEMENT(args.outcar_file, args.output_path, args.output_file)
     # MOVEMENT2XYZ(args.movement_file, args.output_path, args.output_file)
-    args.movement_file = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/4-CH4-dbg/MOVEMENT"
-    args.output_path = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/4-CH4-dbg"
-    args.output_file = "XYZ_test"
-    MOVEMENT2XYZ(args.movement_file, args.output_path, args.output_file)
+    MOVEMENT2XYZ("/data/home/hfhuang/2_MLFF/2-DP/19-json-version/4-CH4-dbg/MOVEMENT", 
+                 "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/4-CH4-dbg", 
+                 "XYZ_test")
