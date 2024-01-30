@@ -45,23 +45,23 @@ class Image(object):
         self.image_nums = image_nums
         self.lattice = lattice if lattice is not None else []
         self.stress = stress if stress is not None else []
-        self.position = position if position is not None else []
+        self.position = position if position is not None else []    # this position can be fractional coordinates or cartesian coordinates
         self.force = force if force is not None else []
         self.atomic_energy = atomic_energy if atomic_energy is not None else []
         self.content = content if content is not None else []
         self.cartesian = cartesian if cartesian is not None else False
         self.pbc = pbc if pbc is not None else np.zeros(3, bool)
-        self.arrays = self.prim_dict()
+        self.arrays = self.prim_dict() # here, position will be convert to cartesian coordinates
     
     def copy(self):
         """Return a copy."""
-        atoms = self.__class__(lattice=self.lattice, pbc=self.pbc, cartesian=self.cartesian)
+        atoms = self.__class__(lattice=self.lattice, position=self.position, pbc=self.pbc, cartesian=self.cartesian)
         if self.cartesian:
             pass
         else:
             self._set_cartesian()
         atoms.arrays = {}
-        atoms.cartesian = self.cartesian
+        # atoms.cartesian = self.cartesian
         prim_dict = self.prim_dict()
         for name, a in prim_dict.items():
             atoms.arrays[name] = a.copy()
@@ -71,7 +71,7 @@ class Image(object):
         """Write atoms object to a new file."""
         from build.write_struc import write_config, write_vasp
         if file_format == 'config':
-            write_config(file_path, file_name, self, direct=direct, sort=sort, wrap=wrap)
+            write_config(file_path, file_name, self, sort=sort, wrap=wrap)
         elif file_format == 'poscar':
             write_vasp(file_path, file_name, self, direct=direct, sort=sort, wrap=wrap)
         else:
@@ -79,7 +79,7 @@ class Image(object):
     
     def prim_dict(self):
         """Return a dictionary of the primitive image data."""
-        return {'atom_types_image': np.array(self.atom_types_image, dtype=np.int64), 'position': np.array(self.position).reshape(-1, 3)}
+        return {'atom_types_image': np.array(self.atom_types_image, dtype=np.int64), 'position': np.array(self.position).reshape(-1, 3), 'lattice': np.array(self.lattice)}
     
     def extend(self, other):
         """Extend atoms object by appending atoms from *other*."""
@@ -141,7 +141,7 @@ class Image(object):
             position = self._get_positions()
             return wrap_positions(position, self.lattice, **wrap_kw)
         else:
-            return self.arrays['positions'].copy()
+            return self.arrays['position'].copy()
         
     def get_scaled_positions(self, wrap=True):
         """Get positions relative to unit cell.

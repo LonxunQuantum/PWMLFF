@@ -1,6 +1,5 @@
 """Adapted from ase: http://wiki.fysik.dtu.dk/ase """
 import numpy as np
-import os
 from image import Image
 
 class SupercellError(Exception):

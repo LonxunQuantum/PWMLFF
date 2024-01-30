@@ -6,7 +6,6 @@ from build.cell import cell_to_cellpar
 def write_config(filepath,
                  filename,
                  atoms,
-                 direct=True,
                  sort=None,
                  symbol_count=None,
                  long_format=True,
@@ -15,7 +14,7 @@ def write_config(filepath,
     """Method to write PWmat position (atom.config) files.
 
     Writes label, scalefactor, unitcell, # of various kinds of atoms,
-    positions in cartesian or scaled coordinates (Direct), and constraints
+    positions scaled coordinates (Direct), and constraints
     to file. fractional coordinates is default.
     """
 
@@ -45,11 +44,11 @@ def write_config(filepath,
             'Lattice vectors must be finite and not coincident. '
             'At least one lattice length or angle is zero.')
 
-    # Write atom positions in scaled or cartesian coordinates
-    if direct:
+    # Write atom positions in scaled coordinates. For PWmat, we must use fractional coordinates
+    if atoms.cartesian:                                 # cartesian -> direct
         coord = atoms.get_scaled_positions(wrap=wrap)
-    else:
-        coord = atoms.get_positions(wrap=wrap)
+    else:                                               # get direct
+        coord = atoms.position
 
     '''constraints = atoms.constraints and not ignore_constraints
 
@@ -153,10 +152,14 @@ def write_vasp(filepath,
             'At least one lattice length or angle is zero.')
 
     # Write atom positions in scaled or cartesian coordinates
-    if direct:
-        coord = atoms.get_scaled_positions(wrap=wrap)
-    else:
+    if direct and atoms.cartesian:                      # cartesian -> direct
+        coord = atoms.get_scaled_positions(wrap=wrap)   
+    elif not direct and atoms.cartesian:                # get cartesian
         coord = atoms.get_positions(wrap=wrap)
+    elif direct and not atoms.cartesian:                # get direct
+        coord = atoms.position
+    else:
+        raise RuntimeError('want cartesian coordinates (direct = False) but atoms are not cartesian')
 
     '''constraints = atoms.constraints and not ignore_constraints
 

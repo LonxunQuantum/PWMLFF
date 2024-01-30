@@ -12,6 +12,7 @@ from movement_saver import save_to_movement
 from extendedxyz import save_to_extxyz
 from build.supercells import make_supercell
 from pertub.perturbation import BatchPerturbStructure
+from pertub.scale import BatchScaleCell
 
 class Save_Data(object):
     def __init__(self, data_path, datasets_path = "./PWdata", train_data_path = "train", valid_data_path = "valid", 
@@ -225,8 +226,41 @@ class PerturbStructure(object):
                                    file_name = "{0}_pertubed.{1}".format(tmp_perturbed_idx, format.lower()),
                                    file_format = format.lower(),
                                    direct = direct,
-                                   sort = sort)
+                                   sort = sort) 
         
+class ScaleCell(object):
+    def __init__(self, scaled_file, format, scale_factor = 1.0, output_path = "./", direct = True, sort = None, pbc = None) -> None:
+        """
+        Scale the lattice.
+
+        Args:
+            scaled_file (str): Path to the input file.
+            format (str): Format of the input file.
+            scale_factor (float): Scale factor.
+            output_path (str): Path to the output directory.
+            direct (bool): Whether to write the positions in direct coordinates.
+            sort (bool): Whether to sort the atoms by atomic number.
+            pbc (list): three bool, Periodic boundary conditions flags.  Examples: [True, True, False] or [1, 1, 0]. True (1) means periodic, False (0) means non-periodic.
+
+        Returns:
+            None
+        """
+
+        if format.lower() == "config":
+            self.image_data = CONFIG(scaled_file, pbc)
+        elif format.lower() == "poscar":
+            self.image_data = POSCAR(scaled_file, pbc)
+        else:
+            raise Exception("Error! The format of the input file is not supported!")
+        
+        self.scale_factor = scale_factor
+        self.output_path = os.path.abspath(output_path)
+        self.scaled_struct = BatchScaleCell.batch_scale(self.image_data, self.scale_factor)
+        self.scaled_struct.to(file_path = self.output_path,
+                              file_name = "scaled.vasp",
+                              file_format = format.lower(),
+                              direct = direct,
+                              sort = sort)
 
 def get_all(image_data):
     # Initialize variables to store data
@@ -259,12 +293,14 @@ def get_all(image_data):
 if __name__ == "__main__":
     import argparse
     SUPERCELL_MATRIX = [[2, 0, 0], [0, 2, 0], [0, 0, 2]]
-    data_file = "/data/home/hfhuang/Si64/atom.config"
+    data_file = "/data/home/hfhuang/2_MLFF/2-DP/9-Si/5-adpa/Si_900K/POSCAR"
+    # data_file = "/data/home/hfhuang/Si64/atom.config"
     # data_path = "/data/home/hfhuang/2_MLFF/3-outcar2movement/0/OUTCARC3N4"
     output_path = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/5-LiGePS/"
     output_file = "supercell.pwmat"
-    format = "config"
+    format = "poscar"
     pbc = [1, 1, 1]
+    ScaleCell(data_file, format, scale_factor = 1.1, output_path = "/data/home/hfhuang/Si64")
     PerturbStructure(data_file, format, output_path = "/data/home/hfhuang/Si64")
     # OUTCAR2MOVEMENT(data_path, output_path, output_file)
     SUPERCELL(data_file, output_path, output_file, SUPERCELL_MATRIX, format = format, pbc=pbc)
@@ -277,7 +313,7 @@ if __name__ == "__main__":
     parser.add_argument('--output_file', type=str, required=False, help='Name of the output file', default="MOVEMENT")
     parser.add_argument('--supercell_matrix', type=list, required=False, help='Supercell matrix', default=[[1, 0, 0], [0, 1, 0], [0, 0, 1]])
     parser.add_argument('--pbc', type=list, required=False, help='Periodic boundary conditions flags', default=[1, 1, 1])
-    parser.add_argument('--direct', type=bool, required=False, help='Whether to write the positions in direct coordinates', default=True)
+    parser.add_argument('--direct', type=bool, required=False, help='Whether to write the positions in direct (frac) coordinates', default=True)
     parser.add_argument('--sort', type=bool, required=False, help='Whether to sort the atoms by atomic number', default=True)
     parser.add_argument('--pert_num', type=int, required=False, help='Number of perturbed structures', default=50)
     parser.add_argument('--cell_pert_fraction', type=float, required=False, help='Fraction of the cell perturbation', default=0.03)
@@ -285,6 +321,7 @@ if __name__ == "__main__":
     parser.add_argument('--retain_raw', type=bool, required=False, help='Whether to retain raw data', default=False)
     parser.add_argument('--train_ratio', type=float, required=False, help='Ratio of training data', default=0.8)
     parser.add_argument('--random', type=bool, required=False, help='Whether to shuffle the data', default=True)
+    parser.add_argument('--scale_factor', type=float, required=False, help='Scale factor of the lattice', default=1.0)
 
     
     args = parser.parse_args()
