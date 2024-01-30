@@ -602,7 +602,7 @@ PROGRAM gen_2bgauss_feature
       do i=1,natom
          !write(55,"(i5,',',i3,',',f12.7,',', i3,<nfeat0m>(',',f15.10))")  &
          !   i,iatom(i),Eatom(i),nfeat_atom(i),(feat(j,i),j=1,nfeat_atom(i))
-         write(55,"(i5,',',i3,',',E18.10,',', i3, ',',<nfeat0m>(E23.16))")  &
+         write(55,"(i5,',',i3,',',E18.10,',', i3, ',',<nfeat0m>(E22.10))")  &
             i,iatom(i),Eatom(i),nfeat_atom(i),(feat(j,i),j=1,nfeat_atom(i))
       enddo
       close(55)

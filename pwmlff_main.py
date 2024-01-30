@@ -36,7 +36,8 @@ if __name__ == "__main__":
         structrues_file = sys.argv[3]
         format = sys.argv[4]
         # ckpt_file = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/4-CH4-dbg/model_record/dp_model.ckpt"
-        # structrues_file = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/4-CH4-dbg/POSCAR"
+        # structrues_file = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/4-CH4-dbg/atom.config"
+        # format= "config"
         infer_main(ckpt_file, structrues_file, format=format) # config or poscar
     else:
         json_path = sys.argv[2]
