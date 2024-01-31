@@ -10,6 +10,9 @@ class OUTCAR(object):
         self.number_pattern = re.compile(r"[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?")
         self.load_outcar_file(outcar_file)
 
+    def get(self):
+        return self.image_list
+
     def load_outcar_file(self, outcar_file):
         # seperate content to image contents
         with open(outcar_file, 'r') as rf:

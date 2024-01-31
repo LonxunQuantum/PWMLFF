@@ -4,7 +4,7 @@ from collections import Counter
 from image import Image
 
 class CONFIG(object):
-    def __init__(self, config_file, pbc) -> None:
+    def __init__(self, config_file, pbc = None) -> None:
         self.image_list:list[Image] = []
         self.number_pattern = re.compile(r"[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?")
         self.load_config_file(config_file)
@@ -12,6 +12,9 @@ class CONFIG(object):
         assert len(self.image_list) > 0, "No system loaded!"
         self.image_list[0].pbc = pbc
 
+    def get(self):
+        return self.image_list
+    
     def load_config_file(self, config_file):
         # seperate content to image contents
         with open(config_file, 'r') as rf:

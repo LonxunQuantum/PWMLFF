@@ -79,7 +79,7 @@ class Image(object):
     
     def prim_dict(self):
         """Return a dictionary of the primitive image data."""
-        return {'atom_types_image': np.array(self.atom_types_image, dtype=np.int64), 'position': np.array(self.position).reshape(-1, 3), 'lattice': np.array(self.lattice)}
+        return {'atom_types_image': np.array(self.atom_types_image, dtype=np.int64), 'position': np.array(self.position).reshape(-1, 3)}
     
     def extend(self, other):
         """Extend atoms object by appending atoms from *other*."""

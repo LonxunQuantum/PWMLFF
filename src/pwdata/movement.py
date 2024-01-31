@@ -6,11 +6,13 @@ from image import Image
 from const import deltaE
 
 class MOVEMENT(object):
-    def __init__(self, movement_file) -> None:
+    def __init__(self, movement_file):
         self.image_list:list[Image] = []
         self.number_pattern = re.compile(r"[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?")
-        self.deltaE = deltaE
         self.load_movement_file(movement_file)
+
+    def get(self):
+        return self.image_list
 
     def load_movement_file(self, movement_file):
         # seperate content to image contents
@@ -38,7 +40,7 @@ class MOVEMENT(object):
             elif "Atomic-Energy" in ii:
                 atomic_energy = self.parse_atomic_energy(mvm_contents[idx+1: idx+ image.atom_nums+1])
                 for i, atom_type in enumerate(image.atom_types_image):
-                    atomic_energy["atomic_energy"][i] += self.deltaE[atom_type]
+                    atomic_energy["atomic_energy"][i] += deltaE[atom_type]
                 image.atomic_energy = atomic_energy["atomic_energy"]
             elif "-------------" in ii:
                 image.content = mvm_contents[idx:]

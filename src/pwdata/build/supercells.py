@@ -5,15 +5,15 @@ from image import Image
 class SupercellError(Exception):
     """Use if construction of supercell fails"""
 
-def make_supercell(image_data: object, supercell_matrix: int, pbc: list = None, wrap=True, tol=1e-5):
+def make_supercell(image_data: list, supercell_matrix: int, pbc: list = None, wrap=True, tol=1e-5):
     """Construct supercell from image_data and supercell_matrix
 
     Args:
-        image_data (object): image_data object including prim atom types, positions, lattice, etc.
+        image_data (list): image_data list including prim atom types, positions, lattice, etc.
         supercell_matrix (list): supercell matrix (3x3)
         pbc (list): Periodic boundary conditions flags.
     """
-    prim = image_data.image_list[0]
+    prim = image_data[0]
     supercell_matrix = np.array(supercell_matrix)
     supercell = clean_matrix(supercell_matrix @ prim.lattice)
     # cartesian lattice points
@@ -21,6 +21,7 @@ def make_supercell(image_data: object, supercell_matrix: int, pbc: list = None, 
     lattice_points = np.dot(lattice_points_frac, supercell)
 
     superatoms = Image(lattice=supercell, pbc=pbc)
+    superatoms.cartesian = True
     for lp in lattice_points:
         shifted_atoms = prim.copy()
         shifted_atoms.arrays['position'] += lp

@@ -88,7 +88,6 @@ class PerturbStructure(object):
         new_system = Image(
                 lattice=np.matmul(atoms.lattice, rot),
                 atom_types_image=atoms.arrays['atom_types_image'],
-                atom_nums=len(atoms.position),
                 position=np.matmul(atoms.position, rot),
                 cartesian=atoms.cartesian
             )
@@ -99,12 +98,12 @@ class PerturbStructure(object):
 class BatchPerturbStructure(object):
     @staticmethod
     def batch_perturb(
-            raw_obj:str,
+            raw_obj:list,
             pert_num:int,
             cell_pert_fraction:float,
             atom_pert_distance:float):
         
-        tmp_structure = raw_obj.image_list[0]
+        tmp_structure = raw_obj[0]
         perturbed_obj = PerturbStructure(tmp_structure)
         perturbed_structs = perturbed_obj.perturb(
                                 pert_num=pert_num, 

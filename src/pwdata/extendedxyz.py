@@ -2,10 +2,10 @@ import os
 from image import frac2cart
 from const import elements
 
-def save_to_extxyz(image_data_all: object, image_nums: int, output_path: str, output_file: str):
+def save_to_extxyz(image_data_all: list, output_path: str, output_file: str):
     output_file = open(os.path.join(output_path, output_file), 'w')
-    for i in range(image_nums):
-        image_data = image_data_all.image_list[i]
+    for i in range(len(image_data_all)):
+        image_data = image_data_all[i]
         image_data.position = frac2cart(image_data.position, image_data.lattice)
         output_file.write("%d\n" % image_data.atom_nums)
         # output_file.write("Iteration: %s\n" % image_data.iteration)

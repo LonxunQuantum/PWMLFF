@@ -2,10 +2,10 @@ import os
 import numpy as np
 import numpy.linalg as LA
 
-def save_to_movement(image_data_all: object, image_nums: int, output_path: str, output_file: str, is_cartesian: bool = False):
+def save_to_movement(image_data_all: list, output_path: str, output_file: str, is_cartesian: bool = True):
     output_file = open(os.path.join(output_path, output_file), 'w')
-    for i in range(image_nums):
-        image_data = image_data_all.image_list[i]
+    for i in range(len(image_data_all)):
+        image_data = image_data_all[i]
         if is_cartesian:
             image_data.position = np.dot(image_data.position, LA.inv(image_data.lattice))       # cartesian position to fractional position
         # with open(os.path.join(output_path, output_file), 'a') as wf:

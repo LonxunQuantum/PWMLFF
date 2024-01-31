@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import json
 import os, sys
-from src.pwdata.pwdata import Save_Data
+from src.pwdata.pwdata import Save_Data, Configs
 from src.user.extract_raw import Extract_Param
 
 if __name__ == "__main__":
@@ -20,6 +20,13 @@ if __name__ == "__main__":
     data_shuffle = params.valid_shuffle
     seed = params.seed
     format = params.format
-    for data_path in raw_data_path:
-        Save_Data(data_path, datasets_path, train_data_path, valid_data_path, 
-                  train_ratio, data_shuffle, seed, format)
+    if True:
+        for data_path in raw_data_path:
+            Save_Data(data_path, datasets_path, train_data_path, valid_data_path, 
+                    train_ratio, data_shuffle, seed, format)
+    else:
+        multi_data = []
+        for data_path in raw_data_path:
+            image_data = Configs.read(format, data_path)
+            multi_data += image_data.get()
+        Configs.save(multi_data, datasets_path, train_data_path, valid_data_path, train_ratio, data_shuffle)

@@ -4,13 +4,16 @@ from image import Image
 from const import elements
 
 class POSCAR(object):
-    def __init__(self, poscar_file, pbc) -> None:
+    def __init__(self, poscar_file, pbc = None) -> None:
         self.image_list:list[Image] = []
         self.number_pattern = re.compile(r"[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?")
         self.load_poscar_file(poscar_file)
 
         assert len(self.image_list) > 0, "No system loaded!"
         self.image_list[0].pbc = pbc
+
+    def get(self):
+        return self.image_list
 
     def load_poscar_file(self, poscar_file):
         # seperate content to image contents

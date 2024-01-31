@@ -32,10 +32,10 @@ class ScaleCell(object):
 class BatchScaleCell(object):
     @staticmethod
     def batch_scale(
-            raw_obj:str,
+            raw_obj:list,
             scale_factor:float):
         
-        tmp_structure = raw_obj.image_list[0]
+        tmp_structure = raw_obj[0]
         perturbed_obj = ScaleCell(tmp_structure)
         perturbed_structs = perturbed_obj.scale(scale_factor)
         return perturbed_structs
