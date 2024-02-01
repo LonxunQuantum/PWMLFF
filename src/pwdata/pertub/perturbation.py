@@ -98,12 +98,12 @@ class PerturbStructure(object):
 class BatchPerturbStructure(object):
     @staticmethod
     def batch_perturb(
-            raw_obj:list,
+            raw_obj:Image,
             pert_num:int,
             cell_pert_fraction:float,
             atom_pert_distance:float):
         
-        tmp_structure = raw_obj[0]
+        tmp_structure = raw_obj
         perturbed_obj = PerturbStructure(tmp_structure)
         perturbed_structs = perturbed_obj.perturb(
                                 pert_num=pert_num, 

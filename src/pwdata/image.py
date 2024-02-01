@@ -1,5 +1,7 @@
 import numpy as np
 import copy
+import os 
+from build.write_struc import write_config, write_vasp, write_lammps
 from const import elements
 from build.geometry import wrap_positions
 from build.cell import scaled_positions
@@ -69,11 +71,14 @@ class Image(object):
     
     def to(self, file_path, file_name, file_format, direct, sort, wrap = False):
         """Write atoms object to a new file."""
-        from build.write_struc import write_config, write_vasp
-        if file_format == 'config':
+        if not os.path.exists(file_path):
+            os.makedirs(file_path)
+        if file_format.lower() == 'config' or file_format.lower() == 'pwmat':
             write_config(file_path, file_name, self, sort=sort, wrap=wrap)
-        elif file_format == 'poscar':
+        elif file_format.lower() == 'poscar' or file_format.lower() == 'vasp':
             write_vasp(file_path, file_name, self, direct=direct, sort=sort, wrap=wrap)
+        elif file_format.lower() == "lammps":
+            write_lammps(file_path, file_name, self, sort=sort, wrap=wrap)
         else:
             raise RuntimeError('Unknown file format')
     

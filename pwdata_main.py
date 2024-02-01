@@ -22,11 +22,15 @@ if __name__ == "__main__":
     format = params.format
     if True:
         for data_path in raw_data_path:
-            Save_Data(data_path, datasets_path, train_data_path, valid_data_path, 
-                    train_ratio, data_shuffle, seed, format)
+            # Save_Data(data_path, datasets_path, train_data_path, valid_data_path, 
+            #         train_ratio, data_shuffle, seed, format)
+            image_data = Configs.read(format, data_path)
+            get_all = Configs.get(image_data)
+            Configs.save(get_all, datasets_path, train_data_path, valid_data_path, train_ratio, data_shuffle, seed)
     else:
         multi_data = []
         for data_path in raw_data_path:
             image_data = Configs.read(format, data_path)
-            multi_data += image_data.get()
-        Configs.save(multi_data, datasets_path, train_data_path, valid_data_path, train_ratio, data_shuffle)
+            multi_data += image_data
+        get_all = Configs.get(multi_data)
+        Configs.save(get_all, datasets_path, train_data_path, valid_data_path, train_ratio, data_shuffle)

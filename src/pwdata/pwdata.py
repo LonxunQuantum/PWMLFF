@@ -1,9 +1,11 @@
 import numpy as np
 import os, sys, glob
 from math import ceil
+from collections import Counter
 # import time
 # os.chdir(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from image import Image
 from movement import MOVEMENT
 from outcar import OUTCAR
 from poscar import POSCAR
@@ -13,6 +15,7 @@ from extendedxyz import save_to_extxyz
 from build.supercells import make_supercell
 from pertub.perturbation import BatchPerturbStructure
 from pertub.scale import BatchScaleCell
+from const import elements
 
 class Save_Data(object):
     def __init__(self, data_path, datasets_path = "./PWdata", train_data_path = "train", valid_data_path = "valid", 
@@ -108,33 +111,65 @@ class Save_Data(object):
         for i in range(len(data)):
             if i != 7 or (i == 7 and len(data[7]) != 0):
                 np.save(os.path.join(directory, filenames[i]), data[i])
-
+                
 class Configs(object):
     @staticmethod
-    def read(format, data_path):
-        if format.lower() == "config":
-            return CONFIG(data_path)
-        elif format.lower() == "poscar":
-            return POSCAR(data_path, pbc)
+    def read(format: str, data_path: str, pbc = None):
+        """ Read the data from the input file. """
+        if format.lower() == "config" or format.lower() == 'pwmat':
+            image = CONFIG(data_path, pbc).image_list[0]
+        elif format.lower() == "poscar" or format.lower() == 'vasp':
+            image = POSCAR(data_path, pbc).image_list[0]
         elif format.lower() == "dump":
-            return None
+            image = None
         elif format.lower() == "movement":
-            return MOVEMENT(data_path)
+            image = MOVEMENT(data_path).image_list
         elif format.lower() == "outcar":
-            return OUTCAR(data_path)
+            image = OUTCAR(data_path).image_list
         elif format.lower() == "xyz":
-            return None
+            image = None
         elif format.lower() == "xml":
-            return None
+            image = None
+        elif format.lower() == 'cp2k':
+            image = None
         else:
-            raise ValueError("Invalid format")
+            raise Exception("Error! The format of the input file is not supported!")
+        return image
 
     @staticmethod
-    def save(image_data, datasets_path = "./PWdata", train_data_path = "train", valid_data_path = "valid",
+    def get(image_data: list[Image]):
+        """ Get and process the data from the input file. """
+        lattice, position, energies, ei, forces, virials, atom_type, atom_types_image, image_nums = get_all(image_data)
+        return {"lattice": lattice, "position": position, "energies": energies, "ei": ei, "forces": forces, "virials": virials, "atom_type": atom_type, "atom_types_image": atom_types_image, "image_nums": image_nums}
+
+    @staticmethod
+    def save(image_data_dict: dict, datasets_path = "./PWdata", train_data_path = "train", valid_data_path = "valid",
            train_ratio = None, random = True, seed = 2024, retain_raw = False):
         
-        lattice, position, energies, ei, forces, virials, atom_type, atom_types_image, image_nums = get_all(image_data)
+        lattice = image_data_dict["lattice"]
+        position = image_data_dict["position"]
+        energies = image_data_dict["energies"]
+        ei = image_data_dict["ei"]
+        forces = image_data_dict["forces"]
+        virials = image_data_dict["virials"]
+        atom_type = image_data_dict["atom_type"]
+        atom_types_image = image_data_dict["atom_types_image"]
+        image_nums = image_data_dict["image_nums"]
 
+        sc = Counter(atom_types_image)  # a list sc of (symbol, count) pairs
+        temp_data_name = ''.join([elements[key] + str(count) for key, count in sc.items()])
+        data_name = temp_data_name
+        suffix = 0
+        while os.path.exists(os.path.join(datasets_path, data_name)):
+            suffix += 1
+            data_name = temp_data_name + "_" + str(suffix)
+            
+        labels_path = os.path.join(datasets_path, data_name)
+        if not os.path.exists(datasets_path):
+            os.makedirs(datasets_path, exist_ok=True)
+        if not os.path.exists(labels_path):
+            os.makedirs(labels_path, exist_ok=True)
+        
         if seed:
             np.random.seed(seed)
         indices = np.arange(image_nums)    # 0, 1, 2, ..., image_nums-1
@@ -162,15 +197,15 @@ class Configs(object):
             val_data.append([])
 
         if train_ratio == 1.0 or len(val_indices) == 0:
-            labels_path = os.path.join(datasets_path, train_data_path)
+            labels_path = os.path.join(labels_path, train_data_path)
             if not os.path.exists(labels_path):
                 os.makedirs(labels_path)
             if retain_raw:
                 Configs.save_to_raw(train_data, train_data_path)
             Configs.save_to_npy(train_data, labels_path)
         else:
-            train_path = os.path.join(datasets_path, train_data_path) 
-            val_path = os.path.join(datasets_path, valid_data_path)
+            train_path = os.path.join(labels_path, train_data_path) 
+            val_path = os.path.join(labels_path, valid_data_path)
             if not os.path.exists(train_path):
                 os.makedirs(train_path)
             if not os.path.exists(val_path):
@@ -235,37 +270,30 @@ class MOVEMENT2XYZ(object):
         save_to_extxyz(self.image_data.get(), self.output_path, self.output_file)
 
 class SUPERCELL(object):
-    def __init__(self, data_path, output_path = "./", output_file = "supercell", 
+    def __init__(self, config: Image, output_path = "./", output_file = "supercell", 
                  supercell_matrix = [[1, 0, 0], [0, 1, 0], [0, 0, 1]], 
-                 direct = True, sort = True, format = None, pbc = None) -> None:
+                 direct = True, sort = True, pbc = None, save_format: str = None) -> None:
         """
         Args:
-            data_path (str): Path to the input file.
+            config (Image): Image object.
             output_path (str): Path to the output directory.
             output_file (str): Name of the output file.
             supercell_matrix (list): supercell matrix (3x3)
             direct (bool): Whether to write the positions in direct coordinates.
             sort (bool): Whether to sort the atoms by atomic number.
-            format (str): Format of the input file. Default: None.
             pbc (list): three bool, Periodic boundary conditions flags.  Examples: [True, True, False] or [1, 1, 0]. True (1) means periodic, False (0) means non-periodic.
+            save_format (str): Format of the output file.
         """
 
-        if format.lower() == "config":
-            self.image_data = CONFIG(data_path, pbc)
-        elif format.lower() == "poscar":
-            self.image_data = POSCAR(data_path, pbc)
-        else:
-            raise Exception("Error! The format of the input file is not supported!")
-        # self.lattice, self.position, self.energies, self.ei, self.forces, self.virials, self.atom_type, self.atom_types_image, self.image_nums = get_all(self.image_data)
         self.output_path = os.path.abspath(output_path)
         self.output_file = output_file
         self.supercell_matrix = supercell_matrix   
         # Make a supercell     
-        supercell = make_supercell(self.image_data.get(), self.supercell_matrix, pbc)
+        supercell = make_supercell(config, self.supercell_matrix, pbc)
         # Write out the structure
         supercell.to(file_path = self.output_path,
                      file_name = self.output_file,
-                     file_format = format.lower(),
+                     file_format = save_format,
                      direct = direct,
                      sort = sort)
         # from build.write_struc import write_config, write_vasp
@@ -275,14 +303,13 @@ class SUPERCELL(object):
         #     write_vasp(self.output_path, self.output_file, supercell, direct=direct, sort=sort)
 
 class PerturbStructure(object):
-    def __init__(self, perturbed_file, format, pert_num = 50, cell_pert_fraction = 0.03, atom_pert_distance = 0.01,
-                 output_path = "./", direct = True, sort = None, pbc = None) -> None:
+    def __init__(self, perturbed_file: Image, pert_num = 50, cell_pert_fraction = 0.03, atom_pert_distance = 0.01,
+                 output_path = "./", direct = True, sort = None, pbc = None, save_format: str = None) -> None:
         """
         Perturb the structure.
 
         Args:
-            perturbed_file (str): Path to the input file.
-            format (str): Format of the input file.
+            perturbed_file (Image): Image object.
             pert_num (int): Number of perturbed structures.
             cell_pert_fraction (float): Fraction of the cell perturbation.
             atom_pert_distance (float): Distance of the atom perturbation.
@@ -290,61 +317,48 @@ class PerturbStructure(object):
             direct (bool): Whether to write the positions in direct coordinates.
             sort (bool): Whether to sort the atoms by atomic number.
             pbc (list): three bool, Periodic boundary conditions flags.  Examples: [True, True, False] or [1, 1, 0]. True (1) means periodic, False (0) means non-periodic.
+            save_format (str): Format of the output file.
 
         Returns:
             None
         """
 
-        if format.lower() == "config":
-            self.image_data = CONFIG(perturbed_file, pbc)
-        elif format.lower() == "poscar":
-            self.image_data = POSCAR(perturbed_file, pbc)
-        else:
-            raise Exception("Error! The format of the input file is not supported!")
-        
         self.pert_num = pert_num
         self.cell_pert_fraction = cell_pert_fraction
         self.atom_pert_distance = atom_pert_distance
         self.output_path = os.path.abspath(output_path)
-        self.perturbed_structs = BatchPerturbStructure.batch_perturb(self.image_data.get(), self.pert_num, self.cell_pert_fraction, self.atom_pert_distance)
+        self.perturbed_structs = BatchPerturbStructure.batch_perturb(perturbed_file, self.pert_num, self.cell_pert_fraction, self.atom_pert_distance)
         for tmp_perturbed_idx, tmp_pertubed_struct in enumerate(self.perturbed_structs):
             tmp_pertubed_struct.to(file_path = self.output_path,
-                                   file_name = "{0}_pertubed.{1}".format(tmp_perturbed_idx, format.lower()),
-                                   file_format = format.lower(),
+                                   file_name = "{0}_pertubed.{1}".format(tmp_perturbed_idx, save_format.lower()),
+                                   file_format = save_format,
                                    direct = direct,
                                    sort = sort) 
         
 class ScaleCell(object):
-    def __init__(self, scaled_file, format, scale_factor = 1.0, output_path = "./", direct = True, sort = None, pbc = None) -> None:
+    def __init__(self, scaled_file: Image, scale_factor = 1.0, output_path = "./", direct = True, sort = None, pbc = None, save_format: str = None) -> None:
         """
         Scale the lattice.
 
         Args:
-            scaled_file (str): Path to the input file.
-            format (str): Format of the input file.
+            scaled_file (Image): Image object.
             scale_factor (float): Scale factor.
             output_path (str): Path to the output directory.
             direct (bool): Whether to write the positions in direct coordinates.
             sort (bool): Whether to sort the atoms by atomic number.
             pbc (list): three bool, Periodic boundary conditions flags.  Examples: [True, True, False] or [1, 1, 0]. True (1) means periodic, False (0) means non-periodic.
+            save_format (str): Format of the output file.
 
         Returns:
             None
         """
-
-        if format.lower() == "config":
-            self.image_data = CONFIG(scaled_file, pbc)
-        elif format.lower() == "poscar":
-            self.image_data = POSCAR(scaled_file, pbc)
-        else:
-            raise Exception("Error! The format of the input file is not supported!")
         
         self.scale_factor = scale_factor
         self.output_path = os.path.abspath(output_path)
-        self.scaled_struct = BatchScaleCell.batch_scale(self.image_data.get(), self.scale_factor)
+        self.scaled_struct = BatchScaleCell.batch_scale(scaled_file, self.scale_factor)
         self.scaled_struct.to(file_path = self.output_path,
-                              file_name = "scaled.vasp",
-                              file_format = format.lower(),
+                              file_name = "scaled.{0}".format(save_format.lower()),
+                              file_format = save_format,
                               direct = direct,
                               sort = sort)
 
@@ -364,7 +378,7 @@ def get_all(image_data):
         all_ei.append(image.atomic_energy)
         if len(image.stress) != 0:
             all_virials.append(image.stress)  
-    image_nums = image.image_nums
+    image_nums = len(image_data)
     atom_type = np.array(image.atom_type).reshape(1, -1)
     atom_types_image = np.array(image.atom_types_image)
     all_lattices = np.array(all_lattices).reshape(image_nums, 9)
@@ -379,24 +393,23 @@ def get_all(image_data):
 if __name__ == "__main__":
     import argparse
     SUPERCELL_MATRIX = [[2, 0, 0], [0, 2, 0], [0, 0, 2]]
-    # data_file = "/data/home/hfhuang/2_MLFF/2-DP/9-Si/5-adpa/Si_900K/POSCAR"
-    data_file = "/data/home/hfhuang/Si64/atom.config"
+    # data_file = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/4-CH4-dbg/atom.config"
+    data_file = "/data/home/hfhuang/Si64/44_POSCAR"
     # data_file = "/data/home/hfhuang/software/mlff/Si/Si64-vasprun.xml"
-    # data_path = "/data/home/hfhuang/2_MLFF/3-outcar2movement/0/OUTCARC3N4"
-    output_path = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/5-LiGePS/"
-    output_file = "test.pwmat2vasp"
-    format = "config"
+    # data_file = "/data/home/hfhuang/2_MLFF/3-outcar2movement/0/OUTCARC3N4"
+    output_path = "/data/home/hfhuang/Si64/"
+    output_file = "supercell.pwmat"
+    format = "poscar"
     pbc = [1, 1, 1]
-    # SUPERCELL(data_file, output_path, output_file, SUPERCELL_MATRIX, format = format, pbc=pbc)
-    # PerturbStructure(data_file, format, output_path = "/data/home/hfhuang/Si64")
-    # ScaleCell(data_file, format, scale_factor = 1.1, output_path = "/data/home/hfhuang/Si64")
-    image = Configs.read(format, data_file)
-    image_data = image.get()
-    image_data[0].to(file_path = output_path,
+    config = Configs.read(format, data_file)
+    # SUPERCELL(config, output_path, output_file, SUPERCELL_MATRIX, pbc=pbc, save_format=format)
+    # PerturbStructure(config, output_path = "/data/home/hfhuang/Si64", save_format=format)
+    # ScaleCell(config, scale_factor = 1.1, output_path = "/data/home/hfhuang/Si64", save_format=format)
+    config.to(file_path = output_path,
                      file_name = output_file,
-                     file_format = 'poscar',
-                     direct = True,
-                     sort = True)
+                     file_format = 'lammps',
+                     direct = False,
+                     sort = False)
     # OUTCAR2MOVEMENT(data_path, output_path, output_file)
     parser = argparse.ArgumentParser(description='Convert and build structures.')
     parser.add_argument('--convert', type=int, required=False, help='Convert OUTCAR to MOVEMENT (1) or MOVEMENT to XYZ (2)')

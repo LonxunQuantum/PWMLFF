@@ -30,7 +30,7 @@ class POSCAR(object):
                 image.atom_type_num = [int(_) for _ in poscar_contents[idx+6].split()]
                 image.atom_nums = sum(image.atom_type_num)
             elif "direct" in ii.lower() or "cartesian" in ii.lower():
-                image.cartesian = "c" in ii.lower()
+                image.cartesian = "cartesian" in ii.lower()
                 position = self.parse_position(poscar_contents[idx+1:idx+image.atom_nums+1], atom_names, image.atom_type_num)
                 image.position = position["position"]
                 atom_types_image = position["atom_types_image"]
