@@ -2,6 +2,7 @@ import numpy as np
 import os, sys, glob
 from math import ceil
 from collections import Counter
+from typing import (List, Union, Optional)
 # import time
 # os.chdir(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -10,12 +11,14 @@ from movement import MOVEMENT
 from outcar import OUTCAR
 from poscar import POSCAR
 from atomconfig import CONFIG
+from dump import DUMP
+from lammpsdata import LMP
 from movement_saver import save_to_movement
 from extendedxyz import save_to_extxyz
 from build.supercells import make_supercell
 from pertub.perturbation import BatchPerturbStructure
 from pertub.scale import BatchScaleCell
-from const import elements
+from calculators.const import elements
 
 class Save_Data(object):
     def __init__(self, data_path, datasets_path = "./PWdata", train_data_path = "train", valid_data_path = "valid", 
@@ -25,7 +28,7 @@ class Save_Data(object):
         elif format.lower() == "poscar":
             self.image_data = POSCAR(data_path)
         elif format.lower() == "dump":
-            pass
+            self.image_data = DUMP(data_path)
         else:
             assert train_ratio is not None, "train_ratio must be set when format is not config or poscar (inference)"
             self.data_name = os.path.basename(data_path)
@@ -114,14 +117,41 @@ class Save_Data(object):
                 
 class Configs(object):
     @staticmethod
-    def read(format: str, data_path: str, pbc = None):
-        """ Read the data from the input file. """
+    def read(format: str, data_path: str, pbc = None, atom_names = None, index = -1, **kwargs):
+        """ Read the data from the input file. 
+            index: int, slice or str
+            The last configuration will be returned by default.  Examples:
+
+            * ``index=0``: first configuration
+            * ``index=-2``: second to last
+            * ``index=':'`` or ``index=slice(None)``: all
+            * ``index='-3:'`` or ``index=slice(-3, None)``: three last
+            * ``index='::2'`` or ``index=slice(0, None, 2)``: even
+            * ``index='1::2'`` or ``index=slice(1, None, 2)``: odd
+
+            kwargs: dict
+            Additional keyword arguments for reading the input file.
+            retain_raw: bool, optional. Whether to retain raw data. Default is False.
+            unit: str, optional. for lammps, the unit of the input file. Default is 'metal'.
+            style: str, optional. for lammps, the style of the input file. Default is 'atomic'.
+            sort_by_id: bool, optional. for lammps, whether to sort the atoms by id. Default is True.
+
+        """
+        if isinstance(index, str):
+            try:
+                index = string2index(index)
+            except ValueError:
+                pass
+
         if format.lower() == "config" or format.lower() == 'pwmat':
             image = CONFIG(data_path, pbc).image_list[0]
         elif format.lower() == "poscar" or format.lower() == 'vasp':
             image = POSCAR(data_path, pbc).image_list[0]
         elif format.lower() == "dump":
-            image = None
+            assert atom_names is not None, "atom_names must be set when format is dump"
+            image = DUMP(data_path, atom_names).image_list[index]
+        elif format.lower() == "lmp":
+            image = LMP(data_path, atom_names, **kwargs).image_list[0]
         elif format.lower() == "movement":
             image = MOVEMENT(data_path).image_list
         elif format.lower() == "outcar":
@@ -144,7 +174,7 @@ class Configs(object):
 
     @staticmethod
     def save(image_data_dict: dict, datasets_path = "./PWdata", train_data_path = "train", valid_data_path = "valid",
-           train_ratio = None, random = True, seed = 2024, retain_raw = False):
+           train_ratio = None, random = True, seed = 2024, retain_raw = False, data_name = None):
         
         lattice = image_data_dict["lattice"]
         position = image_data_dict["position"]
@@ -156,13 +186,16 @@ class Configs(object):
         atom_types_image = image_data_dict["atom_types_image"]
         image_nums = image_data_dict["image_nums"]
 
-        sc = Counter(atom_types_image)  # a list sc of (symbol, count) pairs
-        temp_data_name = ''.join([elements[key] + str(count) for key, count in sc.items()])
-        data_name = temp_data_name
-        suffix = 0
-        while os.path.exists(os.path.join(datasets_path, data_name)):
-            suffix += 1
-            data_name = temp_data_name + "_" + str(suffix)
+        if data_name is None:
+            sc = Counter(atom_types_image)  # a list sc of (symbol, count) pairs
+            temp_data_name = ''.join([elements[key] + str(count) for key, count in sc.items()])
+            data_name = temp_data_name
+            suffix = 0
+            while os.path.exists(os.path.join(datasets_path, data_name)):
+                suffix += 1
+                data_name = temp_data_name + "_" + str(suffix)
+        else:
+            pass
             
         labels_path = os.path.join(datasets_path, data_name)
         if not os.path.exists(datasets_path):
@@ -373,7 +406,7 @@ def get_all(image_data):
     for image in image_data:
         all_lattices.append(image.lattice)
         all_postions.append(image.position)
-        all_energies.append(image.Etot)
+        all_energies.append(image.Ep)
         all_forces.append(image.force)
         all_ei.append(image.atomic_energy)
         if len(image.stress) != 0:
@@ -390,18 +423,36 @@ def get_all(image_data):
         all_virials = np.array(all_virials).reshape(image_nums, -1)
     return all_lattices, all_postions, all_energies, all_ei, all_forces, all_virials, atom_type, atom_types_image, image_nums
 
+def string2index(string: str) -> Union[int, slice, str]:
+    """Convert index string to either int or slice"""
+    if ':' not in string:
+        # may contain database accessor
+        try:
+            return int(string)
+        except ValueError:
+            return string
+    i: List[Optional[int]] = []
+    for s in string.split(':'):
+        if s == '':
+            i.append(None)
+        else:
+            i.append(int(s))
+    i += (3 - len(i)) * [None]
+    return slice(*i)
+
 if __name__ == "__main__":
     import argparse
     SUPERCELL_MATRIX = [[2, 0, 0], [0, 2, 0], [0, 0, 2]]
     # data_file = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/4-CH4-dbg/atom.config"
-    data_file = "/data/home/hfhuang/Si64/44_POSCAR"
+    data_file = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/3-Si/01.Iter1/01.explore/explore/subsys/30.config_T=300_P=1.0/lmp.init"
     # data_file = "/data/home/hfhuang/software/mlff/Si/Si64-vasprun.xml"
     # data_file = "/data/home/hfhuang/2_MLFF/3-outcar2movement/0/OUTCARC3N4"
     output_path = "/data/home/hfhuang/Si64/"
     output_file = "supercell.pwmat"
-    format = "poscar"
+    format = "lmp"
     pbc = [1, 1, 1]
-    config = Configs.read(format, data_file)
+    config = Configs.read(format, data_file, atom_names=["Si"], index=-1)   # read dump
+    config = Configs.read(format, data_file, atom_names=["Si"], style="atomic")   # read lmp
     # SUPERCELL(config, output_path, output_file, SUPERCELL_MATRIX, pbc=pbc, save_format=format)
     # PerturbStructure(config, output_path = "/data/home/hfhuang/Si64", save_format=format)
     # ScaleCell(config, scale_factor = 1.1, output_path = "/data/home/hfhuang/Si64", save_format=format)
@@ -414,6 +465,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Convert and build structures.')
     parser.add_argument('--convert', type=int, required=False, help='Convert OUTCAR to MOVEMENT (1) or MOVEMENT to XYZ (2)')
     parser.add_argument('--format', type=str, required=False, help='Format of the input file', default="outcar")
+    parser.add_argument('--save_format', type=str, required=False, help='Format of the output file', default="config")
     parser.add_argument('--outcar_file', type=str, required=False, help='Path to the OUTCAR file')
     parser.add_argument('--movement_file', type=str, required=False, help='Path to the MOVEMENT file')
     parser.add_argument('--output_path', type=str, required=False, help='Path to the output directory', default="./")
@@ -429,6 +481,9 @@ if __name__ == "__main__":
     parser.add_argument('--train_ratio', type=float, required=False, help='Ratio of training data', default=0.8)
     parser.add_argument('--random', type=bool, required=False, help='Whether to shuffle the data', default=True)
     parser.add_argument('--scale_factor', type=float, required=False, help='Scale factor of the lattice', default=1.0)
+    parser.add_argument('--seed', type=int, required=False, help='Random seed', default=2024)
+    parser.add_argument('--index', type=Union[int, slice, str], required=False, help='Index of the configuration', default=-1)
+    parser.add_argument('--atom_names', type=list, required=False, help='Names of the atoms', default=["H"])
 
     
     args = parser.parse_args()

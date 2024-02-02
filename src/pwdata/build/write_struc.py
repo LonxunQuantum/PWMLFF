@@ -3,7 +3,7 @@ import os
 from collections import Counter
 from build.cell import cell_to_cellpar
 from lmps import Box2l
-from const import ELEMENTMASSTABLE
+from calculators.const import elements, ELEMENTMASSTABLE
 
 
 def write_config(filepath,
@@ -164,12 +164,10 @@ def write_vasp(filepath,
     # Write atom positions in scaled or cartesian coordinates
     if direct and atoms.cartesian:                      # cartesian -> direct
         coord = atoms.get_scaled_positions(wrap=wrap)   
-    elif not direct and atoms.cartesian:                # get cartesian
-        coord = atoms.get_positions(wrap=wrap)
-    elif direct and not atoms.cartesian:                # get direct
+    elif not direct and not atoms.cartesian:            # direct -> cartesian
+        coord = atoms._set_cartesian().position
+    else:                                               # get cartesian/direct
         coord = atoms.position
-    else:                                               # direct -> cartesian
-        coord = atoms._set_cartesian()
 
     '''constraints = atoms.constraints and not ignore_constraints
 
@@ -222,7 +220,6 @@ def write_vasp(filepath,
         atom_type = atoms.atom_type
         atom_type_num = atoms.atom_type_num
     
-    from const import elements
     atom_type = [elements[_] for _ in atom_type]
     # Write to file
     output_file = open(os.path.join(filepath, filename), 'w')
@@ -292,14 +289,12 @@ def write_lammps(filepath,
     
         # Write atom positions in cartesian coordinates
         if direct and atoms.cartesian:                      # cartesian -> direct
-            coord = atoms.get_scaled_positions(wrap=wrap)
-        elif not direct and atoms.cartesian:                # get cartesian
-            coord = atoms.get_positions(wrap=wrap)
-        elif direct and not atoms.cartesian:                # get direct
-            coord = atoms.position
-        else:                                               # direct -> cartesian
+            coord = atoms.get_scaled_positions(wrap=wrap)   
+        elif not direct and not atoms.cartesian:            # direct -> cartesian
             coord = atoms._set_cartesian().position
-    
+        else:                                               # get cartesian/direct
+            coord = atoms.position
+        
         if sort:
             if len(atoms.get_atomic_numbers()) == 0:
                 ind = np.argsort(atoms.atom_types_image)
@@ -397,7 +392,7 @@ def write_lammps(filepath,
         output_file.write("Masses\n")
         output_file.write("\n")
         for i in range(len(atom_type)):
-            output_file.write("%-12d %16.12f\n" % (i+1, ELEMENTMASSTABLE[atom_type[i]]))
+            output_file.write("%-12d %16.12f %s\n" % (i+1, ELEMENTMASSTABLE[atom_type[i]], atom_type[i]))
         output_file.write("\n")
         output_file.write("Atoms # atomic\n")
         output_file.write("\n")

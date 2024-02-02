@@ -89,17 +89,18 @@ class OUTCAR(object):
                 elif "TOTAL-FORCE" in line:
                     force_info = self.parse_force(converged_image[idx+2:idx+2+atom_nums])
                     image.force = force_info["force"] 
-                    image.position = force_info["position"]               
+                    image.position = force_info["position"]   
+                    image.cartesian = True            
                 elif "free  energy   TOTEN" in line:
                     energy_info = self.parse_energy_info(line)
-                    image.Etot = energy_info["Etot"]
+                    image.Ep = energy_info["Etot"]
             image.atom_nums = atom_nums
             image.atom_types_image = atom_types_image
             image.atom_type = list(Counter(atom_types_image).keys())
             image.atom_type_num = atom_type_num
             # If Atomic-Energy is not in the file, calculate it from the Ep
             if image and len(image.atomic_energy) == 0 and image.atom_type_num:
-                atomic_energy, _, _, _ = np.linalg.lstsq([image.atom_type_num], np.array([image.Etot]), rcond=1e-3)
+                atomic_energy, _, _, _ = np.linalg.lstsq([image.atom_type_num], np.array([image.Ep]), rcond=1e-3)
                 atomic_energy = np.repeat(atomic_energy, image.atom_type_num)
                 image.atomic_energy = atomic_energy.tolist()
         # atom_type_num = list(counter.values())

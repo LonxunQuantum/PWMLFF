@@ -2,7 +2,7 @@ import numpy as np
 import copy
 import os 
 from build.write_struc import write_config, write_vasp, write_lammps
-from const import elements
+from calculators.const import elements
 from build.geometry import wrap_positions
 from build.cell import scaled_positions
 
@@ -187,10 +187,16 @@ class Image(object):
         self.cartesian = True
         return self
     
+    def _set_fractional(self):
+        """Set positions in fractional coordinates."""
+        self.position = cart2frac(self.position, self.lattice)
+        self.cartesian = False
+        return self
+    
     def __len__(self):
         return len(self.arrays['position'])
 
-
+'''follow 2 functions shoule be merged into the Image class later!!!'''
 def elements_to_order(atom_names, atom_types_image, atom_nums):
     """
     Replaces the atom types's order (from 1) to the order of the elements in the atom_names list.
@@ -236,3 +242,24 @@ def frac2cart(position, lattice):
     position = np.array(position).reshape(-1, 3)
     lattice = np.array(lattice).reshape(3, 3)
     return np.dot(position, lattice)
+
+def cart2frac(position, lattice):
+    """
+    Convert Cartesian coordinates to fractional coordinates.
+
+    Args:
+        position (list): List of Cartesian coordinates.
+        lattice (list): List of lattice vectors.
+
+    Example:
+        >>> position = [[5.0, 5.0, 5.0], [5.0, 5.0, 5.0]]
+        >>> lattice = [[10, 0, 0], [0, 10, 0], [0, 0, 10]]
+        >>> cart2frac(position, lattice)
+        [[0.5, 0.5, 0.5], [0.5, 0.5, 0.5]]
+
+    Returns:
+        list: List of fractional coordinates.
+    """
+    position = np.array(position).reshape(-1, 3)
+    lattice = np.array(lattice).reshape(3, 3)
+    return np.dot(position, np.linalg.inv(lattice))
