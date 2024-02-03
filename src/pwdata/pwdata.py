@@ -11,7 +11,7 @@ from movement import MOVEMENT
 from outcar import OUTCAR
 from poscar import POSCAR
 from atomconfig import CONFIG
-from dump import DUMP
+from .dump import DUMP
 from lammpsdata import LMP
 from movement_saver import save_to_movement
 from extendedxyz import save_to_extxyz
@@ -29,6 +29,8 @@ class Save_Data(object):
             self.image_data = POSCAR(data_path)
         elif format.lower() == "dump":
             self.image_data = DUMP(data_path)
+        elif format.lower() == "lmp":
+            self.image_data = LMP(data_path)
         else:
             assert train_ratio is not None, "train_ratio must be set when format is not config or poscar (inference)"
             self.data_name = os.path.basename(data_path)
@@ -404,6 +406,9 @@ def get_all(image_data):
     all_forces = []
     all_virials = []
     for image in image_data:
+        if image.cartesian:
+            image.position = image.get_scaled_positions(wrap=False)     # get the positions in direct coordinates, because the positions in direct coordinates are used in the MLFF model (find_neighbore)
+            image.cartesian = False
         all_lattices.append(image.lattice)
         all_postions.append(image.position)
         all_energies.append(image.Ep)
@@ -444,23 +449,23 @@ if __name__ == "__main__":
     import argparse
     SUPERCELL_MATRIX = [[2, 0, 0], [0, 2, 0], [0, 0, 2]]
     # data_file = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/4-CH4-dbg/atom.config"
-    data_file = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/3-Si/01.Iter1/01.explore/explore/subsys/30.config_T=300_P=1.0/lmp.init"
+    data_file = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/8-Si2/mlff/lmps/POSCAR.lmp"
     # data_file = "/data/home/hfhuang/software/mlff/Si/Si64-vasprun.xml"
     # data_file = "/data/home/hfhuang/2_MLFF/3-outcar2movement/0/OUTCARC3N4"
-    output_path = "/data/home/hfhuang/Si64/"
-    output_file = "supercell.pwmat"
+    output_path = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/8-Si2/mlff/"
+    output_file = "poscar"
     format = "lmp"
     pbc = [1, 1, 1]
-    config = Configs.read(format, data_file, atom_names=["Si"], index=-1)   # read dump
-    config = Configs.read(format, data_file, atom_names=["Si"], style="atomic")   # read lmp
+    # config = Configs.read(format, data_file, atom_names=["Si"], index=-1)   # read dump
+    config = Configs.read(format, data_file)   
     # SUPERCELL(config, output_path, output_file, SUPERCELL_MATRIX, pbc=pbc, save_format=format)
     # PerturbStructure(config, output_path = "/data/home/hfhuang/Si64", save_format=format)
     # ScaleCell(config, scale_factor = 1.1, output_path = "/data/home/hfhuang/Si64", save_format=format)
     config.to(file_path = output_path,
                      file_name = output_file,
-                     file_format = 'lammps',
-                     direct = False,
-                     sort = False)
+                     file_format = 'poscar',
+                     direct = True,
+                     sort = True)
     # OUTCAR2MOVEMENT(data_path, output_path, output_file)
     parser = argparse.ArgumentParser(description='Convert and build structures.')
     parser.add_argument('--convert', type=int, required=False, help='Convert OUTCAR to MOVEMENT (1) or MOVEMENT to XYZ (2)')
@@ -484,6 +489,7 @@ if __name__ == "__main__":
     parser.add_argument('--seed', type=int, required=False, help='Random seed', default=2024)
     parser.add_argument('--index', type=Union[int, slice, str], required=False, help='Index of the configuration', default=-1)
     parser.add_argument('--atom_names', type=list, required=False, help='Names of the atoms', default=["H"])
+    parser.add_argument('--style', type=str, required=False, help='Style of the lammps input file', default="atomic")
 
     
     args = parser.parse_args()

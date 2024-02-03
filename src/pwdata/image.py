@@ -188,7 +188,8 @@ class Image(object):
         return self
     
     def _set_fractional(self):
-        """Set positions in fractional coordinates."""
+        """Set positions in fractional coordinates.
+            no use, see get_scaled_positions(wrap=wrap) instead"""
         self.position = cart2frac(self.position, self.lattice)
         self.cartesian = False
         return self
@@ -196,7 +197,7 @@ class Image(object):
     def __len__(self):
         return len(self.arrays['position'])
 
-'''follow 2 functions shoule be merged into the Image class later!!!'''
+'''follow functions shoule be merged into the Image class later!!!'''
 def elements_to_order(atom_names, atom_types_image, atom_nums):
     """
     Replaces the atom types's order (from 1) to the order of the elements in the atom_names list.
