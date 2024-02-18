@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import json
 import os, sys
+import argparse
 from src.user.nep_work import nep_train, gen_nep_feature, nep_test
 from src.user.dp_work import dp_train, dp_test
 from src.user.nn_work import nn_train, gen_nn_feature, nn_test
@@ -12,7 +13,8 @@ from utils.json_operation import get_parameter, get_required_parameter
 from utils.gen_multi_train import multi_train
 from src.user.ckpt_extract import extract_force_field, script_model
 from src.user.ckpt_compress import compress_force_field
-from src.user.infer_main import infer_main
+from src.user.infer_main import infer_main, model_devi
+from src.user.kpu_dp import KPU_CALCULATE
 
 if __name__ == "__main__":
     cmd_type = sys.argv[1].upper()
@@ -39,6 +41,41 @@ if __name__ == "__main__":
         # structrues_file = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/4-CH4-dbg/atom.config"
         # format= "config"
         infer_main(ckpt_file, structrues_file, format=format) # config or poscar
+    elif cmd_type == "model_devi".upper():
+        parser = argparse.ArgumentParser()
+        parser.add_argument('-m', '--model_list', help='specify input model files', nargs='+', type=str, default=None)
+        parser.add_argument('-f', '--format', help="specify input structure format, 'outcar', 'config', 'dump'", type=str, default="config")
+        parser.add_argument('-s', '--savepath', help='specify stored directory', type=str, default='model_devi.out')
+        parser.add_argument('-c', '--config', help='specify structure dir', type=str, default='trajs')
+        parser.add_argument('-w', '--work_dir', help='specify work dir', type=str, default='./')
+        args = parser.parse_args(sys.argv[2:])
+        print(args.work_dir)
+        os.chdir(args.work_dir)
+
+        model_devi(args.model_list, args.config, format=args.format, save_path=args.savepath) # config or poscar
+
+    elif cmd_type == "kpu".upper():
+        parser = argparse.ArgumentParser()
+        parser.add_argument('-m', '--model_path', help='specify input model file', type=str, default="dp_model.ckpt")
+        parser.add_argument('-c', '--config', help='specify structure dir', type=str, default='traj')
+        parser.add_argument('-f', '--format', help="specify input structure format, 'outcar', 'config', 'dump'", type=str, default="dump")
+        parser.add_argument('-a', '--atom_type', help="file or string list for atom types, example '.../atom_type.txt', or 'Li Si ...' ", nargs='+', type=str, default="dump")
+        parser.add_argument('-s', '--savepath', help='specify stored directory', type=str, default='kpu_model_devi.out')
+        parser.add_argument('-w', '--work_dir', help='specify work dir', type=str, default='./')
+        
+        # parser.add_argument("-e", "--etotkpu", dest="etotkpu", action="store_true", help="calculate etotkpu")
+        # parser.add_argument("-f", "--forcekpu", dest="forcekpu", action="store_true", help="calculate forcekpu")
+        parser.add_argument("-d", "--forcedetail", dest="forcedetail", action="store_true", help="save force kpu detail")
+        # parser.add_argument("-h", "--help",help="Example:\nPWMLFF kpu -m model.ckpt -c traj -f dump -a Li Si -s model_devi.out -d", nargs=0)  
+  
+        args = parser.parse_args(sys.argv[2:])
+        print(args.work_dir)
+        os.chdir(args.work_dir)
+        
+        kpu = KPU_CALCULATE(args.model_path)
+        kpu.kpu_dp(structure_dir=args.config, format=args.format, atom_names=args.atom_type, savepath=args.savepath, \
+            is_etot_kpu=True, is_force_kpu=True, force_kpu_detail=args.forcedetail)
+
     else:
         json_path = sys.argv[2]
         # cmd_type = "test".upper()

@@ -194,6 +194,7 @@ class dp_network:
         model = model.to(self.training_type)
 
         # optionally resume from a checkpoint
+        checkpoint = None
         if self.dp_params.recover_train:
             if self.inference and os.path.exists(self.dp_params.file_paths.model_load_path): # recover from user input ckpt file for inference work
                 model_path = self.dp_params.file_paths.model_load_path
@@ -212,8 +213,6 @@ class dp_network:
                 # start afresh
                 self.dp_params.optimizer_param.start_epoch = checkpoint["epoch"] + 1
                 model.load_state_dict(checkpoint["state_dict"])
-                if "optimizer" in checkpoint:
-                    optimizer.load_state_dict(checkpoint["optimizer"])
                 
                 # scheduler.load_state_dict(checkpoint["scheduler"])
                 print("=> loaded checkpoint '{}' (epoch {})"\
@@ -266,8 +265,16 @@ class dp_network:
             )
         else:
             raise Exception("Error: Unsupported optimizer!")
+        
+        if checkpoint is not None and "optimizer" in checkpoint.keys():
+            optimizer.load_state_dict(checkpoint["optimizer"])
+            load_p = checkpoint["optimizer"]['state'][0]['P']
+            optimizer.set_kalman_P(load_p, checkpoint["optimizer"]['state'][0]['kalman_lambda'])
+                
         '''
         if self.dp_params.hvd:
+            # after hvd.DistributedOptimizer, the matrix P willed be reset to Identity matrix
+            # its because hvd.DistributedOptimizer will initialize a new object of Optimizer Class
             optimizer = hvd.DistributedOptimizer(
                 optimizer, named_parameters=model.named_parameters()
             )
@@ -276,6 +283,7 @@ class dp_network:
         """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
         # scheduler = StepLR(optimizer, step_size=30, gamma=0.1)
         '''
+
         return model, optimizer
 
     def inference(self, davg, dstd, energy_shift, max_atom_nums):

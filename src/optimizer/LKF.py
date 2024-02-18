@@ -237,6 +237,78 @@ class LKFOptimizer(Optimizer):
                     param_index += 1
 
         self.__update(H, error, weights)
+    
+    """
+    @Description :
+    set kalman matrix p, kalman_lambda, kalman_nue when reload model.
+    @Returns     :
+    @Author       :wuxingxing
+    """
+    def set_kalman_P(self, P, kalman_lambda = 0.999999999999872):
+        self._state.update({"kalman_lambda": kalman_lambda})
+        for i in range(len(P)):
+            self._state["P"][i] = P[i].cpu().to(self._params[0].device)
+
+    """
+    @Description :
+    the kpu of energy_total and atom force: kpu = H * P * H_t, the result is a scalar
+    @Returns     :
+    @Author       :wuxingxing
+    """
+    def cal_kpu(self):
+        params_packed_index = self._state.get("params_packed_index")
+
+        weights = []    # this value doesn't need
+        H = []
+        param_index = 0
+        param_sum = 0
+        for param in self._params:
+            if param.ndim > 1:
+                tmp = param.data.T.contiguous().reshape(param.data.nelement(), 1)
+                if param.grad is None:
+                    tmp_grad = torch.zeros_like(tmp)
+                else:
+                    tmp_grad = (
+                        (param.grad / self.grad_prefactor)
+                        .T.contiguous()
+                        .reshape(param.grad.nelement(), 1)
+                    )
+            else:
+                tmp = param.data.reshape(param.data.nelement(), 1)
+                if param.grad is None:
+                    tmp_grad = torch.zeros_like(tmp)
+                else:
+                    tmp_grad = (param.grad / self.grad_prefactor).reshape(
+                        param.grad.nelement(), 1
+                    )
+
+            tmp = self.__split_weights(tmp)
+            tmp_grad = self.__split_weights(tmp_grad)
+
+            for split_grad, split_weight in zip(tmp_grad, tmp):
+                nelement = split_grad.nelement()
+
+                if param_sum == 0:
+                    res_grad = split_grad
+                    res = split_weight
+                else:
+                    res_grad = torch.concat((res_grad, split_grad), dim=0)
+                    res = torch.concat((res, split_weight), dim=0)
+
+                param_sum += nelement
+
+                if param_sum == params_packed_index[param_index]:
+                    H.append(res_grad)
+                    weights.append(res)
+                    param_sum = 0
+                    param_index += 1
+        
+        H_P_Ht_list = []
+        for i in range(len(H)):
+            H_P_Ht = torch.matmul(torch.matmul(H[i].T, self._state["P"][i]), H[i])
+            H_P_Ht_list.append(H_P_Ht)
+        return sum(H_P_Ht_list)
+
     """
     def step(self, error):
 
