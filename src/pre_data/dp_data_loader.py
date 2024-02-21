@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import glob
 from torch.utils.data import Dataset
 import torch
 import yaml
@@ -85,10 +86,18 @@ class MovementDataset(Dataset):
         data = {}
         images_per_dir = []
         atoms_per_dir = []
+        all_has_virial = True # maybe some dirs do not have virials.npy, do not load virials.npy file
+        for dir in self.dirs:
+            vir_list = glob.glob(os.path.join(dir, "virials.npy"))
+            if len(vir_list) == 0:
+                all_has_virial = False
+                break
         for dir in self.dirs:
             npy_files = [f for f in os.listdir(dir) if f.endswith(".npy")]
             file_data_dict = {}
             for npy_file in npy_files:
+                if all_has_virial is False and "virials.npy" == os.path.basename(npy_file):
+                    continue
                 file_path = os.path.join(dir, npy_file)
                 file_data = np.load(file_path)
 
