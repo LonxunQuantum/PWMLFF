@@ -70,7 +70,10 @@ class Image(object):
         return atoms
     
     def to(self, file_path, file_name, file_format, direct, sort, wrap = False):
-        """Write atoms object to a new file."""
+        """
+        Write atoms object to a new file.
+        Note: Set sort to False for CP2K, because data from CP2K is already sorted!!!. It will result in a wrong order if sort again.
+        """
         if not os.path.exists(file_path):
             os.makedirs(file_path)
         if file_format.lower() == 'config' or file_format.lower() == 'pwmat':

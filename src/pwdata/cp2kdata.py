@@ -48,11 +48,13 @@ class CP2KMD(object):
                 lattice_angle = parse_lattice_angle(stdout_contents[idx+1:idx+7])
                 pbc = pbc_dict.get(stdout_contents[idx+8].split()[-1], [False, False, False])
                 read_volume = False
+            elif "SCF run converged in" in ii:
+                image = Image(lattice=lattice_angle["lattice"], pbc=pbc)
+                self.image_list.append(image)
             elif "STRESS| Analytical stress tensor" in ii:
                 stress_info = parse_stress(stdout_contents[idx+2:idx+5])
                 stress = gpa2ev(stress_info["stress"], volume)
-                image = Image(lattice=lattice_angle["lattice"], pbc=pbc, stress=stress)
-                self.image_list.append(image)
+                image.stress = stress
               
     def read_pdb(self, traj_file):
         with open(traj_file, "r") as f:
@@ -191,12 +193,16 @@ class CP2KSCF(object):
                 image.atom_type_num = position_info["atom_type_num"]
                 image.atom_types_image = position_info["atom_types_image"]
                 image.cartesian = True
-            elif "SCF run converged in" in ii:
-                energy = float(stdout_contents[idx-2].split()[-2])  # Pot.[a.u.]
+            # elif "SCF run converged in" in ii:
+            elif "ENERGY| Total FORCE_EVAL" in ii:
+                # energy = float(stdout_contents[idx-2].split()[-2])  # Pot.[a.u.]
+                energy = float(ii.split()[-1])  # Pot.[a.u.]
                 image.Ep = energy * 27.2113838565563   # convert to eV
                 atomic_energy, _, _, _ = np.linalg.lstsq([image.atom_type_num], np.array([image.Ep]), rcond=1e-3)
                 atomic_energy = np.repeat(atomic_energy, image.atom_type_num)
                 image.atomic_energy = atomic_energy.tolist()
+                # atomic_energy_dict = dict(zip(image.atom_types_image, atomic_energy))
+                # image.atomic_energy = [atomic_energy_dict[atom_type] for atom_type in image.atom_types_image]
             elif "ATOMIC FORCES in [a.u.]" in ii:
                 force_info = self.parse_force(stdout_contents[idx+3:idx+3+atom_nums])
                 image.force = force_info["force"]
@@ -206,7 +212,7 @@ class CP2KSCF(object):
                 image.stress = stress
     
     def parse_position(self, position_content):
-        position = [[float(_) for _ in atom.split()[5:8]] for atom in position_content]
+        position = [[float(_) for _ in atom.split()[4:7]] for atom in position_content]
         type = [atom.split()[1] for atom in position_content]
         atom_positions = list(zip(type, position))
         atom_types_image = list(zip(type, [atom.split()[3] for atom in position_content]))
@@ -215,16 +221,17 @@ class CP2KSCF(object):
         
         position = [pos for _, pos in atom_positions]
         atom_types_image = [int(type) for _, type in atom_types_image]
+        # atom_types_image = [int(atom.split()[3]) for atom in position_content]
         sc = Counter(atom_types_image)
         atom_type = list(sc.keys())
         atom_type_num = list(sc.values())
         return {"position": position, "atom_type": atom_type, "atom_type_num": atom_type_num, "atom_types_image": atom_types_image}
     
     def parse_force(self, force_content):
-        force = [[float(_) for _ in atom.split()[3:6]] for atom in force_content]
+        force = [[float(_) * 51.42206318571696 for _ in atom.split()[3:6]] for atom in force_content] # convert to eV/angstrom
         atom_forces = list(zip([atom.split()[1] for atom in force_content], force))
         atom_forces.sort(key=lambda x: x[0])
-        force = [[tmp * 51.42206318571696 for tmp in force] for _, force in atom_forces]    # convert to eV/angstrom
+        force = [force for _, force in atom_forces]    
         return {"force": force}
 
 

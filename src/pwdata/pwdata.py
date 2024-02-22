@@ -461,7 +461,7 @@ if __name__ == "__main__":
     # data_file = "/data/home/hfhuang/2_MLFF/3-outcar2movement/0/OUTCARC3N4"
     output_path = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/8-Si2/mlff/"
     output_file = "poscar"
-    format = "cp2k/md"
+    format = "cp2k/scf"
     pbc = [1, 1, 1]
     # config = Configs.read(format, data_file, atom_names=["Si"], index=-1)   # read dump
     config = Configs.read(format, data_file)   
@@ -471,8 +471,8 @@ if __name__ == "__main__":
     config.to(file_path = output_path,
                      file_name = output_file,
                      file_format = 'poscar',
-                     direct = True,
-                     sort = True)
+                     direct = False,
+                     sort = False)
     # OUTCAR2MOVEMENT(data_path, output_path, output_file)
     parser = argparse.ArgumentParser(description='Convert and build structures.')
     parser.add_argument('--convert', type=int, required=False, help='Convert OUTCAR to MOVEMENT (1) or MOVEMENT to XYZ (2)')
