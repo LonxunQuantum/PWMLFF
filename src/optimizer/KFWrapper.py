@@ -5,7 +5,7 @@ import time
 import numpy as np
 import torch.distributed as dist
 import math
-
+import random
 
 class KFOptimizerWrapper:
     def __init__(
@@ -419,4 +419,73 @@ class KFOptimizerWrapper:
         index = range(natoms)
         res = np.random.choice(index, atoms_selected).reshape(-1, atoms_per_group)
         return res
+
+    # """
+    # @Description :
+    # calculate dp model kpu by etot
+    # @Returns     :
+    # @Author       :wuxingxing
+    # """
+    def cal_kpu_etot(self, 
+                list_neigh,   # int32
+                type_maps,    # int32
+                atom_types,    # int32
+                ImageDR,      # float64
+                nghost: int
+                ) -> None:
+        Etot_predict, _, _, _, _ = self.model(list_neigh, type_maps, atom_types, ImageDR, nghost, is_calc_f=False)
+        natoms_sum = list_neigh.shape[1]
+        self.optimizer.set_grad_prefactor(natoms_sum)
+        self.optimizer.zero_grad()
+        (Etot_predict / natoms_sum).backward()
+        etot_kpu = self.optimizer.cal_kpu()
+        # self.optimizer.step(None)
+        return etot_kpu, Etot_predict
+
+    # """
+    # @Description :
+    # calculate kpu by force
+    # 1. random select 50% atoms
+    # 2. force_x, force_y, force_z of each atom do backward() then calculat its kpu
+    # 3. force kpu = mean of these kpus
+    # @Returns     :
+    # @Author       :wuxingxing
+    # """
+    def cal_kpu_force(self, 
+                list_neigh,   # int32
+                type_maps,    # int32
+                atom_types,    # int32
+                ImageDR,      # float64
+                nghost: int
+                ) -> None:
+        """
+        randomly generate n different nums of int type in the range of [start, end)
+        """
+        def get_random_nums(start, end, n):
+            random.seed(2024)
+            numsArray = set()
+            while len(numsArray) < n:
+                numsArray.add(random.randint(start, end-1))
+            return list(numsArray)
+        natoms_sum = list_neigh.shape[1]
+        self.optimizer.set_grad_prefactor(1) #natoms_sum * self.atoms_per_group * 3
+        natom_list = get_random_nums(0, natoms_sum, int(0.5*natoms_sum))
+
+        # column_name=["atom_index", "kpu_x", "kpu_y", "kpu_z"]
+        force_kpu = []
+        for i in natom_list:
+            force_x_y_z_kpu = []
+            force_x_y_z_kpu.append(i)
+            # this j could optimized by randomly select one from 3 directions.
+            for j in range(3):
+                self.optimizer.zero_grad()
+                Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = self.model(list_neigh, type_maps, atom_types, ImageDR, nghost, is_calc_f=True)
+                #xyz
+                (Force_predict[0][i][j] + Force_predict.sum() * 0 + Etot_predict.sum() * 0).backward()
+                # Force_predict[0][i][j].backward()
+                f_kpu = self.optimizer.cal_kpu()
+                force_x_y_z_kpu.append(float(f_kpu))
+                # self.optimizer.step(None)
+            force_kpu.append(force_x_y_z_kpu)
         
+        return np.array(force_kpu), Force_predict

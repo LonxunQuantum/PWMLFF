@@ -23,8 +23,7 @@ from calculators.const import elements
 
 class Save_Data(object):
     def __init__(self, data_path, datasets_path = "./PWdata", train_data_path = "train", valid_data_path = "valid", 
-                  train_ratio = None, random = True, seed = 2024, format = None, retain_raw = False, 
-                  atom_names:list[str] = None) -> None:
+                 train_ratio = None, random = True, seed = 2024, format = None, retain_raw = False, atom_names:list[str] = None) -> None:
         if format.lower() == "config":
             self.image_data = CONFIG(data_path)
         elif format.lower() == "poscar":
