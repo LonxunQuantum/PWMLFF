@@ -461,7 +461,7 @@ if __name__ == "__main__":
     # data_file = "/data/home/hfhuang/2_MLFF/3-outcar2movement/0/OUTCARC3N4"
     output_path = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/8-Si2/mlff/"
     output_file = "poscar"
-    format = "cp2k/scf"
+    format = "cp2k/md"
     pbc = [1, 1, 1]
     # config = Configs.read(format, data_file, atom_names=["Si"], index=-1)   # read dump
     config = Configs.read(format, data_file)   

@@ -14,10 +14,14 @@ class CP2KMD(object):
         _, self.format = os.path.splitext(traj_file)
         self.format = self.format.lstrip('.')
         self.read_stdout(stdout_file)
+
         if self.format == "pdb":
             self.read_pdb(traj_file)
         elif self.format == "xyz":
-            pass
+            self.read_xyz(traj_file)
+        elif self.format == "dcd":
+            raise NotImplementedError("DCD format is not supported yet!")
+        
         self.read_label_f(label_f_file)
 
         assert len(self.image_list) > 0, "No system loaded!"
@@ -92,10 +96,40 @@ class CP2KMD(object):
                 image.atom_type_num = atom_type_num
                 image.position = position
                 # If Atomic-Energy is not in the file, calculate it from the Ep
-                if image is not None and len(image.atomic_energy) == 0 and image.atom_type_num:
-                    atomic_energy, _, _, _ = np.linalg.lstsq([image.atom_type_num], np.array([image.Ep]), rcond=1e-3)
-                    atomic_energy = np.repeat(atomic_energy, image.atom_type_num)
-                    image.atomic_energy = atomic_energy.tolist()
+                atomic_energy, _, _, _ = np.linalg.lstsq([image.atom_type_num], np.array([image.Ep]), rcond=1e-3)
+                atomic_energy = np.repeat(atomic_energy, image.atom_type_num)
+                image.atomic_energy = atomic_energy.tolist()
+    
+    def read_xyz(self, traj_file):
+        with open(traj_file, "r") as f:
+            xyz_contents = f.readlines()
+        step_pattern = re.compile(r"i =\s+(\d+), time =\s+([\d\.]+), E =\s+([-?\d\.]+)")
+        for idx, ii in tqdm(enumerate(xyz_contents), total=len(xyz_contents), desc="Reading XYZ"):
+            if "i = " in ii:
+                iteration = int(step_pattern.findall(ii)[0][0])
+                Ep = float(step_pattern.findall(ii)[0][-1])       # Pot.[a.u.]
+                image = self.image_list[iteration]
+                image.iteration = iteration
+                image.atom_nums = int(xyz_contents[idx-1])
+                atom_name = [atom.split()[0] for atom in xyz_contents[idx+1:idx+image.atom_nums+1]]
+                atom_positions = [[float(_) for _ in atom.split()[1:]] for atom in xyz_contents[idx+1:idx+image.atom_nums+1]]
+                atom_positions = list(zip(atom_name, atom_positions))
+                atom_positions.sort(key=lambda x: x[0])
+                position = [pos for _, pos in atom_positions]
+                atom_names = [elem for elem, _ in atom_positions]
+                sc = Counter(atom_names)
+                atom_type = list(sc.keys())
+                atom_type_num = list(sc.values())
+                image.Ep = Ep * 27.2113838565563    # convert to eV
+                image.position = position
+                image.atom_type = [ELEMENTTABLE[atom] for atom in atom_type]
+                image.atom_type_num = atom_type_num
+                image.atom_types_image = [ELEMENTTABLE[atom] for atom in atom_names]
+                image.cartesian = True
+                # If Atomic-Energy is not in the file, calculate it from the Ep
+                atomic_energy, _, _, _ = np.linalg.lstsq([image.atom_type_num], np.array([image.Ep]), rcond=1e-3)
+                atomic_energy = np.repeat(atomic_energy, image.atom_type_num)
+                image.atomic_energy = atomic_energy.tolist()
 
     def read_label_f(self, label_f_file):
         with open(label_f_file, "r") as f:
@@ -156,7 +190,7 @@ class CP2KSCF(object):
                 image.atom_type = position_info["atom_type"]
                 image.atom_type_num = position_info["atom_type_num"]
                 image.atom_types_image = position_info["atom_types_image"]
-                image.carteisan = True
+                image.cartesian = True
             elif "SCF run converged in" in ii:
                 energy = float(stdout_contents[idx-2].split()[-2])  # Pot.[a.u.]
                 image.Ep = energy * 27.2113838565563   # convert to eV
