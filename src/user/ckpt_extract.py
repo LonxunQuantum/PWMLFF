@@ -26,7 +26,7 @@ def script_model(ckpt_file):
     stat = [model_checkpoint["davg"], model_checkpoint["dstd"], model_checkpoint["energy_shift"]]
     # Step 2.
     model_checkpoint["json_file"]["model_load_file"] = ckpt_file #the model will reload from this path
-    # model_checkpoint["json_file"]["train_movement_file"] = []
+    model_checkpoint["json_file"]["datasets_path"] = []
     dp_param = InputParam(model_checkpoint["json_file"], "train".upper())
     dp_param.inference = True # set the model_load_file and inference, then the model will load from model_load_file path
     # dp_model_param = dp_param.get_dp_net_dict()

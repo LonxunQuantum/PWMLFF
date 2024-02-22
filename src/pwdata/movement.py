@@ -47,7 +47,7 @@ class MOVEMENT(object):
                 continue
             else:
                 # If Atomic-Energy is not in the file, calculate it from the Ep
-                if image and len(image.atomic_energy) == 0 and image.atom_type_num:
+                if image is not None and len(image.atomic_energy) == 0 and image.atom_type_num:
                     atomic_energy, _, _, _ = np.linalg.lstsq([image.atom_type_num], np.array([image.Ep]), rcond=1e-3)
                     atomic_energy = np.repeat(atomic_energy, image.atom_type_num)
                     image.atomic_energy = atomic_energy.tolist()

@@ -22,7 +22,7 @@ class CONFIG(object):
         
         for idx, ii in tqdm(enumerate(config_contents), total=len(config_contents), desc="Loading data"):
             if "lattice" in ii.lower():
-                atom_nums = int(config_contents[idx-1].split()[0])
+                atom_nums = int(config_contents[0].split()[0])
                 lattice_info = self.parse_lattice(config_contents[idx+1:idx+4])
                 image = Image(**lattice_info)
                 self.image_list.append(image)

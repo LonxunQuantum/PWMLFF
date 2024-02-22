@@ -13,6 +13,7 @@ from poscar import POSCAR
 from atomconfig import CONFIG
 from .dump import DUMP
 from lammpsdata import LMP
+from cp2kdata import CP2KMD, CP2KSCF
 from movement_saver import save_to_movement
 from extendedxyz import save_to_extxyz
 from build.supercells import make_supercell
@@ -22,13 +23,14 @@ from calculators.const import elements
 
 class Save_Data(object):
     def __init__(self, data_path, datasets_path = "./PWdata", train_data_path = "train", valid_data_path = "valid", 
-                 train_ratio = None, random = True, seed = 2024, format = None, retain_raw = False) -> None:
+                  train_ratio = None, random = True, seed = 2024, format = None, retain_raw = False, 
+                  atom_names:list[str] = None) -> None:
         if format.lower() == "config":
             self.image_data = CONFIG(data_path)
         elif format.lower() == "poscar":
             self.image_data = POSCAR(data_path)
         elif format.lower() == "dump":
-            self.image_data = DUMP(data_path)
+            self.image_data = DUMP(data_path, atom_names)
         elif format.lower() == "lmp":
             self.image_data = LMP(data_path)
         else:
@@ -50,6 +52,10 @@ class Save_Data(object):
                 pass
             elif format.lower() == "xml":
                 pass
+            elif format.lower() == 'cp2k/md':
+                self.image_data = CP2KMD(data_path)
+            elif format.lower() == 'cp2k/scf':
+                self.image_data = CP2KSCF(data_path)
         self.lattice, self.position, self.energies, self.ei, self.forces, self.virials, self.atom_type, self.atom_types_image, self.image_nums = get_all(self.image_data.get())
 
         if train_ratio is not None:  # inference 时不存数据
@@ -162,8 +168,10 @@ class Configs(object):
             image = None
         elif format.lower() == "xml":
             image = None
-        elif format.lower() == 'cp2k':
-            image = None
+        elif format.lower() == 'cp2k/md':
+            image = CP2KMD(data_path).image_list
+        elif format.lower() == 'cp2k/scf':
+            image = CP2KSCF(data_path).image_list[0]
         else:
             raise Exception("Error! The format of the input file is not supported!")
         return image
@@ -449,12 +457,12 @@ if __name__ == "__main__":
     import argparse
     SUPERCELL_MATRIX = [[2, 0, 0], [0, 2, 0], [0, 0, 2]]
     # data_file = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/4-CH4-dbg/atom.config"
-    data_file = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/8-Si2/mlff/lmps/POSCAR.lmp"
+    data_file = "/data/home/hfhuang/9_cp2k/1-SiO2/cp2k.out"
     # data_file = "/data/home/hfhuang/software/mlff/Si/Si64-vasprun.xml"
     # data_file = "/data/home/hfhuang/2_MLFF/3-outcar2movement/0/OUTCARC3N4"
     output_path = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/8-Si2/mlff/"
     output_file = "poscar"
-    format = "lmp"
+    format = "cp2k/scf"
     pbc = [1, 1, 1]
     # config = Configs.read(format, data_file, atom_names=["Si"], index=-1)   # read dump
     config = Configs.read(format, data_file)   

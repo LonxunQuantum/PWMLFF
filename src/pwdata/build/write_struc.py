@@ -392,7 +392,7 @@ def write_lammps(filepath,
         output_file.write("Masses\n")
         output_file.write("\n")
         for i in range(len(atom_type)):
-            output_file.write("%-12d %16.12f %s\n" % (i+1, ELEMENTMASSTABLE[atom_type[i]], atom_type[i]))
+            output_file.write("%-12d %16.12f # %s\n" % (i+1, ELEMENTMASSTABLE[atom_type[i]], atom_type[i]))
         output_file.write("\n")
         output_file.write("Atoms # atomic\n")
         output_file.write("\n")
