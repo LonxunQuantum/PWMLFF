@@ -6,20 +6,20 @@ from typing import (List, Union, Optional)
 # import time
 # os.chdir(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from image import Image
-from movement import MOVEMENT
-from outcar import OUTCAR
-from poscar import POSCAR
-from atomconfig import CONFIG
-from .dump import DUMP
-from lammpsdata import LMP
-from cp2kdata import CP2KMD, CP2KSCF
-from movement_saver import save_to_movement
-from extendedxyz import save_to_extxyz
-from build.supercells import make_supercell
-from pertub.perturbation import BatchPerturbStructure
-from pertub.scale import BatchScaleCell
-from calculators.const import elements
+from src.pwdata.image import Image
+from src.pwdata.movement import MOVEMENT
+from src.pwdata.outcar import OUTCAR
+from src.pwdata.poscar import POSCAR
+from src.pwdata.atomconfig import CONFIG
+from src.pwdata.dump import DUMP
+from src.pwdata.lammpsdata import LMP
+from src.pwdata.cp2kdata import CP2KMD, CP2KSCF
+from src.pwdata.movement_saver import save_to_movement
+from src.pwdata.extendedxyz import save_to_extxyz
+from src.pwdata.build.supercells import make_supercell
+from src.pwdata.pertub.perturbation import BatchPerturbStructure
+from src.pwdata.pertub.scale import BatchScaleCell
+from src.pwdata.calculators.const import elements
 
 class Save_Data(object):
     def __init__(self, data_path, datasets_path = "./PWdata", train_data_path = "train", valid_data_path = "valid", 

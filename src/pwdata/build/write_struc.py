@@ -1,9 +1,9 @@
 import numpy as np
 import os
 from collections import Counter
-from build.cell import cell_to_cellpar
-from lmps import Box2l
-from calculators.const import elements, ELEMENTMASSTABLE
+from src.pwdata.build.cell import cell_to_cellpar
+from src.pwdata.lmps import Box2l
+from src.pwdata.calculators.const import elements, ELEMENTMASSTABLE
 
 
 def write_config(filepath,

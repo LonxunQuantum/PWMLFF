@@ -4,8 +4,8 @@ from the ones used in ase).  Mapping is therefore necessary.
 See: https://lammps.sandia.gov/doc/units.html
  """
 
-from . import units
-from . import const as u
+from src.pwdata.calculators import units
+from src.pwdata.calculators import const as u
 
 # !TODO add reduced Lennard-Jones units?
 

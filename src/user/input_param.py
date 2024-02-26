@@ -167,8 +167,11 @@ class InputParam(object):
     '''
     def set_workdir_structures(self, json_input:dict):
         # set file structures
+        work_dir = get_parameter("work_dir", json_input, None)
+        if work_dir is None:
+            work_dir = os.getcwd()
         self.file_paths = WorkFileStructure(json_dir=os.getcwd(), 
-                            work_dir=os.path.abspath(get_parameter("work_dir", json_input, "work_dir")), 
+                            work_dir=os.path.abspath(work_dir), 
                             reserve_work_dir=get_parameter("reserve_work_dir", json_input, False), 
                             reserve_feature = get_parameter("reserve_feature", json_input, False), 
                             model_type=self.model_type)

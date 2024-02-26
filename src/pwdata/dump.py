@@ -2,10 +2,10 @@ import re
 import numpy as np
 from tqdm import tqdm
 from collections import Counter
-from image import Image, elements_to_order
+from src.pwdata.image import Image, elements_to_order
 # from calculators.const import elements
-from lmps import l2Box
-from calculators.unitconvert_lmps import convert
+from src.pwdata.lmps import l2Box
+from src.pwdata.calculators.unitconvert_lmps import convert
 
 class DUMP(object):
     def __init__(self, dump_file, atom_names: list[str] = None) -> None:

@@ -2,8 +2,8 @@ import numpy as np
 import re
 from tqdm import tqdm
 from collections import Counter
-from image import Image
-from calculators.const import deltaE
+from src.pwdata.image import Image
+from src.pwdata.calculators.const import deltaE
 
 class MOVEMENT(object):
     def __init__(self, movement_file):

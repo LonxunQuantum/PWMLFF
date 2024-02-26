@@ -1,6 +1,6 @@
 import numpy as np
 from typing import List
-from image import Image
+from src.pwdata.image import Image
 
 class PerturbStructure(object):
     def __init__(self, atoms:List[Image]):

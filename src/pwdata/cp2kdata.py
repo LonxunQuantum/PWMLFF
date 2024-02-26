@@ -2,8 +2,8 @@ import re, os, glob
 import numpy as np
 from tqdm import tqdm
 from collections import Counter
-from image import Image
-from calculators.const import ELEMENTTABLE
+from src.pwdata.image import Image
+from src.pwdata.calculators.const import ELEMENTTABLE
 
 class CP2KMD(object):
     def __init__(self, stdout_file):

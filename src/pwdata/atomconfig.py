@@ -1,7 +1,7 @@
 import re
 from tqdm import tqdm
 from collections import Counter
-from image import Image
+from src.pwdata.image import Image
 
 class CONFIG(object):
     def __init__(self, config_file, pbc = None) -> None:

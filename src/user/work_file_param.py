@@ -195,11 +195,11 @@ class WorkFileStructure(object):
         self._set_data_file_paths(trainSetDir, dRFeatureInputDir, dRFeatureOutputDir, trainDataPath, validDataPath)
 
     def set_nep_file_paths(self):
-        self.nep_train_xyz_path = os.path.join(self.work_dir, "train.xyz")
-        self.nep_test_xyz_path = os.path.join(self.work_dir, "test.xyz")
-        self.nep_in_file = os.path.join(self.work_dir, "nep.in")
-        self.nep_model_file = os.path.join(self.work_dir, "nep.txt")
-        self.nep_restart_file = os.path.join(self.work_dir, "nep.restart")
+        self.nep_train_xyz_path = "train.xyz"
+        self.nep_test_xyz_path = "test.xyz"
+        self.nep_in_file = "nep.in"
+        self.nep_model_file = "nep.txt"
+        self.nep_restart_file = "nep.restart"
                                  
     def get_data_file_structure(self):
         file_dict = {}

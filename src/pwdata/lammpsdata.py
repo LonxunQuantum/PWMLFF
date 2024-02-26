@@ -2,9 +2,9 @@ import re
 import numpy as np
 from tqdm import tqdm
 from collections import Counter
-from image import Image
-from calculators.unitconvert_lmps import convert
-from calculators.const import ELEMENTMASSTABLE
+from src.pwdata.image import Image
+from src.pwdata.calculators.unitconvert_lmps import convert
+from src.pwdata.calculators.const import ELEMENTMASSTABLE
 
 class LMP(object):
     def __init__(self, lmp_file, atom_names: list[str] = None, units: str = 'metal', style: str = 'atomic', sort_by_id: bool = True) -> None:

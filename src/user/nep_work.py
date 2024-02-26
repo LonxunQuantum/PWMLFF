@@ -19,7 +19,7 @@ def nep_train(input_json: json, cmd:str):
     nep_param = InputParam(input_json, cmd)
     nep_param.print_input_params(json_file_save_name="std_input.json")
     nep_trainer = NepNetwork(nep_param)
-    if len(nep_param.file_paths.train_movement_path) > 0:
+    if len(nep_param.file_paths.raw_path) > 0:
         nep_trainer.generate_data()
     nep_trainer.train()
 

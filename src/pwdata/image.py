@@ -1,11 +1,10 @@
 import numpy as np
 import copy
 import os 
-from build.write_struc import write_config, write_vasp, write_lammps
-from calculators.const import elements
-from build.geometry import wrap_positions
-from build.cell import scaled_positions
-
+from src.pwdata.build.write_struc import write_config, write_vasp, write_lammps
+from src.pwdata.calculators.const import elements
+from src.pwdata.build.geometry import wrap_positions
+from src.pwdata.build.cell import scaled_positions
 # 1. initial the image class
 class Image(object):
     def __init__(self, 
@@ -82,6 +81,8 @@ class Image(object):
             write_vasp(file_path, file_name, self, direct=direct, sort=sort, wrap=wrap)
         elif file_format.lower() == "lammps":
             write_lammps(file_path, file_name, self, sort=sort, wrap=wrap)
+        elif file_format.lower() == "xyz":
+            raise Exception()
         else:
             raise RuntimeError('Unknown file format')
     

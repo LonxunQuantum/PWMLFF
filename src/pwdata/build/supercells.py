@@ -1,6 +1,6 @@
 """Adapted from ase: http://wiki.fysik.dtu.dk/ase """
 import numpy as np
-from image import Image
+from src.pwdata.image import Image
 
 class SupercellError(Exception):
     """Use if construction of supercell fails"""

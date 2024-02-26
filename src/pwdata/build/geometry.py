@@ -6,7 +6,7 @@ different orientations.
    - detection of duplicate atoms / atoms within cutoff radius
 """
 import numpy as np
-from build.cell import complete_cell
+from src.pwdata.build.cell import complete_cell
 
 def translate_pretty(fractional, pbc):
     """Translates atoms such that fractional positions are minimized."""

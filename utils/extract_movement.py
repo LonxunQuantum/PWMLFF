@@ -2,10 +2,6 @@
 This is a movement utility class that encapsulates movements into an image list and adds some methods 
 for manipulating the movement, such as interval-based image extraction.
 """
-import numpy as np
-import os
-import sys
-import shutil
 import re
 from collections import Counter
 

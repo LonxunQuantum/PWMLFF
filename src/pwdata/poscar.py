@@ -1,7 +1,7 @@
 import re
 from tqdm import tqdm
-from image import Image
-from calculators.const import elements
+from src.pwdata.image import Image
+from src.pwdata.calculators.const import elements
 
 class POSCAR(object):
     def __init__(self, poscar_file, pbc = None) -> None:

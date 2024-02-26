@@ -10,24 +10,16 @@ class NepNetwork:
             random.seed(self.input_param.seed)
             
     def generate_data(self):
-        # change dir to work_dir
-        cwd = os.getcwd()
-        if not os.path.exists(self.input_param.file_paths.work_dir):
-            os.makedirs(self.input_param.file_paths.work_dir)
-        os.chdir(self.input_param.file_paths.work_dir)
         # movements to extended xyz format
-        if self.input_param.inference:
-            mvm_file_list = self.input_param.file_paths.test_movement_path
-        else:
-            mvm_file_list = self.input_param.file_paths.train_movement_path
-        convert_mvmfiles_to_xyz(mvm_file_list, self.input_param.file_paths.nep_train_xyz_path, 
+        convert_mvmfiles_to_xyz(self.input_param.file_paths.raw_path, 
+                                os.getcwd(),
+                                self.input_param.file_paths.nep_train_xyz_path, 
                                 self.input_param.file_paths.nep_test_xyz_path, 
                                 self.input_param.valid_shuffle, 
                                 self.input_param.train_valid_ratio,
                                 self.input_param.seed)
         if not os.path.exists(self.input_param.file_paths.nep_train_xyz_path):
             raise Exception("ERROR! MOVEMENTs to extended xyz format failed! Please check!")
-        os.chdir(cwd)
         
     def train(self):
         # set nep.in file

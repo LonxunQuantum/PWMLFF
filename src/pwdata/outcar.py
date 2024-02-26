@@ -2,7 +2,7 @@ import numpy as np
 import re
 from tqdm import tqdm
 from collections import Counter
-from image import Image, elements_to_order
+from src.pwdata.image import Image, elements_to_order
 
 class OUTCAR(object):
     def __init__(self, outcar_file) -> None:

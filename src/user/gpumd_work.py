@@ -1,7 +1,8 @@
-import os, shutil
+import os
+import shutil
 from utils.file_operation import copy_file
 from src.user.gpumd_param import GPUmdParam
-from utils.mvm2xyz import atomconfig2xyz, POSCAR_OUTCAR2xyz
+from src.pwdata.configop import save_config
 class GPUMD(object):
     def __init__(self, input_param: GPUmdParam) -> None:
         self.input_param = input_param
@@ -33,18 +34,26 @@ class GPUMD(object):
         self.copy_md_xyz_file(self.input_param.md_init_config_file, os.path.join(self.input_param.working_dir, "model.xyz"))
 
     def copy_md_xyz_file(self, source_file:str, target_file:str):
-        if "config".upper() in self.input_param.md_init_config_file.upper():
-            # atom.config to xyz format
-            atomconfig2xyz(source_file, target_file)
+        save_config(config=source_file, 
+                    input_format=self.input_param.md_init_config_file.lower(), 
+                    wrap = False, direct = True, sort = True,
+                    save_format="xyz", 
+                    save_path=os.path.dirname(target_file), 
+                    save_name=os.path.basename(target_file)
+        )
 
-        elif "outcar".upper() in self.input_param.md_init_config_file.upper():
-            POSCAR_OUTCAR2xyz(source_file, target_file, "OUTCAR")
+        # if "config".upper() in self.input_param.md_init_config_file.upper():
+        #     # atom.config to xyz format
+        #     atomconfig2xyz(source_file, target_file)
 
-        elif "poscar".upper() in self.input_param.md_init_config_file.upper():
-            POSCAR_OUTCAR2xyz(source_file, target_file, "POSCAR")
+        # elif "outcar".upper() in self.input_param.md_init_config_file.upper():
+        #     POSCAR_OUTCAR2xyz(source_file, target_file, "OUTCAR")
 
-        elif "xyz".upper() in self.input_param.md_init_config_file.upper():
-            # copy xyz file
-            copy_file(source_file, target_file)
+        # elif "poscar".upper() in self.input_param.md_init_config_file.upper():
+        #     POSCAR_OUTCAR2xyz(source_file, target_file, "POSCAR")
+
+        # elif "xyz".upper() in self.input_param.md_init_config_file.upper():
+        #     # copy xyz file
+        #     copy_file(source_file, target_file)
 
         

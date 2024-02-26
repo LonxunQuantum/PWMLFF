@@ -1,87 +1,45 @@
-from src.user.input_param import InputParam
-from utils.extract_movement import MOVEMENT
 from utils.random_utils import random_index
-from utils.mvm2xyz import Structure
-import os, shutil
+import os
 
-def convert_mvmfiles_to_xyz(mvm_file_list:list, train_save_path:str, valid_save_path:str, valid_shuffle:bool=False, ratio:float=0.2, seed:int=None):
-    mvm_classed_list = classify_mvm(mvm_file_list)
-    # saperated movements to training and valid by random or last 20%
-    write_train_valid_movement(train_save_path, valid_save_path, mvm_classed_list, ratio, valid_shuffle, seed)
+from pwdata.movement import MOVEMENT
+from pwdata.extendedxyz import save_to_extxyz
+
+'''
+description: 
+    convert movements to train.xyz and valid.xyz 
+param {list} mvm_file_list
+param {str} save_dir 
+param {str} train_save_path "train.xyz"
+param {str} valid_save_path "valid.xyz"
+param {bool} valid_shuffle
+param {float} ratio
+param {int} seed
+return {*}
+author: wuxingxing
+'''
+def convert_mvmfiles_to_xyz(mvm_file_list:list, save_dir:str, train_save_path:str, valid_save_path:str, valid_shuffle:bool=False, ratio:float=0.2, seed:int=None):
+    # if the save_file exists before, delete it
+    if os.path.exists(os.path.join(save_dir, train_save_path)):
+        os.remove(os.path.join(save_dir, train_save_path))
+    if os.path.exists(os.path.join(save_dir, valid_save_path)):
+        os.remove(os.path.join(save_dir, valid_save_path))
         
-def classify_mvm(mvm_file_list: list[str]):
-    mvm_sorted = {}
-    mvm_dict = {}
-    mvm_obj = []
-    for i, mvm_file in enumerate(mvm_file_list):
-        mvm = MOVEMENT(mvm_file)
-        mvm_obj.append(mvm)
-        atom_type = mvm.image_list[0].atom_type
-        atom_type_num_list = mvm.image_list[0].atom_type_num
-        key1 = "_".join(str(item) for item in atom_type_num_list)
-        key2 = '_'.join(str(item) for item in atom_type)
-        mvm_dict[i] = "{}_{}".format(key1, key2)
-    tmp = sorted(mvm_dict.items(), key = lambda x: len(x[1]), reverse=True)
-    for t in tmp:
-        if t[1] not in mvm_sorted.keys():
-            mvm_sorted[t[1]] = [{"file": mvm_file_list[t[0]], "obj":mvm_obj[t[0]]}]
-        else:
-            mvm_sorted[t[1]].append({"file": mvm_file_list[t[0]], "obj":mvm_obj[t[0]]})
-    return mvm_sorted
-
-def write_train_valid_movement(train_save_path, valid_save_path, mvm_sorted:dict, ratio:float, valid_shuffle:bool, seed:int=None):
-    # separate mvm files to train_movement and valid_movement
-    train_file_list = []
-    valid_file_list = []
-    # delete tmp files, train.xyz, and test.xyz if exist before
-    os.system("rm train_mvm_* valid_mvm_* train.xyz test.xyz -r")
-
-    for i, mvm_type_key in enumerate(mvm_sorted.keys()):
-        mvm_list = mvm_sorted[mvm_type_key]
-        tmp_train = "train_mvm_{}_{}".format(mvm_type_key, i)
-        tmp_valid = "valid_mvm_{}_{}".format(mvm_type_key, i)
-        train_images, valid_images = 0, 0
-        for mvm in mvm_list:
-            train_indexs, valid_indexs = random_index(mvm["obj"].image_nums, ratio, valid_shuffle, seed)
-            if len(train_indexs) > 0:
-                with open(tmp_train, 'a') as af:
-                    for j in train_indexs:
-                        for line in mvm["obj"].image_list[j].content:
-                            af.write(line)
-                train_images += len(train_indexs)
-            if len(valid_indexs) > 0:
-                with open(tmp_valid, 'a') as af:
-                    for j in valid_indexs:
-                        for line in mvm["obj"].image_list[j].content:
-                            af.write(line)
-                valid_images += len(valid_indexs)
-
-            print("{} momvement separted to train {} and valid {} done (valid shuffle {})!".format(\
-                mvm['file'], len(train_indexs), len(valid_indexs),
-            valid_shuffle))
+    for mvm in mvm_file_list:
+        image_data = MOVEMENT(mvm)
+        image_nums = len(image_data.get())
+        if image_nums == 0:
+            raise Exception("ERROR! The input movement file is empty file, please check {}".format(mvm))
+        train_indexs, valid_indexs = random_index(image_nums, ratio, valid_shuffle, seed)
+        train_images = []
+        valid_images = []
+        for index in train_indexs:
+            train_images.append(image_data.image_list[index])
+        for index in valid_indexs:
+            valid_images.append(image_data.image_list[index])
         
-        if train_images > 0:
-            train_file_list.append(tmp_train)
-        if valid_images > 0:
-            valid_file_list.append(tmp_valid)
+        assert(len(train_images) + len(valid_images)) == len(image_data.get())
         
-    # convert movement to xyz
-    mvm2xyz(train_file_list, train_save_path)
-    mvm2xyz(valid_file_list, valid_save_path)
-    # delete tmp files
-    for mvm in train_file_list:
-        os.remove(mvm)
-    for mvm in valid_file_list:
-        os.remove(mvm)
+        save_to_extxyz(train_images, save_dir, train_save_path, write_patthen='a')
+        save_to_extxyz(valid_images, save_dir, valid_save_path, write_patthen='a')
 
-def mvm2xyz(mvm_list:list[str], file_name:str):
-    # if exist file_name, delete them
-    if os.path.exists(file_name):
-        os.remove(file_name)
-        
-    for mvm in mvm_list:
-        a=Structure(path=mvm, type="MOVEMENT")
-        a.coordinate2cartesian()
-        a.out_extxyz(file_name,None) # Write to the file in append mode
-        print("{} convert to xyz format done!".format(mvm))
-    
+
