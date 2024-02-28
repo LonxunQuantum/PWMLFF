@@ -110,7 +110,7 @@ def gen_train_data(train_ratio, raw_data_path, datasets_path,
     Returns:
         list: List of paths to the labels.
     """
-    from src.pwdata.pwdata import Save_Data
+    from pwdata.main import Save_Data
     labels_path = []
     for data_path in raw_data_path:
         data_name = os.path.basename(data_path)

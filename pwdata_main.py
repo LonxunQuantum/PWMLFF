@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 import json
 import os, sys
-from src.pwdata.pwdata import Save_Data, Configs
 from src.user.extract_raw import Extract_Param
+from pwdata.main import Save_Data, Configs
 
 if __name__ == "__main__":
     json_path = sys.argv[1]

@@ -2,7 +2,7 @@ import os
 import shutil
 from utils.file_operation import copy_file
 from src.user.gpumd_param import GPUmdParam
-from src.pwdata.configop import save_config
+from pwdata.configop import save_config
 class GPUMD(object):
     def __init__(self, input_param: GPUmdParam) -> None:
         self.input_param = input_param

@@ -1,7 +1,7 @@
 import os
 import json
 import torch
-from src.user.input_param import InputParam
+from src.user.input_param_tmp import InputParam
 from src.PWMLFF.nn_param_extract import extract_force_field
 from src.PWMLFF.nn_network import nn_network
 from utils.file_operation import delete_tree, copy_tree, copy_file
