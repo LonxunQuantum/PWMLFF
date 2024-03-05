@@ -211,7 +211,10 @@ class dp_network:
                     loc = "cuda:{}".format(self.dp_params.gpu)
                     checkpoint = torch.load(model_path, map_location=loc)
                 # start afresh
-                self.dp_params.optimizer_param.start_epoch = checkpoint["epoch"] + 1
+                if self.dp_params.optimizer_param.reset_epoch:
+                    self.dp_params.optimizer_param.start_epoch = 1
+                else:
+                    self.dp_params.optimizer_param.start_epoch = checkpoint["epoch"] + 1
                 model.load_state_dict(checkpoint["state_dict"])
                 
                 # scheduler.load_state_dict(checkpoint["scheduler"])
