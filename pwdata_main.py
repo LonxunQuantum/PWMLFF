@@ -2,7 +2,7 @@
 import json
 import os, sys
 from src.user.extract_raw import Extract_Param
-from pwdata.main import Save_Data, Configs
+from pwdata import Config
 
 if __name__ == "__main__":
     json_path = sys.argv[1]
@@ -22,15 +22,11 @@ if __name__ == "__main__":
     format = params.format
     if True:
         for data_path in raw_data_path:
-            # Save_Data(data_path, datasets_path, train_data_path, valid_data_path, 
-            #         train_ratio, data_shuffle, seed, format)
-            image_data = Configs.read(format, data_path)
-            get_all = Configs.get(image_data)
-            Configs.save(get_all, datasets_path, train_data_path, valid_data_path, train_ratio, data_shuffle, seed)
+            image_data = Config(format, data_path)
+            image_data.to(datasets_path, save_format='pwmlff/npy', train_data_path=train_data_path, valid_data_path=valid_data_path, train_ratio=train_ratio, random=data_shuffle, seed=seed)
     else:
-        multi_data = []
-        for data_path in raw_data_path:
-            image_data = Configs.read(format, data_path)
-            multi_data += image_data
-        get_all = Configs.get(multi_data)
-        Configs.save(get_all, datasets_path, train_data_path, valid_data_path, train_ratio, data_shuffle)
+        multi_data = Config(format, raw_data_path[0])
+        for data_path in raw_data_path[1:]:
+            image_data = Config(format, data_path)
+            multi_data.append(image_data)
+        multi_data.to(datasets_path, save_format='pwmlff/npy', train_data_path=train_data_path, valid_data_path=valid_data_path, train_ratio=train_ratio, random=data_shuffle, seed=seed)

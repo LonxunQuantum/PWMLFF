@@ -3,7 +3,7 @@ import numpy as np
 
 from src.PWMLFF.dp_network import dp_network
 from src.user.input_param import InputParam
-from pwdata.main import Save_Data
+from pwdata import Save_Data
 from src.pre_data.dp_data_loader import type_map, find_neighbore
 
 class Inference(object):

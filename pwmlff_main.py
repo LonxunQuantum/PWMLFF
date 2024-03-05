@@ -39,7 +39,7 @@ if __name__ == "__main__":
         format = sys.argv[4]
         # ckpt_file = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/4-CH4-dbg/model_record/dp_model.ckpt"
         # structrues_file = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/4-CH4-dbg/atom.config"
-        # format= "config"
+        # format= "pwmat/config"
         infer_main(ckpt_file, structrues_file, format=format) # config or poscar
     elif cmd_type == "model_devi".upper():
         parser = argparse.ArgumentParser()
