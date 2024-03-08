@@ -9,7 +9,7 @@ class OptimizerParam(object):
         self.epochs = get_parameter("epochs", json_input, 30)
         self.print_freq = get_parameter("print_freq", json_input, 10)
         # the start epoch could be reset at the resume model code block
-        self.reset_epoch = get_parameter("reset_epoch", json_input, True)
+        self.reset_epoch = get_parameter("reset_epoch", json_input, False)
         self.start_epoch = get_parameter("start_epoch", json_input, 1)
         # self.optimizer_param = OptimizerParam(optimizer_type, start_epoch=start_epoch, epochs=epochs, batch_size=batch_size, \
                                         #  print_freq=print_freq)
