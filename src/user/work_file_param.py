@@ -123,6 +123,8 @@ class WorkFileStructure(object):
         if os.path.exists(model_load_path):
             model_load_path = os.path.abspath(model_load_path)
         self._set_model_load_path(model_load_path)
+        model_name = ""
+        best_model_path = ""
         # if self.recover_train is True and os.path.isfile(model_load_path):
         #     raise Exception("Error! The recover_train and model_load_path are simultaneously specified, please set recover_train to False or remove param model_load_path")
         if self.model_type == "NN" or self.model_type == "DP":

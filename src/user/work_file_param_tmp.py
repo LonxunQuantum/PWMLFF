@@ -117,7 +117,9 @@ class WorkFileStructure(object):
         self._set_model_load_path(model_load_path)
         # if self.recover_train is True and os.path.isfile(model_load_path):
         #     raise Exception("Error! The recover_train and model_load_path are simultaneously specified, please set recover_train to False or remove param model_load_path")
-        if self.model_type == "NN" or self.model_type == "DP":
+        # model_name = ""
+        # best_model_path = ""
+        if self.model_type == "LINEAR" or self.model_type == "NN" or self.model_type == "DP":
             if self.model_type == "NN":
                 model_name = get_parameter("model_name", json_input, "nn_model.ckpt")
             else:
