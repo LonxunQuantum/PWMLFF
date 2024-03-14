@@ -44,7 +44,7 @@ if __name__ == "__main__":
     elif cmd_type == "model_devi".upper():
         parser = argparse.ArgumentParser()
         parser.add_argument('-m', '--model_list', help='specify input model files', nargs='+', type=str, default=None)
-        parser.add_argument('-f', '--format', help="specify input structure format, 'outcar', 'config', 'dump'", type=str, default="config")
+        parser.add_argument('-f', '--format', help="specify input structure format, default is 'lammps/dump'", type=str, default="lammps/dump")
         parser.add_argument('-s', '--savepath', help='specify stored directory', type=str, default='model_devi.out')
         parser.add_argument('-c', '--config', help='specify structure dir', type=str, default='trajs')
         parser.add_argument('-w', '--work_dir', help='specify work dir', type=str, default='./')
