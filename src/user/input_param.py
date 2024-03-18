@@ -155,7 +155,7 @@ class InputParam(object):
         self.seed = get_parameter("seed", json_input, 2023)
         self.precision = get_parameter("precision", json_input, "float64")
         self.chunk_size = get_parameter("chunk_size", json_input, 10)
-        self.format = get_parameter("format", json_input, "movement")
+        self.format = get_parameter("format", json_input, "pwmat/movement")
 
     '''
     description: 
