@@ -88,6 +88,9 @@ class WorkFileStructure(object):
             if os.path.exists(self.model_load_path) is False:
                 raise Exception("the model_load_path is not exist: {}, please speccified 'model_load_path' at json file".format(self.model_load_path))
         
+        if "trainDataPath" in json_input.keys():# for test, people could set the 'trainSetDir' to 'valid', so the valid data in train dir could be used for valid
+            self.trainDataPath = json_input["trainDataPath"]
+
         '''alive_atomic_energy = is_alive_atomic_energy(datasets_path)
         self._set_alive_atomic_energy(alive_atomic_energy)'''
     
@@ -145,7 +148,6 @@ class WorkFileStructure(object):
                 self._set_p_matrix_paths(Pmatrix_path, True)
             else:
                 self._set_p_matrix_paths(None, False)
-            self._set_PWdata_NN_DP_dirs(json_input)
         elif self.model_type == "NEP":
             best_model_path = ""
             model_name = "nep.txt"
@@ -155,7 +157,7 @@ class WorkFileStructure(object):
         model_store_dir = os.path.join(self.json_dir, model_store_dir)
         self._set_model_paths(model_store_dir = model_store_dir, \
                                     model_name = model_name, best_model_path=best_model_path)
-        
+        self._set_PWdata_dirs(json_input)
 
     def set_train_valid_file(self, json_input:dict):
         # set trian movement file path
@@ -187,7 +189,7 @@ class WorkFileStructure(object):
         alive_atomic_energy = is_alive_atomic_energy(raw_path)
         self._set_alive_atomic_energy(alive_atomic_energy)'''
 
-    def _set_PWdata_NN_DP_dirs(self, json_input:dict):
+    def _set_PWdata_dirs(self, json_input:dict):
         # set Pwdata dir file structure, they are used in feature generation
         trainSetDir = get_parameter("trainSetDir", json_input, 'PWdata')
         dRFeatureInputDir = get_parameter("dRFeatureInputDir", json_input, 'input')

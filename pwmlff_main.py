@@ -121,7 +121,8 @@ if __name__ == "__main__":
             elif model_type == "NN".upper():
                 gen_nn_feature(json_file, cmd_type)
             elif model_type == "NEP".upper():
-                gen_nep_feature(json_file, cmd_type)
+                pass
+                # gen_nep_feature(json_file, cmd_type)
             else:
                 raise Exception("Error! the model_type param in json file does not existent, you could use [DP/NN/LINEAR/NEP]")
 

@@ -6,8 +6,7 @@ from utils.file_operation import delete_tree, copy_tree, copy_file
 from utils.atom_type_emb_dict import element_table
 '''
 description: do nep training
-    step1. generate feature from MOVEMENTs
-        movement -> .xyz (train & valid)
+    step1. generate feature to xyz format files
     step2. load features and do training
     step3. extract forcefield files
     step4. copy features, trained model files to the same level directory of jsonfile
@@ -19,8 +18,9 @@ def nep_train(input_json: json, cmd:str):
     nep_param = InputParam(input_json, cmd)
     nep_param.print_input_params(json_file_save_name="std_input.json")
     nep_trainer = NepNetwork(nep_param)
-    if len(nep_param.file_paths.raw_path) > 0:
-        nep_trainer.generate_data()
+    # if len(nep_param.file_paths.raw_path) > 0:
+    #     nep_trainer.generate_data()
+    nep_trainer.generate_data()
     nep_trainer.train()
 
     if os.path.realpath(nep_param.file_paths.json_dir) != os.path.realpath(nep_param.file_paths.work_dir) :
@@ -35,12 +35,19 @@ def nep_train(input_json: json, cmd:str):
         if nep_param.file_paths.reserve_work_dir is False:
             delete_tree(nep_param.file_paths.work_dir)
 
+'''
+description: 
+    This method has been deprecated
+param {json} input_json
+param {str} cmd
+return {*}
+author: wuxingxing
+'''
 def gen_nep_feature(input_json: json, cmd:str):
     nep_param = InputParam(input_json, cmd)
     nep_param.print_input_params(json_file_save_name="std_input.json")
     nep_trainer = NepNetwork(nep_param)
-    if len(nep_param.file_paths.train_movement_path) > 0:
-        nep_trainer.generate_data()
+    nep_trainer.generate_data()
     # copy the train.xyz and test.xyz to json file dir
     target_train = os.path.join(nep_param.file_paths.json_dir, os.path.basename(nep_param.file_paths.nep_train_xyz_path))
     target_valid = os.path.join(nep_param.file_paths.json_dir, os.path.basename(nep_param.file_paths.nep_test_xyz_path))
@@ -72,19 +79,8 @@ def nep_test(input_json: json, cmd:str):
     nep_param.set_test_relative_params(input_json)
     nep_param.print_input_params(json_file_save_name="std_input.json")
     nep_trainer = NepNetwork(nep_param)
-    if len(nep_param.file_paths.test_movement_path) > 0:
-        nep_trainer.generate_data()
+    nep_trainer.generate_data()
     nep_trainer.inference()
-
-    if os.path.realpath(nep_param.file_paths.json_dir) != os.path.realpath(nep_param.file_paths.work_dir) :
-        if nep_param.file_paths.reserve_feature is False:
-            if os.path.exists(nep_param.file_paths.nep_train_xyz_path):
-                os.remove(nep_param.file_paths.nep_train_xyz_path)
-
-    # copy the whole work dir to nep_training_dir or model_record?
-    copy_tree(nep_param.file_paths.work_dir, os.path.join(nep_param.file_paths.json_dir, os.path.basename(nep_param.file_paths.test_dir)))
-    if nep_param.file_paths.reserve_work_dir is False:
-        delete_tree(nep_param.file_paths.work_dir)
 
 def read_nep_info(nep_txt_file: str):
     if not os.path.exists(nep_txt_file):

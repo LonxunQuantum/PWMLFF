@@ -733,8 +733,6 @@ def predict(val_loader, model, criterion, device, args:InputParam, isprofile=Fal
     for i, sample_batches in enumerate(val_loader):
         # measure data loading time
         # load data to cpu
-        if i == 417:
-            print()
         if args.precision == "float64":
             Ei_label_cpu = sample_batches["Ei"].double()
             Etot_label_cpu = sample_batches["Etot"].double()
