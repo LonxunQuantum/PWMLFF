@@ -8,7 +8,7 @@ import torch
 # import time
 # from utils.random_utils import random_index
 # from utils.extract_movement import MOVEMENT
-from NeighConst import neighconst
+from src.lib.NeighConst import neighconst
 
 '''
 description: 

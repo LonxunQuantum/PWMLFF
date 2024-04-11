@@ -37,14 +37,13 @@ class InputParam(object):
         self.set_feature_params(json_input)
         self.set_workdir_structures(json_input)
 
-        if self.model_type in ["DP", "NN", "LINEAR"]:
-            self.set_dp_NN_model_init_params(json_input)
+        if self.model_type in ["DP", "NN", "NEP", "LINEAR"]:
+            self.set_model_init_params(json_input)
             self.set_default_multi_gpu_info(json_input)
 
-        elif self.model_type in ["NEP"]:
-            self.set_nep_in_params(json_input)
-            self.file_paths.set_nep_file_paths()
-
+        # elif self.model_type in ["NEP"]:
+        #     self.set_nep_in_params(json_input)
+            
         elif self.model_type in ["GNN"]:
             raise Exception("GNN is not realized yet!")
         else:
@@ -70,7 +69,7 @@ class InputParam(object):
     return {*}
     author: wuxingxing
     '''
-    def set_dp_NN_model_init_params(self, json_input:dict):
+    def set_model_init_params(self, json_input:dict):
         # if feature_type specified at first layer of JSON, use this value as feature type in descriptor
         # nn feature types default is [3,4]
         self.feature_type = get_parameter("feature_type", json_input, None) 
@@ -111,6 +110,9 @@ class InputParam(object):
             self.is_dfeat_sparse = get_parameter("is_dfeat_sparse", json_input, False)  #'true' not realized
         elif self.model_type == "Linear".upper():
             pass
+        elif self.model_type == "NEP".upper():
+            self.set_nep_in_params(json_input) #  nep.in 输入的适配可能并不需要
+            self.file_paths.set_nep_native_file_paths()#  nep.in 输入的适配可能并不需要
         else: # linear
             raise Exception("model_type {} not realized yet".format(self.model_type))
 
@@ -171,7 +173,6 @@ class InputParam(object):
         if work_dir is None:
             work_dir = os.getcwd()
         self.file_paths = WorkFileStructure(json_dir=os.getcwd(), 
-                            work_dir=os.path.abspath(work_dir), 
                             reserve_work_dir=get_parameter("reserve_work_dir", json_input, False), 
                             reserve_feature = get_parameter("reserve_feature", json_input, False), 
                             model_type=self.model_type)
@@ -273,9 +274,11 @@ class InputParam(object):
             else:
                 params_dict["model"]["fitting_net"] = self.model_param.fitting_net.to_dict_std()
                 params_dict["optimizer"] = self.optimizer_param.to_dict()
-        elif self.model_type in ["GNN", "NEP"]:
+        elif self.model_type in ["NEP"]:
             params_dict["model"] = self.nep_param.to_dict()
-            
+        elif self.model_type in ["GNN"]:
+            raise Exception("The model GNN not realized yet!")
+
         file_dir_dict = self.file_paths.to_dict()
         for key in file_dir_dict:
             params_dict[key] = file_dir_dict[key]
