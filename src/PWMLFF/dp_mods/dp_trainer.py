@@ -311,7 +311,7 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
     )
 
     KFOptWrapper = KFOptimizerWrapper(
-        model, optimizer, args.optimizer_param.nselect, args.optimizer_param.nselect
+        model, optimizer, args.optimizer_param.nselect, args.optimizer_param.groupsize
     )
     
     # switch to train mode

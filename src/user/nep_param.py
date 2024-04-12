@@ -89,6 +89,26 @@ class NepParam(object):
         self.two_c_num = self.type_num*self.type_num*(self.n_max[0]+1)*(self.basis_size[0]+1)
         self.three_c_num = self.type_num*self.type_num*(self.n_max[1]+1)*(self.basis_size[1]+1)
         self.c_num = self.two_c_num + self.three_c_num
+
+        self.c2_param = None
+        self.c3_param = None
+        self.q_scaler = None
+        self.model_wb = None
+
+    '''
+    read params from nep.txt
+    description: 
+    param {*} self
+    param {*} file_path
+    return {*}
+    author: wuxingxing
+    '''    
+    def set_params_from_neptxt(self, file_path="nep.txt"):
+        # self.c2_param = None
+        # self.c3_param = None
+        # self.q_scaler = None
+        # self.model_wb = None
+        pass
     
     def read_nep_param_from_nep_file(self, nep_in_file:str):
         with open(nep_in_file, 'r') as rf:

@@ -2,10 +2,10 @@
 import json
 import os, sys
 import argparse
-from src.user.nep_work import nep_train
 from src.user.dp_work import dp_train, dp_test
 from src.user.nn_work import nn_train, gen_nn_feature, nn_test
 from src.user.linear_work import linear_train, linear_test
+from src.user.nep_work import nep_train
 from src.user.input_param import help_info
 from src.user.active_work import ff2lmps_explore
 from src.user.md_work import run_gpumd

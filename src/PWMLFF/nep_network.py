@@ -1,5 +1,22 @@
-import os
+import os,sys
+import pathlib
 import random
+
+codepath = str(pathlib.Path(__file__).parent.resolve())
+sys.path.append(codepath)
+
+#for model.mlff 
+sys.path.append(codepath+'/../model')
+
+#for default_para, data_loader_2type dfeat_sparse dp_mlff
+sys.path.append(codepath+'/../pre_data')
+
+#for optimizer
+sys.path.append(codepath+'/..')
+sys.path.append(codepath+'/../aux')
+sys.path.append(codepath+'/../lib')
+sys.path.append(codepath+'/../..')
+
 import torch
 import time
 import torch.nn as nn
@@ -68,7 +85,14 @@ class nep_network:
                                train_data_path, valid_data_path, 
                                self.nep_param.valid_shuffle, self.nep_param.seed, self.nep_param.format)
         return labels_path
-        
+    
+    '''
+    description: 
+        get energy shift and max atom numbers of image from inference model/loaded model/pwdata
+    param {*} self
+    return {*}
+    author: wuxingxing
+    '''    
     def _get_stat(self):
         # data_file_config = self.nep_params.get_data_file_dict()
         if self.nep_param.inference:
@@ -85,9 +109,9 @@ class nep_network:
         else:
             stat_add = None
         
-        energy_shift, max_atom_nums = get_stat(self.nep_param, stat_add, self.nep_param.file_paths.datasets_path, 
+        energy_shift, max_atom_nums, image_path = get_stat(self.nep_param, stat_add, self.nep_param.file_paths.datasets_path, 
                          self.nep_param.file_paths.json_dir, self.nep_param.chunk_size)
-        return energy_shift, max_atom_nums
+        return energy_shift, max_atom_nums, image_path
     
     def load_data(self, energy_shift, max_atom_nums):
         # config = self.nep_params.get_data_file_dict()
@@ -237,7 +261,16 @@ class nep_network:
             optimizer.load_state_dict(checkpoint["optimizer"])
             load_p = checkpoint["optimizer"]['state'][0]['P']
             optimizer.set_kalman_P(load_p, checkpoint["optimizer"]['state'][0]['kalman_lambda'])
-                
+
+        if checkpoint is not None and "q_scaler" in checkpoint.keys(): # from model ckpt file
+            model.set_q_scaler(checkpoint["q_scaler"])
+            model.set_nep_cparam(c2_param = checkpoint["c1_param"] , c3_param = checkpoint["c1_param"], q_scaler=checkpoint["q_scaler"])
+        elif self.nep_param.nep_param.c2_param is not None: # from nep.txt
+            model.set_nep_cparam(c2_param = self.nep_param.nep_param.c2_param, 
+                                 c3_param = self.nep_param.nep_param.c3_param, 
+                                 q_scaler = self.nep_param.nep_param.q_scaler)
+        else: # first training 
+            model.set_nep_cparam(c2_param = None , c3_param = None, q_scaler = None)
         '''
         if self.dp_params.hvd:
             # after hvd.DistributedOptimizer, the matrix P willed be reset to Identity matrix
@@ -252,7 +285,7 @@ class nep_network:
         '''
         # model.device = optimizer._state["P"][0].device
         # set params device
-        model.set_nep_cparam_device(device = optimizer._state["P"][0].device)
+        model.set_nep_cparam()# 加一个从nep.txt加载 c_param
         return model, optimizer
 
     def inference(self, davg, dstd, energy_shift, max_atom_nums):
@@ -299,8 +332,10 @@ class nep_network:
             wf.writelines(inference_cout)
         return 
 
-    def train(self,energy_shift, max_atom_nums):
-        energy_shift, atom_map, train_loader, val_loader = self.load_data(energy_shift, max_atom_nums) #davg, dstd, energy_shift, atom_map
+    def train(self):
+        energy_shift, max_atom_nums, image_path = self._get_stat()
+        energy_shift, atom_map, train_loader, val_loader = self.load_data(energy_shift, max_atom_nums)
+         #energy_shift is same as energy_shift of upper; atom_map is the user input order
         model, optimizer = self.load_model_optimizer(energy_shift)
         if not os.path.exists(self.nep_param.file_paths.model_store_dir):
             os.makedirs(self.nep_param.file_paths.model_store_dir)
@@ -437,7 +472,7 @@ class nep_network:
                     "epoch": epoch,
                     "state_dict": model.state_dict(),
                     "energy_shift":energy_shift,
-                    "atom_type_order": atom_map,    #atom type order of davg/dstd/energy_shift
+                    "atom_type_order": atom_map,    #atom type order of davg/dstd/energy_shift, the user input order
                     "sij_max":Sij_max,
                     "optimizer":optimizer.state_dict()
                     },

@@ -26,7 +26,7 @@ class MovementDataset(Dataset):
         self.Rc_M = nep_param.descriptor.Rmax
         self.img_max_types = len(nep_param.atom_type)
         self.Egroup = nep_param.optimizer_param.train_egroup
-        self.img_max_atom_num = max_atom_nums
+        self.img_max_atom_num = max_atom_nums # for multi batch size training 
         self.ener_shift = np.array(energy_shift)
         self.all_movement_data, self.total_images, self.images_per_dir, self.atoms_per_dir = self.__concatenate_data()
             
@@ -297,6 +297,20 @@ def compute_Ri(list_neigh, dR_neigh, Rc_type, Rm_type):
     Rij = Rij.unsqueeze(-1).numpy()
     return max_ri, Rij
 
+'''
+description: 
+
+param {InputParam} config
+param {*} stat_add
+param {*} datasets_path
+param {*} work_dir
+param {*} chunk_size
+return {*}
+    energy_shift , this is for model created
+    max atom numbers of the image, this is for multibatch training
+    the image path
+author: wuxingxing
+'''
 def get_stat(config:InputParam, stat_add=None, datasets_path=None, work_dir=None, chunk_size=10):
     train_data_path = config.file_paths.trainDataPath
     ntypes = len(config.atom_type)
@@ -322,18 +336,19 @@ def get_stat(config:InputParam, stat_add=None, datasets_path=None, work_dir=None
             if img_per_mvmt < chunk_size:
                 continue
             valid_chunk = True
-            position = np.load(os.path.join(dataset_path, train_data_path, "position.npy"))
+            # position = np.load(os.path.join(dataset_path, train_data_path, "position.npy"))
             _Ei = np.load(os.path.join(dataset_path, train_data_path, "ei.npy"))
             type_maps = np.array(type_map(atom_types_image[0], input_atom_type))
             types, type_incides, atom_types_nums = np.unique(type_maps, return_index=True, return_counts=True)
             atom_types_nums = atom_types_nums[np.argsort(type_incides)]
             energy_shift = calculate_energy_shift(chunk_size, _Ei, atom_types_nums)
             energy_shift = adjust_order_same_as_user_input(energy_shift, _atom_types[0].tolist(), input_atom_type)
-    
+            # set feature scaler
+            
     if not valid_chunk and energy_shift is None:
         raise ValueError("Invalid 'chunk_size', the number of images (include all atom types) in the movement is too big, \nPlease set a smaller chunk_size (default: 10) or add more images in the movement")
 
-    return energy_shift, max_atom_nums
+    return energy_shift, max_atom_nums, os.path.join(dataset_path, train_data_path)
 
 '''
 description: 

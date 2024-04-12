@@ -1,10 +1,10 @@
 import os
 import json
 from utils.json_operation import get_parameter, get_required_parameter
-from src.user.nn_feature_type import Descriptor
 from src.user.model_param import ModelParam
 from src.user.optimizer_param import OptimizerParam
 from src.user.work_file_param import WorkFileStructure
+from src.user.nn_feature_type import Descriptor
 
 from src.user.nep_param import NepParam
 '''

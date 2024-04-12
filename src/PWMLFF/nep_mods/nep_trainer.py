@@ -291,7 +291,6 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
         Sij_max,    
     )
 
-
 def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:InputParam):
     batch_time = AverageMeter("Time", ":6.3f")
     data_time = AverageMeter("Data", ":6.3f")
@@ -311,7 +310,7 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
     )
 
     KFOptWrapper = KFOptimizerWrapper(
-        model, optimizer, args.optimizer_param.nselect, args.optimizer_param.nselect
+        model, optimizer, args.optimizer_param.nselect, args.optimizer_param.groupsize
     )
     
     # switch to train mode

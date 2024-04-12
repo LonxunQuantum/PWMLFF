@@ -47,9 +47,7 @@ class GKFOptimizer(Optimizer):
             params = param_group["params"]
             for param in params:
                 param.data = (
-                    weights[self.weights_index[i] : self.weights_index[i + 1]]
-                    .reshape(param.data.T.shape)
-                    .T
+                    weights[self.weights_index[i] : self.weights_index[i + 1]].reshape(param.data.T.shape).T
                 )
                 i += 1
 
