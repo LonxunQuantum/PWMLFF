@@ -147,21 +147,33 @@ def get_stat(config, stat_add=None, datasets_path=None, work_dir=None, chunk_siz
     max_atom_nums = 0
     valid_chunk = False
     for dataset_path in datasets_path:
-        atom_types_image = np.load(os.path.join(dataset_path, train_data_path, "image_type.npy"))
+        if os.path.exists(os.path.join(dataset_path, "image_type.npy")):
+            atom_types_image_path = os.path.join(dataset_path, "image_type.npy")
+            atom_type_path = os.path.join(dataset_path, "atom_type.npy")
+            lattice_path = os.path.join(dataset_path, "lattice.npy")
+            position_path = os.path.join(dataset_path, "position.npy")
+            ei_path = os.path.join(dataset_path, "ei.npy")
+        else:
+            atom_types_image_path = os.path.join(dataset_path, train_data_path, "image_type.npy")
+            atom_type_path = os.path.join(dataset_path, train_data_path, "atom_type.npy")
+            lattice_path = os.path.join(dataset_path, train_data_path, "lattice.npy")
+            position_path = os.path.join(dataset_path, train_data_path, "position.npy")
+            ei_path = os.path.join(dataset_path, train_data_path, "ei.npy")
+        atom_types_image = np.load(atom_types_image_path)
         max_atom_nums = max(max_atom_nums, atom_types_image.shape[1])
         if davg is None:
-            _atom_types = np.load(os.path.join(dataset_path, train_data_path, "atom_type.npy"))
+            _atom_types = np.load(atom_type_path)
             if _atom_types.shape[1] != ntypes:
                 continue
             # the davg and dstd only need calculate one time
             # the davg, dstd and energy_shift atom order are the same --> movement's atom order
-            lattice = np.load(os.path.join(dataset_path, train_data_path, "lattice.npy"))
+            lattice = np.load(lattice_path)
             img_per_mvmt = lattice.shape[0]
             if img_per_mvmt < chunk_size:
                 continue
             valid_chunk = True
-            position = np.load(os.path.join(dataset_path, train_data_path, "position.npy"))
-            _Ei = np.load(os.path.join(dataset_path, train_data_path, "ei.npy"))
+            position = np.load(position_path)
+            _Ei = np.load(ei_path)
             type_maps = np.array(type_map(atom_types_image[0], input_atom_type))
             davg, dstd, atom_types_nums = calculate_davg_dstd(config, lattice, position, chunk_size, _atom_types[0], input_atom_type, ntypes, type_maps)
             energy_shift = calculate_energy_shift(chunk_size, _Ei, atom_types_nums)

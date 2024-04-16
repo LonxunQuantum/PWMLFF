@@ -187,10 +187,10 @@ class InputParam(object):
     def set_test_relative_params(self, json_input:dict):
         self.inference = True
         self.recover_train = True
-        if self.model_type not in ["NEP","GNN"]:
-            self.optimizer_param.batch_size = 1     # set batch size to 1, so that each image inference info will be saved
-            self.data_shuffle = False
+        self.optimizer_param.batch_size = 1     # set batch size to 1, so that each image inference info will be saved
+        self.data_shuffle = False
         self.train_valid_ratio = 1
+        self.format = get_parameter("format", json_input, "pwmat/movement")
         self.file_paths.set_inference_paths(json_input)
     
     '''
