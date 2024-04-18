@@ -9,7 +9,7 @@ from torch.nn.init import normal_ as normal
 from typing import List, Tuple, Optional
 from src.user.input_param import InputParam
 from src.user.nep_param import NepParam
-
+from utils.debug_operation import check_cuda_memory
 sys.path.append(os.getcwd())
 from src.model.dp_embedding import FittingNet
 # from src.model.calculate_force import CalculateCompress, CalculateForce, CalculateVirialForce
@@ -39,9 +39,8 @@ class NEP(nn.Module):
         self.set_cparam()
         self.maxNeighborNum = input_param.max_neigh_num
         self.fitting_net = nn.ModuleList()
-        
         for i in range(self.ntypes):
-            self.fitting_net.append(FittingNet(network_size   = [self.neuron, 1], #[50, 1]
+            self.fitting_net.append(FittingNet(network_size   = self.neuron, #[50, 1]
                                                     bias      = True,
                                                     resnet_dt = False,
                                                     activation= "tanh",
@@ -53,6 +52,14 @@ class NEP(nn.Module):
                                                     ))
         self.max_neigh_num = self.input_param.max_neigh_num
 
+    '''
+    description: 
+    maybe these params could be get from model, descriptor and optimizor object
+    param {*} self
+    param {InputParam} input_param
+    return {*}
+    author: wuxingxing
+    '''
     def set_init_nep_param(self, input_param:InputParam):
         nep_param = input_param.nep_param
         self.atom_type = input_param.atom_type
@@ -85,51 +92,21 @@ class NEP(nn.Module):
         self.three_c_num = self.ntypes_sq * (self.n_max_angular+1) * (self.n_base_angular+1)
         self.c_num       = self.two_c_num + self.three_c_num
 
-
-    '''
-    description: 
-        set q_scaler while load model from dics
-    param {*} self
-    param {*} q_scaler
-    param {*} dtype
-    param {*} device
-    return {*}
-    author: wuxingxing
-    '''
-    def set_q_scaler(self, q_scaler):
-        dtype  = next(self.parameters()).dtype
-        device = next(self.parameters()).device
-        self.q_scaler = torch.tensor(q_scaler, dtype=dtype, device=device)
+    def get_q_scaler(self):
+        return self.q_scaler.cpu().detach().numpy()
 
     def set_cparam(self):
         r_k = torch.normal(mean=0, std=1, size=(self.c_num,), dtype=self.dtype)
         m = torch.rand(self.c_num, dtype=self.dtype) - 0.5
-        s = torch.full_like(m, 0.1, dtype=self.dtype)
+        s = torch.full_like(m, 0.1)
         c_param = m + s*r_k
         self.c_param_2 = torch.nn.Parameter(c_param[:self.two_c_num].reshape(self.ntypes, self.ntypes, (self.n_max_radial+1), (self.n_base_radial+1)), requires_grad=True)
         self.c_param_3 = torch.nn.Parameter(c_param[self.two_c_num : ].reshape(self.ntypes, self.ntypes, (self.n_max_angular+1), (self.n_base_angular+1)), requires_grad=True)
-        
-    def set_nep_cparam(self, c2_param = None , c3_param = None, q_scaler = None):
+    
+    def set_nep_param_device(self, q_scaler = None):
         # init param c
         dtype  = next(self.parameters()).dtype
         device = next(self.parameters()).device
-        if c2_param is None:
-            pass
-            # r_k = torch.normal(mean=0, std=1, size=(self.c_num,), dtype=dtype, device=device)
-            # m = torch.rand(self.c_num, dtype=dtype, device=device) - 0.5
-            # s = torch.full_like(m, 0.1, dtype=dtype, device=device)
-            # c_param = m + s*r_k
-            # # cparam tensor is [type_I, type_J, n_max+1, n_base+1]
-            # # self.c_param_2 = c_param[:self.two_c_num].reshape(self.ntypes, self.ntypes, (self.n_max_radial+1), (self.n_base_radial+1))
-            # # self.c_param_3 = c_param[self.two_c_num : ].reshape(self.ntypes, self.ntypes, (self.n_max_angular+1), (self.n_base_angular+1))
-            # self.c_param_2 = torch.nn.Parameter(c_param[:self.two_c_num].reshape(self.ntypes, self.ntypes, (self.n_max_radial+1), (self.n_base_radial+1)), requires_grad=True)
-            # self.c_param_3 = torch.nn.Parameter(c_param[self.two_c_num : ].reshape(self.ntypes, self.ntypes, (self.n_max_angular+1), (self.n_base_angular+1)), requires_grad=True)
-        else:
-            # self.c_param_2 = torch.tensor(c2_param, dtype=dtype, device=device) 覆盖c参数的数值
-            # self.c_param_3 = torch.tensor(c3_param, dtype=dtype, device=device)
-            # self.c_param_2 = torch.nn.Parameter(torch.tensor(c2_param), requires_grad=True)
-            # self.c_param_3 = torch.nn.Parameter(torch.tensor(c3_param), requires_grad=True)
-            pass
         if q_scaler is None:
             self.q_scaler = None
         else:
@@ -148,8 +125,6 @@ class NEP(nn.Module):
         
         self.C5B = torch.tensor([0.026596810706114, 0.053193621412227, 0.026596810706114], 
                                 dtype=dtype, device=device)
-
-        self.q_scaler = None
 
         j_list = []
         for k, _ in enumerate(self.atom_type):
@@ -235,6 +210,7 @@ class NEP(nn.Module):
         Returns:
             Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]]: Tuple containing the total energy (Etot), atomic energies (Ei), forces (Force), energy group (Egroup), and virial (Virial).
         """
+        check_cuda_memory(-1, -1, "=====FORWAR START=====")
         t0 = time.time()
         device = ImageDR.device
         dtype = ImageDR.dtype
@@ -245,24 +221,29 @@ class NEP(nn.Module):
         t11 = time.time()
         fitnet_index = self.get_fitnet_index(atom_type)
         t1 = time.time()
+        check_cuda_memory(-1, -1, "FORWAR get_fitnet_index")
         # print("t12 {} t11 {} t10 {}".format(t1-t11, t11-t10, t10-t0))
         Ri, Ri_d = self.calculate_Ri(natoms_sum, batch_size, max_neighbor_type, Imagetype_map, ImageDR, device, dtype)
         Ri.requires_grad_()
         t2 = time.time()
+        check_cuda_memory(-1, -1, "FORWAR calculate_Ri")
         feats = self.calculate_qn(natoms_sum, batch_size, max_neighbor_type, Imagetype_map, Ri, device, dtype)
         t3 = time.time()
         if self.q_scaler is None:
             before_scaler = feats.reshape([-1, feats.shape[-1]])
             self.q_scaler = 1 / (torch.max(before_scaler, dim=-2)[0] - torch.min(before_scaler, dim=-2)[0])
         feats = feats * self.q_scaler.unsqueeze(0).repeat(feats.shape[0], feats.shape[1], 1)
+        check_cuda_memory(-1, -1, "FORWAR set q_scaler")
         t4 = time.time()
         Ei = self.calculate_Ei(Imagetype_map, batch_size, feats, fitnet_index, device)
         t5 = time.time()
+        check_cuda_memory(-1, -1, "FORWAR calculate_Ei")
         assert Ei is not None
         Etot = torch.sum(Ei, 1)
         Egroup = self.get_egroup(Ei, Egroup_weight, divider) if Egroup_weight is not None else None
         Ei = torch.squeeze(Ei, 2)
         t6 = time.time()
+        check_cuda_memory(-1, -1, "FORWAR calculate_Egroup")
         if is_calc_f is False:
             Force, Virial = None, None
             # print("==single time: t1 {} t2 {} t3 {} t4 {} t5 {} t6 {}".format(t1-t0, t2-t1, t3-t2, t4-t3, t5-t4, t6-t5))
@@ -271,6 +252,7 @@ class NEP(nn.Module):
             Force, Virial = self.calculate_force_virial(Ri, Ri_d, Etot, natoms_sum, batch_size, list_neigh, ImageDR, nghost, device, dtype)
             t7 = time.time()
             # print("==single time: t1 {} t2 {} t3 {} t4 {} t5 {} t6 {} t7 {}".format(t1-t0, t2-t1, t3-t2, t4-t3, t5-t4, t6-t5, t7-t6))
+            check_cuda_memory(-1, -1, "FORWAR calculate_force")
         return Etot, Ei, Force, Egroup, Virial
 
     def calculate_Ri(self,

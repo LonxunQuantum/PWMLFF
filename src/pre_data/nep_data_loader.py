@@ -9,23 +9,16 @@ from src.user.input_param import InputParam
 from pwdata import Save_Data
 
 class MovementDataset(Dataset):
-    def __init__(self, load_type, nep_param:InputParam, energy_shift, max_atom_nums):
+    def __init__(self, data_paths, config:dict, energy_shift, max_atom_nums):
         super(MovementDataset, self).__init__()
-        if load_type == "train":
-            data_paths = [os.path.join(_, nep_param.file_paths.trainDataPath) for _ in nep_param.file_paths.datasets_path]
-                         
-        elif load_type == "valid":
-            data_paths = [os.path.join(_, nep_param.file_paths.validDataPath) 
-                                             for _ in nep_param.file_paths.datasets_path
-                                             if os.path.exists(os.path.join(_, nep_param.file_paths.validDataPath))]
         self.dirs = data_paths  # include all movement data path
-        self.atom_types = nep_param.atom_type  # input atom type order
-        self.m_neigh = nep_param.max_neigh_num
-        self.Rc_type = [nep_param.descriptor.Rmax for _ in self.atom_types]
-        self.Rm_type = [nep_param.descriptor.Rmin for _ in self.atom_types]
-        self.Rc_M = nep_param.descriptor.Rmax
-        self.img_max_types = len(nep_param.atom_type)
-        self.Egroup = nep_param.optimizer_param.train_egroup
+        self.atom_types = np.array([(_['type']) for _ in config["atomType"]])   # input atom type order
+        self.m_neigh = config['maxNeighborNum']
+        self.Rc_type = np.array([(_['Rc']) for _ in config["atomType"]])
+        self.Rm_type = np.array([(_['Rm']) for _ in config["atomType"]])
+        self.Rc_M = config['Rc_M']
+        self.img_max_types = len(self.atom_types)
+        self.Egroup = config['train_egroup']
         self.img_max_atom_num = max_atom_nums # for multi batch size training 
         self.ener_shift = np.array(energy_shift)
         self.all_movement_data, self.total_images, self.images_per_dir, self.atoms_per_dir = self.__concatenate_data()

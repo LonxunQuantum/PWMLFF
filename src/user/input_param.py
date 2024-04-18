@@ -23,6 +23,8 @@ class InputParam(object):
     author: wuxingxing
     '''
     def __init__(self, json_input:dict, cmd) -> None:
+        self.nep_param = None
+
         self.cmd = cmd
         self.inference = True if self.cmd == "test".upper() else False
         self.model_type = get_required_parameter("model_type", json_input).upper()
@@ -40,6 +42,8 @@ class InputParam(object):
         if self.model_type in ["DP", "NN", "NEP", "LINEAR"]:
             self.set_model_init_params(json_input)
             self.set_default_multi_gpu_info(json_input)
+            # set optimizer
+            self.set_optimizer(json_input)
 
         # elif self.model_type in ["NEP"]:
         #     self.set_nep_in_params(json_input)
@@ -52,14 +56,42 @@ class InputParam(object):
         # DP, NN, and NEP common file paths
         self.file_paths.set_model_file_paths(json_input)
         self.file_paths.set_train_valid_file(json_input)
-        
-    def set_nep_in_params(self, json_input:dict):
-        nep_in_file = get_parameter("nep_in_file", json_input, None)
+
+    '''
+    description: 
+        extract params from nep.in file or 'model' dict, it both exsits, prioritize taking from nep.in file
+        对于NEP 参数，存在nep.in文件，则从nep.in提取，否则从json字典提取，先提取未nepparam对象，然后从中取出值，复制给模型和优化器
+        需要补充 从 nep.txt 中取参数，支持对nep.txt 继续训练
+    param {*} self
+    param {dict} json_input
+    return {*}
+    author: wuxingxing
+    '''    
+    def set_nep_params(self, json_input:dict):
+        self.model_param = ModelParam()
         nep_dict = get_parameter("model", json_input, {})
-        type_list_weight = get_parameter("type_list_weight", nep_dict, None)
-        self.nep_param = NepParam(nep_dict, nep_in_file, self.atom_type, type_list_weight)
-        if self.inference:
-            self.nep_param.prediction = 1
+        self.model_param.set_type_embedding_net(
+                                    network_size=self.descriptor.type_network_size, 
+                                    bias=self.descriptor.type_bias, 
+                                    resnet_dt=self.descriptor.type_resnet_dt, 
+                                    activation=self.descriptor.type_activation,
+                                    physical_property=self.descriptor.type_physical_property)
+        self.model_param.set_nn_fitting_net(get_parameter("fitting_net",nep_dict, {}))
+        self.is_dfeat_sparse = get_parameter("is_dfeat_sparse", json_input, False)  #for nn, 'true' not realized
+
+        nep_in_file = get_parameter("nep_in_file", json_input, None)
+        nep_param = NepParam()
+        if nep_in_file is not None:
+            nep_param.set_nep_param_from_nep_in(nep_in_file, self.atom_type)
+        else:
+            nep_param.set_nep_param_from_json(json_input, self.atom_type)
+        self.nep_param = nep_param
+        self.model_param.fitting_net.network_size = nep_param.neuron
+        self.descriptor.cutoff = nep_param.cutoff
+        self.descriptor.n_max = nep_param.n_max
+        self.descriptor.basis_size = nep_param.basis_size
+        self.descriptor.l_max = nep_param.l_max
+        self.descriptor.type_weight = nep_param.type_weight
 
     '''
     description: 
@@ -111,15 +143,16 @@ class InputParam(object):
         elif self.model_type == "Linear".upper():
             pass
         elif self.model_type == "NEP".upper():
-            self.set_nep_in_params(json_input) #  nep.in 输入的适配可能并不需要
+            self.set_nep_params(json_input) #  nep.in 输入的适配可能并不需要
             self.file_paths.set_nep_native_file_paths()#  nep.in 输入的适配可能并不需要
         else: # linear
             raise Exception("model_type {} not realized yet".format(self.model_type))
-
-        # set optimizer
-        self.optimizer_param = OptimizerParam()
-        self.optimizer_param.set_optimizer(get_parameter("optimizer", json_input, {}))
     
+    def set_optimizer(self, json_input:dict):
+        self.optimizer_param = OptimizerParam()
+        self.optimizer_param.set_optimizer( json_input ,self.nep_param)
+        #
+
     '''
     description: 
         Reserved param interface for multi-GPU, multi-node parallel training of DP/NN models
@@ -266,7 +299,7 @@ class InputParam(object):
             params_dict["recover_train"] = self.recover_train
         
         params_dict["model"] = {}
-        if self.model_type in ["DP", "NN", "LINEAR"]:
+        if self.model_type in ["DP", "NN", "LINEAR", "NEP"]:
             params_dict["model"]["descriptor"] = self.descriptor.to_dict()
 
             if self.model_type == "Linear".upper():
@@ -274,8 +307,8 @@ class InputParam(object):
             else:
                 params_dict["model"]["fitting_net"] = self.model_param.fitting_net.to_dict_std()
                 params_dict["optimizer"] = self.optimizer_param.to_dict()
-        elif self.model_type in ["NEP"]:
-            params_dict["model"] = self.nep_param.to_dict()
+        # elif self.model_type in ["NEP"]:
+        #     nep_in_content = self.model_param.nep_param.to_txt()
         elif self.model_type in ["GNN"]:
             raise Exception("The model GNN not realized yet!")
 

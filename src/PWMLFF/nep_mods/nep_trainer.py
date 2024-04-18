@@ -33,7 +33,6 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
     model.train()
 
     end = time.time()
-    Sij_max = 0.0   # max Rij before davg and dstd cacled
     for i, sample_batches in enumerate(train_loader):
         # measure data loading time
         data_time.update(time.time() - end)
@@ -50,7 +49,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
             Ei_label_cpu = sample_batches["Ei"].double()
             Etot_label_cpu = sample_batches["Etot"].double()
             Force_label_cpu = sample_batches["Force"][:, :, :].double()
-            Sij_max_cpu = sample_batches["max_ri"].double()
+            # Sij_max_cpu = sample_batches["max_ri"].double()
 
             if args.optimizer_param.train_egroup is True:
                 Egroup_label_cpu = sample_batches["Egroup"].double()
@@ -68,7 +67,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
             Ei_label_cpu = sample_batches["Ei"].float()
             Etot_label_cpu = sample_batches["Etot"].float()
             Force_label_cpu = sample_batches["Force"][:, :, :].float()
-            Sij_max_cpu = sample_batches["max_ri"].float()
+            # Sij_max_cpu = sample_batches["max_ri"].float()
 
             if args.optimizer_param.train_egroup is True:
                 Egroup_label_cpu = sample_batches["Egroup"].float()
@@ -84,8 +83,8 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
         else:
             raise Exception("Error! Please specify floating point type: float32 or float64 by the parameter --datatype! ")
         
-        if max(Sij_max_cpu) > Sij_max:
-            Sij_max = max(Sij_max_cpu)
+        # if max(Sij_max_cpu) > Sij_max:
+        #     Sij_max = max(Sij_max_cpu)
 
         dR_neigh_list_cpu = sample_batches["ListNeighbor"].int()
         natoms_img_cpu = sample_batches["ImageAtomNum"].int()
@@ -288,7 +287,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
         loss_Virial.root,
         loss_Virial_per_atom.root,
         real_lr,
-        Sij_max,    
+        # Sij_max,    
     )
 
 def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:InputParam):
@@ -317,7 +316,6 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
     model.train()
 
     end = time.time()
-    Sij_max = 0.0   # max Rij before davg and dstd cacled
     for i, sample_batches in enumerate(train_loader):
         # measure data loading time
         data_time.update(time.time() - end)
@@ -340,7 +338,6 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
             Ei_label_cpu    = sample_batches["Ei"].float()
             Etot_label_cpu  = sample_batches["Etot"].float()
             Force_label_cpu = sample_batches["Force"][:, :, :].float()
-            position_cpu    = sample_batches["sample_batches"][:, :, :].float()
             if args.optimizer_param.train_egroup is True:
                 Egroup_label_cpu  = sample_batches["Egroup"].float()
                 Divider_cpu       = sample_batches["Divider"].float()
@@ -481,7 +478,7 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
         batch_time.all_reduce()
     """
     progress.display_summary(["Training Set:"])
-    return losses.avg, loss_Etot.root, loss_Etot_per_atom.root, loss_Force.root, loss_Ei.root, loss_Egroup.root, loss_Virial.root, loss_Virial_per_atom.root, Sij_max
+    return losses.avg, loss_Etot.root, loss_Etot_per_atom.root, loss_Force.root, loss_Ei.root, loss_Egroup.root, loss_Virial.root, loss_Virial_per_atom.root
 
 '''
 description: 
