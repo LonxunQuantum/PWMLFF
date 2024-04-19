@@ -104,7 +104,7 @@ class OptimizerParam(object):
             self.population = get_parameter("population", optimizer_dict, 50) # population size used in the SNES algorithm [Schaul2011]
             self.generation = get_parameter("generation", optimizer_dict, 100000) # number of generations used by the SNES algorithm [Schaul2011]
             self.eta_m = get_parameter("eta_m", optimizer_dict, None) # population size used in the SNES algorithm [Schaul2011]
-            self.eta_s = get_parameter("generation", optimizer_dict, None) # number of generations used by the SNES algorithm [Schaul2011]
+            self.eta_s = get_parameter("eta_s", optimizer_dict, None) # number of generations used by the SNES algorithm [Schaul2011]
         
     def to_linear_dict(self):
         opt_dict = {}

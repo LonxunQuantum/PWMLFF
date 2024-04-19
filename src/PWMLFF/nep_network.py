@@ -395,8 +395,8 @@ class nep_network:
         if self.input_param.optimizer_param.opt_name == "SNES":
             train_lists.append("Loss_l1")
             train_lists.append("Loss_l2")
-            valid_lists.append("Loss_l1")
-            valid_lists.append("Loss_l2")
+            # valid_lists.append("Loss_l1")
+            # valid_lists.append("Loss_l2")
         if self.input_param.optimizer_param.opt_name == "LKF" or self.input_param.optimizer_param.opt_name == "GKF":
             train_lists.extend(["time"])
         else:
@@ -490,7 +490,7 @@ class nep_network:
             if self.input_param.optimizer_param.opt_name == "LKF" or self.input_param.optimizer_param.opt_name == "GKF":
                 train_log_line += "%10.4f" % (time_end - time_start)
             else:
-                train_log_line += "%18.10e%10.4f" % (real_lr, time_end - time_start)
+                train_log_line += "%18.10e%10.4f" % (-1 , time_end - time_start)
 
             f_train_log.write("%s\n" % (train_log_line))
             f_valid_log.write("%s\n" % (valid_log_line))
@@ -511,7 +511,9 @@ class nep_network:
                     "s": optimizer.get_s(),
                     "q_scaler": model.get_q_scaler(),
                     "optimizer":optimizer.state_dict()                        
-                    }
+                    },
+                    self.input_param.file_paths.model_name,
+                    self.input_param.file_paths.model_store_dir,                    
                 )
 
             elif self.input_param.optimizer_param.opt_name in ["LKF", "GKF"] and \

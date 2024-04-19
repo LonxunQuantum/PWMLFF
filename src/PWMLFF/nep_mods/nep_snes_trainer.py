@@ -34,7 +34,6 @@ def train_snes(train_loader, model:NEP, criterion, optimizer:SNESOptimizer, epoc
         prefix="Epoch: [{}]".format(epoch),
     )
 
-
     model.train()
     end = time.time()
     # Sij_max = 0.0   # max Rij before davg and dstd cacled
@@ -124,15 +123,23 @@ def train_snes(train_loader, model:NEP, criterion, optimizer:SNESOptimizer, epoc
                         train_type="NEP"
                 )
             losses.update(_low_loss.item(), batch_size)
-            loss_Etot.update(_low_mse_etot.item(), batch_size)
-            loss_Etot_per_atom.update((_low_mse_etot/natoms/natoms).item(), batch_size)
-            loss_Ei.update(_low_mse_ei.item(), batch_size)
-            if args.optimizer_param.train_egroup is True:
-                loss_Egroup.update(_low_mse_Egroup.item(), batch_size)
-            if args.optimizer_param.train_virial is True:
-                loss_Virial.update(_low_mse_Virial.item(), batch_size)
-                loss_Virial_per_atom.update((_low_mse_Virial/natoms/natoms).item(), batch_size)
-            loss_Force.update(_low_mse_F.item(), batch_size)
+            loss_l1.update(_low_L1.item(), batch_size)
+            loss_l2.update(_low_L2.item(), batch_size)
+            # loss_Etot.update(_low_mse_etot.item(), batch_size)
+            loss_Etot.update(_low_mse_etot.item(), batch_size) if _low_mse_etot is not None else loss_Etot.update(0, batch_size)
+            # loss_Etot_per_atom.update((_low_mse_etot/natoms/natoms).item(), batch_size)
+            loss_Etot_per_atom.update((_low_mse_etot/natoms/natoms).item(), batch_size) if _low_mse_etot is not None else loss_Etot_per_atom.update(0, batch_size)
+            # loss_Ei.update(_low_mse_ei.item(), batch_size) 
+            loss_Ei.update(_low_mse_ei.item(), batch_size) if _low_mse_ei is not None else loss_Ei.update(0, batch_size)
+            # loss_Egroup.update(_low_mse_Egroup.item(), batch_size)
+            loss_Egroup.update(_low_mse_Egroup.item(), batch_size) if _low_mse_Egroup is not None else loss_Egroup.update(0, batch_size)
+            # loss_Virial.update(_low_mse_Virial.item(), batch_size)
+            loss_Virial.update(_low_mse_Virial.item(), batch_size) if _low_mse_Virial is not None else loss_Virial.update(0, batch_size)
+            # loss_Virial_per_atom.update((_low_mse_Virial/natoms/natoms).item(), batch_size)
+            loss_Virial_per_atom.update((_low_mse_Virial/natoms/natoms).item(), batch_size) if _low_mse_Virial is not None else loss_Virial_per_atom.update(0, batch_size)
+            # loss_Force.update(_low_mse_F.item(), batch_size)
+            loss_Force.update(_low_mse_F.item(), batch_size) if _low_mse_F is not None else loss_Force.update(0, batch_size)
+
         # loss = "{:18} {:18} {:18} {:18} {:18} {:18} {:18} {:18}".format(
         #         _low_loss, _low_rmse_etot, _low_rmse_ei, _low_rmse_F, _low_rmse_Egroup, _low_rmse_Virial, _low_L1, _low_L2)
 

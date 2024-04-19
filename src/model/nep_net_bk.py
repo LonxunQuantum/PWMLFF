@@ -210,7 +210,7 @@ class NEP(nn.Module):
         Returns:
             Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]]: Tuple containing the total energy (Etot), atomic energies (Ei), forces (Force), energy group (Egroup), and virial (Virial).
         """
-        # check_cuda_memory(-1, -1, "=====FORWAR START=====")
+        check_cuda_memory(-1, -1, "=====FORWAR START=====")
         t0 = time.time()
         device = ImageDR.device
         dtype = ImageDR.dtype
@@ -221,29 +221,29 @@ class NEP(nn.Module):
         t11 = time.time()
         fitnet_index = self.get_fitnet_index(atom_type)
         t1 = time.time()
-        # check_cuda_memory(-1, -1, "FORWAR get_fitnet_index")
+        check_cuda_memory(-1, -1, "FORWAR get_fitnet_index")
         # print("t12 {} t11 {} t10 {}".format(t1-t11, t11-t10, t10-t0))
         Ri, Ri_d = self.calculate_Ri(natoms_sum, batch_size, max_neighbor_type, Imagetype_map, ImageDR, device, dtype)
         Ri.requires_grad_()
         t2 = time.time()
-        # check_cuda_memory(-1, -1, "FORWAR calculate_Ri")
+        check_cuda_memory(-1, -1, "FORWAR calculate_Ri")
         feats = self.calculate_qn(natoms_sum, batch_size, max_neighbor_type, Imagetype_map, Ri, device, dtype)
         t3 = time.time()
         if self.q_scaler is None:
             # before_scaler = feats.reshape([-1, feats.shape[-1]])
             self.q_scaler = (1 / (torch.max(feats.reshape([-1, feats.shape[-1]]), dim=-2)[0] - torch.min(feats.reshape([-1, feats.shape[-1]]), dim=-2)[0])).detach()
         feats = feats * self.q_scaler.unsqueeze(0).repeat(feats.shape[0], feats.shape[1], 1)
-        # check_cuda_memory(-1, -1, "FORWAR set q_scaler")
+        check_cuda_memory(-1, -1, "FORWAR set q_scaler")
         t4 = time.time()
         Ei = self.calculate_Ei(Imagetype_map, batch_size, feats, fitnet_index, device)
         t5 = time.time()
-        # check_cuda_memory(-1, -1, "FORWAR calculate_Ei")
+        check_cuda_memory(-1, -1, "FORWAR calculate_Ei")
         assert Ei is not None
         Etot = torch.sum(Ei, 1)
         Egroup = self.get_egroup(Ei, Egroup_weight, divider) if Egroup_weight is not None else None
         Ei = torch.squeeze(Ei, 2)
         t6 = time.time()
-        # check_cuda_memory(-1, -1, "FORWAR calculate_Egroup")
+        check_cuda_memory(-1, -1, "FORWAR calculate_Egroup")
         if is_calc_f is False:
             Force, Virial = None, None
             # print("==single time: t1 {} t2 {} t3 {} t4 {} t5 {} t6 {}".format(t1-t0, t2-t1, t3-t2, t4-t3, t5-t4, t6-t5))
@@ -252,7 +252,7 @@ class NEP(nn.Module):
             Force, Virial = self.calculate_force_virial(Ri, Ri_d, Etot, natoms_sum, batch_size, list_neigh, ImageDR, nghost, device, dtype)
             t7 = time.time()
             # print("==single time: t1 {} t2 {} t3 {} t4 {} t5 {} t6 {} t7 {}".format(t1-t0, t2-t1, t3-t2, t4-t3, t5-t4, t6-t5, t7-t6))
-            # check_cuda_memory(-1, -1, "FORWAR calculate_force")
+            check_cuda_memory(-1, -1, "FORWAR calculate_force")
         del Ri, Ri_d, feats
         torch.cuda.empty_cache()
         return Etot, Ei, Force, Egroup, Virial
@@ -389,11 +389,11 @@ class NEP(nn.Module):
                      Ri: torch.Tensor, 
                      device: torch.device,
                      dtype: torch.dtype) -> Tuple[torch.Tensor, torch.Tensor]:
-        # check_cuda_memory(-1, -1, "FORWAR calculate_qn start")
+        check_cuda_memory(-1, -1, "FORWAR calculate_qn start")
         R = Ri[:, :, :, 0]
         xyz = Ri[:, :, :, 1:]
         feat_2b = self.cal_feat_2body(R, Imagetype_map, self.n_max_radial, self.n_base_radial, self.cutoff_radial, self.rcinv_radial)
-        # check_cuda_memory(-1, -1, "FORWAR calculate_qn 2b end")
+        check_cuda_memory(-1, -1, "FORWAR calculate_qn 2b end")
         feat_3b, feat_4b, feat_5b = self.cal_feat_multi_body(R, xyz, Imagetype_map, self.n_max_angular, self.n_base_angular, self.cutoff_angular, self.rcinv_angular, self.l_max_3b)
         if feat_5b is not None:
             return torch.concat([feat_2b, feat_3b, feat_4b, feat_5b], dim=-1)
@@ -409,10 +409,10 @@ class NEP(nn.Module):
             n_base:int,
             Imagetype_map : torch.Tensor) -> Tuple[torch.Tensor]: #get c params from c[n_type,n_type, n_max, n_base] 
         c1 = c[Imagetype_map, :, :, :] #search by i
-        c2 = c1[:, self.j_list, :, :].transpose(1,2)   # search by j
-        # c3 = c2.transpose(1,2)  # to [I, n_max, J, n_base] 利用广播机制即可，点乘操作不需要维度完全一致，不用补batch size
-        # c4 = c3.unsqueeze(0).repeat(R.shape[0], 1, 1, 1 ,1) # to [batch, I, n_max, J, n_base]
-        return c2
+        c2 = c1[:, self.j_list, :, :]   # search by j
+        c3 = c2.transpose(1,2)  # to [I, n_max, J, n_base]
+        c4 = c3.unsqueeze(0).repeat(R.shape[0], 1, 1, 1 ,1) # to [batch, I, n_max, J, n_base]
+        return c4
 
     def cal_fk(self,
                 rij: torch.Tensor,
@@ -448,15 +448,10 @@ class NEP(nn.Module):
                         n_base: int,
                         rcut: float,
                         rcinv: float) -> Tuple[torch.Tensor, torch.Tensor]:
-        # check_cuda_memory(-1, -1, "FORWAR calculate_qn 2b start")
         c2 = self.get_c(self.c_param_2, rij, n_max, n_base, Imagetype_map)
-        # check_cuda_memory(-1, -1, "FORWAR calculate_qn 2b c2")
         fk = self.cal_fk(rij, n_base, rcut, rcinv)
-        # check_cuda_memory(-1, -1, "FORWAR calculate_qn 2b fk")
         fk_res = fk.unsqueeze(2).repeat(1, 1, n_max+1, 1, 1)    # n_max_r+1 个feature区别是在c系数上，fk是一样的
-        # check_cuda_memory(-1, -1, "FORWAR calculate_qn 2b fk_res")
         feat_2b = (c2 * fk_res).sum(-1).sum(-1) # sum n_base_r and sum j
-        # check_cuda_memory(-1, -1, "FORWAR calculate_qn 2b feat_2b")
         return feat_2b # 检查下dp 的feature 和dfeature 维度,本应该对每一个feature，都有对应的rij的导数
 
     def cal_feat_multi_body(
@@ -469,24 +464,24 @@ class NEP(nn.Module):
                     rcut: float,
                     rcinv: float,
                     l_max_3b: int) -> Tuple[torch.Tensor, torch.Tensor]:
-        # check_cuda_memory(-1, -1, "FORWAR calculate_qn 3b start")
+        check_cuda_memory(-1, -1, "FORWAR calculate_qn 3b start")
         c3 = self.get_c(self.c_param_3, rij, n_max, n_base, Imagetype_map)
-        # check_cuda_memory(-1, -1, "FORWAR calculate_qn ck start")
+        check_cuda_memory(-1, -1, "FORWAR calculate_qn ck start")
         fk = self.cal_fk(rij, n_base, rcut, rcinv)
-        # check_cuda_memory(-1, -1, "FORWAR calculate_qn fk start")
+        check_cuda_memory(-1, -1, "FORWAR calculate_qn fk start")
         # c * tk
         gn1 = (c3 * (fk.unsqueeze(2).repeat(1, 1, n_max+1, 1, 1))).sum(-1)   # n_max_r 个feature区别是在c系数上，fk是一样的 # sum n_base
-        # check_cuda_memory(-1, -1, "FORWAR calculate_qn gn1 start")
+        check_cuda_memory(-1, -1, "FORWAR calculate_qn gn1 start")
         gn2 = gn1.unsqueeze(-1).repeat(1, 1, 1, 1, 24) # lmax_3body = 4 [1, 96, 5, 200, 24]
-        # check_cuda_memory(-1, -1, "FORWAR calculate_qn gn2 start")
+        check_cuda_memory(-1, -1, "FORWAR calculate_qn gn2 start")
         blm = self.cal_blm_ij(rij, xyz, rcut) #[1, 96, 200, 24]
-        # check_cuda_memory(-1, -1, "FORWAR calculate_qn blm start")
+        check_cuda_memory(-1, -1, "FORWAR calculate_qn blm start")
         blm2 = blm.unsqueeze(2).repeat(1, 1, n_max + 1, 1, 1)# [1, 96, 5, 200, 24] 这里blm = blm(xij,yij,zij) / rij^l
-        # check_cuda_memory(-1, -1, "FORWAR calculate_qn blm2 start")
+        check_cuda_memory(-1, -1, "FORWAR calculate_qn blm2 start")
         snlm = (gn2 * blm2).sum(3) #gn * blm, then sum j : [1, 96, 5, 200, 24] -> [1, 96, 5, 24]
-        # check_cuda_memory(-1, -1, "FORWAR calculate_qn snlm start")
+        check_cuda_memory(-1, -1, "FORWAR calculate_qn snlm start")
         snlm_sq = snlm**2
-        # check_cuda_memory(-1, -1, "FORWAR calculate_qn snlm_sq start")
+        check_cuda_memory(-1, -1, "FORWAR calculate_qn snlm_sq start")
         # 常系数C
         c_lm = self.C3B.unsqueeze(0).unsqueeze(0).unsqueeze(0).repeat(snlm_sq.shape[0],snlm_sq.shape[1],snlm_sq.shape[2],1)
         qnlm = c_lm * snlm_sq
@@ -496,7 +491,7 @@ class NEP(nn.Module):
         qnl[:, :, :, 2] = qnlm[:, :, :, 8:15].sum(-1)
         qnl[:, :, :, 3] = qnlm[:, :, :, 15:24].sum(-1)
         feat_3b = qnl.view(qnl.shape[0], qnl.shape[1], -1) # 3体feature
-        # check_cuda_memory(-1, -1, "FORWAR calculate_qn 3b end")
+        check_cuda_memory(-1, -1, "FORWAR calculate_qn 3b end")
 
         # feature 4
         if self.l_max_4b != 0:
@@ -513,7 +508,7 @@ class NEP(nn.Module):
         else:
             feat_4b = None
         # feature 5
-        # check_cuda_memory(-1, -1, "FORWAR calculate_qn 4b end")
+        check_cuda_memory(-1, -1, "FORWAR calculate_qn 4b end")
         if self.l_max_5b != 0:
             sn10_sq = snlm_sq[:, :, :, 0]
             sn11_sq = snlm_sq[:, :, :, 1]
@@ -521,7 +516,7 @@ class NEP(nn.Module):
             feat_5b = self.C5B[0] * sn10_sq + self.C5B[1] * sn10_sq * (sn11_sq + sn12_sq) + self.C5B[2] * (sn11_sq + sn12_sq)**2
         else:
             feat_5b = None
-        # check_cuda_memory(-1, -1, "FORWAR calculate_qn 5b end")
+        check_cuda_memory(-1, -1, "FORWAR calculate_qn 5b end")
         return feat_3b, feat_4b, feat_5b
 
     def cal_blm_ij(self,
