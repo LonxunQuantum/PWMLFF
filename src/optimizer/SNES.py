@@ -95,9 +95,9 @@ class SNESOptimizer(Optimizer):
     ) -> None:
         # generation = self.generation
         population = self.population
-        batch_size = inputs[0].shape[0]
-        natoms_sum = inputs[0].shape[1]
-        max_neighbor_type = inputs[0].shape[2]
+        # batch_size = inputs[0].shape[0]
+        # natoms_sum = inputs[0].shape[1]
+        # max_neighbor_type = inputs[0].shape[2]
         # c_num = self.input_param.nep_param.c2_param
         loss_list = []
         mse_etot, mse_ei, mse_F, mse_Egroup, mse_Virial = None, None, None, None, None
@@ -129,7 +129,7 @@ class SNESOptimizer(Optimizer):
                 if self.input_param.optimizer_param.train_ei is True:
                     mse_ei = criterion(Ei_predict, Ei_label)
                     loss += self.input_param.optimizer_param.pre_fac_ei * mse_ei**0.5
-                if self.input_param.optimizer_param.train_force is False:
+                if self.input_param.optimizer_param.train_force is True:
                     mse_F = criterion(Force_predict, Force_label)
                     loss += self.input_param.optimizer_param.pre_fac_force * mse_F**0.5
                 if self.input_param.optimizer_param.train_egroup is True:

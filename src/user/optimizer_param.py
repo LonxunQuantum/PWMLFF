@@ -186,4 +186,20 @@ class OptimizerParam(object):
             opt_dict["population"] =  self.population
             opt_dict["generation"] =  self.generation
 
-        return opt_dict
+    def snes_to_nep_txt(self):
+        content = ""
+        content += "lambda_e    {}\n".format(self.pre_fac_etot)
+        content += "lambda_f    {}\n".format(self.pre_fac_force)
+        content += "lambda_v    {}\n".format(self.pre_fac_virial)
+        content += "batch       {}\n".format(self.batch_size)        
+        # content += "lambda_eg   {}\n".format(self.pre_fac_egroup)
+        # content += "lambda_ei   {}\n".format(self.pre_fac_ei)
+        if self.lambda_1 != -1:
+            content += "lambda_1    {}\n".format(self.lambda_1)
+        if self.lambda_2 != -1:
+            content += "lambda_2    {}\n".format(self.lambda_2)
+        if self.force_delta is not None and self.force_delta != 0:
+            content += "force_delta {}\n".format(self.force_delta)
+        content += "population  {}\n".format(self.population)
+        content += "generation  {}\n".format(self.generation)
+        return content

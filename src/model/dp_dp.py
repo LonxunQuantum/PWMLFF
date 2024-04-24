@@ -189,7 +189,7 @@ class DP(nn.Module):
         natoms_sum = list_neigh.shape[1]
         max_neighbor_type = list_neigh.shape[2]  # ntype * max_neighbor_num
         emb_list, type_nums = self.get_train_2body_type(atom_type)
-        # t1 = time.time()
+        # t1 = time.time() # the calculate_ri could be only calculate one time in each batch train (Etot, Ei, Force update)
         Ri, Ri_d = self.calculate_Ri(natoms_sum, batch_size, max_neighbor_type, Imagetype_map, ImageDR, device, dtype)
         Ri.requires_grad_()
         # t2 = time.time()

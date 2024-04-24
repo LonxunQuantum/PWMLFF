@@ -116,7 +116,7 @@ class NepParam(object):
         self.model_type = 0 # select to train potential 0, dipole 1, or polarizability 2
         self.prediction = 0 # select between training and prediction (inference)
         self.zbl = None # outer cutoff for the universal ZBL potential [Ziegler1985]
-        self.cutoff = get_parameter("cutoff", descriptor_dict, [8, 6]) # radial () and angular () cutoffs # use dp rcut, default to 6
+        self.cutoff = get_parameter("cutoff", descriptor_dict, [6, 6]) # radial () and angular () cutoffs # use dp rcut, default to 6
         self.n_max = get_parameter("n_max", descriptor_dict, [4, 4]) # size of radial () and angular () basis
         if len(self.n_max) != 2:
             raise Exception("the input 'n_max' should has 2 values, such as [4, 4]")
@@ -184,66 +184,71 @@ class NepParam(object):
                 nep_dict[key.lower()] = value_str.strip()
         return nep_dict
 
-    def to_dict(self):
-        dicts = {}
-        dicts["version"] = self.version
-        dicts["type"] = self.type_num
-        if self.type_weight is not None:
-            dicts["type_weight"] = self.type_weight
-        dicts["model_type"] = self.model_type
-        dicts["prediction"] = self.prediction
-        if self.zbl is not None:
-            dicts["zbl"] = self.zbl
-        dicts["cutoff"] = self.cutoff
-        dicts["n_max"] = self.n_max
-        dicts["basis_size"] = self.basis_size
-        dicts["l_max"] = self.l_max
-        dicts["neuron"] = self.neuron
-        dicts["lambda_1"] = self.lambda_1
-        dicts["lambda_2"] = self.lambda_2
-        dicts["lambda_e"] = self.lambda_e
-        dicts["lambda_f"] = self.lambda_f
-        dicts["lambda_v"] = self.lambda_v
-        if self.force_delta is not None:
-            dicts["force_delta"] = self.force_delta
-        dicts["batch"] = self.batch
-        dicts["population"] = self.population
-        dicts["generation"] = self.generation
-        return dicts
+    # def to_dict(self):
+    #     dicts = {}
+    #     dicts["version"] = self.version
+    #     dicts["type"] = self.type_num
+    #     if self.type_weight is not None:
+    #         dicts["type_weight"] = self.type_weight
+    #     dicts["model_type"] = self.model_type
+    #     dicts["prediction"] = self.prediction
+    #     if self.zbl is not None:
+    #         dicts["zbl"] = self.zbl
+    #     dicts["cutoff"] = self.cutoff
+    #     dicts["n_max"] = self.n_max
+    #     dicts["basis_size"] = self.basis_size
+    #     dicts["l_max"] = self.l_max
+    #     dicts["neuron"] = self.neuron
+    #     dicts["lambda_1"] = self.lambda_1
+    #     dicts["lambda_2"] = self.lambda_2
+    #     dicts["lambda_e"] = self.lambda_e
+    #     dicts["lambda_f"] = self.lambda_f
+    #     dicts["lambda_v"] = self.lambda_v
+    #     if self.force_delta is not None:
+    #         dicts["force_delta"] = self.force_delta
+    #     dicts["batch"] = self.batch
+    #     dicts["population"] = self.population
+    #     dicts["generation"] = self.generation
+    #     return dicts
 
-    def to_txt(self):
+    def to_nep_in_txt(self):
         content = ""
-        content += "version {}\n".format(self.version)
-        content += "type {}\n".format(self.type_num)
-        if self.type_weight is not None:
-            content += "type_weight {}\n".format(self.type_weight)
-        content += "model_type {}\n".format(self.model_type)
-        content += "prediction {}\n".format(self.prediction)
-        if self.zbl is not None:
-            content += "zbl {}\n".format(self.zbl)
-        content += "cutoff {}\n".format(self.cutoff)
-        content += "n_max {}\n".format(self.n_max)
-        content += "basis_size {}\n".format(self.basis_size)
-        content += "l_max {}\n".format(self.l_max)
-        content += "neuron {}\n".format(self.neuron[:-1]) # filter the output layer
-        content += "lambda_1 {}\n".format(self.lambda_1)
-        content += "lambda_2 {}\n".format(self.lambda_2)
-        content += "lambda_e {}\n".format(self.lambda_e)
-        content += "lambda_f {}\n".format(self.lambda_f)
-        content += "lambda_v {}\n".format(self.lambda_v)
-        if self.force_delta is not None:
-            content += "force_delta {}\n".format(self.force_delta)
-        content += "batch {}\n".format(self.batch)
-        content += "population {}\n".format(self.population)
-        content += "generation {}\n".format(self.generation)
+        content += "version     {}\n".format(self.version)
+        content += "type        {}\n".format(self.type)
+        # if self.type_weight is not None:
+        #     content += "type_weight {}\n".format(self.type_weight)
+        content += "model_type  {}\n".format(self.model_type)
+        content += "prediction  {}\n".format(self.prediction)
+        if self.zbl is not None: #' '.join(map(str, int_list))
+            content += "zbl         {}\n".format(self.zbl)
+        content += "cutoff      {}\n".format(" ".join(map(str, self.cutoff)))
+        content += "n_max       {}\n".format(" ".join(map(str, self.n_max)))
+        content += "basis_size  {}\n".format(" ".join(map(str, self.basis_size)))
+        content += "l_max       {}\n".format(" ".join(map(str, self.l_max)))
+        content += "neuron      {}\n".format(self.neuron[0]) # filter the output layer
+        # these are from optimizer SNES
+        # content += "lambda_1 {}\n".format(self.lambda_1)
+        # content += "lambda_2 {}\n".format(self.lambda_2)
+        # content += "lambda_e {}\n".format(self.lambda_e)
+        # content += "lambda_f {}\n".format(self.lambda_f)
+        # content += "lambda_v {}\n".format(self.lambda_v)
+        # if self.force_delta is not None:
+        #     content += "force_delta {}\n".format(self.force_delta)
+        # content += "batch {}\n".format(self.batch)
+        # content += "population {}\n".format(self.population)
+        # content += "generation {}\n".format(self.generation)
+        return content
+    
+    def to_nep_txt(self):
+        content = ""
+        content += "nep4   {}\n".format(self.type)    #line1
+        content += "cutoff {}\n".format(" ".join(map(str, self.cutoff)))    #line2
+        content += "n_max  {}\n".format(" ".join(map(str, self.n_max)))    #line3
+        content += "basis_size {}\n".format(" ".join(map(str, self.basis_size)))    #line4
+        content += "l_max  {}\n".format(" ".join(map(str, self.l_max)))    #line5
+        content += "ANN    {} {}\n".format(self.neuron[0], 0)    #line6
         return content
 
-    def to_nep_in_file(self, file_path:str):
-        content = self.to_txt()
-        with open(file_path, 'w') as wf:
-            wf.writelines(content)
-        print("Successfully generated nep.in file.")
-    
     '''
     description: 
         the format of type in nep.in file is as:

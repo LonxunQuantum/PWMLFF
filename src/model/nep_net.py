@@ -1,6 +1,7 @@
 import sys, os
 import time
 from math import pi as PI
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -52,6 +53,19 @@ class NEP(nn.Module):
                                                     ))
         self.max_neigh_num = self.input_param.max_neigh_num
 
+    def get_nn_params(self):
+        nn_params = []
+        type_bias = []
+        for i in range(self.ntypes):
+            params = self.fitting_net[i].get_param_list()
+            nn_params.extend(params[:-1])
+            type_bias.append(params[-1])
+        nn_params.append(np.mean(type_bias))
+        nn_params.extend(list(self.c_param_2.flatten().cpu().detach().numpy()))
+        nn_params.extend(list(self.c_param_3.flatten().cpu().detach().numpy()))
+        nn_params.extend(list(self.q_scaler.flatten().cpu().detach().numpy()))
+        return nn_params
+        
     '''
     description: 
     maybe these params could be get from model, descriptor and optimizor object

@@ -485,8 +485,8 @@ class nep_network:
                 train_log_line += "%23.10e" % (loss_virial_per_atom)
                 valid_log_line += "%23.10e" % (val_loss_virial_per_atom)
             if self.input_param.optimizer_param.opt_name == "SNES": 
-                train_log_line += "%23.10e" % (loss_l1)
-                train_log_line += "%23.10e" % (loss_l2)
+                train_log_line += "%18.10e" % (loss_l1)
+                train_log_line += "%18.10e" % (loss_l2)
             if self.input_param.optimizer_param.opt_name == "LKF" or self.input_param.optimizer_param.opt_name == "GKF":
                 train_log_line += "%10.4f" % (time_end - time_start)
             else:
@@ -515,6 +515,7 @@ class nep_network:
                     self.input_param.file_paths.model_name,
                     self.input_param.file_paths.model_store_dir,                    
                 )
+                self.convert_to_gpumd(model)
 
             elif self.input_param.optimizer_param.opt_name in ["LKF", "GKF"] and \
                 self.input_param.file_paths.save_p_matrix:
@@ -546,6 +547,26 @@ class nep_network:
                     self.input_param.file_paths.model_name,
                     self.input_param.file_paths.model_store_dir,
                 )
+
+    def convert_to_gpumd(self, model:NEP):
+        model_content = self.input_param.nep_param.to_nep_in_txt()
+        train_content = self.input_param.optimizer_param.snes_to_nep_txt()
+        model_content += train_content
+        save_nep_in_path = os.path.join(self.input_param.file_paths.model_store_dir, self.input_param.file_paths.nep_in_file)
+
+        # extract parameters
+        txt_head = self.input_param.nep_param.to_nep_txt()
+        txt_body = model.get_nn_params()
+        txt_body_str = "\n".join(map(str, txt_body))
+        txt_head += txt_body_str
+        save_nep_txt_path = os.path.join(self.input_param.file_paths.model_store_dir, self.input_param.file_paths.nep_model_file)
+
+        with open(save_nep_in_path, 'w') as wf:
+            wf.writelines(model_content)
+
+        with open(save_nep_txt_path, 'w') as wf:
+            wf.writelines(txt_head)
+        print("Successfully convert to nep.in and nep.txt file.")        
 
     def load_model_with_ckpt(self, davg, dstd, energy_shift):
         model, optimizer = self.load_model_optimizer(davg, dstd, energy_shift)
