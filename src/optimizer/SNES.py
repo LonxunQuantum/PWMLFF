@@ -106,11 +106,11 @@ class SNESOptimizer(Optimizer):
         r_k = torch.normal(mean=0, std=1, size=(population, self.opt_param_nums), dtype=self.dtype, device=self.device)
         z = self.m.unsqueeze(0).repeat(population, 1) + \
             self.s.unsqueeze(0).repeat(population, 1) * r_k
-        # check_cuda_memory(-1, -1, "before train")
+        check_cuda_memory(-1, -1, "before train")
         for k in range(0, population):
             # self.zero_grad()
-            # check_cuda_memory(k, population, "start k {}".format(k))
-            self.set_model_param(z[k, :])
+            check_cuda_memory(k, population, "start k {}".format(k))
+            # self.set_model_param(z[k, :])
             if train_type == "DP" or train_type == "NEP":
                 Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = self.model(
                 inputs[0], inputs[1], inputs[2], inputs[3], 0, inputs[4], inputs[5], is_calc_f = True

@@ -74,7 +74,7 @@ def save_to_extxyz(image_data_all: list, output_path: str, data_name: str, write
             image_data._set_cartesian()
         data_name.write("%d\n" % image_data.atom_nums)
         # data_name.write("Iteration: %s\n" % image_data.iteration)
-        output_head = 'Lattice="%.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f" Properties=species:S:1:pos:R:3:force:R:3 pbc="T T T" energy={}\n'.format(image_data.Ep)
+        output_head = 'Lattice="%f %f %f %f %f %f %f %f %f" Properties=species:S:1:pos:R:3:force:R:3 pbc="T T T" energy={}\n'.format(image_data.Ep)
         output_extended = (image_data.lattice[0][0], image_data.lattice[0][1], image_data.lattice[0][2], 
                                 image_data.lattice[1][0], image_data.lattice[1][1], image_data.lattice[1][2], 
                                 image_data.lattice[2][0], image_data.lattice[2][1], image_data.lattice[2][2])
@@ -88,8 +88,8 @@ def save_to_extxyz(image_data_all: list, output_path: str, data_name: str, write
     print("Convert to %s successfully!" % data_name)
 
 if __name__ == "__main__":
-    datasets_path = ["/data/home/wuxingxing/datas/PWMLFF_library_data/HfO2/hfo2_dpgen/HfO2_liutheory/mvms/mvm_init_000_50"]
-    save_dir = "/data/home/wuxingxing/datas/PWMLFF_library_data/HfO2/hfo2_dpgen/HfO2_liutheory/mvms/"
+    datasets_path = ["/data/home/wuxingxing/codespace/PWMLFF_nep/al_dir/HfO2/models/baseline_nep/nep_ff_1image/mvm_10"]
+    save_dir = "/data/home/wuxingxing/codespace/PWMLFF_nep/al_dir/HfO2/models/baseline_nep/nep_ff_1image/"
     input_format  = "pwmat/movement" # 支持格式："pwmlff/mpy","pwmat/movement","vasp/outcar",dpdata/npy","dpdata/raw"
     valid_shuffle = True             #分割训练集验证集时，是否随机分割
     train_valid_ratio = 0.8          #分割训练集、测试集比例

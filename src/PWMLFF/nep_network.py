@@ -133,11 +133,11 @@ class nep_network:
             valid_dataset = None
         else:            
             train_dataset = MovementDataset([os.path.join(_, config['trainDataPath']) for _ in self.input_param.file_paths.datasets_path], 
-                                            config, energy_shift, max_atom_nums)
+                                            config, self.input_param, energy_shift, max_atom_nums)
             valid_dataset = MovementDataset([os.path.join(_, config['validDataPath']) 
                                              for _ in self.input_param.file_paths.datasets_path
                                              if os.path.exists(os.path.join(_, config['validDataPath']))],
-                                             config, energy_shift, max_atom_nums)
+                                             config, self.input_param, energy_shift, max_atom_nums)
 
         energy_shift, atom_map = train_dataset.get_stat()
 
@@ -357,6 +357,7 @@ class nep_network:
         energy_shift, atom_map, train_loader, val_loader = self.load_data(energy_shift, max_atom_nums)
          #energy_shift is same as energy_shift of upper; atom_map is the user input order
         model, optimizer = self.load_model_optimizer(energy_shift)
+
         if self.input_param.optimizer_param.opt_name == "SNES":
             self.input_param.optimizer_param.epochs = int(self.input_param.optimizer_param.generation/len(train_loader))
             print("Automatically adjust 'epochs' to {} based on population size (image nums {} generation {})"\
@@ -434,6 +435,7 @@ class nep_network:
                 loss, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_egroup, loss_virial, loss_virial_per_atom = train_KF(
                     train_loader, model, self.criterion, optimizer, epoch, self.device, self.input_param
                 )
+
             elif self.input_param.optimizer_param.opt_name == "SNES":
                 loss, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_egroup, loss_virial, loss_virial_per_atom, loss_l1, loss_l2 = train_snes(
                     train_loader, model, self.criterion, optimizer, epoch, self.device, self.input_param
@@ -444,6 +446,7 @@ class nep_network:
                         self.input_param.optimizer_param.learning_rate, self.device, self.input_param
                 )
             time_end = time.time()
+            #self.convert_to_gpumd(model)
 
             # evaluate on validation set
             vld_loss, vld_loss_Etot, vld_loss_Etot_per_atom, vld_loss_Force, vld_loss_Ei, val_loss_egroup, val_loss_virial, val_loss_virial_per_atom = valid(

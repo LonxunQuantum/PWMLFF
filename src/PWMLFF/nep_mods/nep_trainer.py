@@ -11,6 +11,7 @@ from src.optimizer.KFWrapper import KFOptimizerWrapper
 # import horovod.torch as hvd
 from torch.profiler import profile, record_function, ProfilerActivity
 from src.user.input_param import InputParam
+from utils.debug_operation import check_cuda_memory
 
 def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, args:InputParam):
     batch_time = AverageMeter("Time", ":6.3f")
@@ -316,6 +317,7 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
     model.train()
 
     end = time.time()
+
     for i, sample_batches in enumerate(train_loader):
         # measure data loading time
         data_time.update(time.time() - end)
@@ -355,7 +357,7 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
         atom_type_map_cpu = sample_batches["AtomTypeMap"].int()
         # classify batchs according to their atom type and atom nums
         batch_clusters    = _classify_batchs(np.array(atom_type_cpu), np.array(natoms_img_cpu))
-
+        
         for batch_indexs in batch_clusters:
             # transport data to GPU
             natoms_img = Variable(natoms_img_cpu[batch_indexs].int().to(device))
@@ -463,6 +465,7 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
 
         if i % args.optimizer_param.print_freq == 0:
             progress.display(i + 1)
+        
     """
     if args.hvd:
         losses.all_reduce()

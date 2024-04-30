@@ -131,7 +131,7 @@ class NepParam(object):
             error_log = "the input 'l_max' should has 3 values. The values should be [4, 2, 0] or [4, 2, 1]. The last num '1', means use 5 body features, '0' means not use 5 body features\n"
             raise Exception(error_log)
         if "fitting_net" in model_dict.keys():
-            self.neuron = get_parameter("network_size", model_dict, [100]) # number of neurons in the hidden layer
+            self.neuron = get_parameter("network_size", model_dict["fitting_net"], [100]) # number of neurons in the hidden layer
             if not isinstance(self.neuron, list):
                 self.neuron = [self.neuron]
         else:

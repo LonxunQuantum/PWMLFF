@@ -85,8 +85,8 @@ def train_snes(train_loader, model:NEP, criterion, optimizer:SNESOptimizer, epoc
             # transport data to GPU
             natoms_img = Variable(natoms_img_cpu[batch_indexs].int().to(device))
             natoms     = natoms_img[0]
-            
-            dR_neigh_list = Variable(dR_neigh_list_cpu[batch_indexs, :natoms].int().to(device))
+            type_nums = len(atom_type_cpu[0])
+            dR_neigh_list = Variable(dR_neigh_list_cpu[batch_indexs, :natoms*type_nums].int().to(device))
             # atom list of image
             atom_type     = Variable(atom_type_cpu[batch_indexs].to(device))
             atom_type_map = Variable(atom_type_map_cpu[batch_indexs, :natoms].to(device))
@@ -101,7 +101,7 @@ def train_snes(train_loader, model:NEP, criterion, optimizer:SNESOptimizer, epoc
 
             if args.optimizer_param.train_virial is True:
                 Virial_label = Variable(Virial_label_cpu[batch_indexs].to(device))
-            ImageDR = Variable(ImageDR_cpu[batch_indexs, :natoms].to(device))
+            ImageDR = Variable(ImageDR_cpu[batch_indexs, :natoms*type_nums].to(device))
             # Ri = Variable(Ri_cpu[batch_indexs, :natoms].to(device), requires_grad=True)
             # Ri_d = Variable(Ri_d_cpu[batch_indexs, :natoms].to(device))
             batch_size = dR_neigh_list.shape[0]
