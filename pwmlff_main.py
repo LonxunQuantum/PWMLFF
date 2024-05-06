@@ -114,7 +114,7 @@ if __name__ == "__main__":
             elif model_type == "Linear".upper():
                 linear_test(json_file, cmd_type)
             elif model_type == "NEP".upper():
-                # nep_test(json_file, cmd_type)
+                # # nep_test(json_file, cmd_type)
                 pass
             elif model_type == "CHEBY".upper():
                 cheby_test(json_file, cmd_type)

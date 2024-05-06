@@ -25,3 +25,7 @@ al_dir
 sy_huawei_test
 .vscode/launch.json
 pwmlff_main.py
+src/pre_data/nep_neigh/
+src/pre_data/find_neigh/build
+findneigh.so
+

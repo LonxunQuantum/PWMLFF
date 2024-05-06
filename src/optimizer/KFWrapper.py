@@ -36,7 +36,7 @@ class KFOptimizerWrapper:
                 0,
                 inputs[4],
                 inputs[5],
-                is_calc_f=True# to false
+                is_calc_f=False,
             )
         elif train_type == "NN": # nn training
             Etot_predict, _, _, _, _ = self.model(
@@ -88,7 +88,7 @@ class KFOptimizerWrapper:
         Etot_predict = update_prefactor * Etot_predict
         Etot_predict[mask] = -1.0 * Etot_predict[mask]
 
-        Etot_predict.sum().backward()
+        Etot_predict.sum().backward(retain_graph=True)# retain_graph=True is added for nep training
         error = error * math.sqrt(bs)
         #print("Etot steping")
         self.optimizer.step(error)
@@ -97,7 +97,7 @@ class KFOptimizerWrapper:
     def update_egroup(
         self, inputs: list, Egroup_label: torch.Tensor, update_prefactor: float = 1, train_type = "DP"
     ) -> None:
-        if train_type == "DP":
+        if train_type == "DP" or train_type == "NEP":
             _, _, _, Egroup_predict, _ = self.model( #dp inputs has 7 para
                 inputs[0],
                 inputs[1],
@@ -167,7 +167,7 @@ class KFOptimizerWrapper:
     def update_virial(
         self, inputs: list, Virial_label: torch.Tensor, update_prefactor: float = 1, train_type = "DP"
     ) -> None:
-        if train_type == "DP":
+        if train_type == "DP" or train_type == "NEP":
             Etot_predict, _, _, _, Virial_predict = self.model(
                 inputs[0],
                 inputs[1],
@@ -291,7 +291,7 @@ class KFOptimizerWrapper:
 
         for i in range(index.shape[0]):
             self.optimizer.zero_grad()
-            if train_type == "DP":
+            if train_type == "DP" or train_type == "NEP":
                 Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = self.model(
                     inputs[0], inputs[1], inputs[2], inputs[3], 0, inputs[4], inputs[5]
                 )
@@ -325,7 +325,7 @@ class KFOptimizerWrapper:
             tmp_force_predict[mask] = -1.0 * tmp_force_predict[mask]
 
             # In order to solve a pytorch bug, reference: https://github.com/pytorch/pytorch/issues/43259
-            (tmp_force_predict.sum() + Etot_predict.sum() * 0).backward()
+            (tmp_force_predict.sum() + Etot_predict.sum() * 0).backward(retain_graph=True) # retain_graph=True is added for nep training
             error = error * math.sqrt(bs)
             #print("force steping")
             self.optimizer.step(error)
@@ -341,7 +341,7 @@ class KFOptimizerWrapper:
     def update_ei(
         self, inputs: list, Ei_label: torch.Tensor, update_prefactor: float = 1, train_type = "DP"
     ) -> None:
-        if train_type == "DP":
+        if train_type == "DP" or train_type == "NEP":
             _, Ei_predict, _, _, _ = self.model( #dp inputs has 7 para
                 inputs[0],
                 inputs[1],

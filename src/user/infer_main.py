@@ -48,7 +48,6 @@ def model_devi(ckpt_file_list, structure_dir, format, save_path):
         max_force.append(np.max(tmp_error_3, axis=-1))
     d_max_force = np.array(max_force)
     res_devi_foce = np.max(d_max_force, axis=0)
-    print(res_devi_foce)
     avg_ei = np.mean(ei, axis=0)
     # max_ei = np.full([len(ckpt_file_list), avg_ei.shape[0]], 0)
     max_ei = []

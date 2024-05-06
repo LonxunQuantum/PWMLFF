@@ -83,16 +83,6 @@ def convert_to_xyz(input_list:list,
             valid_images.append(image_list[index])
     
         assert(len(train_images) + len(valid_images)) == len(image_list)
-        # else:# for pwmlff/dp format
-        #     train_dir = os.path.join(pwdata_dir, trainDataPath)
-        #     valid_dir = os.path.join(pwdata_dir, validDataPath)
-        #     if os.path.exists(train_dir):
-        #         train_images = Config(data_path=train_dir, format=input_format)
-        #     if os.path.exists(valid_dir):
-        #         valid_images = Config(data_path=valid_dir, format=input_format)
-        #     if "npy" in os.path.basename(pwdata_dir): # for inference
-        #         train_images = Config(data_path=pwdata_dir, format=input_format)
-        #         valid_images = []
         
         if is_valid:# the inference input file of nep is train.xyz and prediction = 0
             save_to_extxyz(train_images, save_dir, train_save_path, write_patthen='a')

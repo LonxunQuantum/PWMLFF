@@ -7,29 +7,32 @@ import yaml
 from src.lib.NeighConst import neighconst
 from src.user.input_param import InputParam
 from pwdata import Save_Data
+import time
+from src.pre_data.find_neigh.findneigh import FindNeigh
 
 class MovementDataset(Dataset):
-    def __init__(self, load_type, nep_param:InputParam, energy_shift, max_atom_nums):
+    def __init__(self, data_paths, config:dict, input_param, energy_shift, max_atom_nums):
         super(MovementDataset, self).__init__()
-        if load_type == "train":
-            data_paths = [os.path.join(_, nep_param.file_paths.trainDataPath) for _ in nep_param.file_paths.datasets_path]
-                         
-        elif load_type == "valid":
-            data_paths = [os.path.join(_, nep_param.file_paths.validDataPath) 
-                                             for _ in nep_param.file_paths.datasets_path
-                                             if os.path.exists(os.path.join(_, nep_param.file_paths.validDataPath))]
         self.dirs = data_paths  # include all movement data path
-        self.atom_types = nep_param.atom_type  # input atom type order
-        self.m_neigh = nep_param.max_neigh_num
-        self.Rc_type = [nep_param.descriptor.Rmax for _ in self.atom_types]
-        self.Rm_type = [nep_param.descriptor.Rmin for _ in self.atom_types]
-        self.Rc_M = nep_param.descriptor.Rmax
-        self.img_max_types = len(nep_param.atom_type)
-        self.Egroup = nep_param.optimizer_param.train_egroup
-        self.img_max_atom_num = max_atom_nums
+
+        self.atom_types = np.array([(_['type']) for _ in config["atomType"]])   # input atom type order
+        self.m_neigh = config['maxNeighborNum']
+        self.Rc_type = np.array([(_['Rc']) for _ in config["atomType"]])
+        self.Rm_type = np.array([(_['Rm']) for _ in config["atomType"]])
+        self.Rc_M = config['Rc_M']
+        self.img_max_types = len(self.atom_types)
+        self.Egroup = config['train_egroup']
+        self.input_param = input_param
+        self.img_max_atom_num = max_atom_nums # for multi batch size training 
         self.ener_shift = np.array(energy_shift)
         self.all_movement_data, self.total_images, self.images_per_dir, self.atoms_per_dir = self.__concatenate_data()
-            
+
+        self.calc = FindNeigh()
+        # test
+
+        data = self.__load_data(0)
+        print()
+
     def __load_data(self, index):
         type_index = np.searchsorted(np.cumsum(self.images_per_dir), index + 1)
         data = {}
@@ -42,16 +45,22 @@ class MovementDataset(Dataset):
         data["Lattice"] = self.all_movement_data["lattice.npy"][index]
         data["AtomType"] = self.all_movement_data["atom_type.npy"][type_index]
         data["AtomTypeMap"] = self.all_movement_data["type_maps"][type_index]
+        atom_nums = self.atoms_per_dir[type_index]
         data["ImageAtomNum"] = self.atoms_per_dir[type_index]
 
-        list_neigh, dR_neigh, max_ri, Egroup_weight, Divider, Egroup = find_neighbore(data["AtomTypeMap"], data["Position"], data["Lattice"], data["ImageAtomNum"], data["Ei"], 
-                                                                                      self.img_max_types, self.Rc_type, self.Rm_type, self.m_neigh, self.Rc_M, self.Egroup)
-        if list_neigh.shape[0] < self.img_max_atom_num:
-            list_neigh = np.pad(list_neigh, ((0, self.img_max_atom_num - list_neigh.shape[0]), (0, 0)))
-            dR_neigh = np.pad(dR_neigh, ((0, self.img_max_atom_num - dR_neigh.shape[0]), (0, 0), (0, 0)))
+        # #radial and angular is set from nep.txt file
+        list_neigh, dR_neigh, Egroup_weight, Divider, Egroup  = self.find_neigh_nep(atom_nums, 
+                            list(data["AtomTypeMap"]),
+                            list(data["Lattice"].transpose(1, 0).reshape(-1)),
+                            list(data["Position"].transpose(1, 0).reshape(-1)))
+
         data["ListNeighbor"] = list_neigh
         data["ImageDR"] = dR_neigh
-        data["max_ri"] = max_ri
+        data["max_ri"] = 0
+        Egroup_weight = None
+        Divider = None
+        Egroup = None
+
         if self.Egroup:
             if Egroup.shape[0] < self.img_max_atom_num:
                 Egroup_weight = np.pad(Egroup_weight, ((0, self.img_max_atom_num - Egroup.shape[0]), (0, self.img_max_atom_num - Egroup.shape[0])))
@@ -65,7 +74,65 @@ class MovementDataset(Dataset):
 
         return data
 
-        
+    def find_neigh_nep(self, atom_nums, AtomTypeMap, Lattice, Position):
+        # tall 18.700355052947998 t2 0.32842254638671875 t3 0.07180023193359375 t4 18.628554821014404 t5 0.022504329681396484 t6 0.007369279861450195
+        # t1 = time.time()
+        # from src.pre_data.nep_neigh.calculate import NEP
+        # self.calc2 = NEP("/data/home/wuxingxing/datas/pwmat_mlff_workdir/hfo2/nep_ff_1image/model_record/nep.txt")
+        # t2 = time.time()
+        # self.calc2.calc.setAtoms(atom_nums, 
+        #                         AtomTypeMap,
+        #                         Lattice,
+        #                         Position)
+        # d12, NL_radial, NL_angular, NN_radial, NN_angular = self.calc2.calc.getNeigh()
+        # t3 = time.time()
+        # # self.calc.setAtoms(atom_nums, \
+        # #                    self.input_param.descriptor.cutoff[0],self.input_param.descriptor.cutoff[1],
+        # #                     AtomTypeMap, Lattice, Position)
+        # neigh_radial_list  = np.zeros([atom_nums, self.m_neigh*self.img_max_types])
+        # neigh_angular_list = np.zeros([atom_nums, self.m_neigh*self.img_max_types])
+
+        # neigh_radial_rij   = np.zeros([atom_nums, self.m_neigh*self.img_max_types, 4])
+        # neigh_angular_rij  = np.zeros([atom_nums, self.m_neigh*self.img_max_types, 4])        
+
+        # split = int(len(d12)/6)
+        # for i, num_neigh in enumerate(NN_radial):
+        #     num_neigh_a = NN_angular[i]
+        #     neigh_radial_list[i, :num_neigh]        = [NL_radial[_*atom_nums+i] + 1 for _ in range(0, num_neigh)]
+        #     neigh_radial_rij[i, :num_neigh, 1]      = [d12[       :  split][_*atom_nums+i] for _ in range(0, num_neigh)]
+        #     neigh_radial_rij[i, :num_neigh, 2]      = [d12[split  :2*split][_*atom_nums+i] for _ in range(0, num_neigh)]
+        #     neigh_radial_rij[i, :num_neigh, 3]      = [d12[2*split:3*split][_*atom_nums+i] for _ in range(0, num_neigh)]
+            
+        #     neigh_angular_list[i, :num_neigh_a]     = [NL_angular[_*atom_nums+i] + 1 for _ in range(0, num_neigh_a)]
+        #     neigh_angular_rij[i, :num_neigh_a, 1]   = [d12[3*split:4*split][_*atom_nums+i] for _ in range(0, num_neigh_a)]
+        #     neigh_angular_rij[i, :num_neigh_a, 2]   = [d12[4*split:5*split][_*atom_nums+i] for _ in range(0, num_neigh_a)]
+        #     neigh_angular_rij[i, :num_neigh_a, 3]   = [d12[5*split:       ][_*atom_nums+i] for _ in range(0, num_neigh_a)]
+        # neigh_radial_rij[:, :, 0]  = np.sqrt(np.sum(neigh_radial_rij[:, :, 1:]**2, axis=-1))
+        # neigh_angular_rij[:, :, 0] = np.sqrt(np.sum(neigh_angular_rij[:, :, 1:]**2, axis=-1))
+
+        # if neigh_radial_list.shape[0] < self.img_max_atom_num:
+        #     neigh_radial_list = np.pad(neigh_radial_list, ((0, self.img_max_atom_num - neigh_radial_list.shape[0]), (0, 0)))
+        #     neigh_radial_rij = np.pad(neigh_radial_rij, ((0, self.img_max_atom_num - neigh_radial_rij.shape[0]), (0, 0), (0, 0)))
+
+        # if neigh_angular_list.shape[0] < self.img_max_atom_num:
+        #     neigh_angular_list = np.pad(neigh_angular_list, ((0, self.img_max_atom_num - neigh_angular_list.shape[0]), (0, 0)))
+        #     neigh_angular_rij = np.pad(neigh_angular_rij, ((0, self.img_max_atom_num - neigh_angular_rij.shape[0]), (0, 0), (0, 0)))
+
+        # list_neigh = np.concatenate((neigh_radial_list, neigh_angular_list), axis=0)
+        # dR_neigh = np.concatenate((neigh_radial_rij, neigh_angular_rij), axis=0)
+
+        Egroup_weight, Divider, Egroup = None, None, None
+        # 34622.19498329725 d12_radial
+        d12_radial, d12_agular, NL_radial2, NL_angular2, NN_radial2, NN_angular2 = self.calc.getNeigh(
+                           self.input_param.descriptor.cutoff[0],self.input_param.descriptor.cutoff[1], 
+                            atom_nums, len(self.input_param.atom_type)*self.input_param.max_neigh_num, Lattice, Position)
+        neigh_radial_rij   = np.array(d12_radial).reshape(atom_nums, len(self.input_param.atom_type)*self.input_param.max_neigh_num, 4)
+        neigh_angular_rij  = np.array(d12_agular).reshape(atom_nums, len(self.input_param.atom_type)*self.input_param.max_neigh_num, 4)
+        neigh_radial_list  = np.array(NL_radial2).reshape(atom_nums, len(self.input_param.atom_type)*self.input_param.max_neigh_num)
+        neigh_angular_list = np.array(NL_angular2).reshape(atom_nums, len(self.input_param.atom_type)*self.input_param.max_neigh_num)
+        # print("tall {} t2 {} t3 {} t4 {} t5 {} t6 {}".format(t4-t2, t2-t1, t3-t2, t4-t3, t5-t4, t6-t5))
+        return neigh_radial_list, neigh_radial_rij, Egroup_weight, Divider, Egroup
+
     def __getitem__(self, index):
 
         data = self.__load_data(index)
@@ -297,6 +364,20 @@ def compute_Ri(list_neigh, dR_neigh, Rc_type, Rm_type):
     Rij = Rij.unsqueeze(-1).numpy()
     return max_ri, Rij
 
+'''
+description: 
+
+param {InputParam} config
+param {*} stat_add
+param {*} datasets_path
+param {*} work_dir
+param {*} chunk_size
+return {*}
+    energy_shift , this is for model created
+    max atom numbers of the image, this is for multibatch training
+    the image path
+author: wuxingxing
+'''
 def get_stat(config:InputParam, stat_add=None, datasets_path=None, work_dir=None, chunk_size=10):
     train_data_path = config.file_paths.trainDataPath
     ntypes = len(config.atom_type)
@@ -322,18 +403,19 @@ def get_stat(config:InputParam, stat_add=None, datasets_path=None, work_dir=None
             if img_per_mvmt < chunk_size:
                 continue
             valid_chunk = True
-            position = np.load(os.path.join(dataset_path, train_data_path, "position.npy"))
+            # position = np.load(os.path.join(dataset_path, train_data_path, "position.npy"))
             _Ei = np.load(os.path.join(dataset_path, train_data_path, "ei.npy"))
             type_maps = np.array(type_map(atom_types_image[0], input_atom_type))
             types, type_incides, atom_types_nums = np.unique(type_maps, return_index=True, return_counts=True)
             atom_types_nums = atom_types_nums[np.argsort(type_incides)]
             energy_shift = calculate_energy_shift(chunk_size, _Ei, atom_types_nums)
             energy_shift = adjust_order_same_as_user_input(energy_shift, _atom_types[0].tolist(), input_atom_type)
-    
+            # set feature scaler
+            
     if not valid_chunk and energy_shift is None:
         raise ValueError("Invalid 'chunk_size', the number of images (include all atom types) in the movement is too big, \nPlease set a smaller chunk_size (default: 10) or add more images in the movement")
 
-    return energy_shift, max_atom_nums
+    return energy_shift, max_atom_nums, os.path.join(dataset_path, train_data_path)
 
 '''
 description: 

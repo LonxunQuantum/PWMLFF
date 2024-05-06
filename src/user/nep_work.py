@@ -21,8 +21,7 @@ def nep_train(input_json: json, cmd:str):
     if len(nep_param.file_paths.raw_path) > 0:
         data_paths = nep_trainer.generate_data()
         nep_param.file_paths.set_datasets_path(data_paths)
-    energy_shift, max_atom_nums = nep_trainer._get_stat()
-    nep_trainer.train(energy_shift, max_atom_nums)
+    nep_trainer.train()
 
     # if os.path.realpath(nep_param.file_paths.json_dir) != os.path.realpath(nep_param.file_paths.work_dir) :
     #     if nep_param.file_paths.reserve_feature is False:

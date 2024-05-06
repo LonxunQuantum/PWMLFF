@@ -1,4 +1,5 @@
 import os,sys
+import glob
 import pathlib
 import random
 
@@ -120,8 +121,17 @@ class dp_network:
         config = self.dp_params.get_data_file_dict()
         # Create dataset
         if self.dp_params.inference:
-            train_dataset = MovementDataset([os.path.join(_, config['trainDataPath']) for _ in self.dp_params.file_paths.datasets_path], 
-                                            config, davg, dstd, energy_shift, max_atom_nums)
+            data_paths = []
+            for data_path in self.dp_params.file_paths.datasets_path:
+                if os.path.exists(os.path.join(os.path.join(data_path, config['trainDataPath'], "position.npy"))):
+                    data_paths.append(os.path.join(os.path.join(data_path, config['trainDataPath']))) #train dir
+                if os.path.exists(os.path.join(os.path.join(data_path, config['validDataPath'], "position.npy"))):
+                    data_paths.append(os.path.join(os.path.join(data_path, config['validDataPath']))) #valid dir
+                if os.path.exists(os.path.join(data_path, "position.npy")) > 0: # add train or valid data
+                    data_paths.append(data_path)
+                else:# with out data
+                    pass
+            train_dataset = MovementDataset(data_paths, config, davg, dstd, energy_shift, max_atom_nums)
             valid_dataset = None
         else:            
             train_dataset = MovementDataset([os.path.join(_, config['trainDataPath']) for _ in self.dp_params.file_paths.datasets_path], 

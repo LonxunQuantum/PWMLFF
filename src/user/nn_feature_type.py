@@ -66,7 +66,12 @@ class Descriptor(object):
                 self.feature_dict[ftype], self.feature_dict_out[ftype] = self.set_ftype7_para(ftype_dict)
             elif '8' == ftype:
                 self.feature_dict[ftype], self.feature_dict_out[ftype] = self.set_ftype8_para(ftype_dict)
-
+        # for nep param
+        self.cutoff = None
+        self.n_max = None
+        self.basis_size = None
+        self.l_max = None
+        self.type_weight = None
     '''
     description: 
     the return dict is used to assignment for value Ftype1_para in dfault_param.py
@@ -284,6 +289,12 @@ class Descriptor(object):
             dicts["cheby_order"] = self.cheby_order
             dicts["radial_num1"] = self.radial_num1
             dicts["radial_num2"] = self.radial_num2
+        elif self.model_type.upper() == "NEP":
+            dicts["cutoff"] = self.cutoff
+            dicts["n_max"] = self.n_max
+            dicts["basis_size"] = self.basis_size
+            dicts["l_max"] = self.l_max
+            dicts["type_weight"] = self.type_weight
         else:
             raise Exception("descriptor to dict: the model type not realized:{}".format(self.model_type))
         
@@ -292,5 +303,5 @@ class Descriptor(object):
             dicts["type_embedding"]["physical_property"] = self.type_physical_property
             if self.type_network_size is not None:
                dicts["type_embedding"]["network_size"] = self.type_network_size[1:]
-               
+           
         return dicts
