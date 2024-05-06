@@ -27,7 +27,7 @@ class KFOptimizerWrapper:
     def update_energy(
         self, inputs: list, Etot_label: torch.Tensor, update_prefactor: float = 1, train_type = "DP"
     ) -> None:
-        if train_type == "DP":
+        if train_type == "DP" or train_type == "NEP":
             Etot_predict, _, _, _, _ = self.model(
                 inputs[0],
                 inputs[1],
@@ -36,7 +36,7 @@ class KFOptimizerWrapper:
                 0,
                 inputs[4],
                 inputs[5],
-                is_calc_f=False
+                is_calc_f=True# to false
             )
         elif train_type == "NN": # nn training
             Etot_predict, _, _, _, _ = self.model(
@@ -48,6 +48,17 @@ class KFOptimizerWrapper:
                 inputs[5],
                 inputs[6],
                 is_calc_f=False,
+            )
+        elif train_type == "CHEBY":
+            Etot_predict, _, _, _, _ = self.model(
+                inputs[0],
+                inputs[1],
+                inputs[2],
+                inputs[3],
+                inputs[4],
+                0,
+                inputs[5],
+                inputs[6]
             )
         else:
             raise Exception("Error! the train type {} is not realized!".format(train_type))
@@ -108,6 +119,17 @@ class KFOptimizerWrapper:
                 inputs[6],
                 is_calc_f=False,
             )
+        elif train_type == "CHEBY":
+            _, _, _, Egroup_predict, _ = self.model(
+                inputs[0],
+                inputs[1],
+                inputs[2],
+                inputs[3],
+                inputs[4],
+                0,
+                inputs[5],
+                inputs[6]
+            )
         else:
             raise Exception("Error! the train type {} is not realized!".format(train_type))
         natoms_sum = len(inputs[1])
@@ -162,6 +184,17 @@ class KFOptimizerWrapper:
                 inputs[2],
                 inputs[3],
                 inputs[4],
+                inputs[5],
+                inputs[6]
+            )
+        elif train_type == "CHEBY":
+            Etot_predict, _, _, Virial_predict = self.model(
+                inputs[0],
+                inputs[1],
+                inputs[2],
+                inputs[3],
+                inputs[4],
+                0,
                 inputs[5],
                 inputs[6]
             )
@@ -266,6 +299,10 @@ class KFOptimizerWrapper:
                 Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = self.model(
                     inputs[0], inputs[1], inputs[2], inputs[3], inputs[4], inputs[5], inputs[6]
                 )
+            elif train_type == "CHEBY":
+                Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = self.model(
+                    inputs[0], inputs[1], inputs[2], inputs[3], inputs[4], 0, inputs[5], inputs[6]
+                )
             else:
                 raise Exception("Error! the train type {} is not realized!".format(train_type))
 
@@ -325,6 +362,17 @@ class KFOptimizerWrapper:
                 inputs[5],
                 inputs[6],
                 is_calc_f=False,
+            )
+        elif train_type == "CHEBY":
+            _, Ei_predict, _, _, _ = self.model(
+                inputs[0],
+                inputs[1],
+                inputs[2],
+                inputs[3],
+                inputs[4],
+                0,
+                inputs[5],
+                inputs[6]
             )
         else:
             raise Exception("Error! the train type {} is not realized!".format(train_type))

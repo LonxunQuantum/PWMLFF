@@ -14,10 +14,9 @@ class WorkFileStructure(object):
     return {*}
     author: wuxingxing
     '''    
-    def __init__(self, json_dir:str, work_dir:str, reserve_work_dir:bool, reserve_feature:bool, model_type:str) -> None:
+    def __init__(self, json_dir:str, reserve_work_dir:bool, reserve_feature:bool, model_type:str) -> None:
         self.model_type = model_type
         self.json_dir = json_dir
-        self.work_dir = work_dir
         self.reserve_work_dir = reserve_work_dir
         self.reserve_feature = reserve_feature
         self.movement_name = "MOVEMENT"
@@ -27,10 +26,10 @@ class WorkFileStructure(object):
         self.datasets_path = []
         self.model_load_path = ""
 
-    def _set_training_path(self, train_raw_path:list, train_feature_path:list, train_dir: str):
-        self.raw_path = train_raw_path
-        self.train_feature_path = train_feature_path
-        self.train_dir = os.path.join(self.work_dir, train_dir)
+    # def _set_training_path(self, train_raw_path:list, train_feature_path:list, train_dir: str):
+    #     self.raw_path = train_raw_path
+    #     self.train_feature_path = train_feature_path
+    #     self.train_dir = os.path.join(self.json_dir, train_dir)
 
     def _set_alive_atomic_energy(self, alive_atomic_energy:bool):
         self.alive_atomic_energy = alive_atomic_energy
@@ -38,8 +37,8 @@ class WorkFileStructure(object):
     def _set_data_file_paths(self, trainSetDir:str, dRFeatureInputDir:str, dRFeatureOutputDir:str,\
                         trainDataPath:str, validDataPath:str):
         self.trainSetDir = trainSetDir
-        self.dRFeatureInputDir = dRFeatureInputDir
-        self.dRFeatureOutputDir = dRFeatureOutputDir
+        self.dRFeatureInputDir = dRFeatureInputDir# it is not used 2024.04.03
+        self.dRFeatureOutputDir = dRFeatureOutputDir# it is not used 2024.04.03
         self.trainDataPath = trainDataPath
         self.validDataPath = validDataPath
 
@@ -50,7 +49,7 @@ class WorkFileStructure(object):
     def _set_model_paths(self,model_store_dir:str, model_name:str, best_model_path:str):
         self.model_store_dir = model_store_dir
         self.model_name = model_name
-        self.best_model_path = best_model_path
+        self.best_model_path = best_model_path# it is not used 2024.04.03
         self.model_save_path = os.path.join(model_store_dir, self.model_name)
 
     def _set_model_load_path(self, model_load_path:str):
@@ -88,6 +87,9 @@ class WorkFileStructure(object):
             if os.path.exists(self.model_load_path) is False:
                 raise Exception("the model_load_path is not exist: {}, please speccified 'model_load_path' at json file".format(self.model_load_path))
         
+        if "trainDataPath" in json_input.keys():# for test, people could set the 'trainSetDir' to 'valid', so the valid data in train dir could be used for valid
+            self.trainDataPath = json_input["trainDataPath"]
+
         '''alive_atomic_energy = is_alive_atomic_energy(datasets_path)
         self._set_alive_atomic_energy(alive_atomic_energy)'''
     
@@ -127,35 +129,34 @@ class WorkFileStructure(object):
         best_model_path = ""
         # if self.recover_train is True and os.path.isfile(model_load_path):
         #     raise Exception("Error! The recover_train and model_load_path are simultaneously specified, please set recover_train to False or remove param model_load_path")
-        if self.model_type == "NN" or self.model_type == "DP":
-            if self.model_type == "NN":
-                model_name = get_parameter("model_name", json_input, "nn_model.ckpt")
-            else:
-                model_name = get_parameter("model_name", json_input, "dp_model.ckpt")
-            best_model_path = os.path.join(self.json_dir, "best.pth.tar")
-            forcefield_name = get_parameter("forcefield_name", json_input, "forcefield.ff")
-            forcefield_dir = get_parameter("forcefield_dir", json_input, "forcefield")
-            self.set_forcefield_path(forcefield_dir, forcefield_name)
-            # p matix, resume p matrix when recover is not realized
-            # p matrix should extract to checkpoint files or a single file.
-            # current not realized
-            save_p_matrix = get_parameter("save_p_matrix", json_input, False)
-            if save_p_matrix is not False:
-                Pmatrix_path = os.path.join(self.json_dir, "P.pkl")
-                self._set_p_matrix_paths(Pmatrix_path, True)
-            else:
-                self._set_p_matrix_paths(None, False)
-            self._set_PWdata_NN_DP_dirs(json_input)
+        if self.model_type == "NN":
+            model_name = get_parameter("model_name", json_input, "nn_model.ckpt")
+        elif self.model_type == "DP":
+            model_name = get_parameter("model_name", json_input, "dp_model.ckpt")
         elif self.model_type == "NEP":
-            best_model_path = ""
-            model_name = "nep.txt"
-        
-        # common dir
+            model_name = get_parameter("model_name", json_input, "nep_model.cpkt")
+        elif self.model_type == "CHEBY":
+            model_name = get_parameter("model_name", json_input, "chey_model.cpkt")
+        best_model_path = os.path.join(self.json_dir, "best_model.ckpt")
+        forcefield_name = get_parameter("forcefield_name", json_input, "forcefield.ff")
+        forcefield_dir = get_parameter("forcefield_dir", json_input, "forcefield")
+        self.set_forcefield_path(forcefield_dir, forcefield_name)
+        # p matix, resume p matrix when recover is not realized
+        # p matrix should extract to checkpoint files or a single file.
+        # current not realized
+        save_p_matrix = get_parameter("save_p_matrix", json_input, False)
+        if save_p_matrix is not False:
+            Pmatrix_path = os.path.join(self.json_dir, "P.pkl")
+            self._set_p_matrix_paths(Pmatrix_path, True)
+        else:
+            self._set_p_matrix_paths(None, False)
+
+        # common dir 
         model_store_dir = get_parameter("model_store_dir", json_input, "model_record")
         model_store_dir = os.path.join(self.json_dir, model_store_dir)
         self._set_model_paths(model_store_dir = model_store_dir, \
                                     model_name = model_name, best_model_path=best_model_path)
-        
+        self._set_PWdata_dirs(json_input)
 
     def set_train_valid_file(self, json_input:dict):
         # set trian movement file path
@@ -187,16 +188,16 @@ class WorkFileStructure(object):
         alive_atomic_energy = is_alive_atomic_energy(raw_path)
         self._set_alive_atomic_energy(alive_atomic_energy)'''
 
-    def _set_PWdata_NN_DP_dirs(self, json_input:dict):
+    def _set_PWdata_dirs(self, json_input:dict):
         # set Pwdata dir file structure, they are used in feature generation
         trainSetDir = get_parameter("trainSetDir", json_input, 'PWdata')
-        dRFeatureInputDir = get_parameter("dRFeatureInputDir", json_input, 'input')
-        dRFeatureOutputDir = get_parameter("dRFeatureOutputDir", json_input, 'output')
+        dRFeatureInputDir = get_parameter("dRFeatureInputDir", json_input, 'input')# it is not used 2024.04.03
+        dRFeatureOutputDir = get_parameter("dRFeatureOutputDir", json_input, 'output')# it is not used 2024.04.03
         trainDataPath = get_parameter("trainDataPath", json_input, 'train')
         validDataPath = get_parameter("validDataPath", json_input, 'valid')
         self._set_data_file_paths(trainSetDir, dRFeatureInputDir, dRFeatureOutputDir, trainDataPath, validDataPath)
 
-    def set_nep_file_paths(self):
+    def set_nep_native_file_paths(self):
         self.nep_train_xyz_path = "train.xyz"
         self.nep_test_xyz_path = "test.xyz"
         self.nep_in_file = "nep.in"

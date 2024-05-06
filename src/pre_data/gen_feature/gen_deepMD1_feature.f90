@@ -557,7 +557,6 @@ PROGRAM gen_deepMD1_feature
       allocate(ifeat_tmp(num_tmp))
 
       num_tmp=0
-
       do jj_tmp=1,m_neigh
          do iat2=1,natom
             do ii_tmp=1,nfeat0M

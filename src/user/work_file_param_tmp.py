@@ -137,7 +137,7 @@ class WorkFileStructure(object):
                 self._set_p_matrix_paths(Pmatrix_path, True)
             else:
                 self._set_p_matrix_paths(None, False)
-            self._set_PWdata_NN_DP_dirs(json_input)
+            self._set_PWdata_dirs(json_input)
         elif self.model_type == "NEP":
             best_model_path = ""
             model_name = "nep.txt"
@@ -172,7 +172,7 @@ class WorkFileStructure(object):
         alive_atomic_energy = is_alive_atomic_energy(train_movement_path)
         self._set_alive_atomic_energy(alive_atomic_energy)
 
-    def _set_PWdata_NN_DP_dirs(self, json_input:dict):
+    def _set_PWdata_dirs(self, json_input:dict):
         # set Pwdata dir file structure, they are used in feature generation
         trainSetDir = get_parameter("trainSetDir", json_input, 'PWdata')
         dRFeatureInputDir = get_parameter("dRFeatureInputDir", json_input, 'input')

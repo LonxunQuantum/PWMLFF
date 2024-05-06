@@ -58,4 +58,7 @@ def model_devi(ckpt_file_list, structure_dir, format, save_path):
         max_ei.append(np.max(tmp_error_2, axis=-1))
     d_max_ei = np.array(max_ei)
     res_devi_ei = np.max(d_max_ei, axis=0)
+    print("model deviation of Ei:")
     print(res_devi_ei)
+    print("model deviation of Force:")
+    print(res_devi_foce)

@@ -324,63 +324,55 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
         data_time.update(time.time() - end)
         # load data to cpu
         if args.precision == "float64":
-            Ei_label_cpu = sample_batches["Ei"].double()
-            Etot_label_cpu = sample_batches["Etot"].double()
+            Ei_label_cpu    = sample_batches["Ei"].double()
+            Etot_label_cpu  = sample_batches["Etot"].double()
             Force_label_cpu = sample_batches["Force"][:, :, :].double()
-            Sij_max_cpu = sample_batches["max_ri"].double()
-
+            # position_cpu    = sample_batches["Position"][:, :, :].double()
             if args.optimizer_param.train_egroup is True:
-                Egroup_label_cpu = sample_batches["Egroup"].double()
-                Divider_cpu = sample_batches["Divider"].double()
+                Egroup_label_cpu  = sample_batches["Egroup"].double()
+                Divider_cpu       = sample_batches["Divider"].double()
                 Egroup_weight_cpu = sample_batches["Egroup_weight"].double()
 
             if args.optimizer_param.train_virial is True:
-                Virial_label_cpu = sample_batches["Virial"].double()
-
+                Virial_label_cpu  = sample_batches["Virial"].double()
             ImageDR_cpu = sample_batches["ImageDR"].double()
 
         elif args.precision == "float32":
-            Ei_label_cpu = sample_batches["Ei"].float()
-            Etot_label_cpu = sample_batches["Etot"].float()
+            Ei_label_cpu    = sample_batches["Ei"].float()
+            Etot_label_cpu  = sample_batches["Etot"].float()
             Force_label_cpu = sample_batches["Force"][:, :, :].float()
-            Sij_max_cpu = sample_batches["max_ri"].float()
-
+            position_cpu    = sample_batches["sample_batches"][:, :, :].float()
             if args.optimizer_param.train_egroup is True:
-                Egroup_label_cpu = sample_batches["Egroup"].float()
-                Divider_cpu = sample_batches["Divider"].float()
+                Egroup_label_cpu  = sample_batches["Egroup"].float()
+                Divider_cpu       = sample_batches["Divider"].float()
                 Egroup_weight_cpu = sample_batches["Egroup_weight"].float()
 
             if args.optimizer_param.train_virial is True:
-                Virial_label_cpu = sample_batches["Virial"].float()
-
+                Virial_label_cpu  = sample_batches["Virial"].float()
             ImageDR_cpu = sample_batches["ImageDR"].float()
-
         else:
             raise Exception("Error! Please specify floating point type: float32 or float64 by the parameter --datatype! ")
         
-        if max(Sij_max_cpu) > Sij_max:
-            Sij_max = max(Sij_max_cpu)
-
         dR_neigh_list_cpu = sample_batches["ListNeighbor"].int()
-        natoms_img_cpu = sample_batches["ImageAtomNum"].int()
-        atom_type_cpu = sample_batches["AtomType"].int()
+        natoms_img_cpu    = sample_batches["ImageAtomNum"].int()
+        atom_type_cpu     = sample_batches["AtomType"].int()
         atom_type_map_cpu = sample_batches["AtomTypeMap"].int()
         # classify batchs according to their atom type and atom nums
-        batch_clusters = _classify_batchs(np.array(atom_type_cpu), np.array(natoms_img_cpu))
+        batch_clusters    = _classify_batchs(np.array(atom_type_cpu), np.array(natoms_img_cpu))
 
         for batch_indexs in batch_clusters:
             # transport data to GPU
             natoms_img = Variable(natoms_img_cpu[batch_indexs].int().to(device))
-            natoms = natoms_img[0]
+            natoms     = natoms_img[0]
             
             dR_neigh_list = Variable(dR_neigh_list_cpu[batch_indexs, :natoms].int().to(device))
             # atom list of image
-            atom_type = Variable(atom_type_cpu[batch_indexs].to(device))
+            atom_type     = Variable(atom_type_cpu[batch_indexs].to(device))
             atom_type_map = Variable(atom_type_map_cpu[batch_indexs, :natoms].to(device))
-            Ei_label = Variable(Ei_label_cpu[batch_indexs, :natoms].to(device))
-            Etot_label = Variable(Etot_label_cpu[batch_indexs].to(device))
-            Force_label = Variable(Force_label_cpu[batch_indexs, :natoms].to(device))  # [40,108,3]
-
+            Ei_label      = Variable(Ei_label_cpu[batch_indexs, :natoms].to(device))
+            Etot_label    = Variable(Etot_label_cpu[batch_indexs].to(device))
+            Force_label   = Variable(Force_label_cpu[batch_indexs, :natoms].to(device))  # [40,108,3]
+            # position      = Variable(position_cpu[batch_indexs, :natoms].to(device))
             if args.optimizer_param.train_egroup is True:
                 Egroup_label = Variable(Egroup_label_cpu[batch_indexs, :natoms].to(device))
                 Divider = Variable(Divider_cpu[batch_indexs, :natoms].to(device))
@@ -388,7 +380,6 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
 
             if args.optimizer_param.train_virial is True:
                 Virial_label = Variable(Virial_label_cpu[batch_indexs].to(device))
-            
             ImageDR = Variable(ImageDR_cpu[batch_indexs, :natoms].to(device))
             # Ri = Variable(Ri_cpu[batch_indexs, :natoms].to(device), requires_grad=True)
             # Ri_d = Variable(Ri_d_cpu[batch_indexs, :natoms].to(device))
@@ -427,20 +418,20 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
                 prof.export_chrome_trace("kf_update_force.json")
             else:
                 if args.optimizer_param.train_virial is True:
-                    Virial_predict = KFOptWrapper.update_virial(kalman_inputs, Virial_label, args.optimizer_param.pre_fac_virial)
+                    Virial_predict = KFOptWrapper.update_virial(kalman_inputs, Virial_label, args.optimizer_param.pre_fac_virial, train_type = "NEP")
                     
                 if args.optimizer_param.train_energy is True: 
-                    Etot_predict = KFOptWrapper.update_energy(kalman_inputs, Etot_label, args.optimizer_param.pre_fac_etot)
+                    Etot_predict = KFOptWrapper.update_energy(kalman_inputs, Etot_label, args.optimizer_param.pre_fac_etot, train_type = "NEP")
                 
                 if args.optimizer_param.train_ei is True:
-                    Ei_predict = KFOptWrapper.update_ei(kalman_inputs, Ei_label, args.optimizer_param.pre_fac_ei)
+                    Ei_predict = KFOptWrapper.update_ei(kalman_inputs, Ei_label, args.optimizer_param.pre_fac_ei, train_type = "NEP")
 
                 if args.optimizer_param.train_egroup is True:
-                    Egroup_predict = KFOptWrapper.update_egroup(kalman_inputs, Egroup_label, args.optimizer_param.pre_fac_egroup)
+                    Egroup_predict = KFOptWrapper.update_egroup(kalman_inputs, Egroup_label, args.optimizer_param.pre_fac_egroup, train_type = "NEP")
 
                 if args.optimizer_param.train_force is True:
                     Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = KFOptWrapper.update_force(
-                        kalman_inputs, Force_label, args.optimizer_param.pre_fac_force)
+                        kalman_inputs, Force_label, args.optimizer_param.pre_fac_force, train_type = "NEP")
 
             loss_F_val = criterion(Force_predict, Force_label)
 

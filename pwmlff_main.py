@@ -2,9 +2,10 @@
 import json
 import os, sys
 import argparse
-from src.user.nep_work import nep_train, gen_nep_feature, nep_test
+from src.user.nep_work import nep_train
 from src.user.dp_work import dp_train, dp_test
 from src.user.nn_work import nn_train, gen_nn_feature, nn_test
+from src.user.cheby_work import cheby_train, cheby_test
 from src.user.linear_work import linear_train, linear_test
 from src.user.input_param import help_info
 from src.user.active_work import ff2lmps_explore
@@ -79,7 +80,7 @@ if __name__ == "__main__":
     else:
         json_path = sys.argv[2]
         # cmd_type = "test".upper()
-        
+
         # json_path = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/4-CH4-dbg/dp_train_final.json"
         os.chdir(os.path.dirname(os.path.abspath(json_path)))
         json_file = json.load(open(json_path))
@@ -99,6 +100,8 @@ if __name__ == "__main__":
                 linear_train(json_file, cmd_type)
             elif model_type == "NEP".upper():
                 nep_train(json_file, cmd_type)
+            elif model_type == "CHEBY".upper():
+                cheby_train(json_file, cmd_type)
             else:
                 raise Exception("Error! the model_type param in json file does not existent, you could use [DP/NN/LINEAR/NEP]")
 
@@ -111,7 +114,10 @@ if __name__ == "__main__":
             elif model_type == "Linear".upper():
                 linear_test(json_file, cmd_type)
             elif model_type == "NEP".upper():
-                nep_test(json_file, cmd_type)
+                # nep_test(json_file, cmd_type)
+                pass
+            elif model_type == "CHEBY".upper():
+                cheby_test(json_file, cmd_type)
             else:
                 raise Exception("Error! the model_type param in json file does not existent, you could use [DP/NN/LINEAR/NEP]")
           
@@ -121,7 +127,8 @@ if __name__ == "__main__":
             elif model_type == "NN".upper():
                 gen_nn_feature(json_file, cmd_type)
             elif model_type == "NEP".upper():
-                gen_nep_feature(json_file, cmd_type)
+                pass
+                # gen_nep_feature(json_file, cmd_type)
             else:
                 raise Exception("Error! the model_type param in json file does not existent, you could use [DP/NN/LINEAR/NEP]")
 

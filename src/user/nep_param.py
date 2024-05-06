@@ -35,15 +35,26 @@ class NepParam(object):
 
         type_str = self.set_atom_type(type_list)
         self.type = self.get_parameter("type", nep_dict, type_str, nep_file_dict, 4) # number of atom types and list of chemical species
+        self.type_num = len(self.type.split()[1:])
         self.type_weight = self.get_parameter("type_weight", nep_dict, type_list_weight, nep_file_dict, 3) # force weights for different atom types
         self.model_type = self.get_parameter("model_type", nep_dict, 0, nep_file_dict, 0) # select to train potential 0, dipole 1, or polarizability 2
         self.prediction = self.get_parameter("prediction", nep_dict, 0, nep_file_dict, 0) # select between training and prediction (inference)
         self.zbl = self.get_parameter("zbl", nep_dict, None, nep_file_dict, 1) # outer cutoff for the universal ZBL potential [Ziegler1985]
-        self.cutoff = self.get_parameter("cutoff", nep_dict, [8, 4], nep_file_dict, 2) # radial () and angular () cutoffs
+        self.cutoff = self.get_parameter("cutoff", nep_dict, [8, 6], nep_file_dict, 2) # radial () and angular () cutoffs # use dp rcut, default to 6
         self.n_max = self.get_parameter("n_max", nep_dict, [4, 4], nep_file_dict, 2) # size of radial () and angular () basis
-        self.basis_size = self.get_parameter("basis_size", nep_dict, [8, 8], nep_file_dict, 2) # number of radial () and angular () basis functions
+        if len(self.n_max) != 2:
+            raise Exception("the input 'n_max' should has 2 values, such as [4, 4]")
+        self.basis_size = self.get_parameter("basis_size", nep_dict, [12, 12], nep_file_dict, 2) # number of radial () and angular () basis functions
+        if len(self.basis_size) != 2:
+            raise Exception("the input 'basis_size' should has 2 values, such as [12, 12]")
         self.l_max = self.get_parameter("l_max", nep_dict, [4, 2, 0], nep_file_dict, 2) # expansion order for angular terms
-        self.neuron = self.get_parameter("neuron", nep_dict, 30, nep_file_dict, 0) # number of neurons in the hidden layer
+        if len(self.l_max) != 3 or (self.l_max[0] != 4) or (self.l_max[1] != 2) or (self.l_max[2] > 1) :
+            error_log = "the input 'l_max' should has 3 values. The values should be [4, 2, 0] or [4, 2, 1]. The last num '1', means use 5 body features.\n"
+            raise Exception(error_log)
+        if self.l_max[2] != 0 and self.l_max[2] != 1:
+            error_log = "the input 'l_max' should has 3 values. The values should be [4, 2, 0] or [4, 2, 1]. The last num '1', means use 5 body features, '0' means not use 5 body features\n"
+            raise Exception(error_log)
+        self.neuron = self.get_parameter("neuron", nep_dict, 100, nep_file_dict, 0) # number of neurons in the hidden layer
         
         lambda_1 = self.get_parameter("lambda_1", nep_dict, -1, nep_file_dict, 1) # weight of regularization term
         if lambda_1 != -1 and lambda_1 < 0:
@@ -65,12 +76,20 @@ class NepParam(object):
         self.population = self.get_parameter("population", nep_dict, 50, nep_file_dict, 0) # population size used in the SNES algorithm [Schaul2011]
         self.generation = self.get_parameter("generation", nep_dict, 100000, nep_file_dict, 0) # number of generations used by the SNES algorithm [Schaul2011]
         
-        # if not os.path.exists(nep_in_file):
-        #     self.to_nep_in_file(nep_save_file)
-        # else:
-        #     #copy nep.in file to work_dir
-        #     shutil.copy(nep_in_file, nep_save_file)
-
+        self.set_feature_params()
+    
+    def set_feature_params(self):
+        # features
+        self.two_feat_num = self.n_max[0]+1
+        self.three_feat_num = (self.n_max[1]+1)*self.l_max[0] 
+        self.four_feat_num = (self.n_max[1]+1) if (len(self.l_max) >= 2) else 0
+        self.five_feat_num = (self.n_max[1]+1) if len(self.l_max) == 3 else 0
+        self.feature_nums = self.two_feat_num + self.three_feat_num + self.four_feat_num + self.five_feat_num
+        # c params, the 4-body and 5-body use the same c param of 3-body, their N_base_a the same
+        self.two_c_num = self.type_num*self.type_num*(self.n_max[0]+1)*(self.basis_size[0]+1)
+        self.three_c_num = self.type_num*self.type_num*(self.n_max[1]+1)*(self.basis_size[1]+1)
+        self.c_num = self.two_c_num + self.three_c_num
+    
     def read_nep_param_from_nep_file(self, nep_in_file:str):
         with open(nep_in_file, 'r') as rf:
             lines = rf.readlines()
@@ -86,7 +105,7 @@ class NepParam(object):
     def to_nep_in_file(self, file_path:str):
         with open(file_path, 'w') as wf:
             self._write_to_line(wf, "version", self.version)
-            self._write_to_line(wf, "type", self.type)
+            self._write_to_line(wf, "type", self.type_num)
             self._write_to_line(wf, "type_weight", self.type_weight, True)
             self._write_to_line(wf, "model_type", self.model_type)
             self._write_to_line(wf, "prediction", self.prediction)
@@ -133,7 +152,7 @@ class NepParam(object):
     def to_dict(self):
         dicts = {}
         dicts["version"] = self.version
-        dicts["type"] = self.type
+        dicts["type"] = self.type_num
         if self.type_weight is not None:
             dicts["type_weight"] = self.type_weight
         dicts["model_type"] = self.model_type

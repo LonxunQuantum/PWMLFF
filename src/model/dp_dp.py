@@ -290,7 +290,7 @@ class DP(nn.Module):
         dstd_res = dstd_res.reshape(-1, natoms_sum, max_neighbor_type, 4).repeat(batch_size, 1, 1, 1) 
         Ri = (Ri - davg_res) / dstd_res
         dstd_res = dstd_res.unsqueeze(-1).repeat(1, 1, 1, 1, 3)
-        dfeat = - dfeat / dstd_res
+        dfeat = - dfeat / dstd_res # - from find_neigbor bug
         # t4 = time.time()
         # print("\nRi:", t2-t1, "\ndfeat:", t3-t2, "\ndavg_res:", t4-t3, "\n********************")
         return Ri, dfeat
@@ -420,14 +420,15 @@ class DP(nn.Module):
                                device: torch.device,
                                dtype: torch.dtype) -> Tuple[torch.Tensor, torch.Tensor]:
         mask: List[Optional[torch.Tensor]] = [torch.ones_like(Etot)]
-        dE = torch.autograd.grad([Etot], [Ri], grad_outputs=mask, retain_graph=True, create_graph=True)[0]
+        dE = torch.autograd.grad([Etot], [Ri], grad_outputs=mask, retain_graph=True, create_graph=True)[0]#[4, 96, 200, 4]
         '''
         # this result is same as the above code
         mask: List[Optional[torch.Tensor]] = [torch.ones_like(Ei)]
         dE = torch.autograd.grad([Ei], [Ri], grad_outputs=mask, retain_graph=True, create_graph=True)[0]
         '''
         assert dE is not None
-        if device.type == "cpu":
+        # if device.type == "cpu":
+        if 1:
             dE = torch.unsqueeze(dE, dim=-1)
             # dE * Ri_d [batch, natom, max_neighbor * len(atom_type),4,1] * [batch, natom, max_neighbor * len(atom_type), 4, 3]
             # dE_Rid [batch, natom, max_neighbor * len(atom_type), 3]
@@ -452,8 +453,8 @@ class DP(nn.Module):
                 Virial[batch_idx, [3, 6, 7]] = Virial[batch_idx, [1, 2, 5]]
             Force = Force[:, 1:, :]
         else:
-            Ri_d = Ri_d.view(batch_size, natoms_sum, -1, 3)
-            dE = dE.view(batch_size, natoms_sum, 1, -1)
+            Ri_d = Ri_d.view(batch_size, natoms_sum, -1, 3)#[4, 96, 800, 3]
+            dE = dE.view(batch_size, natoms_sum, 1, -1)    #[4, 96, 1, 800]
             Force = -1 * torch.matmul(dE, Ri_d).squeeze(-2)
             ImageDR = ImageDR[:,:,:,1:].clone()
             nghost_tensor = torch.tensor(nghost, device=device, dtype=torch.int64)

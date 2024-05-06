@@ -20,7 +20,7 @@ class Extract_Param(object):
     def __init__(self, json_input:dict) -> None:
         self.set_params(json_input)
         self.set_workdir_structures(json_input)
-        self.file_paths._set_PWdata_NN_DP_dirs(json_input)
+        self.file_paths._set_PWdata_dirs(json_input)
         self.file_paths.set_train_valid_file(json_input)
         
     '''
@@ -48,7 +48,6 @@ class Extract_Param(object):
     def set_workdir_structures(self, json_input:dict):
         # set file structures
         self.file_paths = WorkFileStructure(json_dir=os.getcwd(), 
-                            work_dir=os.path.abspath(get_parameter("work_dir", json_input, "")), 
                             reserve_work_dir=get_parameter("reserve_work_dir", json_input, False), 
                             reserve_feature = get_parameter("reserve_feature", json_input, False), 
                             model_type=get_parameter("reserve_feature", json_input, ""))

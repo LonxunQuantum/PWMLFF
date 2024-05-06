@@ -8,7 +8,7 @@ import torch
 # import time
 # from utils.random_utils import random_index
 # from utils.extract_movement import MOVEMENT
-from NeighConst import neighconst
+from src.lib.NeighConst import neighconst
 
 '''
 description: 
@@ -93,7 +93,7 @@ def set_Ei_dat_by_Ep(movement_files,train_set_dir):
 ********************************************* disuse **********************************"""    
 def gen_train_data(train_ratio, raw_data_path, datasets_path,
                    train_data_path, valid_data_path, 
-                   data_shuffle=True, seed=2024, format="movement"):
+                   data_shuffle=True, seed=2024, format="pwmat/movement"):
     """
     Generate training data for MLFF model.
 
@@ -236,7 +236,6 @@ def calculate_davg_dstd(config, lattice, position, chunk_size, _atom_types, inpu
     lattice = np.asfortranarray(lattice[:chunk_size].reshape(chunk_size, 3, 3))
     position = np.asfortranarray(position[:chunk_size].reshape(chunk_size, -1, 3))
     natoms = position.shape[1]
-
     neighconst.find_neighbore(chunk_size, lattice, position, ntypes, natoms, m_neigh, Rc_m, Rc_type, type_maps)
     _list_neigh = neighconst.list_neigh
     _dR_neigh = neighconst.dr_neigh

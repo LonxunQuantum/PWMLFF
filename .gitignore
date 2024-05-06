@@ -7,6 +7,7 @@
 *.mod
 src/lib
 src/bin
+src/feature/chebyshev/build
 src/op/build
 src/op/dist
 src/op/op.egg-info
@@ -20,6 +21,7 @@ src/md/fortran_code/iotk/src/*.o
 src/pre_data/gen_feature/log
 pwmat_mlff_base_test
 pwmat_mlff_workdir
+al_dir
 sy_huawei_test
 .vscode/launch.json
 pwmlff_main.py

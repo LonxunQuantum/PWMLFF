@@ -11,6 +11,9 @@ class Descriptor(object):
         self.Rmin = get_parameter("Rmin", json_input, 0.5)
         self.M2 = get_parameter("M2", json_input, 16)
         self.E_tolerance = get_parameter("E_tolerance", json_input, 9999999.99)
+        self.cheby_order = get_parameter("cheby_order", json_input, 10)
+        self.radial_num1 = get_parameter("radial_num1", json_input, 25)
+        self.radial_num2 = get_parameter("radial_num2", json_input, 4)
         if self.feature_type is not None:   #if feature type specified at first layer of json 
             if "feature_type" in json_input.keys(): # if feature type sepcified at descriptor layer of json
                 if self.feature_type != json_input["feature_type"]: # if this two values are different, show WARNING info.
@@ -277,6 +280,10 @@ class Descriptor(object):
             for feature in self.feature_type:
                 feature = "{}".format(feature)
                 dicts[feature] = self.feature_dict_out[feature]
+        elif self.model_type == "CHEBY".upper():
+            dicts["cheby_order"] = self.cheby_order
+            dicts["radial_num1"] = self.radial_num1
+            dicts["radial_num2"] = self.radial_num2
         else:
             raise Exception("descriptor to dict: the model type not realized:{}".format(self.model_type))
         
