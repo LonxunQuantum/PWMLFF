@@ -28,7 +28,7 @@ class NEP(nn.Module):
         super(NEP, self).__init__()
         self.Pi = PI
         self.half_Pi = self.Pi/2
-
+        self.model_type = input_param.model_type.upper()
         self.input_param = input_param
         self.set_init_nep_param(input_param)
         if self.input_param.precision == "float64":
@@ -87,8 +87,8 @@ class NEP(nn.Module):
         self.ntypes = len(input_param.atom_type)
         self.ntypes_sq = self.ntypes * self.ntypes
 
-        self.cutoff_radial  = nep_param.cutoff[0]
-        self.cutoff_angular = nep_param.cutoff[1]
+        self.cutoff_radial  = float(nep_param.cutoff[0])
+        self.cutoff_angular = float(nep_param.cutoff[1])
         self.rcinv_radial   = 1.0/self.cutoff_radial
         self.rcinv_angular  = 1.0/self.cutoff_angular
         self.neuron         = nep_param.neuron
@@ -155,11 +155,11 @@ class NEP(nn.Module):
         self.C5B = torch.tensor([0.026596810706114, 0.053193621412227, 0.026596810706114], 
                                 dtype=dtype, device=device)
 
-        j_list = []
-        for k, _ in enumerate(self.atom_type):
-            for i in range(0, self.max_neigh_num):
-                j_list.append(k)
-        self.j_list = torch.tensor(j_list, dtype=torch.int, device=device)
+        # j_list = []
+        # for k, _ in enumerate(self.atom_type):
+        #     for i in range(0, self.max_neigh_num):
+        #         j_list.append(k)
+        # self.j_list = torch.tensor(j_list, dtype=torch.int, device=device)
 
         # self.c_param_2 = torch.normal(mean=0, std=1, size=(self.ntypes, self.ntypes, (self.n_max_radial+1), (self.n_base_radial+1)), dtype=self.dtype, device=device)
         # self.c_param_3 = torch.normal(mean=0, std=1, size=(self.ntypes, self.ntypes, (self.n_max_angular+1), (self.n_base_angular+1)), dtype=self.dtype, device=device)
@@ -216,7 +216,7 @@ class NEP(nn.Module):
                 return i
         return -1
 
-    def get_fitnet_index(self, atom_type: torch.Tensor) -> Tuple[List[int]]:
+    def get_fitnet_index(self, atom_type: torch.Tensor) -> List[int]:
         fitnet_index: List[int] = []
         for i, atom in enumerate(atom_type):
             index = self.get_index(self.atom_type, atom)
@@ -249,27 +249,27 @@ class NEP(nn.Module):
             Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]]: Tuple containing the total energy (Etot), atomic energies (Ei), forces (Force), energy group (Egroup), and virial (Virial).
         """
         # check_cuda_memory(-1, -1, "=====FORWAR START=====")
-        t0 = time.time()
+        # t0 = time.time()
         device = ImageDR.device
         dtype = ImageDR.dtype
-        t10 = time.time()
+        # t10 = time.time()
         batch_size = list_neigh.shape[0]
         natoms_sum = list_neigh.shape[1]#no use
         doub_natoms_sum = list_neigh.shape[1]
         max_neighbor_type = list_neigh.shape[2]  # ntype * max_neighbor_num
-        t11 = time.time()
+        # t11 = time.time()
         fitnet_index = self.get_fitnet_index(atom_type)
-        t1 = time.time()
+        # t1 = time.time()
         # check_cuda_memory(-1, -1, "FORWAR get_fitnet_index")
         # print("t12 {} t11 {} t10 {}".format(t1-t11, t11-t10, t10-t0))
         Ri, Ri_d = self.calculate_Ri(doub_natoms_sum, batch_size, max_neighbor_type, Imagetype_map, ImageDR, device, dtype)
         Ri.requires_grad_()
-        t2 = time.time()
+        # t2 = time.time()
         j_type = list_neigh - 1
         neigh_j_types = torch.where(j_type != -1, Imagetype_map[j_type], -1).requires_grad_(False)
         # check_cuda_memory(-1, -1, "FORWAR calculate_Ri")
         feats = self.calculate_qn(doub_natoms_sum, batch_size, max_neighbor_type, Imagetype_map, neigh_j_types, Ri, device, dtype)
-        t3 = time.time()
+        # t3 = time.time()
         if self.q_scaler is None:
             # before_scaler = feats.reshape([-1, feats.shape[-1]])
             self.q_scaler = (1 / (torch.max(feats.reshape([-1, feats.shape[-1]]), dim=-2)[0] - torch.min(feats.reshape([-1, feats.shape[-1]]), dim=-2)[0])).detach()
@@ -277,9 +277,9 @@ class NEP(nn.Module):
 
         feats_in = self.q_scaler * feats
         # check_cuda_memory(-1, -1, "FORWAR set q_scaler")
-        t4 = time.time()
+        # t4 = time.time()
         Ei = self.calculate_Ei(Imagetype_map, batch_size, feats_in, fitnet_index, device)
-        t5 = time.time()
+        # t5 = time.time()
         # check_cuda_memory(-1, -1, "FORWAR calculate_Ei")
         assert Ei is not None
         Etot = torch.sum(Ei, 1)
@@ -289,7 +289,7 @@ class NEP(nn.Module):
 
         Egroup = self.get_egroup(Ei, Egroup_weight, divider) if Egroup_weight is not None else None
         Ei = torch.squeeze(Ei, 2)
-        t6 = time.time()
+        # t6 = time.time()
         # check_cuda_memory(-1, -1, "FORWAR calculate_Egroup")
         if is_calc_f is False:
             Force, Virial = None, None
@@ -297,12 +297,12 @@ class NEP(nn.Module):
         else:
             # t4 = time.time()
             Force, Virial = self.calculate_force_virial(Ri, Ri_d, Etot, natoms_sum, batch_size, list_neigh, ImageDR, nghost, device, dtype)
-            t7 = time.time()
+            # t7 = time.time()
             # ==single time: t1 0.0015997886657714844 t2 0.0016467571258544922 t3 0.03717923164367676 t4 2.8371810913085938e-05 t5 0.0011038780212402344 t6 4.267692565917969e-05 t7 0.08994221687316895
             # print("==single time: t1 {} t2 {} t3 {} t4 {} t5 {} t6 {} t7 {}".format(t1-t0, t2-t1, t3-t2, t4-t3, t5-t4, t6-t5, t7-t6))
             # check_cuda_memory(-1, -1, "FORWAR calculate_force")
         # del Ri, Ri_d, feats
-        torch.cuda.empty_cache()
+        # torch.cuda.empty_cache()
         return Etot, Ei, Force, Egroup, Virial
 
     def calculate_Ri(self,
@@ -356,11 +356,11 @@ class NEP(nn.Module):
         """
         Ei : Optional[torch.Tensor] = None
         fit_net_dict = {idx: fit_net for idx, fit_net in enumerate(self.fitting_net)}
-        for fit_index in fit_index:
-            fit_net = fit_net_dict.get(fit_index)
+        for nn_i in fit_index:
+            fit_net = fit_net_dict.get(nn_i)
             assert fit_net is not None
             # S_Rij = Ri[:, indices, ntype_1 * self.maxNeighborNum:(ntype_1+1) * self.maxNeighborNum, 0].unsqueeze(-1)
-            mask = (Imagetype_map == fit_index).flatten()
+            mask = (Imagetype_map == nn_i).flatten()
             if not mask.any():
                 continue
             indices = torch.arange(len(Imagetype_map.flatten()),device=device)[mask]  
@@ -385,10 +385,10 @@ class NEP(nn.Module):
                                nghost: int,
                                device: torch.device,
                                dtype: torch.dtype) -> Tuple[torch.Tensor, torch.Tensor]:
-        t7 = time.time()
+        # t7 = time.time()
         mask: List[Optional[torch.Tensor]] = [torch.ones_like(Etot)]
         dE = torch.autograd.grad([Etot], [Ri], grad_outputs=mask, retain_graph=True, create_graph=True)[0]
-        t8 = time.time()
+        # t8 = time.time()
         '''
         # this result is same as the above code
         mask: List[Optional[torch.Tensor]] = [torch.ones_like(Ei)]
@@ -429,7 +429,7 @@ class NEP(nn.Module):
             list_neigh = (list_neigh - 1).type(torch.int)
             Force = CalcOps.calculateForce(list_neigh, dE, Ri_d, Force, nghost_tensor)[0]
             Virial = CalcOps.calculateVirial(list_neigh, dE, ImageDR, Ri_d, nghost_tensor)[0]
-        t9 = time.time()
+        # t9 = time.time()
         # print("t8 {} t9 {}".format(t8-t7, t9-t8))
         del dE
         return -Force, Virial 
@@ -442,7 +442,7 @@ class NEP(nn.Module):
                      j_type_map: torch.Tensor,
                      Ri: torch.Tensor, 
                      device: torch.device,
-                     dtype: torch.dtype) -> Tuple[torch.Tensor, torch.Tensor]:
+                     dtype: torch.dtype) -> torch.Tensor:
         # check_cuda_memory(-1, -1, "FORWAR calculate_qn start")
         atom_nums = Imagetype_map.shape[0]
         R = Ri[:, :, :, 0]
@@ -472,7 +472,7 @@ class NEP(nn.Module):
             n_max_a : int,
             n_base_a :int,
             Imagetype_map : torch.Tensor,
-            j_type_map : torch.Tensor) -> Tuple[torch.Tensor]: #get c params from c[n_type,n_type, n_max, n_base] 
+            j_type_map : torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]: #get c params from c[n_type,n_type, n_max, n_base] 
         batch_size = j_type_map.shape[0]
         atom_nums = j_type_map.shape[1]
         j_list_nums = j_type_map.shape[2]
@@ -525,10 +525,10 @@ class NEP(nn.Module):
                 rij: torch.Tensor,
                 n_base: int,
                 rcut: float,
-                rcinv: float) -> Tuple[torch.Tensor, torch.Tensor]:
+                rcinv: float) -> torch.Tensor:
         mask = (rij.abs() > 1e-5) & (rij <= rcut) # 超过截断半径的rij, fk(rij) 为0，那么 c*t*fc = 0,导数也为0，因为fk=0, dfk=0
         fc = torch.zeros_like(rij)
-        fc[mask]  = 0.5 + 0.5 * torch.cos(PI * rij[mask] * rcinv)
+        fc[mask]  = 0.5 + 0.5 * torch.cos(self.Pi * rij[mask] * rcinv)
 
         tk  = torch.zeros([rij.shape[0], rij.shape[1], rij.shape[2], n_base+1], dtype=rij.dtype).to(rij.device)# [b,i,j,M]
         fk  = torch.zeros([rij.shape[0], rij.shape[1], rij.shape[2], n_base+1], dtype=rij.dtype).to(rij.device)# [b,i,j,M]
@@ -557,7 +557,7 @@ class NEP(nn.Module):
                         n_max: int,
                         n_base: int,
                         rcut: float,
-                        rcinv: float) -> Tuple[torch.Tensor, torch.Tensor]:
+                        rcinv: float) -> torch.Tensor:
         # check_cuda_memory(-1, -1, "FORWAR calculate_qn 2b start")
         # c2 = self.get_c(self.c_param_2, n_max, n_base, Imagetype_map, j_type_map)
         # check_cuda_memory(-1, -1, "FORWAR calculate_qn 2b c2")
@@ -593,7 +593,7 @@ class NEP(nn.Module):
                     n_base: int,
                     rcut: float,
                     rcinv: float,
-                    l_max_3b: int) -> Tuple[torch.Tensor, torch.Tensor]:
+                    l_max_3b: int) -> torch.Tensor:
         # check_cuda_memory(-1, -1, "FORWAR calculate_qn 3b start")
         # c3 = self.get_c(self.c_param_3, rij, n_max, n_base, Imagetype_map)
         # c3 = self.get_c(self.c_param_3, n_max, n_base, Imagetype_map, j_type_map)
@@ -625,6 +625,7 @@ class NEP(nn.Module):
         # check_cuda_memory(-1, -1, "FORWAR calculate_qn 3b end")
 
         # feature 4
+        # feat_4b = None
         if self.l_max_4b != 0:
             sn20_sq = snlm_sq[:, :, :, 3]
             sn21_sq = snlm_sq[:, :, :, 4]
@@ -640,6 +641,7 @@ class NEP(nn.Module):
             feat_4b = None
         # feature 5
         # check_cuda_memory(-1, -1, "FORWAR calculate_qn 4b end")
+        # feat_5b = None
         if self.l_max_5b != 0:
             sn10_sq = snlm_sq[:, :, :, 0]
             sn11_sq = snlm_sq[:, :, :, 1]
@@ -648,17 +650,33 @@ class NEP(nn.Module):
         else:
             feat_5b = None
         # check_cuda_memory(-1, -1, "FORWAR calculate_qn 5b end")
-        if feat_5b is not None:
-            return torch.concat([qnl.transpose(3,2), feat_4b.unsqueeze(-2), feat_5b.unsqueeze(-2)], dim = -2).view(qnl.shape[0], qnl.shape[1], -1)
-        if feat_4b is not None:
-            return torch.concat([qnl.transpose(3,2), feat_4b.unsqueeze(-2)], dim = -2).view(qnl.shape[0], qnl.shape[1], -1)
-        return qnl.transpose(3,2).view(qnl.shape[0], qnl.shape[1], -1) # return 3b_feature
+        
+        # if feat_5b is not None:
+        #     return torch.concat([qnl.transpose(3,2), feat_4b.unsqueeze(-2), feat_5b.unsqueeze(-2)], dim = -2).view(qnl.shape[0], qnl.shape[1], -1)
+        # elif feat_4b is not None:
+        #     return torch.concat([qnl.transpose(3,2), feat_4b.unsqueeze(-2)], dim = -2).view(qnl.shape[0], qnl.shape[1], -1)
+        # else:
+        #     return qnl.transpose(3,2).view(qnl.shape[0], qnl.shape[1], -1) # return 3b_feature
  
+        if feat_5b is not None:
+            feat_5b = feat_5b.unsqueeze(-2)
+        if feat_4b is not None:
+            feat_4b = feat_4b.unsqueeze(-2)
+
+        if feat_5b is not None and feat_4b is not None:
+            return torch.concat([qnl.transpose(3,2), feat_4b, feat_5b], dim=-2).view(qnl.shape[0], qnl.shape[1], -1)
+        elif feat_5b is not None:
+            return torch.concat([qnl.transpose(3,2), feat_5b], dim=-2).view(qnl.shape[0], qnl.shape[1], -1)
+        elif feat_4b is not None:
+            return torch.concat([qnl.transpose(3,2), feat_4b], dim=-2).view(qnl.shape[0], qnl.shape[1], -1)
+        else:
+            return qnl.transpose(3,2).view(qnl.shape[0], qnl.shape[1], -1)
+            
     def cal_blm_ij(self,
             rij: torch.Tensor,
             xyz: torch.Tensor,
             rcut: float,
-            ) -> Tuple[torch.Tensor, torch.Tensor]:
+            ) -> torch.Tensor:
         mask = (rij.abs() > 1e-5) & (rij <= rcut)
         d12inv = torch.zeros_like(rij)
         d12inv[mask] = 1/rij[mask]

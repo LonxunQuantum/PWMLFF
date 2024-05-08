@@ -282,23 +282,25 @@ class nep_network:
                 optimizer = SNESOptimizer(model, self.input_param)
         else:
             raise Exception("Error: Unsupported optimizer!")
-            
+        
         q_scaler = None
+        if checkpoint is not None and "q_scaler" in checkpoint.keys(): # from model ckpt file
+            q_scaler = checkpoint["q_scaler"]
+
         if self.input_param.optimizer_param.opt_name in ["LKF", "GKF", "ADAM", "SGD"]:
             if checkpoint is not None and "optimizer" in checkpoint.keys():
                 optimizer.load_state_dict(checkpoint["optimizer"])
                 load_p = checkpoint["optimizer"]['state'][0]['P']
                 optimizer.set_kalman_P(load_p, checkpoint["optimizer"]['state'][0]['kalman_lambda'])
         elif self.input_param.optimizer_param.opt_name in ["SNES"]:
-            if checkpoint is not None and "q_scaler" in checkpoint.keys(): # from model ckpt file
-                q_scaler = checkpoint["q_scaler"]
-                # model.set_nep_cparam(c2_param = checkpoint["c1_param"] , c3_param = checkpoint["c1_param"], q_scaler=checkpoint["q_scaler"])
+            # model.set_nep_cparam(c2_param = checkpoint["c1_param"] , c3_param = checkpoint["c1_param"], q_scaler=checkpoint["q_scaler"])
             # elif self.input_param.nep_param.c2_param is not None: # from nep.txt NEP.txt没有训练的细节，不能直接训练，考虑后期从nep.restart取
             #     model.set_nep_cparam(c2_param = self.input_param.nep_param.c2_param, 
             #                         c3_param = self.input_param.nep_param.c3_param, 
             #                         q_scaler = self.input_param.nep_param.q_scaler)
             if checkpoint is not None and 'm' in checkpoint.keys():
                 optimizer.load_m_s(checkpoint['m'], checkpoint['s'])
+        
         model.set_nep_param_device(q_scaler)
         '''
         if self.input_param.hvd:

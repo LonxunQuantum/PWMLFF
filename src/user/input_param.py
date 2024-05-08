@@ -144,7 +144,7 @@ class InputParam(object):
         elif self.model_type == "Linear".upper():
             pass
         elif self.model_type == "NEP".upper():
-            self.set_nep_in_params(json_input) #  nep.in 输入的适配可能并不需要
+            self.set_nep_params(json_input) #  nep.in 输入的适配可能并不需要
             self.file_paths.set_nep_native_file_paths()#  nep.in 输入的适配可能并不需要
         elif self.model_type == "CHEBY".upper():
             self.model_param = ModelParam()
@@ -240,6 +240,7 @@ class InputParam(object):
     '''
     def get_dp_net_dict(self):
         net_dict = {}
+        net_dict["model_type"] = self.model_type
         net_dict["net_cfg"] = {}
         net_dict["net_cfg"][self.model_param.embedding_net.net_type] = self.model_param.embedding_net.to_dict()
         net_dict["net_cfg"][self.model_param.fitting_net.net_type] = self.model_param.fitting_net.to_dict()

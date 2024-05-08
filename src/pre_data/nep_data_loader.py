@@ -30,8 +30,8 @@ class MovementDataset(Dataset):
         self.calc = FindNeigh()
         # test
 
-        data = self.__load_data(0)
-        print()
+        # data = self.__load_data(0)
+        # print()
 
     def __load_data(self, index):
         type_index = np.searchsorted(np.cumsum(self.images_per_dir), index + 1)

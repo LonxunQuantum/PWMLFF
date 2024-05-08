@@ -116,7 +116,7 @@ class NepParam(object):
         self.model_type = 0 # select to train potential 0, dipole 1, or polarizability 2
         self.prediction = 0 # select between training and prediction (inference)
         self.zbl = None # outer cutoff for the universal ZBL potential [Ziegler1985]
-        self.cutoff = get_parameter("cutoff", descriptor_dict, [6, 6]) # radial () and angular () cutoffs # use dp rcut, default to 6
+        self.cutoff = get_parameter("cutoff", descriptor_dict, [6.0, 6.0]) # radial () and angular () cutoffs # use dp rcut, default to 6
         self.n_max = get_parameter("n_max", descriptor_dict, [4, 4]) # size of radial () and angular () basis
         if len(self.n_max) != 2:
             raise Exception("the input 'n_max' should has 2 values, such as [4, 4]")
