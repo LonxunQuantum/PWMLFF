@@ -40,7 +40,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
         # measure data loading time
         data_time.update(time.time() - end)
 
-        nr_batch_sample = sample_batches["Ei"].shape[0]
+        nr_batch_sample = sample_batches["input_feat"].shape[0]
         global_step = (epoch - 1) * len(train_loader) + i * nr_batch_sample
         real_lr = adjust_lr(global_step, start_lr, \
                             args.optimizer_param.stop_step, args.optimizer_param.decay_step, args.optimizer_param.stop_lr) #  stop_step, decay_step
@@ -84,7 +84,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
         Force_label = Variable(Force_label_cpu.to(device))   #[40,108,3]
         input_data = Variable(input_data_cpu.to(device), requires_grad=True)
         dfeat = Variable(dfeat_cpu.to(device))
-        if args.file_paths.alive_atomic_energy:
+        if args.file_paths.alive_atomic_energy and args.optimizer_param.train_egroup:
             Egroup_label = Variable(Egroup_label_cpu.to(device))
             egroup_weight = Variable(egroup_weight_cpu.to(device))
             divider = Variable(divider_cpu.to(device))
