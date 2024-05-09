@@ -3,12 +3,14 @@ from src.mods.infer import Inference
 import os 
 import glob
 import numpy as np
-def infer_main(ckpt_file, structrues_file, format= "config"):
+def infer_main(ckpt_file, structures_file, format= "config"):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     infer = Inference(ckpt_file, device)
-    infer.inference(structrues_file, format)
-
-
+    if infer.model_type == "DP":
+        infer.inference(structures_file, format)
+    elif infer.model_type == "NEP":
+        infer.inference_nep(structures_file, format)
+        
 def model_devi(ckpt_file_list, structure_dir, format, save_path):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     if os.path.isdir(structure_dir):

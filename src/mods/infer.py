@@ -2,9 +2,12 @@ import torch
 import numpy as np
 
 from PWMLFF.dp_network import dp_network
+from PWMLFF.nep_network import nep_network
 from user.input_param import InputParam
 from pwdata import Save_Data
 from pre_data.dp_data_loader import type_map, find_neighbore
+from pre_data.nep_data_loader import find_neighbore
+from pwdata import Config
 
 class Inference(object):
     def __init__(self, 
@@ -12,23 +15,35 @@ class Inference(object):
                  device: torch.device) -> None:
         self.ckpt_file = ckpt_file
         self.device = device
-        self.model = self.load_model(ckpt_file)
+        self.model, self.model_type, self.input_param = self.load_model(ckpt_file)
 
     def load_model(self, ckpt_file: str):
         model_checkpoint = torch.load(ckpt_file, map_location = torch.device("cpu"))
-        stat = [model_checkpoint["davg"], model_checkpoint["dstd"], model_checkpoint["energy_shift"]]
         model_checkpoint["json_file"]["model_load_file"] = ckpt_file
         model_checkpoint["json_file"]["datasets_path"] = []
-        dp_param = InputParam(model_checkpoint["json_file"], "train".upper())
-        dp_param.inference = True 
-        dp_trainer = dp_network(dp_param)
-        model = dp_trainer.load_model_with_ckpt(davg=stat[0], dstd=stat[1], energy_shift=stat[2])
-        model.load_state_dict(model_checkpoint["state_dict"])
-        if "compress" in model_checkpoint.keys():
-            model.set_comp_tab(model_checkpoint["compress"])
+        if "optimizer" not in model_checkpoint["json_file"].keys() or \
+            model_checkpoint["json_file"]["optimizer"] is None:
+            model_checkpoint["json_file"]["optimizer"] = {}
+            model_checkpoint["json_file"]["optimizer"]["optimizer"] = "LKF"
+
+        if model_checkpoint['json_file']['model_type'].upper() == "DP".upper():
+            stat = [model_checkpoint["davg"], model_checkpoint["dstd"], model_checkpoint["energy_shift"]]
+            dp_param = InputParam(model_checkpoint["json_file"], "train".upper())
+            dp_param.inference = True 
+            dp_trainer = dp_network(dp_param)
+            model = dp_trainer.load_model_with_ckpt(davg=stat[0], dstd=stat[1], energy_shift=stat[2])
+            model.load_state_dict(model_checkpoint["state_dict"])
+            if "compress" in model_checkpoint.keys():
+                model.set_comp_tab(model_checkpoint["compress"])
+
+        elif model_checkpoint['json_file']['model_type'].upper() == "NEP".upper():
+            dp_param = InputParam(model_checkpoint["json_file"], "train".upper())
+            nep_trainer = nep_network(dp_param)
+            model, optimizer = nep_trainer.load_model_optimizer(model_checkpoint['energy_shift'])
+
         model.to(self.device)
         model.eval()
-        return model
+        return model, model_checkpoint['json_file']['model_type'].upper(), dp_param
             
     def inference(self, structrue_file, format="config"):
         model_config = self.model.config
@@ -83,7 +98,62 @@ class Inference(object):
     def to_tensor(self, data):
         data = torch.from_numpy(data).to(self.device)
         return data
-    
+
+    def inference_nep(self, structrue_file, format="config"):
+        Ei = np.zeros(1)
+        Egroup = 0
+        nghost = 0
+        from src.pre_data.find_neigh.findneigh import FindNeigh
+        calc = FindNeigh()
+
+        # infer = Save_Data(data_path=structrue_file, format=format)
+        image = Config(data_path=structrue_file, format=format).images
+        struc_num = 1
+
+        atom_types_struc = image.atom_types_image
+        atom_types = image.atom_type
+        ntypes = len(atom_types)
+        if image.cartesian is False:
+            image._set_cartesian()
+        atom_nums = image.atom_nums
+        input_atom_types = np.array(self.model.atom_type)
+        img_max_types = self.model.ntypes
+        if ntypes > img_max_types:
+            raise Exception("Error! the atom types in structrue file is larger than the max atom types in model!")
+        type_maps = np.array(type_map(atom_types_struc, input_atom_types)).reshape(1, -1)
+        # type_maps list 1 dim
+        # Lattice [10.104840279, 0.0, -1.7274452448, 0.0, 10.28069973, 0.0, -5.1064545896e-16, 0.0, 10.275204659] 做转置后拉成一列
+        # Position [96,3] 转置后拉成一列
+        # 34622.19498329725 d12_radial
+        d12_radial, d12_agular, NL_radial2, NL_angular2, NN_radial2, NN_angular2 = calc.getNeigh(
+                           self.input_param.descriptor.cutoff[0],self.input_param.descriptor.cutoff[1], 
+                            atom_nums, len(self.input_param.atom_type)*self.input_param.max_neigh_num, list(np.array(image.lattice).transpose(1, 0).reshape(-1)), np.array(image.position).transpose(1, 0).reshape(-1))
+
+        neigh_radial_rij   = np.array(d12_radial).reshape(atom_nums, len(self.input_param.atom_type)*self.input_param.max_neigh_num, 4)
+        neigh_angular_rij  = np.array(d12_agular).reshape(atom_nums, len(self.input_param.atom_type)*self.input_param.max_neigh_num, 4)
+        neigh_radial_list  = np.array(NL_radial2).reshape(atom_nums, len(self.input_param.atom_type)*self.input_param.max_neigh_num)
+        neigh_angular_list = np.array(NL_angular2).reshape(atom_nums, len(self.input_param.atom_type)*self.input_param.max_neigh_num)
+
+        neigh_radial_rij = self.to_tensor(neigh_radial_rij).unsqueeze(0)
+        neigh_radial_list = self.to_tensor(neigh_radial_list).unsqueeze(0)
+        type_maps = self.to_tensor(type_maps).squeeze(0)
+        atom_types = self.to_tensor(np.array(atom_types))
+
+        Etot, Ei, Force, Egroup, Virial = self.model(neigh_radial_list, type_maps, atom_types, neigh_radial_rij, nghost)
+        Etot = Etot.cpu().detach().numpy()
+        Ei = Ei.cpu().detach().numpy()
+        Force = Force.cpu().detach().numpy()
+        Virial = Virial.cpu().detach().numpy()
+        try:
+            Egroup = Egroup.cpu().detach().numpy()
+        except:
+            Egroup = None
+        print("----------Total Energy-------\n", Etot)
+        print("----------Atomic Energy------\n", Ei)
+        print("----------Force--------------\n", Force)
+        print("----------Virial-------------\n", Virial)
+        return Etot, Ei, Force, Egroup, Virial    
+
 if __name__ == "__main__":
     ckpt_file = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/4-CH4-dbg/model_record/dp_model.ckpt"
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")

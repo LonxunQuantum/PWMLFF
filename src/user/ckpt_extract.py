@@ -43,7 +43,7 @@ def script_dp_model(model_checkpoint, ckpt_file):
     model = dp_trainer.load_model_with_ckpt(davg=stat[0], dstd=stat[1], energy_shift=stat[2])
     # model = DP(config=dp_model_param, davg=stat[0], dstd=stat[1], energy_shift=stat[2])
     model.load_state_dict(model_checkpoint["state_dict"])
-    if dp_param.dp_params.descriptor.type_embedding:
+    if dp_param.descriptor.type_embedding:
         dp_log = "Type embedding DP model" 
     else:
         dp_log = "DP model"

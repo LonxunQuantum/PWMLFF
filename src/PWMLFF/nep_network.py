@@ -581,10 +581,6 @@ class nep_network:
             wf.writelines(txt_head)
         print("Successfully convert to nep.in and nep.txt file.")        
 
-    def load_model_with_ckpt(self, davg, dstd, energy_shift):
-        model, optimizer = self.load_model_optimizer(davg, dstd, energy_shift)
-        return model
-
     def evaluate(self,num_thread = 1):
         """
             evaluate a model against AIMD
