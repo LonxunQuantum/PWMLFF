@@ -480,7 +480,7 @@ class NEP(nn.Module):
         # j_type_map = j_type_map.clone()
         mask = j_type_map > -1
         # j_type_map = j_type_map -1
-        j_type_map[mask] = (Imagetype_map*self.ntypes).unsqueeze(-1).unsqueeze(0).repeat(batch_size, 1, 200)[mask]+j_type_map[mask]
+        j_type_map[mask] = (Imagetype_map*self.ntypes).unsqueeze(-1).unsqueeze(0).repeat(batch_size, 1, self.ntypes*self.maxNeighborNum)[mask]+j_type_map[mask]
         j_type_map3 = j_type_map.flatten()
         mask2 = j_type_map3 > -1
         

@@ -185,6 +185,7 @@ class OptimizerParam(object):
             opt_dict["force_delta"] =  self.force_delta
             opt_dict["population"] =  self.population
             opt_dict["generation"] =  self.generation
+        return opt_dict
 
     def snes_to_nep_txt(self):
         content = ""

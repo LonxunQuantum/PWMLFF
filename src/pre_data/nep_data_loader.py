@@ -462,10 +462,12 @@ def gen_train_data(train_ratio, raw_data_path, datasets_path,
         list: List of paths to the labels.
     """
     labels_path = []
-    for data_path in raw_data_path:
-        data_name = os.path.basename(data_path)
-        labels_path.append(os.path.join(datasets_path, data_name))
-        Save_Data(data_path, datasets_path, train_data_path, valid_data_path, 
+    for idx, data_path in enumerate(raw_data_path):
+        data_name = "{}_{}".format(os.path.basename(data_path), idx)
+        # labels_path.append(os.path.join(datasets_path, data_name))
+        save_dir = os.path.join(datasets_path, data_name)
+        labels_path.append(os.path.join(save_dir, os.path.basename(data_path)))
+        Save_Data(data_path, save_dir, train_data_path, valid_data_path, 
                     train_ratio, data_shuffle, seed, format)
     return labels_path
 
