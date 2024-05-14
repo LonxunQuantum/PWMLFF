@@ -2,7 +2,7 @@
 import json
 import os, sys
 import argparse
-# from src.user.nep_work import nep_train
+from src.user.nep_work import nep_train
 from src.user.dp_work import dp_train, dp_test
 from src.user.nn_work import nn_train, gen_nn_feature, nn_test
 from src.user.cheby_work import cheby_train, cheby_test
