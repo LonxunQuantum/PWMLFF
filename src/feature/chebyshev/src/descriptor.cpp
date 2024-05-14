@@ -26,50 +26,39 @@ Descriptor::Descriptor(){}; // default constructor
  */
 Descriptor::Descriptor(int beta, int m1, int m2, float rcut_max, float rcut_smooth,
                        int natoms, int ntypes, int max_neighbors, int *type_map,
-                       int *num_neigh_all, int *neighbors_list_all, double *dR_neigh_all, double **c)
+                       int *num_neigh_all, int *neighbors_list_all, double *dR_neigh_all, double *c)
     : beta(beta), m1(m1), m2(m2), natoms(natoms), ntypes(ntypes), max_neighbors(max_neighbors),
       rcut_max(rcut_max), rcut_smooth(rcut_smooth), type_map(type_map),
       radial(m1, beta, ntypes, rcut_max, rcut_smooth), smooth(rcut_max, rcut_smooth),
       num_neigh_all(num_neigh_all), neighbors_list_all(neighbors_list_all), dR_neigh_all(dR_neigh_all)
 {
-    this->nfeat = ntypes * m1 * m2;
+    this->nfeat = m1 * m2;
     this->num_neigh_alltypes = new int[natoms];
     // this->neighbor_list_alltypes = new int *[natoms];
     this->neighbor_list_alltypes = new int[natoms * max_neighbors];
     std::fill_n(this->neighbor_list_alltypes, natoms * max_neighbors, -1);
-    this->dR_neigh_alltypes = new Neighbor *[natoms];
-    this->ind_neigh_alltypes = new int **[natoms];
+    // this->dR_neigh_alltypes = new Neighbor *[natoms];
+    // this->ind_neigh_alltypes = new int **[natoms];
     this->feat = new double[natoms * this->nfeat]();
     // this->dfeat_tmp = new double ***[3];
     this->dfeat_tmp = new double[3 * natoms * this->nfeat * max_neighbors]();
     // this->dfeat = new double ***[3];
-    this->dfeat = new double[3 * natoms * this->nfeat * max_neighbors]();
-    // this->dfeat2c = new double **[natoms];
-    this->dfeat2c = new double[natoms * this->nfeat * max_neighbors]();
-
+    // this->dfeat = new double[3 * natoms * this->nfeat * max_neighbors]();
+    this->dfeat2c = new double[natoms * this->nfeat * ntypes * m1 * beta]();
     for (int i = 0; i < natoms; i++)
     {
         this->num_neigh_alltypes[i] = 0;
         // this->neighbor_list_alltypes[i] = new int[max_neighbors];
         // std::fill_n(this->neighbor_list_alltypes[i], max_neighbors, -1);
-        this->dR_neigh_alltypes[i] = new Neighbor[max_neighbors];
-        std::fill_n(this->dR_neigh_alltypes[i], max_neighbors, Neighbor());
-        this->ind_neigh_alltypes[i] = new int *[ntypes];
+        // this->dR_neigh_alltypes[i] = new Neighbor[max_neighbors];
+        // std::fill_n(this->dR_neigh_alltypes[i], max_neighbors, Neighbor());
+        // this->ind_neigh_alltypes[i] = new int *[ntypes];
 
-        for (int j = 0; j < ntypes; j++)
-        {
-            this->ind_neigh_alltypes[i][j] = new int[max_neighbors]();
-            std::fill_n(this->ind_neigh_alltypes[i][j], max_neighbors, -1);
-        }
-
-        /*
-        this->dfeat2c[i] = new double *[this->nfeat];
-        for (int j = 0; j < this->nfeat; j++)
-        {
-            this->dfeat2c[i][j] = new double[max_neighbors];
-            std::fill_n(this->dfeat2c[i][j], max_neighbors, 0.0);
-        }
-        */
+        // for (int j = 0; j < ntypes; j++)
+        // {
+        //     this->ind_neigh_alltypes[i][j] = new int[max_neighbors]();
+        //     std::fill_n(this->ind_neigh_alltypes[i][j], max_neighbors, -1);
+        // }
     }
 
     /*
@@ -94,40 +83,18 @@ Descriptor::Descriptor(int beta, int m1, int m2, float rcut_max, float rcut_smoo
 
     if (c == nullptr)
     {
-        std::default_random_engine generator;
-        std::uniform_real_distribution<double> distribution(-0.5, 0.5);
-        this->c = new double *[m1];
-        for (int i = 0; i < m1; i++)
-        {
-            this->c[i] = new double[beta];
-            for (int j = 0; j < beta; j++)
-            {
-                this->c[i][j] = distribution(generator);
-                // this->c[i][j] = 1.0;
-            }
-        }
-        // this->c = new double ***[ntypes];
-        // for (int i = 0; i < ntypes; i++)
-        // {
-        //     this->c[i] = new double **[ntypes];
-        //     for (int j = 0; j < ntypes; j++)
-        //     {
-        //         this->c[i][j] = new double *[m1];
-        //         for (int k = 0; k < m1; k++)
-        //         {
-        //             this->c[i][j][k] = new double[beta];
-        //             for (int l = 0; l < beta; l++)
-        //             {
-        //                 this->c[i][j][k][l] = distribution(generator);
-        //                 // this->c[i][j][k][l] = 1.0;
-        //             }
-        //         }
-        //     }
-        // }
+        set_cparams(ntypes, natoms, beta, m1);
+        c_is_internal = true; // Set to true when c is allocated internally
     }
     else
     {
         this->c = c;
+        c_is_internal = false; // Set to false when c is provided externally
+        // for (int i = 0; i < ntypes * ntypes * m1 * beta; i++)
+        // {
+        //     std::cout << "c[" << i << "] = " << c[i] << " ";
+        // }
+        // std::cout << std::endl;
     }
 
     this->radial.set_c(this->c);
@@ -145,35 +112,25 @@ Descriptor::Descriptor(const Descriptor &other)
     // this->neighbor_list_alltypes = new int *[natoms];
     this->neighbor_list_alltypes = new int[natoms * max_neighbors];
     std::copy_n(other.neighbor_list_alltypes, natoms * max_neighbors, this->neighbor_list_alltypes);
-    this->dR_neigh_alltypes = new Neighbor *[natoms];
-    this->ind_neigh_alltypes = new int **[natoms];
+    // this->dR_neigh_alltypes = new Neighbor *[natoms];
+    // this->ind_neigh_alltypes = new int **[natoms];
     this->feat = new double[natoms * this->nfeat]();
     this->dfeat_tmp = new double[3 * natoms * this->nfeat * max_neighbors]();
-    this->dfeat = new double[3 * natoms * this->nfeat * max_neighbors]();
-    // this->dfeat2c = new double **[natoms];
-    this->dfeat2c = new double[natoms * this->nfeat * max_neighbors]();
+    // this->dfeat = new double[3 * natoms * this->nfeat * max_neighbors]();
+    this->dfeat2c = new double[natoms * this->nfeat * ntypes * m1 * beta]();
     for (int i = 0; i < natoms; i++)
     {
         this->num_neigh_alltypes[i] = other.num_neigh_alltypes[i];
         // this->neighbor_list_alltypes[i] = new int[max_neighbors];
         // std::copy_n(other.neighbor_list_alltypes[i], max_neighbors, this->neighbor_list_alltypes[i]);
-        this->dR_neigh_alltypes[i] = new Neighbor[max_neighbors];
-        std::copy_n(other.dR_neigh_alltypes[i], max_neighbors, this->dR_neigh_alltypes[i]);
-        this->ind_neigh_alltypes[i] = new int *[ntypes];
-        for (int j = 0; j < ntypes; j++)
-        {
-            this->ind_neigh_alltypes[i][j] = new int[max_neighbors];
-            std::copy_n(other.ind_neigh_alltypes[i][j], max_neighbors, this->ind_neigh_alltypes[i][j]);
-        }
-
-        /*
-        this->dfeat2c[i] = new double *[this->nfeat];
-        for (int j = 0; j < this->nfeat; j++)
-        {
-            this->dfeat2c[i][j] = new double[max_neighbors];
-            std::copy_n(other.dfeat2c[i][j], max_neighbors, this->dfeat2c[i][j]);
-        }
-        */
+        // this->dR_neigh_alltypes[i] = new Neighbor[max_neighbors];
+        // std::copy_n(other.dR_neigh_alltypes[i], max_neighbors, this->dR_neigh_alltypes[i]);
+        // this->ind_neigh_alltypes[i] = new int *[ntypes];
+        // for (int j = 0; j < ntypes; j++)
+        // {
+        //     this->ind_neigh_alltypes[i][j] = new int[max_neighbors];
+        //     std::copy_n(other.ind_neigh_alltypes[i][j], max_neighbors, this->ind_neigh_alltypes[i][j]);
+        // }
     }
 
     /*
@@ -198,26 +155,14 @@ Descriptor::Descriptor(const Descriptor &other)
     }
     */
 
-    this->c = new double *[m1];
-    for (int i = 0; i < m1; i++)
-    {
-        this->c[i] = new double[beta];
-        std::copy_n(other.c[i], beta, this->c[i]);
-    }
-    // this->c = new double ***[ntypes];
-    // for (int i = 0; i < ntypes; i++)
+    // this->c = new double *[m1];
+    // for (int i = 0; i < m1; i++)
     // {
-    //     this->c[i] = new double **[ntypes];
-    //     for (int j = 0; j < ntypes; j++)
-    //     {
-    //         this->c[i][j] = new double *[m1];
-    //         for (int k = 0; k < m1; k++)
-    //         {
-    //             this->c[i][j][k] = new double[beta];
-    //             std::copy_n(other.c[i][j][k], beta, this->c[i][j][k]);
-    //         }
-    //     }
+    //     this->c[i] = new double[beta];
+    //     std::copy_n(other.c[i], beta, this->c[i]);
     // }
+    this->c = new double[ntypes * ntypes * m1 * beta];
+    std::copy_n(other.c, ntypes * ntypes * m1 * beta, this->c);
 
     this->radial.set_c(this->c);
 
@@ -229,25 +174,17 @@ Descriptor::~Descriptor()
     for (int i = 0; i < this->natoms; i++)
     {
         // delete[] this->neighbor_list_alltypes[i];
-        delete[] this->dR_neigh_alltypes[i];
+        // delete[] this->dR_neigh_alltypes[i];
 
-        for (int j = 0; j < this->ntypes; j++)
-        {
-            delete[] this->ind_neigh_alltypes[i][j];
-        }
-        delete[] this->ind_neigh_alltypes[i];
-
-        /*
-        for (int j = 0; j < this->nfeat; j++)
-        {
-            delete[] this->dfeat2c[i][j];
-        }
-        delete[] this->dfeat2c[i];
-        */
+        // for (int j = 0; j < this->ntypes; j++)
+        // {
+        //     delete[] this->ind_neigh_alltypes[i][j];
+        // }
+        // delete[] this->ind_neigh_alltypes[i];
     }
     delete[] this->neighbor_list_alltypes;
-    delete[] this->dR_neigh_alltypes;
-    delete[] this->ind_neigh_alltypes;
+    // delete[] this->dR_neigh_alltypes;
+    // delete[] this->ind_neigh_alltypes;
     delete[] this->feat;
     delete[] this->dfeat2c;
 
@@ -269,26 +206,55 @@ Descriptor::~Descriptor()
     }
     */
     delete[] this->dfeat_tmp;
-    delete[] this->dfeat;
+    // delete[] this->dfeat;
 
-    for (int i = 0; i < this->m1; i++)
+    if (c_is_internal)
     {
-        delete[] this->c[i];
+        delete[] this->c;
     }
-    // for (int i = 0; i < this->ntypes; i++)
-    // {
-    //     for (int j = 0; j < this->ntypes; j++)
-    //     {
-    //         for (int k = 0; k < this->m1; k++)
-    //         {
-    //             delete[] this->c[i][j][k];
-    //         }
-    //         delete[] this->c[i][j];
-    //     }
-    //     delete[] this->c[i];
-    // }
-    delete[] this->c;
 } // destructor
+
+void Descriptor::set_cparams(int ntypes, int natoms, int beta, int m1)
+{
+
+    // double cc[16] = {0.303853709,
+    //                  -0.0854569748,
+    //                  0.4293442467,
+    //                  0.2166703193,
+    //                  0.5573201327,
+    //                  -0.3228760486,
+    //                  -0.03793927329,
+    //                  0.2213648114,
+    //                  -0.3459786808,
+    //                  0.02849054782,
+    //                  0.08789184722,
+    //                  0.3742746207,
+    //                  0.03882487044,
+    //                  -0.04294626595,
+    //                  0.3165685393,
+    //                  0.3105905415};
+    int size = ntypes * ntypes * m1 * beta;
+    std::vector<double> r_k(size);
+    std::vector<double> m(size);
+    std::vector<double> s(size, 0.1);  // All elements are 0.1
+
+    std::random_device rd; // obtain a random number from hardware
+    std::mt19937 eng(rd()); // seed the generator
+    std::normal_distribution<> d(0.0, 1.0); // define the range
+
+    // Generate normal distribution for r_k
+    std::generate(r_k.begin(), r_k.end(), [&]() { return d(eng); });
+
+    // Generate normal distribution for m
+    std::generate(m.begin(), m.end(), [&]() { return ((double) rand() / (RAND_MAX)) - 0.5; });
+
+    this->c = new double[size];
+    for (int i = 0; i < size; i++)
+    {
+        this->c[i] = r_k[i] * s[i] + m[i];
+        // this->c[i] = cc[i];
+    }
+}
 
 void Descriptor::build(int m1, int m2, int max_neighbors, int ntypes, int natoms)
 {
@@ -315,8 +281,8 @@ void Descriptor::build(int m1, int m2, int max_neighbors, int ntypes, int natoms
                     std::cerr << "Error: the maximum number of neighbors is too small." << std::endl;
                     exit(1);
                 }
-                this->dR_neigh_alltypes[i][num] = {this->dR_neigh_all[index * 4 + 0], this->dR_neigh_all[index * 4 + 1], this->dR_neigh_all[index * 4 + 2], this->dR_neigh_all[index * 4 + 3]};
-                this->ind_neigh_alltypes[i][jtype][j] = num;
+                // this->dR_neigh_alltypes[i][num] = {this->dR_neigh_all[index * 4 + 0], this->dR_neigh_all[index * 4 + 1], this->dR_neigh_all[index * 4 + 2], this->dR_neigh_all[index * 4 + 3]};
+                // this->ind_neigh_alltypes[i][jtype][j] = num;
                 // std::cout << "ind_neigh_alltypes[" << i << "][" << jtype << "][" << j << "] = " << num << std::endl;
             }
         }
@@ -325,17 +291,19 @@ void Descriptor::build(int m1, int m2, int max_neighbors, int ntypes, int natoms
 
     for (int i = 0; i < natoms; i++)
     {
+        // printf("atom %d\n", i);
         nneigh = this->num_neigh_alltypes[i];
         itype = this->type_map[i];
         std::vector<std::vector<double>> T(m1 * ntypes, std::vector<double>(4, 0.0));
         std::vector<std::vector<std::vector<std::vector<double>>>> dT(3, std::vector<std::vector<std::vector<double>>>(nneigh, std::vector<std::vector<double>>(m1 * ntypes, std::vector<double>(4, 0.0)))); // partial derivative of T with respect to rij
-        std::vector<std::vector<std::vector<double>>> dT2c(nneigh, std::vector<std::vector<double>>(m1 * ntypes, std::vector<double>(4, 0.0)));                                                              // partial derivative of T with respect to c parameters
+        std::vector<std::vector<std::vector<std::vector<std::vector<double>>>>> dT2c(ntypes, std::vector<std::vector<std::vector<std::vector<double>>>>(m1, std::vector<std::vector<std::vector<double>>>(beta, std::vector<std::vector<double>>(m1 * ntypes, std::vector<double>(4, 0.0)))));                                                                         // partial derivative of T with respect to c parameters
 
         for (int jtype = 0; jtype < ntypes; jtype++)
         {
             for (int j = 0; j < this->num_neigh_all[i * ntypes + jtype]; j++)
             {
-                // jj = ind_neigh_alltypes[i][jtype][j]; // index of the neighbor atom, starting from 0. atom0, type0, neighbor index..., atom0, type1, neighbor index (accummulated)..., atom2, type0, neighbor index...
+                // jj = ind_neigh_alltypes[i][jtype][j];
+                // index of the neighbor atom, starting from 0. atom0, type0, neighbor index..., atom0, type1, neighbor index (accummulated)..., atom2, type0, neighbor index...
                 jj2 = this->neighbors_list_all[i * ntypes * max_neighbors + jtype * max_neighbors + j];
                 index = i * ntypes * max_neighbors + jtype * max_neighbors + j;
                 rij = this->dR_neigh_all[index * 4 + 0];
@@ -343,32 +311,31 @@ void Descriptor::build(int m1, int m2, int max_neighbors, int ntypes, int natoms
                 dely = this->dR_neigh_all[index * 4 + 2];
                 delz = this->dR_neigh_all[index * 4 + 3];
                 // build radial basis functions
-                this->radial.build(rij);
+                this->radial.build(rij, itype, jtype);
                 // this->radial.show();
-                const double *rads = this->radial.get_rads();
-                const double *drads = this->radial.get_drads();
-                const double *drads2c = this->radial.get_drads2c();
+                double ***rads = this->radial.get_rads();
+                double ***drads = this->radial.get_drads();
+                double ****drads2c = this->radial.get_drads2c();
                 const double fc = this->smooth.get_smooth(rij);
                 const double dfc = this->smooth.get_dsmooth(rij);
                 const double s = fc / rij;
                 for (int m = 0; m < m1; m++)
                 {
                     ii = m + itype * m1; // index of the radial basis function
-                    build_component(m, ii, jj2, delx, dely, delz, rads, drads, drads2c, fc, dfc, s, rij, T, dT, dT2c);
+                    build_component(m, ii, jj2, delx, dely, delz, itype, jtype, rads, drads, drads2c, fc, dfc, s, rij, T, dT, dT2c);
                 }
             } // end of loop over neighbors
-        }     // end of loop over atom types
+        } // end of loop over neighbor types
 
         for (int ii1 = 0; ii1 < m1; ii1++)
         {
             index_m1 = itype * m1 + ii1;
             for (int ii2 = 0; ii2 < m2; ii2++)
             {
-                index_m2 = itype * m1 + ii2; 
-                
+                index_m2 = itype * m1 + ii2;
+
                 double sum = 0.0;
                 std::vector<std::vector<double>> dsum(3, std::vector<double>(nneigh, 0.0));
-                std::vector<double> dsum2c(nneigh, 0.0);
 
                 for (int k = 0; k < 4; k++)
                 {
@@ -381,8 +348,9 @@ void Descriptor::build(int m1, int m2, int max_neighbors, int ntypes, int natoms
                         dsum[2][jj] += dT[2][jj][index_m1][k] * T[index_m2][k] + T[index_m1][k] * dT[2][jj][index_m2][k];
                     }
                 }
-                ii = itype * m1 * m2 + ii1 * m2 + ii2;
-                feat[i * this->nfeat + ii] = sum;
+                ii = ii1 * m2 + ii2;
+                feat[i * this->nfeat + ii] += sum;
+                // std::cout << "feat[" << i << "][" << ii << "] = " << sum << std::endl;
 
                 for (jj = 0; jj < nneigh; jj++)
                 {
@@ -392,125 +360,127 @@ void Descriptor::build(int m1, int m2, int max_neighbors, int ntypes, int natoms
                         // this->dfeat_tmp[1][i][ii][jj] = dsum[1][jj];
                         // this->dfeat_tmp[2][i][ii][jj] = dsum[2][jj];
                         // 表示的是第 i 个原子的第 ii 个特征如何随着第 i 个原子与其第 jj 个邻居的x/y/z方向的距离变化而变化。
-                        // this->dfeat2c[i][ii][jj] = dsum2c[jj];
                         index = i * this->nfeat * max_neighbors + ii * max_neighbors + jj;
                         this->dfeat_tmp[index * 3 + 0] = dsum[0][jj];
                         this->dfeat_tmp[index * 3 + 1] = dsum[1][jj];
                         this->dfeat_tmp[index * 3 + 2] = dsum[2][jj];
-                        this->dfeat2c[index] = dsum2c[jj];
                     }
                 }
-            }
-        }
-    } // end of loop over atoms
 
-    /*
-    for (int i = 0; i < natoms; i++)
-    {
-        nneigh = this->num_neigh_alltypes[i];
-        for (int jj = 0; jj < nneigh; jj++)
-        {
-            // jat = this->neighbor_list_alltypes[i][jj];
-            jat = this->neighbor_list_alltypes[i * max_neighbors + jj];
-            int nneigh2 = this->num_neigh_alltypes[jat];
-            for (int jj2 = 0; jj2 < nneigh2; jj2++)
-            {
-                // if (this->neighbor_list_alltypes[jat][jj2] == i)
-                if (this->neighbor_list_alltypes[jat * max_neighbors + jj2] == i)
+                for (int jtype = 0; jtype < ntypes; jtype++)
                 {
-                    dd = std::pow(dR_neigh_alltypes[i][jj].delx + dR_neigh_alltypes[jat][jj2].delx, 2) + std::pow(dR_neigh_alltypes[i][jj].dely + dR_neigh_alltypes[jat][jj2].dely, 2) + std::pow(dR_neigh_alltypes[i][jj].delz + dR_neigh_alltypes[jat][jj2].delz, 2);
-                }
-                if (dd < 1.0e-8)
-                {
-                    for (int ii = 0; ii < this->nfeat; ii++)
+                    std::vector<std::vector<double>> dsum2c(m1, std::vector<double>(beta, 0.0));
+                    for (int mu = 0; mu < m1; mu++)
                     {
-                        // this->dfeat[0][jat][ii][jj2] = this->dfeat_tmp[0][i][ii][jj];
-                        // this->dfeat[1][jat][ii][jj2] = this->dfeat_tmp[1][i][ii][jj];
-                        // this->dfeat[2][jat][ii][jj2] = this->dfeat_tmp[2][i][ii][jj];
-                        index = 3 * (jat * this->nfeat * max_neighbors + ii * max_neighbors + jj2);
-                        this->dfeat[index + 0] = this->dfeat_tmp[3 * (i * this->nfeat * max_neighbors + ii * max_neighbors + jj) + 0];
-                        this->dfeat[index + 1] = this->dfeat_tmp[3 * (i * this->nfeat * max_neighbors + ii * max_neighbors + jj) + 1];
-                        this->dfeat[index + 2] = this->dfeat_tmp[3 * (i * this->nfeat * max_neighbors + ii * max_neighbors + jj) + 2];
+                        for (int l = 0; l < this->beta; l++)
+                        {
+                            for (int k = 0; k < 4; k++)
+                            {
+                                if (mu < m2)
+                                {
+                                    if (ii1 < m2)
+                                    {
+                                        dsum2c[mu][l] += dT2c[jtype][mu][l][index_m1][k] * T[index_m2][k] + T[index_m1][k] * dT2c[jtype][mu][l][index_m2][k];
+                                    }
+                                    else
+                                    {
+                                        dsum2c[mu][l] += dT2c[jtype][mu][l][index_m2][k] * T[index_m1][k];
+                                    }
+                                }
+                                else
+                                {
+                                    if (ii1 < m2)
+                                    {
+                                        dsum2c[mu][l] = 0.0;
+                                    }
+                                    else
+                                    {
+                                        dsum2c[mu][l] += dT2c[jtype][mu][l][index_m1][k] * T[index_m2][k];
+                                    }
+                                }
+                            }
+                            index = i * this->nfeat * ntypes * m1 * beta \
+                                + ii1 * m2 * ntypes * m1 * beta \
+                                + ii2 * ntypes * m1 * beta \
+                                + jtype * m1 * beta + mu * beta + l;
+                            this->dfeat2c[index] = dsum2c[mu][l];
+                            // std::cout << "dfeat2c[" << i << "][" << ii1 * m2 + ii2 << "][" << jtype << "][" << mu << "][" << l << "] = " << dsum2c[mu][l] << std::endl;
+                        }
                     }
                 }
             }
         }
-    }
-    */
+
+    } // end of loop over atoms
 }
 
-void Descriptor::build_component(int m, int ii, int jj, double delx, double dely, double delz,
-                                 const double *rads, const double *drads, const double *drads2c, double fc, double dfc,
+void Descriptor::build_component(int m, int ii, int jj, double delx, double dely, double delz, int itype, int jtype,
+                                 double ***rads, double ***drads, double ****drads2c, double fc, double dfc,
                                  double s, double rij, std::vector<std::vector<double>> &T,
                                  std::vector<std::vector<std::vector<std::vector<double>>>> &dT,
-                                 std::vector<std::vector<std::vector<double>>> &dT2c)
+                                 std::vector<std::vector<std::vector<std::vector<std::vector<double>>>>> &dT2c)
 {
     // build 4 components of T
-    T[ii][0] += rads[m] * s;
-    T[ii][1] += rads[m] * s * delx / rij;
-    T[ii][2] += rads[m] * s * dely / rij;
-    T[ii][3] += rads[m] * s * delz / rij;
+    T[ii][0] += rads[itype][jtype][m] * s;
+    T[ii][1] += rads[itype][jtype][m] * s * delx / rij;
+    T[ii][2] += rads[itype][jtype][m] * s * dely / rij;
+    T[ii][3] += rads[itype][jtype][m] * s * delz / rij;
 
     // partial derivative of T with respect to rij
-    const double ff = (dfc / rij - fc / std::pow(rij, 2)) * rads[m] + s * drads[m];
+    const double ff = (dfc / rij - fc / std::pow(rij, 2)) * rads[itype][jtype][m] + s * drads[itype][jtype][m];
 
-    // partial derivative of T w.r.t. c parameters
-    const double ff2 = drads2c[m] * s;
-
-    // The derivative of the component (s * rads[m]),
+    // The derivative of the component (s * rads[itype][jtype][m]),
     // = partial derivative of T with respect to rij * partial derivative of rij with respect to delx, dely, delz
     dT[0][jj][ii][0] += ff * delx / rij;
     dT[1][jj][ii][0] += ff * dely / rij;
     dT[2][jj][ii][0] += ff * delz / rij;
 
-    // The derivative of the component (s * rads[m] / rij) * delx
-    dT[0][jj][ii][1] += (ff - s * rads[m] / rij) * delx * delx / std::pow(rij, 2);
-    dT[1][jj][ii][1] += (ff - s * rads[m] / rij) * delx * dely / std::pow(rij, 2);
-    dT[2][jj][ii][1] += (ff - s * rads[m] / rij) * delx * delz / std::pow(rij, 2);
-    dT[0][jj][ii][1] += rads[m] * s / rij;
+    // The derivative of the component (s * rads[itype][jtype][m] / rij) * delx
+    dT[0][jj][ii][1] += (ff - s * rads[itype][jtype][m] / rij) * delx * delx / std::pow(rij, 2);
+    dT[1][jj][ii][1] += (ff - s * rads[itype][jtype][m] / rij) * delx * dely / std::pow(rij, 2);
+    dT[2][jj][ii][1] += (ff - s * rads[itype][jtype][m] / rij) * delx * delz / std::pow(rij, 2);
+    dT[0][jj][ii][1] += rads[itype][jtype][m] * s / rij;
 
-    // The derivative of the component (s * rads[m] / rij) * dely
-    dT[0][jj][ii][2] += (ff - s * rads[m] / rij) * dely * delx / std::pow(rij, 2);
-    dT[1][jj][ii][2] += (ff - s * rads[m] / rij) * dely * dely / std::pow(rij, 2);
-    dT[2][jj][ii][2] += (ff - s * rads[m] / rij) * dely * delz / std::pow(rij, 2);
-    dT[1][jj][ii][2] += rads[m] * s / rij;
+    // The derivative of the component (s * rads[itype][jtype][m] / rij) * dely
+    dT[0][jj][ii][2] += (ff - s * rads[itype][jtype][m] / rij) * dely * delx / std::pow(rij, 2);
+    dT[1][jj][ii][2] += (ff - s * rads[itype][jtype][m] / rij) * dely * dely / std::pow(rij, 2);
+    dT[2][jj][ii][2] += (ff - s * rads[itype][jtype][m] / rij) * dely * delz / std::pow(rij, 2);
+    dT[1][jj][ii][2] += rads[itype][jtype][m] * s / rij;
 
-    // The derivative of the component (s * rads[m] / rij) * delz
-    dT[0][jj][ii][3] += (ff - s * rads[m] / rij) * delz * delx / std::pow(rij, 2);
-    dT[1][jj][ii][3] += (ff - s * rads[m] / rij) * delz * dely / std::pow(rij, 2);
-    dT[2][jj][ii][3] += (ff - s * rads[m] / rij) * delz * delz / std::pow(rij, 2);
-    dT[2][jj][ii][3] += rads[m] * s / rij;
+    // The derivative of the component (s * rads[itype][jtype][m] / rij) * delz
+    dT[0][jj][ii][3] += (ff - s * rads[itype][jtype][m] / rij) * delz * delx / std::pow(rij, 2);
+    dT[1][jj][ii][3] += (ff - s * rads[itype][jtype][m] / rij) * delz * dely / std::pow(rij, 2);
+    dT[2][jj][ii][3] += (ff - s * rads[itype][jtype][m] / rij) * delz * delz / std::pow(rij, 2);
+    dT[2][jj][ii][3] += rads[itype][jtype][m] * s / rij;
 
     // minus itself
     // dT[0][0][ii][0] -= ff * delx / rij;
     // dT[1][0][ii][0] -= ff * dely / rij;
     // dT[2][0][ii][0] -= ff * delz / rij;
 
-    // dT[0][0][ii][1] -= (ff - s * rads[m] / rij) * delx * delx / std::pow(rij, 2);
-    // dT[1][0][ii][1] -= (ff - s * rads[m] / rij) * delx * dely / std::pow(rij, 2);
-    // dT[2][0][ii][1] -= (ff - s * rads[m] / rij) * delx * delz / std::pow(rij, 2);
-    // dT[0][0][ii][1] -= rads[m] * s / rij;
+    // dT[0][0][ii][1] -= (ff - s * rads[itype][jtype][m] / rij) * delx * delx / std::pow(rij, 2);
+    // dT[1][0][ii][1] -= (ff - s * rads[itype][jtype][m] / rij) * delx * dely / std::pow(rij, 2);
+    // dT[2][0][ii][1] -= (ff - s * rads[itype][jtype][m] / rij) * delx * delz / std::pow(rij, 2);
+    // dT[0][0][ii][1] -= rads[itype][jtype][m] * s / rij;
 
-    // dT[0][0][ii][2] -= (ff - s * rads[m] / rij) * dely * delx / std::pow(rij, 2);
-    // dT[1][0][ii][2] -= (ff - s * rads[m] / rij) * dely * dely / std::pow(rij, 2);
-    // dT[2][0][ii][2] -= (ff - s * rads[m] / rij) * dely * delz / std::pow(rij, 2);
-    // dT[1][0][ii][2] -= rads[m] * s / rij;
+    // dT[0][0][ii][2] -= (ff - s * rads[itype][jtype][m] / rij) * dely * delx / std::pow(rij, 2);
+    // dT[1][0][ii][2] -= (ff - s * rads[itype][jtype][m] / rij) * dely * dely / std::pow(rij, 2);
+    // dT[2][0][ii][2] -= (ff - s * rads[itype][jtype][m] / rij) * dely * delz / std::pow(rij, 2);
+    // dT[1][0][ii][2] -= rads[itype][jtype][m] * s / rij;
 
-    // dT[0][0][ii][3] -= (ff - s * rads[m] / rij) * delz * delx / std::pow(rij, 2);
-    // dT[1][0][ii][3] -= (ff - s * rads[m] / rij) * delz * dely / std::pow(rij, 2);
-    // dT[2][0][ii][3] -= (ff - s * rads[m] / rij) * delz * delz / std::pow(rij, 2);
-    // dT[2][0][ii][3] -= rads[m] * s / rij;
+    // dT[0][0][ii][3] -= (ff - s * rads[itype][jtype][m] / rij) * delz * delx / std::pow(rij, 2);
+    // dT[1][0][ii][3] -= (ff - s * rads[itype][jtype][m] / rij) * delz * dely / std::pow(rij, 2);
+    // dT[2][0][ii][3] -= (ff - s * rads[itype][jtype][m] / rij) * delz * delz / std::pow(rij, 2);
+    // dT[2][0][ii][3] -= rads[itype][jtype][m] * s / rij;
 
     // partial derivative of T with respect to c parameters
-    dT2c[jj][ii][0] += ff2;
-    dT2c[jj][ii][1] += ff2 * delx / rij;
-    dT2c[jj][ii][2] += ff2 * dely / rij;
-    dT2c[jj][ii][3] += ff2 * delz / rij;
-
-    // dT2c[0][ii][0] -= ff2;
-    // dT2c[0][ii][1] -= ff2 * delx / rij;
-    // dT2c[0][ii][2] -= ff2 * dely / rij;
-    // dT2c[0][ii][3] -= ff2 * delz / rij;
+    for (int l = 0; l < this->beta; l++)
+    {
+        dT2c[jtype][m][l][ii][0] += drads2c[itype][jtype][m][l] * s;
+        dT2c[jtype][m][l][ii][1] += drads2c[itype][jtype][m][l] * s * delx / rij;
+        dT2c[jtype][m][l][ii][2] += drads2c[itype][jtype][m][l] * s * dely / rij;
+        dT2c[jtype][m][l][ii][3] += drads2c[itype][jtype][m][l] * s * delz / rij;
+    }
 }
 
 double *Descriptor::get_feat() const
@@ -543,7 +513,6 @@ std::pair<std::vector<double>, std::vector<double>> Descriptor::get_dfeat() cons
                 dfeat_out.push_back(this->dfeat_tmp[0][i][j][k]);
                 dfeat_out.push_back(this->dfeat_tmp[1][i][j][k]);
                 dfeat_out.push_back(this->dfeat_tmp[2][i][j][k]);
-                dfeat2c_out.push_back(this->dfeat2c[i][j][k]);
             }
         }
     }
@@ -586,32 +555,32 @@ void Descriptor::show() const
         std::cout << std::endl;
     }
     std::cout << std::endl;
-    std::cout << "dR_neigh_alltypes: \n";
-    for (int i = 0; i < this->natoms; i++)
-    {
-        for (int j = 0; j < this->max_neighbors; j++)
-        {
-            std::cout << this->dR_neigh_alltypes[i][j].rij << " ";
-            std::cout << this->dR_neigh_alltypes[i][j].delx << " ";
-            std::cout << this->dR_neigh_alltypes[i][j].dely << " ";
-            std::cout << this->dR_neigh_alltypes[i][j].delz << " ";
-            std::cout << std::endl;
-        }
-    }
-    std::cout << std::endl;
-    std::cout << "ind_neigh_alltypes: \n";
-    for (int i = 0; i < this->natoms; i++)
-    {
-        for (int j = 0; j < this->ntypes; j++)
-        {
-            for (int k = 0; k < this->max_neighbors; k++)
-            {
-                std::cout << this->ind_neigh_alltypes[i][j][k] << " ";
-            }
-            std::cout << std::endl;
-        }
-    }
-    std::cout << std::endl;
+    // std::cout << "dR_neigh_alltypes: \n";
+    // for (int i = 0; i < this->natoms; i++)
+    // {
+    //     for (int j = 0; j < this->max_neighbors; j++)
+    //     {
+    //         std::cout << this->dR_neigh_alltypes[i][j].rij << " ";
+    //         std::cout << this->dR_neigh_alltypes[i][j].delx << " ";
+    //         std::cout << this->dR_neigh_alltypes[i][j].dely << " ";
+    //         std::cout << this->dR_neigh_alltypes[i][j].delz << " ";
+    //         std::cout << std::endl;
+    //     }
+    // }
+    // std::cout << std::endl;
+    // std::cout << "ind_neigh_alltypes: \n";
+    // for (int i = 0; i < this->natoms; i++)
+    // {
+    //     for (int j = 0; j < this->ntypes; j++)
+    //     {
+    //         for (int k = 0; k < this->max_neighbors; k++)
+    //         {
+    //             std::cout << this->ind_neigh_alltypes[i][j][k] << " ";
+    //         }
+    //         std::cout << std::endl;
+    //     }
+    // }
+    // std::cout << std::endl;
     // std::cout << "feat: \n";
     // for (int i = 0; i < this->natoms; i++)
     // {
@@ -633,19 +602,6 @@ void Descriptor::show() const
     //             std::cout << this->dfeat_tmp[3 * (i * this->nfeat * this->max_neighbors + j * this->max_neighbors + k) + 0] << " ";
     //             std::cout << this->dfeat_tmp[3 * (i * this->nfeat * this->max_neighbors + j * this->max_neighbors + k) + 1] << " ";
     //             std::cout << this->dfeat_tmp[3 * (i * this->nfeat * this->max_neighbors + j * this->max_neighbors + k) + 2] << " ";
-    //         }
-    //     }
-    // }
-    // std::cout << std::endl;
-    // std::cout << "dfeat2c_out: \n";
-    // for (int i = 0; i < this->natoms; i++)
-    // {
-    //     for (int j = 0; j < this->nfeat; j++)
-    //     {
-    //         for (int k = 0; k < this->max_neighbors; k++)
-    //         {
-    //             std::cout << std::setw(10) << std::setprecision(6) << "dfeat2c[" << i << "][" << j << "][" << k << "] = ";
-    //             std::cout << this->dfeat2c[i * this->nfeat * this->max_neighbors + j * this->max_neighbors + k] << " ";
     //         }
     //     }
     // }

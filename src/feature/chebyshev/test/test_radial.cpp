@@ -7,8 +7,8 @@ public:
     test_radial(int miu, int size, int ntypes, double rcut_max, double rcut_smooth)
         : radial(miu, size, ntypes, rcut_max, rcut_smooth) {}
 
-    void build(double rij) {
-        radial.build(rij);
+    void build(double rij, int itype, int jtype) {
+        radial.build(rij, itype, jtype);
     }
 
     void show() const {
@@ -21,7 +21,7 @@ private:
 
 int main() {
     test_radial tb(25, 10, 2, 3.2, 0.5);
-    tb.build(2.0);
+    tb.build(2.0, 0, 0);
     tb.show();
     return 0;
 }

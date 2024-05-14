@@ -427,8 +427,7 @@ class DP(nn.Module):
         dE = torch.autograd.grad([Ei], [Ri], grad_outputs=mask, retain_graph=True, create_graph=True)[0]
         '''
         assert dE is not None
-        # if device.type == "cpu":
-        if 1:
+        if device.type == "cpu":
             dE = torch.unsqueeze(dE, dim=-1)
             # dE * Ri_d [batch, natom, max_neighbor * len(atom_type),4,1] * [batch, natom, max_neighbor * len(atom_type), 4, 3]
             # dE_Rid [batch, natom, max_neighbor * len(atom_type), 3]

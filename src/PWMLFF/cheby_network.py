@@ -187,7 +187,7 @@ class cheby_network:
         beta = cheby_param.descriptor.cheby_order
         m1 = cheby_param.descriptor.radial_num1
         m2 = cheby_param.descriptor.radial_num2
-        nfeat = ntypes * m1 * m2
+        nfeat = m1 * m2
 
         # Create neighbor list
         mnl = lib_1.CreateNeighbor(image_num, rcut_max, max_neigh_num, ntypes, natoms, type_maps, coords_all, box_all)
@@ -198,14 +198,13 @@ class cheby_network:
         num_neigh_all = np.ctypeslib.as_array(num_neigh_all, (image_num, natoms, ntypes))
         list_neigh_all = np.ctypeslib.as_array(list_neigh_all, (image_num, natoms, ntypes, max_neigh_num))
         dr_neigh_all = np.ctypeslib.as_array(dr_neigh_all, (image_num, natoms, ntypes, max_neigh_num, 4))   # rij, delx, dely, delz
-        descriptor = lib_2.CreateDescriptor(image_num, beta, m1, m2, rcut_max, rcut_smooth, natoms, ntypes, max_neigh_num, type_maps, num_neigh_all, list_neigh_all, dr_neigh_all)
+        descriptor = lib_2.CreateDescriptor(image_num, beta, m1, m2, rcut_max, rcut_smooth, natoms, ntypes, max_neigh_num, type_maps, num_neigh_all, list_neigh_all, dr_neigh_all, None)
         # lib_2.show(descriptor)
         feat = lib_2.get_feat(descriptor)
         # dfeat = lib_2.get_dfeat(descriptor)
         # dfeat2c = lib_2.get_dfeat2c(descriptor)
         feat = np.ctypeslib.as_array(feat, (image_num, natoms, nfeat))
         # dfeat = np.ctypeslib.as_array(dfeat, (image_num, natoms, nfeat, max_neigh_num, 3))
-        # dfeat2c = np.ctypeslib.as_array(dfeat2c, (image_num, natoms, nfeat, max_neigh_num))
 
         # Calculate the scaler
         scaler = MinMaxScaler()
@@ -507,6 +506,7 @@ class cheby_network:
                 loss, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_egroup, loss_virial, loss_virial_per_atom, Sij_max = train_KF(
                     train_loader, model, self.criterion, optimizer, epoch, self.device, self.cheby_param
                 )
+
             else:
                 loss, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_egroup, loss_virial, loss_virial_per_atom, real_lr, Sij_max = train(
                     train_loader, model, self.criterion, optimizer, epoch, \

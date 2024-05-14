@@ -433,7 +433,7 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
                     
                 if args.optimizer_param.train_energy is True: 
                     Etot_predict = KFOptWrapper.update_energy(kalman_inputs, Etot_label, args.optimizer_param.pre_fac_etot, train_type = "CHEBY")
-                
+
                 if args.optimizer_param.train_ei is True:
                     Ei_predict = KFOptWrapper.update_ei(kalman_inputs, Ei_label, args.optimizer_param.pre_fac_ei, train_type = "CHEBY")
 
@@ -615,7 +615,7 @@ def valid(val_loader, model, criterion, device, args:InputParam):
                         dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, num_neigh, 0, Egroup_weight, Divider)
                 else:
                     # atom_type_map: we only need the first element, because it is same for each image of MOVEMENT
-                    Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
+                    Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict, _ = model(
                         dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, num_neigh, 0, None, None)
                 
                 #return 
@@ -830,7 +830,7 @@ def predict(val_loader, model, criterion, device, args:InputParam, isprofile=Fal
                         dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, num_neigh, 0, Egroup_weight, Divider)
                 else:
                     # atom_type_map: we only need the first element, because it is same for each image of MOVEMENT
-                    Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
+                    Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict, _ = model(
                         dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, num_neigh, 0, None, None 
                     )
             # mse

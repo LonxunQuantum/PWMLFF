@@ -12,19 +12,21 @@ public:
 
     Descriptor(int beta, int m1, int m2, float rcut_max, float rcut_smooth,
                int natoms, int ntypes, int max_neighbors, int *type_map, 
-               int *num_neigh_all, int *neighbors_list_all, double *dR_neigh_all, double **c = nullptr);
+               int *num_neigh_all, int *neighbors_list_all, double *dR_neigh_all, double *c = nullptr);
 
     Descriptor(const Descriptor &other);
 
     ~Descriptor();
 
+    void set_cparams(int ntypes, int natoms, int beta, int m1);
+
     void build(int m1, int m2, int max_neighbors, int ntypes, int natoms); // build descriptor
 
-    void build_component(int m, int ii, int jj, double delx, double dely, double delz,
-                         const double *rads, const double *drads, const double *drads2c, double fc, double dfc,
+    void build_component(int m, int ii, int jj, double delx, double dely, double delz, int itype, int jtype,
+                         double ***rads, double ***drads, double ****drads2c, double fc, double dfc,
                          double s, double rij, std::vector<std::vector<double>> &T,
                          std::vector<std::vector<std::vector<std::vector<double>>>> &dT,
-                         std::vector<std::vector<std::vector<double>>> &dT2c); // build 4-D descriptor component
+                         std::vector<std::vector<std::vector<std::vector<std::vector<double>>>>> &dT2c); // build 4-D descriptor component
 
     double *get_feat() const; // get descriptor
 
@@ -48,14 +50,15 @@ private:
     int *num_neigh_all;
     int *neighbors_list_all;
     double *dR_neigh_all;
-    double **c;
+    double *c;
+    bool c_is_internal;
     SmoothFunc<double> smooth;
     Radial<double> radial;
     int *num_neigh_alltypes;      // number of neighbors for all atom types, including self
     // int **neighbor_list_alltypes; // neighbor list for all atom types, including self
     int *neighbor_list_alltypes; // neighbor list for all atom types, including self
-    Neighbor **dR_neigh_alltypes; // partial derivative of neighbor list with respect to rij
-    int ***ind_neigh_alltypes;    // index of neighbors for all atom types, including self
+    // Neighbor **dR_neigh_alltypes; // partial derivative of neighbor list with respect to rij
+    // int ***ind_neigh_alltypes;    // index of neighbors for all atom types, including self
     double *feat;                 // descriptor
     // double ****dfeat_tmp;
     double *dfeat_tmp;
@@ -71,13 +74,13 @@ public:
 
     MultiDescriptor(int images, int beta, int m1, int m2, float rcut_max, float rcut_smooth,
                     int natoms, int ntypes, int max_neighbors, int *type_map,
-                    int *num_neigh_all, int *neighbors_list_all, double *dR_neigh_all, double **c = nullptr)
-        : images(images), natoms(natoms), max_neighbors(max_neighbors)
+                    int *num_neigh_all, int *neighbors_list_all, double *dR_neigh_all, double *c = nullptr)
+        : images(images), natoms(natoms), max_neighbors(max_neighbors), ntypes(ntypes), m1(m1), beta(beta)
     {
-        int nfeat = ntypes * m1 * m2;
+        int nfeat = m1 * m2;
         this->feat_all = new double[images * natoms * nfeat];
         this->dfeat_all = new double[images * 3 * natoms * nfeat * max_neighbors];
-        this->dfeat2c_all = new double[images * natoms * nfeat * max_neighbors];
+        this->dfeat2c_all = new double[images * natoms * nfeat * ntypes * m1 * beta];
         this->neighbor_list_alltypes = new int[images * natoms * max_neighbors];
         this->descriptor = new Descriptor *[images];
         int offset1, offset2, offset3;
@@ -85,8 +88,15 @@ public:
         {
             offset1 = i * natoms * ntypes;
             offset2 = offset1 * max_neighbors;
-            offset3 = offset2 * 4;               
-            this->descriptor[i] = new Descriptor(beta, m1, m2, rcut_max, rcut_smooth, natoms, ntypes, max_neighbors, type_map, num_neigh_all + offset1, neighbors_list_all + offset2, dR_neigh_all + offset3);
+            offset3 = offset2 * 4;       
+            if (c != nullptr)
+            {
+                this->descriptor[i] = new Descriptor(beta, m1, m2, rcut_max, rcut_smooth, natoms, ntypes, max_neighbors, type_map, num_neigh_all + offset1, neighbors_list_all + offset2, dR_neigh_all + offset3, c);
+            }
+            else
+            {     
+                this->descriptor[i] = new Descriptor(beta, m1, m2, rcut_max, rcut_smooth, natoms, ntypes, max_neighbors, type_map, num_neigh_all + offset1, neighbors_list_all + offset2, dR_neigh_all + offset3);
+            }
         }
     }
     ~MultiDescriptor()
@@ -163,7 +173,7 @@ public:
         {
             dfeat2c = this->descriptor[i]->get_dfeat2c();
             nfeat = this->descriptor[i]->get_nfeat();
-            index = this->natoms * nfeat * this->max_neighbors;
+            index = this->natoms * nfeat * this->ntypes * this->m1 * this->beta;
             std::copy(dfeat2c, dfeat2c + index, this->dfeat2c_all + i * index);
         }
         return this->dfeat2c_all;
@@ -183,7 +193,7 @@ public:
     }
 
 private:
-    int images, natoms, max_neighbors;
+    int images, natoms, max_neighbors, ntypes, m1, beta;
     Descriptor **descriptor;
     double *feat_all;
     double *dfeat_all;
@@ -195,9 +205,9 @@ extern "C"
 {
     MultiDescriptor *CreateDescriptor(int images, int beta, int m1, int m2, float rcut_max, float rcut_smooth,
                                       int natoms, int ntypes, int max_neighbors, int *type_map,
-                                      int *num_neigh_all, int *neighbors_list_all, double *dR_neigh_all, double **c = nullptr)
+                                      int *num_neigh_all, int *neighbors_list_all, double *dR_neigh_all, double *c = nullptr)
     {
-        return new MultiDescriptor(images, beta, m1, m2, rcut_max, rcut_smooth, natoms, ntypes, max_neighbors, type_map, num_neigh_all, neighbors_list_all, dR_neigh_all);
+        return new MultiDescriptor(images, beta, m1, m2, rcut_max, rcut_smooth, natoms, ntypes, max_neighbors, type_map, num_neigh_all, neighbors_list_all, dR_neigh_all, c);
     }
 
     void DestroyDescriptor(MultiDescriptor *descriptor)
@@ -233,6 +243,7 @@ extern "C"
     {
         return descriptor->get_neighbor_list();
     }
+
 }
 
 #endif // DESCRIPTOR_H

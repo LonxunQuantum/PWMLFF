@@ -39,17 +39,17 @@ public:
 
     ~Radial();
 
-    void build(CoordType rij); // build radial basis functions
+    void build(CoordType rij, int itype, int jtype); // build radial basis functions
 
     const int get_mu() const; // get number of radial basis functions
 
-    void set_c(CoordType** c);  // set parameters for radial basis functions
+    void set_c(CoordType* c);  // set parameters for radial basis functions
 
-    const CoordType* get_rads() const; // get radial basis functions
+    CoordType*** get_rads() const; // get radial basis functions
 
-    const CoordType* get_drads() const; // get partial derivative of radial basis functions with respect to rij
+    CoordType*** get_drads() const; // get partial derivative of radial basis functions with respect to rij
 
-    const CoordType* get_drads2c() const; // get partial derivative of radial basis functions with respect to c
+    CoordType**** get_drads2c() const; // get partial derivative of radial basis functions with respect to c
 
     void show() const; // show radial basis functions
 
@@ -57,10 +57,10 @@ private:
     int beta, mu, ntypes;
     SmoothFunc<CoordType> smooth;
     Chebyshev1st<CoordType> chebyshev;
-    CoordType* rads;    // radial basis functions    
-    CoordType* drads;    // partial derivative of radial basis functions with respect to rij
-    CoordType* drads2c;    // partial derivative of radial basis functions with respect to c
-    CoordType** c;   // parameters for radial basis functions
+    CoordType*** rads;    // radial basis functions    
+    CoordType*** drads;    // partial derivative of radial basis functions with respect to rij
+    CoordType**** drads2c;    // partial derivative of radial basis functions with respect to c
+    CoordType* c;   // parameters for radial basis functions
 };   // end of class Radial
 
 
@@ -148,28 +148,30 @@ Radial<CoordType>::Radial() {};  // default constructor
 template <typename CoordType>
 Radial<CoordType>::Radial(int mu, int beta, int ntypes, CoordType rcut_max, CoordType rcut_smooth)
     : mu(mu), beta(beta), ntypes(ntypes), smooth(rcut_max, rcut_smooth), chebyshev(beta, rcut_max, rcut_smooth) {
-    this->rads = new CoordType[mu];
-    std::fill_n(this->rads, mu, CoordType());
-    this->drads = new CoordType[mu];
-    std::fill_n(this->drads, mu, CoordType());
-    this->drads2c = new CoordType[mu];
-    std::fill_n(this->drads2c, mu, CoordType());
-    // this->rads = new CoordType**[mu];
-    // this->drads = new CoordType**[mu];
-    // this->drads2c = new CoordType**[mu];
-    // for (int i = 0; i < mu; i++) {
-    //     this->rads[i] = new CoordType*[ntypes];
-    //     this->drads[i] = new CoordType*[ntypes];
-    //     this->drads2c[i] = new CoordType*[ntypes];
-    //     for (int j = 0; j < ntypes; j++) {
-    //         this->rads[i][j] = new CoordType[ntypes];
-    //         this->drads[i][j] = new CoordType[ntypes];
-    //         this->drads2c[i][j] = new CoordType[ntypes];
-    //         std::fill_n(this->rads[i][j], ntypes, CoordType());
-    //         std::fill_n(this->drads[i][j], ntypes, CoordType());
-    //         std::fill_n(this->drads2c[i][j], ntypes, CoordType());
-    //     }
-    // }
+    // this->rads = new CoordType[mu];
+    // std::fill_n(this->rads, mu, CoordType());
+    // this->drads = new CoordType[mu];
+    // std::fill_n(this->drads, mu, CoordType());
+    this->rads = new CoordType**[ntypes];
+    this->drads = new CoordType**[ntypes];
+    this->drads2c = new CoordType***[ntypes];
+    for (int i = 0; i < ntypes; i++) {
+        this->rads[i] = new CoordType*[ntypes];
+        this->drads[i] = new CoordType*[ntypes];
+        this->drads2c[i] = new CoordType**[ntypes];
+        for (int j = 0; j < ntypes; j++) {
+            this->rads[i][j] = new CoordType[mu];
+            std::fill_n(this->rads[i][j], mu, CoordType());
+            this->drads[i][j] = new CoordType[mu];
+            std::fill_n(this->drads[i][j], mu, CoordType());
+            this->drads2c[i][j] = new CoordType*[mu];
+            for (int k = 0; k < mu; k++) {
+                this->drads2c[i][j][k] = new CoordType[beta];
+                std::fill_n(this->drads2c[i][j][k], beta, CoordType());
+            }
+        }
+    }
+
     
 }  // constructor
 
@@ -179,28 +181,30 @@ Radial<CoordType>::Radial(int mu, int beta, int ntypes, CoordType rcut_max, Coor
 template <typename CoordType>
 Radial<CoordType>::Radial(const Radial& other)
     : mu(other.mu), beta(other.beta), smooth(other.smooth), chebyshev(other.chebyshev) {
-    this->rads = new CoordType[mu];
-    std::copy_n(other.rads, mu, this->rads);
-    this->drads = new CoordType[mu];
-    std::copy_n(other.drads, mu, this->drads);
-    this->drads2c = new CoordType[mu];
-    std::copy_n(other.drads2c, mu, this->drads2c);
-    // this->rads = new CoordType**[mu];
-    // this->drads = new CoordType**[mu];
-    // this->drads2c = new CoordType**[mu];
-    // for (int i = 0; i < mu; i++) {
-    //     this->rads[i] = new CoordType*[ntypes];
-    //     this->drads[i] = new CoordType*[ntypes];
-    //     this->drads2c[i] = new CoordType*[ntypes];
-    //     for (int j = 0; j < ntypes; j++) {
-    //         this->rads[i][j] = new CoordType[ntypes];
-    //         this->drads[i][j] = new CoordType[ntypes];
-    //         this->drads2c[i][j] = new CoordType[ntypes];
-    //         std::copy_n(other.rads[i][j], ntypes, this->rads[i][j]);
-    //         std::copy_n(other.drads[i][j], ntypes, this->drads[i][j]);
-    //         std::copy_n(other.drads2c[i][j], ntypes, this->drads2c[i][j]);
-    //     }
-    // }
+    // this->rads = new CoordType[mu];
+    // std::copy_n(other.rads, mu, this->rads);
+    // this->drads = new CoordType[mu];
+    // std::copy_n(other.drads, mu, this->drads);
+    this->rads = new CoordType**[ntypes];
+    this->drads = new CoordType**[ntypes];
+    this->drads2c = new CoordType***[ntypes];
+    for (int i = 0; i < ntypes; i++) {
+        this->rads[i] = new CoordType*[ntypes];
+        this->drads[i] = new CoordType*[ntypes];
+        this->drads2c[i] = new CoordType**[ntypes];
+        for (int j = 0; j < ntypes; j++) {
+            this->rads[i][j] = new CoordType[mu];
+            std::copy_n(other.rads[i][j], mu, this->rads[i][j]);
+            this->drads[i][j] = new CoordType[mu];
+            std::copy_n(other.drads[i][j], mu, this->drads[i][j]);
+            this->drads2c[i][j] = new CoordType*[mu];
+            for (int k = 0; k < mu; k++) {
+                this->drads2c[i][j][k] = new CoordType[beta];
+                std::copy_n(other.drads2c[i][j][k], beta, this->drads2c[i][j][k]);
+            }
+        }
+    }
+
 }  // copy constructor
 
 /**
@@ -208,26 +212,23 @@ Radial<CoordType>::Radial(const Radial& other)
  */
 template <typename CoordType>
 Radial<CoordType>::~Radial() {
-    for (int i = 0; i < this->mu; i++) {
-        delete[] this->c[i];
-    }
     // for (int i = 0; i < this->mu; i++) {
-    //     for (int j = 0; j < this->ntypes; j++) {
-    //         for (int k = 0; k < this->ntypes; k++) {
-    //             delete[] this->rads[i][j];
-    //             delete[] this->drads[i][j];
-    //             delete[] this->drads2c[i][j];
-    //             for (int l = 0; l < this->beta; l++) {
-    //                 delete[] this->c[i][j][k];
-    //             }
-    //             delete[] this->c[i][j];
-    //         }
-    //         delete[] this->rads[i];
-    //         delete[] this->drads[i];
-    //         delete[] this->drads2c[i];
-    //         delete[] this->c[i];
-    //     }
+    //     delete[] this->c[i];
     // }
+    for (int i = 0; i < this->ntypes; i++) {
+        for (int j = 0; j < this->ntypes; j++) {
+            delete[] this->rads[i][j];
+            delete[] this->drads[i][j];
+            for (int k = 0; k < this->mu; k++) {
+                delete[] this->drads2c[i][j][k];
+            }
+            delete[] this->drads2c[i][j];
+        }
+        delete[] this->rads[i];
+        delete[] this->drads[i];
+        delete[] this->drads2c[i];
+    }
+
     delete[] this->rads;
     delete[] this->drads;
     delete[] this->drads2c;
@@ -239,9 +240,11 @@ Radial<CoordType>::~Radial() {
  * @brief Build radial basis functions.
  * 
  * @param rij The distance between two atoms.
+ * @param itype The type of the i-th atom.
+ * @param jtype The type of the neighbor atom.
  */
 template <typename CoordType>
-void Radial<CoordType>::build(CoordType rij) {
+void Radial<CoordType>::build(CoordType rij, int itype, int jtype) {
     CoordType fc = this->smooth.get_smooth(rij);
     CoordType dfc = this->smooth.get_dsmooth(rij);
     Chebyshev1st<CoordType> cheb = this->chebyshev;
@@ -250,12 +253,14 @@ void Radial<CoordType>::build(CoordType rij) {
     const CoordType* vals = cheb.get_vals();
     const CoordType* ders2r = cheb.get_ders2r();
     for (int m = 0; m < this->mu; m++) {
-        this->rads[m] = 0.0;
-        this->drads[m] = 0.0;
+        this->rads[itype][jtype][m] = 0.0;
+        this->drads[itype][jtype][m] = 0.0;
         for (int ii = 0; ii < this->beta; ii++) {
-            this->rads[m] += vals[ii] * fc * this->c[m][ii];     // \sum_{i=0}^{beta-1} c* vals[i] * fc, vals[i] is the i-th Chebyshev polynomial value
-            this->drads[m] += (ders2r[ii] * fc + vals[ii] * dfc) * this->c[m][ii];     // \sum_{i=0}^{beta-1} c * ders2r[i] * fc + c * vals[i] * dfc, ders2r[i] is the i-th Chebyshev polynomial derivative with respect to rij
-            this->drads2c[m] += vals[ii] * fc;     // \sum_{i=0}^{beta-1} vals[i] * fc
+            int index = itype * this->ntypes * this->mu * this->beta + jtype * this->mu * this->beta + m * this->beta + ii;
+            // std::cout << "index: " << index << std::endl;
+            this->rads[itype][jtype][m] += vals[ii] * fc * this->c[index];     // \sum_{i=0}^{beta-1} c* vals[i] * fc, vals[i] is the i-th Chebyshev polynomial value
+            this->drads[itype][jtype][m] += (ders2r[ii] * fc + vals[ii] * dfc) * this->c[index];     // \sum_{i=0}^{beta-1} c * ders2r[i] * fc + c * vals[i] * dfc, ders2r[i] is the i-th Chebyshev polynomial derivative with respect to rij
+            this->drads2c[itype][jtype][m][ii] = vals[ii] * fc;
         }
     }
 
@@ -271,21 +276,24 @@ const int Radial<CoordType>::get_mu() const {
 }  // get_mu
 
 template <typename CoordType>
-void Radial<CoordType>::set_c(CoordType** c) {
-    this->c = new CoordType*[this->mu];
-    for (int i = 0; i < this->mu; i++) {
-        this->c[i] = new CoordType[this->beta];
-        for (int j = 0; j < this->beta; j++) {
-            this->c[i][j] = c[i][j];
-        }
-    }
+void Radial<CoordType>::set_c(CoordType* c) {
+    // this->c = new CoordType*[this->mu];
+    // for (int i = 0; i < this->mu; i++) {
+    //     this->c[i] = new CoordType[this->beta];
+    //     for (int j = 0; j < this->beta; j++) {
+    //         this->c[i][j] = c[i][j];
+    //     }
+    // }
+    int size = this->ntypes * this->ntypes * this->mu * this->beta;
+    this->c = new CoordType[size];
+    std::copy_n(c, size, this->c);
 }
 
 /**
  * @brief Get the radial basis functions.
  */
 template <typename CoordType>
-const CoordType* Radial<CoordType>::get_rads() const {
+CoordType*** Radial<CoordType>::get_rads() const {
     return this->rads;
 }  // get_rads
 
@@ -293,7 +301,7 @@ const CoordType* Radial<CoordType>::get_rads() const {
  * @brief Get the partial derivative of the radial basis functions with respect to rij.
  */
 template <typename CoordType>
-const CoordType* Radial<CoordType>::get_drads() const {
+CoordType*** Radial<CoordType>::get_drads() const {
     return this->drads;
 }  // get_drads
 
@@ -301,9 +309,10 @@ const CoordType* Radial<CoordType>::get_drads() const {
  * @brief Get the partial derivative of the radial basis functions with respect to c.
  */
 template <typename CoordType>
-const CoordType* Radial<CoordType>::get_drads2c() const {
+CoordType**** Radial<CoordType>::get_drads2c() const {
     return this->drads2c;
 }  // get_drads2c
+
 
 /**
  * @brief Show radial basis functions.
@@ -311,22 +320,36 @@ const CoordType* Radial<CoordType>::get_drads2c() const {
 template <typename CoordType>
 void Radial<CoordType>::show() const {
     cout << "radial basis functions: ";
-    for (int ii = 0; ii < this->mu; ii++) {
-        cout << this->rads[ii] << " ";
+    for(int i = 0; i < this->ntypes; i++) {
+        for (int j = 0; j < this->ntypes; j++) {
+            for (int ii = 0; ii < this->mu; ii++) {
+                cout << this->rads[i][j][ii] << " ";
+            }
+            cout << endl;
+        }
     }
-    cout << endl;
     
     cout << "partial radial w.r.t rij: ";
-    for (int ii = 0; ii < this->mu; ii++) {
-        cout << this->drads[ii] << " ";
+    for(int i = 0; i < this->ntypes; i++) {
+        for (int j = 0; j < this->ntypes; j++) {
+            for (int ii = 0; ii < this->mu; ii++) {
+                cout << this->drads[i][j][ii] << " ";
+            }
+            cout << endl;
+        }
     }
-    cout << endl;
 
     cout << "partial radial w.r.t c: ";
-    for (int ii = 0; ii < this->mu; ii++) {
-        cout << this->drads2c[ii] << " ";
+    for(int i = 0; i < this->ntypes; i++) {
+        for (int j = 0; j < this->ntypes; j++) {
+            for (int ii = 0; ii < this->mu; ii++) {
+                for (int jj = 0; jj < this->beta; jj++) {
+                    cout << this->drads2c[i][j][ii][jj] << " ";
+                }
+                cout << endl;
+            }
+        }
     }
-    cout << endl;
 }  // show
 
 

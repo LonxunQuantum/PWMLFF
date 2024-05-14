@@ -2,7 +2,7 @@
 import json
 import os, sys
 import argparse
-from src.user.nep_work import nep_train
+# from src.user.nep_work import nep_train
 from src.user.dp_work import dp_train, dp_test
 from src.user.nn_work import nn_train, gen_nn_feature, nn_test
 from src.user.cheby_work import cheby_train, cheby_test
@@ -80,8 +80,8 @@ if __name__ == "__main__":
     else:
         json_path = sys.argv[2]
         # cmd_type = "test".upper()
-
-        # json_path = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/4-CH4-dbg/dp_train_final.json"
+        
+        # json_path = "/data/home/hfhuang/2_MLFF/1-NN/7-json/4-CH4-dbg/nn_new.json"
         os.chdir(os.path.dirname(os.path.abspath(json_path)))
         json_file = json.load(open(json_path))
         model_type = get_required_parameter("model_type", json_file).upper()  # model type : dp or nn or linear
