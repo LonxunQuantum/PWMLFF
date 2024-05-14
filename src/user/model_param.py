@@ -31,7 +31,8 @@ class NetParam(object):
         if "type_" in self.net_type:
             dicts["physical_property"] = self.physical_property
         #dicts["bias"] = self.bias, 
-        #dicts["resnet_dt"] = self. resnet_dt, 
+        if self.resnet_dt is False:
+            dicts["resnet_dt"] = self.resnet_dt
         #dicts["activation"] = self.activation
         return dicts
 

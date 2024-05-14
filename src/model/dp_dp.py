@@ -44,6 +44,7 @@ class DP(nn.Module):
     def __init__(self, config, davg, dstd, energy_shift, magic=False):
         super(DP, self).__init__()
         self.config = config
+        self.model_type = config['model_type']
         self.ntypes = len(config['atomType'])
         self.atom_type = [_['type'] for _ in config['atomType']] #this value in used in forward for hybrid Training
         self.M2 = config["M2"]
