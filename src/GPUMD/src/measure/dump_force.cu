@@ -23,6 +23,7 @@ Dump force data to a file at a given interval.
 #include "utilities/error.cuh"
 #include "utilities/gpu_vector.cuh"
 #include "utilities/read_file.cuh"
+#include <cstring>
 #include <vector>
 
 void Dump_Force::parse(const char** param, int num_param, const std::vector<Group>& groups)
@@ -101,7 +102,7 @@ void Dump_Force::process(
     for (int n = 0; n < number_of_atoms; n++) {
       fprintf(
         fid_,
-        "%g %g %g\n",
+        "%25.15e%25.15e%25.15e\n",
         cpu_force_per_atom[n],
         cpu_force_per_atom[n + number_of_atoms],
         cpu_force_per_atom[n + 2 * number_of_atoms]);
@@ -128,7 +129,7 @@ void Dump_Force::process(
     for (int n = 0; n < group_size; n++) {
       fprintf(
         fid_,
-        "%g %g %g\n",
+        "%25.15e%25.15e%25.15e\n",
         cpu_force_per_atom[n],
         cpu_force_per_atom[n + group_size],
         cpu_force_per_atom[n + 2 * group_size]);

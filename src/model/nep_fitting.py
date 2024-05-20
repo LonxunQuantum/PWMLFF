@@ -102,7 +102,8 @@ class FittingNet(nn.Module):
                  activation: str, 
                  input_dim: int, 
                  ener_shift: float, 
-                 magic = False):
+                 magic = False,
+                 nep_txt_param: List[np.array]=None):
         super(FittingNet, self).__init__()
         self.network_size = [input_dim] + network_size
         self.bias_flag = bias
@@ -110,15 +111,22 @@ class FittingNet(nn.Module):
         self.activation = torch.tanh if activation == "tanh" else None
 
         self.layers = nn.ModuleList()
-
+        from_nep_txt = False
+        if nep_txt_param is not None:
+            print("create NEP model, the param from nep.txt files")
+            from_nep_txt = True
         for i in range(1, len(self.network_size)-1):
-            wij = torch.Tensor(self.network_size[i-1], self.network_size[i])
-            normal(wij, mean=0, std=(1.0 / np.sqrt(self.network_size[i-1] + self.network_size[i])))
+            if from_nep_txt:
+                wij = torch.from_numpy(nep_txt_param[0])
+                bias= torch.from_numpy(nep_txt_param[1])
+            else:
+                wij = torch.Tensor(self.network_size[i-1], self.network_size[i])
+                normal(wij, mean=0, std=(1.0 / np.sqrt(self.network_size[i-1] + self.network_size[i])))
 
-            bias = None
-            if self.bias_flag:
-                bias = torch.Tensor(1, self.network_size[i])
-                normal(bias, mean=0, std=1)
+                bias = None
+                if self.bias_flag:
+                    bias = torch.Tensor(1, self.network_size[i])
+                    normal(bias, mean=0, std=1)
 
             resnet_dt = None
             if i > 1 and self.resnet_dt_flag:
@@ -128,12 +136,16 @@ class FittingNet(nn.Module):
             self.layers.append(LayerModule(wij, bias, resnet_dt))
         
         i = len(self.network_size) - 1
-        wij = torch.randn(self.network_size[i-1], self.network_size[i])
-        normal(wij, mean=0, std=(1.0 / np.sqrt(self.network_size[i-1] + self.network_size[i])))
+        if from_nep_txt:
+            wij = torch.from_numpy(nep_txt_param[2])
+            bias_init = torch.from_numpy(nep_txt_param[3])
+        else:
+            wij = torch.randn(self.network_size[i-1], self.network_size[i])
+            normal(wij, mean=0, std=(1.0 / np.sqrt(self.network_size[i-1] + self.network_size[i])))
 
-        if self.bias_flag:
-            bias_init = torch.randn(1, self.network_size[i])
-            normal(bias_init, mean=ener_shift, std=1.0)
+            if self.bias_flag:
+                bias_init = torch.randn(1, self.network_size[i])
+                normal(bias_init, mean=ener_shift, std=1.0)
         
         self.layers.append(LayerModule(wij, bias_init, None))
     
@@ -177,7 +189,7 @@ class FittingNet(nn.Module):
         for i, layer in enumerate(self.layers):
             if i < len(self.layers) - 1:        # 对于非最后一层
                 if self.bias_flag and layer.bias is not None:
-                    hiden = torch.matmul(x, layer.weight) - layer.bias
+                    hiden = torch.matmul(x, layer.weight) + layer.bias
                 else:
                     hiden = torch.matmul(x, layer.weight)
 
@@ -193,7 +205,7 @@ class FittingNet(nn.Module):
         for i, layer in enumerate(self.layers):
             if i == len(self.network_size) - 2:
                 if self.bias_flag:
-                    x = torch.matmul(x, layer.weight) - layer.bias #
+                    x = torch.matmul(x, layer.weight) + layer.bias #
                 else:
                     x = torch.matmul(x, layer.weight)
         return x

@@ -88,8 +88,8 @@ def save_to_extxyz(image_data_all: list, output_path: str, data_name: str, write
     print("Convert to %s successfully!" % data_name)
 
 if __name__ == "__main__":
-    datasets_path = ["/data/home/wuxingxing/codespace/PWMLFF_nep/al_dir/HfO2/models/baseline_nep/nep_ff_1image/mvm_10"]
-    save_dir = "/data/home/wuxingxing/codespace/PWMLFF_nep/al_dir/HfO2/models/baseline_nep/nep_ff_1image/"
+    datasets_path = ["/data/home/wuxingxing/datas/pwmat_mlff_workdir/Al3/pw1/mvm_10"]
+    save_dir = "/data/home/wuxingxing/datas/pwmat_mlff_workdir/Al3/pw1/"
     input_format  = "pwmat/movement" # 支持格式："pwmlff/mpy","pwmat/movement","vasp/outcar",dpdata/npy","dpdata/raw"
     valid_shuffle = True             #分割训练集验证集时，是否随机分割
     train_valid_ratio = 0.8          #分割训练集、测试集比例

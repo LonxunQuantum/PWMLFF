@@ -1,9 +1,13 @@
 import os
+import torch
 import json
 from src.user.input_param import InputParam
 from src.PWMLFF.nep_network import nep_network
 from utils.file_operation import delete_tree, copy_tree, copy_file
 from utils.atom_type_emb_dict import element_table
+from utils.file_operation import delete_tree, copy_tree, copy_file
+from utils.json_operation import get_parameter, get_required_parameter
+
 '''
 description: do nep training
     step1. generate feature to xyz format files
@@ -20,6 +24,7 @@ def nep_train(input_json: json, cmd:str):
     nep_trainer = nep_network(nep_param)
     if len(nep_param.file_paths.raw_path) > 0:
         data_paths = nep_trainer.generate_data()
+        print(data_paths)
         nep_param.file_paths.set_datasets_path(data_paths)
     nep_trainer.train()
 
@@ -68,19 +73,22 @@ def nep_train(input_json: json, cmd:str):
 # return {*}
 # author: wuxingxing
 # '''
-# def nep_test(input_json: json, cmd:str):
-#     nep_txt_file = input_json["model_load_file"]
-#     nep_info = read_nep_info(nep_txt_file)
-#     input_json["atom_type"] = nep_info["atom_type"]
-#     if "model" in input_json.keys() and \
-#         "prediction" in input_json["model"].keys():
-#             input_json["model"]["prediction"] = 1
-#     nep_param = InputParam(input_json, "test".upper())
-#     nep_param.set_test_relative_params(input_json)
-#     nep_param.print_input_params(json_file_save_name="std_input.json")
-#     nep_trainer = NepNetwork(nep_param)
-#     nep_trainer.generate_data()
-#     nep_trainer.inference()
+def nep_test(input_json: json, cmd:str):
+    model_load_path = get_required_parameter("model_load_file", input_json)
+    model_checkpoint = torch.load(model_load_path, map_location=torch.device("cpu"))
+    json_dict_train = model_checkpoint["json_file"]
+    model_checkpoint["json_file"]["datasets_path"] = []
+    json_dict_train["optimizer"] = {}
+    json_dict_train["optimizer"]["optimizer"] = "LKF"
+    nep_param = InputParam(json_dict_train, "test".upper())
+    # set inference param
+    nep_param.set_test_relative_params(input_json)
+    # nep_param.print_input_params(json_file_save_name="std_input.json")
+    nep_trainer = nep_network(nep_param)
+    if len(nep_param.file_paths.raw_path) > 0:
+        data_paths = nep_trainer.generate_data()
+        nep_param.file_paths.set_datasets_path(data_paths)
+    nep_trainer.inference()
 
 # def read_nep_info(nep_txt_file: str):
 #     if not os.path.exists(nep_txt_file):

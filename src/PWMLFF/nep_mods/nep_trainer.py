@@ -88,6 +88,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
         #     Sij_max = max(Sij_max_cpu)
 
         dR_neigh_list_cpu = sample_batches["ListNeighbor"].int()
+        dR_neigh_type_list_cpu = sample_batches["ListNeighborType"].int()
         natoms_img_cpu = sample_batches["ImageAtomNum"].int()
         atom_type_cpu = sample_batches["AtomType"].int()
         atom_type_map_cpu = sample_batches["AtomTypeMap"].int()
@@ -100,6 +101,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
             natoms = natoms_img[0]
             
             dR_neigh_list = Variable(dR_neigh_list_cpu[batch_indexs, :natoms].int().to(device))
+            dR_neigh_type_list = Variable(dR_neigh_type_list_cpu[batch_indexs, :natoms].int().to(device))
             # atom list of image
             atom_type = Variable(atom_type_cpu[batch_indexs].to(device))
             atom_type_map = Variable(atom_type_map_cpu[batch_indexs, :natoms].to(device))
@@ -128,7 +130,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
                 ) as prof:
                     with record_function("model_inference"):
                         Etot_predict, Ei_predict, Force_predict, _ = model(
-                            dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, 0, None, None
+                            dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, dR_neigh_type_list, 0, None, None
                         )   # atom_type_map: we only need the first element, because it is same for each image of MOVEMENT
 
                 print(prof.key_averages().table(sort_by="cuda_time_total"))
@@ -137,11 +139,11 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
             else:
                 if args.optimizer_param.train_egroup is True:
                     Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
-                        dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, 0, Egroup_weight, Divider)
+                        dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, dR_neigh_type_list, 0, Egroup_weight, Divider)
                 else:
                     # atom_type_map: we only need the first element, because it is same for each image of MOVEMENT
                     Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
-                        dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, 0, None, None)
+                        dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, dR_neigh_type_list, 0, None, None)
                     
             optimizer.zero_grad()
 
@@ -318,6 +320,8 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
 
     end = time.time()
     for i, sample_batches in enumerate(train_loader):
+        if i == 91:
+            print()
         # measure data loading time
         data_time.update(time.time() - end)
         # load data to cpu
@@ -351,6 +355,7 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
             raise Exception("Error! Please specify floating point type: float32 or float64 by the parameter --datatype! ")
         
         dR_neigh_list_cpu = sample_batches["ListNeighbor"].int()
+        dR_neigh_type_list_cpu = sample_batches["ListNeighborType"].int()
         natoms_img_cpu    = sample_batches["ImageAtomNum"].int()
         atom_type_cpu     = sample_batches["AtomType"].int()
         atom_type_map_cpu = sample_batches["AtomTypeMap"].int()
@@ -363,9 +368,11 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
             natoms     = natoms_img[0]
             
             dR_neigh_list = Variable(dR_neigh_list_cpu[batch_indexs, :natoms].int().to(device))
+            dR_neigh_type_list = Variable(dR_neigh_type_list_cpu[batch_indexs, :natoms].int().to(device))
             # atom list of image
             atom_type     = Variable(atom_type_cpu[batch_indexs].to(device))
             atom_type_map = Variable(atom_type_map_cpu[batch_indexs, :natoms].to(device))
+            # print("atom_type_map ", atom_type)
             Ei_label      = Variable(Ei_label_cpu[batch_indexs, :natoms].to(device))
             Etot_label    = Variable(Etot_label_cpu[batch_indexs].to(device))
             Force_label   = Variable(Force_label_cpu[batch_indexs, :natoms].to(device))  # [40,108,3]
@@ -383,10 +390,10 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
 
             batch_size = len(batch_indexs)
             if args.optimizer_param.train_egroup is True:
-                kalman_inputs = [dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, Egroup_weight, Divider]
+                kalman_inputs = [dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, dR_neigh_type_list, Egroup_weight, Divider]
             else:
                 # atom_type_map: we only need the first element, because it is same for each image of MOVEMENT
-                kalman_inputs = [dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, None, None]
+                kalman_inputs = [dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, dR_neigh_type_list, None, None]
 
             if args.profiling:
                 print("=" * 60, "Start profiling KF update energy", "=" * 60)
@@ -426,6 +433,8 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
                 if args.optimizer_param.train_egroup is True:
                     Egroup_predict = KFOptWrapper.update_egroup(kalman_inputs, Egroup_label, args.optimizer_param.pre_fac_egroup, train_type = "NEP")
 
+                if i == 91:
+                    print()
                 if args.optimizer_param.train_force is True:
                     Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = KFOptWrapper.update_force(
                         kalman_inputs, Force_label, args.optimizer_param.pre_fac_force, train_type = "NEP")
@@ -561,6 +570,7 @@ def valid(val_loader, model, criterion, device, args:InputParam):
                 raise Exception("Error! Please specify floating point type: float32 or float64 by the parameter --datatype! ")
             
             dR_neigh_list_cpu = sample_batches["ListNeighbor"].int()
+            dR_neigh_type_list_cpu = sample_batches["ListNeighborType"].int()
             natoms_img_cpu = sample_batches["ImageAtomNum"].int()
             atom_type_cpu = sample_batches["AtomType"].int()
             atom_type_map_cpu = sample_batches["AtomTypeMap"].int()
@@ -572,6 +582,7 @@ def valid(val_loader, model, criterion, device, args:InputParam):
                 natoms = natoms_img[0]
                 
                 dR_neigh_list = Variable(dR_neigh_list_cpu[batch_indexs, :natoms].int().to(device))
+                dR_neigh_type_list = Variable(dR_neigh_type_list_cpu[batch_indexs, :natoms].int().to(device))
                 # atom list of image
                 atom_type = Variable(atom_type_cpu[batch_indexs].to(device))
                 atom_type_map = Variable(atom_type_map_cpu[batch_indexs, :natoms].to(device))
@@ -597,11 +608,11 @@ def valid(val_loader, model, criterion, device, args:InputParam):
                 """ 
                 if args.optimizer_param.train_egroup is True:
                     Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
-                        dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, 0, Egroup_weight, Divider)
+                        dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, dR_neigh_type_list, 0, Egroup_weight, Divider)
                 else:
                     # atom_type_map: we only need the first element, because it is same for each image of MOVEMENT
                     Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
-                        dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, 0, None, None)
+                        dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, dR_neigh_type_list, 0, None, None)
                 
                 #return 
                 loss_F_val = criterion(Force_predict, Force_label)
@@ -759,6 +770,7 @@ def predict(val_loader, model, criterion, device, args:InputParam, isprofile=Fal
             raise Exception("Error! Please specify floating point type: float32 or float64 by the parameter --datatype! ")
         
         dR_neigh_list_cpu = sample_batches["ListNeighbor"].int()
+        dR_neigh_type_list_cpu = sample_batches["ListNeighborType"].int()
         natoms_img_cpu = sample_batches["ImageAtomNum"].int()
         atom_type_cpu = sample_batches["AtomType"].int()
         atom_type_map_cpu = sample_batches["AtomTypeMap"].int()
@@ -771,6 +783,7 @@ def predict(val_loader, model, criterion, device, args:InputParam, isprofile=Fal
             natoms = natoms_img[0]
             
             dR_neigh_list = Variable(dR_neigh_list_cpu[batch_indexs, :natoms].int().to(device))
+            dR_neigh_type_list = Variable(dR_neigh_type_list_cpu[batch_indexs, :natoms].int().to(device))
             # atom list of image
             atom_type = Variable(atom_type_cpu[batch_indexs].to(device))
             atom_type_map = Variable(atom_type_map_cpu[batch_indexs, :natoms].to(device))
@@ -798,11 +811,11 @@ def predict(val_loader, model, criterion, device, args:InputParam, isprofile=Fal
                     with record_function("model inference"):
                         if args.optimizer_param.train_egroup is True:
                             Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
-                                dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, 0, Egroup_weight, Divider)
+                                dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, dR_neigh_type_list, 0, Egroup_weight, Divider)
                         else:
                             # atom_type_map: we only need the first element, because it is same for each image of MOVEMENT
                             Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
-                                dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, 0, None, None 
+                                dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, dR_neigh_type_list, 0, None, None 
                             )
                 print(prof.key_averages().table(sort_by="cuda_time_total"))
                 print("=" * 60, "Profiling model inference", "=" * 60)
@@ -810,11 +823,11 @@ def predict(val_loader, model, criterion, device, args:InputParam, isprofile=Fal
             else:
                 if args.optimizer_param.train_egroup is True:
                     Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
-                        dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, 0, Egroup_weight, Divider)
+                        dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, dR_neigh_type_list, 0, Egroup_weight, Divider)
                 else:
                     # atom_type_map: we only need the first element, because it is same for each image of MOVEMENT
                     Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
-                        dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, 0, None, None 
+                        dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, dR_neigh_type_list, 0, None, None 
                     )
             # mse
             loss_Etot_val = criterion(Etot_predict, Etot_label)

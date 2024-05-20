@@ -69,6 +69,7 @@ def train_snes(train_loader, model:NEP, criterion, optimizer:SNESOptimizer, epoc
             raise Exception("Error! Please specify floating point type: float32 or float64 by the parameter --datatype! ")
         
         dR_neigh_list_cpu = sample_batches["ListNeighbor"].int()
+        dR_neigh_type_list_cpu = sample_batches["ListNeighborType"].int()
         natoms_img_cpu    = sample_batches["ImageAtomNum"].int()
         atom_type_cpu     = sample_batches["AtomType"].int()
         atom_type_map_cpu = sample_batches["AtomTypeMap"].int()
@@ -87,6 +88,7 @@ def train_snes(train_loader, model:NEP, criterion, optimizer:SNESOptimizer, epoc
             natoms     = natoms_img[0]
             type_nums = len(atom_type_cpu[0])
             dR_neigh_list = Variable(dR_neigh_list_cpu[batch_indexs, :natoms*type_nums].int().to(device))
+            dR_neigh_type_list = Variable(dR_neigh_type_list_cpu[batch_indexs, :natoms].int().to(device))
             # atom list of image
             atom_type     = Variable(atom_type_cpu[batch_indexs].to(device))
             atom_type_map = Variable(atom_type_map_cpu[batch_indexs, :natoms].to(device))
@@ -106,10 +108,10 @@ def train_snes(train_loader, model:NEP, criterion, optimizer:SNESOptimizer, epoc
             # Ri_d = Variable(Ri_d_cpu[batch_indexs, :natoms].to(device))
             batch_size = dR_neigh_list.shape[0]
             if args.optimizer_param.train_egroup is True:
-                kalman_inputs = [dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, Egroup_weight, Divider]
+                kalman_inputs = [dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, dR_neigh_type_list, Egroup_weight, Divider]
             else:
                 # atom_type_map: we only need the first element, because it is same for each image of MOVEMENT
-                kalman_inputs = [dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, None, None]
+                kalman_inputs = [dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, dR_neigh_type_list, None, None]
             # 调用SNES
             _low_loss, _low_mse_etot, _low_mse_ei, _low_mse_F, _low_mse_Egroup, _low_mse_Virial, _low_L1, _low_L2 = \
                 optimizer.update_params(

@@ -190,6 +190,12 @@ Bibliography
    | Acta Materialia, **211**, 116893 (2021)
    | DOI: `10.1016/j.actamat.2021.116893 <https://doi.org/10.1016/j.actamat.2021.116893>`
 
+.. [Ravelo2004]
+   | Ravelo, R. and Holian, B. L. and Germann, T. C. and Lomdahl, P. S.
+   | *Constant-stress Hugoniostat method for following the dynamical evolution of shocked matter*
+   | Phys. Rev. B. **70**, 014103 (2004)
+   | DOI: `10.1103/PhysRevB.70.014103 <https://link.aps.org/doi/10.1103/PhysRevB.70.014103>`_
+
 .. [Reed2003]
    | Evan J. Reed, Laurence E. Fried, and J. D. Joannopoulos
    | *A Method for Tractable Dynamical Studies of Single and Double Shock Compression*
@@ -248,4 +254,16 @@ Bibliography
    | J. F. Ziegler, J. P. Biersack, and U. Littmark
    | In *The Stopping and Range of Ions in Matter*, volume 1
    | New York, 1985. Pergamon. ISBN 0-08-022053-3
+
+.. [Koning2001]
+   | Maurice de Koning, Alex Antonelli, and Sidney Yip
+   | *Single-simulation determination of phase boundaries: A dynamic Clausius–Clapeyron integration method*
+   | J. Chem. Phys. **115**, 11025–11035 (2001)
+   | DOI: `10.1063/1.1420486 <https://doi.org/10.1063/1.1420486>`_
+
+.. [Cajahuaringa2022]
+   | Samuel Cajahuaringa and Alex Antonelli
+   | *Non-equilibrium free-energy calculation of phase-boundaries using LAMMPS*
+   | Computational Materials Science **207**, 111275 (2022)
+   | DOI: `10.1016/j.commatsci.2022.111275 <https://doi.org/10.1016/j.commatsci.2022.111275>`_
 

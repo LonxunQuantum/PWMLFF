@@ -134,9 +134,9 @@ class WorkFileStructure(object):
         elif self.model_type == "DP":
             model_name = get_parameter("model_name", json_input, "dp_model.ckpt")
         elif self.model_type == "NEP":
-            model_name = get_parameter("model_name", json_input, "nep_model.cpkt")
+            model_name = get_parameter("model_name", json_input, "nep_model.ckpt")
         elif self.model_type == "CHEBY":
-            model_name = get_parameter("model_name", json_input, "chey_model.cpkt")
+            model_name = get_parameter("model_name", json_input, "chey_model.ckpt")
         best_model_path = os.path.join(self.json_dir, "best_model.ckpt")
         forcefield_name = get_parameter("forcefield_name", json_input, "forcefield.ff")
         forcefield_dir = get_parameter("forcefield_dir", json_input, "forcefield")

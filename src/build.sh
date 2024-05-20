@@ -7,6 +7,14 @@ make -C pre_data/fit
 make -C pre_data/fortran_code  # spack load gcc@7.5.0
 
 make -C md/fortran_code
+# make nep find_neigh interface
+cd feature/nep_find_neigh
+mkdir build
+cd build
+cmake -Dpybind11_DIR=$(python -m pybind11 --cmakedir) .. && make
+cp findneigh.* ../findneigh.so
+cd ..
+cd ..
 
 # compile gpumd
 make -C GPUMD/src

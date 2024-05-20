@@ -18,9 +18,12 @@
 #include "compute.cuh"
 #include "dos.cuh"
 #include "dump_beads.cuh"
+#include "dump_dipole.cuh"
 #include "dump_exyz.cuh"
 #include "dump_force.cuh"
 #include "dump_observer.cuh"
+#include "dump_piston.cuh"
+#include "dump_polarizability.cuh"
 #include "dump_position.cuh"
 #include "dump_restart.cuh"
 #include "dump_thermo.cuh"
@@ -59,6 +62,7 @@ public:
     Integrate& integrate,
     std::vector<Group>& group,
     Atom& atom,
+    Box& box,
     Force& force);
 
   void finalize(
@@ -105,6 +109,9 @@ public:
   Dump_EXYZ dump_exyz;
   Dump_Beads dump_beads;
   Dump_Observer dump_observer;
+  Dump_Piston dump_piston;
+  Dump_Dipole dump_dipole;
+  Dump_Polarizability dump_polarizability;
   Active active;
 #ifdef USE_NETCDF
   DUMP_NETCDF dump_netcdf;

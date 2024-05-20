@@ -29,3 +29,9 @@ src/pre_data/nep_neigh/
 src/pre_data/find_neigh/build
 findneigh.so
 
+# gpumd
+src/GPUMD/src/*/*.obj
+src/GPUMD/src/*/*.o
+src/GPUMD/src/gpumd*
+src/GPUMD/src/nep*
+

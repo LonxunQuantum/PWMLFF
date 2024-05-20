@@ -325,6 +325,14 @@ def load_davg_dstd_from_checkpoint(model_path):
         atom_type_order = [atom_type_order.tolist()]
     return davg, dstd, atom_type_order, energy_shift
 
+def load_atomtype_energyshift_from_checkpoint(model_path):
+    model_checkpoint = torch.load(model_path,map_location=torch.device("cpu"))
+    atom_type_order = model_checkpoint['atom_type_order']
+    energy_shift = model_checkpoint['energy_shift']
+    if atom_type_order.size == 1:   #
+        atom_type_order = [atom_type_order.tolist()]
+    return atom_type_order, energy_shift
+
 '''
 description: load davg from feature paths, \
     at least one of the feature paths should contail all atom types, when doing hybrid training.

@@ -111,9 +111,13 @@ class SNESOptimizer(Optimizer):
             # self.zero_grad()
             # check_cuda_memory(k, population, "start k {}".format(k))
             # self.set_model_param(z[k, :])
-            if train_type == "DP" or train_type == "NEP":
+            if train_type == "DP":
                 Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = self.model(
                 inputs[0], inputs[1], inputs[2], inputs[3], 0, inputs[4], inputs[5], is_calc_f = True
+                )
+            elif train_type == "NEP":
+                Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = self.model(
+                inputs[0], inputs[1], inputs[2], inputs[3], inputs[4], 0, inputs[5], inputs[6], is_calc_f = True
                 )
             elif train_type == "NN":  # nn training
                 Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = self.model(
