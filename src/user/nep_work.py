@@ -90,6 +90,24 @@ def nep_test(input_json: json, cmd:str):
         nep_param.file_paths.set_datasets_path(data_paths)
     nep_trainer.inference()
 
+def togpumd(cmd_list:list[str]):
+    ckpt_file = cmd_list[0]
+    model_checkpoint = torch.load(ckpt_file, map_location=torch.device("cpu"))
+    json_dict_train = model_checkpoint["json_file"]
+    if json_dict_train["model_type"] != "NEP":
+        raise Exception("Error! The input model is not a nep model!")
+    model_checkpoint["json_file"]["datasets_path"] = []
+    json_dict_train["optimizer"] = {}
+    json_dict_train["optimizer"]["optimizer"] = "LKF"
+    json_dict_train["model_load_file"] = ckpt_file
+    nep_param = InputParam(json_dict_train, "test".upper())
+    nep_param.set_test_relative_params(json_dict_train)
+    nep_trainer = nep_network(nep_param)
+    energy_shift, max_atom_nums, image_path = nep_trainer._get_stat()
+    # energy_shift, atom_map, train_loader, val_loader = nep_trainer.load_data(energy_shift, max_atom_nums)
+    model, optimizer = nep_trainer.load_model_optimizer(energy_shift)
+    nep_trainer.convert_to_gpumd(model, save_dir=os.path.dirname(os.path.abspath(ckpt_file)))
+    
 # def read_nep_info(nep_txt_file: str):
 #     if not os.path.exists(nep_txt_file):
 #         raise Exception("ERROR! The nep.txt file does not exist at {}!".format(nep_txt_file))

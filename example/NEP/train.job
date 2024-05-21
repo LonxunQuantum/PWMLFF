@@ -1,0 +1,29 @@
+#!/bin/sh
+#SBATCH --job-name=hfo2nep
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --gres=gpu:1
+#SBATCH --cpus-per-task=1
+##SBATCH --gpus-per-task=1
+#SBATCH --partition=3090,3080ti
+echo "SLURM_SUBMIT_DIR is $SLURM_SUBMIT_DIR"
+
+echo "Starting job $SLURM_JOB_ID at " `date`
+
+echo "Running on nodes: $SLURM_NODELIST"
+
+start=$(date +%s)
+source /data/home/wuxingxing/anaconda3/etc/profile.d/conda.sh
+conda activate torch2_feat
+export PATH=/data/home/wuxingxing/codespace/PWMLFF_nep/src/bin:$PATH
+export PYTHONPATH=/data/home/wuxingxing/codespace/PWMLFF_nep/src/:$PYTHONPATH
+module load cuda/11.8-share
+module load intel/2020
+
+PWMLFF train train.json
+
+end=$(date +%s)
+take=$(( end - start ))
+echo Time taken to execute commands is ${take} seconds  > train.log
+
+

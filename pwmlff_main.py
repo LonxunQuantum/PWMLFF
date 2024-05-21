@@ -2,7 +2,7 @@
 import json
 import os, sys
 import argparse
-from src.user.nep_work import nep_train, nep_test
+from src.user.nep_work import nep_train, nep_test, togpumd
 from src.user.dp_work import dp_train, dp_test
 from src.user.nn_work import nn_train, gen_nn_feature, nn_test
 # from src.user.cheby_work import cheby_train, cheby_test
@@ -31,6 +31,8 @@ if __name__ == "__main__":
     elif cmd_type == "compress".upper():
         ckpt_file = sys.argv[2]
         compress_force_field(ckpt_file)
+    elif cmd_type == "togpumd".upper():
+        togpumd(sys.argv[2:])
     elif cmd_type == "script".upper():
         ckpt_file = sys.argv[2]
         script_model(ckpt_file)

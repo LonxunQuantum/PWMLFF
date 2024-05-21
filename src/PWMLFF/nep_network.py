@@ -116,6 +116,7 @@ class nep_network:
                                 \nmodel load path: {} \n or model at work path: {}\n"\
                                 .format(self.input_param.file_paths.model_load_path, self.input_param.file_paths.model_save_path))
             stat_add = [atom_map, energy_shift]
+            return energy_shift, atom_map, None 
         else:
             stat_add = None
         
@@ -294,6 +295,7 @@ class nep_network:
         if self.input_param.optimizer_param.opt_name in ["LKF", "GKF", "ADAM", "SGD"]:
             if checkpoint is not None and "optimizer" in checkpoint.keys():
                 optimizer.load_state_dict(checkpoint["optimizer"])
+            if checkpoint is not None and self.input_param.optimizer_param.opt_name in ["LKF"] and "optimizer" in checkpoint.keys() and 'P' in checkpoint["optimizer"]['state'][0].keys():
                 load_p = checkpoint["optimizer"]['state'][0]['P']
                 optimizer.set_kalman_P(load_p, checkpoint["optimizer"]['state'][0]['kalman_lambda'])
         elif self.input_param.optimizer_param.opt_name in ["SNES"]:
@@ -534,7 +536,6 @@ class nep_network:
                     self.input_param.file_paths.model_name,
                     self.input_param.file_paths.model_store_dir,                    
                 )
-                self.convert_to_gpumd(model)
 
             elif self.input_param.optimizer_param.opt_name in ["LKF", "GKF"] and \
                 self.input_param.file_paths.save_p_matrix:
@@ -567,19 +568,24 @@ class nep_network:
                     self.input_param.file_paths.model_name,
                     self.input_param.file_paths.model_store_dir,
                 )
+            self.convert_to_gpumd(model)
+            
 
-    def convert_to_gpumd(self, model:NEP):
+    def convert_to_gpumd(self, model:NEP, save_dir:str = None):
         model_content = self.input_param.nep_param.to_nep_in_txt()
         train_content = self.input_param.optimizer_param.snes_to_nep_txt()
         model_content += train_content
-        save_nep_in_path = os.path.join(self.input_param.file_paths.model_store_dir, self.input_param.file_paths.nep_in_file)
-
+        if save_dir is None:
+            save_nep_in_path = os.path.join(self.input_param.file_paths.model_store_dir, self.input_param.file_paths.nep_in_file)
+            save_nep_txt_path = os.path.join(self.input_param.file_paths.model_store_dir, self.input_param.file_paths.nep_model_file)
+        else:
+            save_nep_in_path = os.path.join(save_dir, self.input_param.file_paths.nep_in_file)
+            save_nep_txt_path = os.path.join(save_dir, self.input_param.file_paths.nep_model_file)            
         # extract parameters
         txt_head = self.input_param.nep_param.to_nep_txt()
         txt_body = model.get_nn_params()
         txt_body_str = "\n".join(map(str, txt_body))
         txt_head += txt_body_str
-        save_nep_txt_path = os.path.join(self.input_param.file_paths.model_store_dir, self.input_param.file_paths.nep_model_file)
 
         with open(save_nep_in_path, 'w') as wf:
             wf.writelines(model_content)

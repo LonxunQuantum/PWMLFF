@@ -55,7 +55,7 @@ class MovementDataset(Dataset):
 
         # test
 
-        data = self.__load_data(0)
+        # data = self.__load_data(0)
         # print()
 
     def __load_data(self, index):
