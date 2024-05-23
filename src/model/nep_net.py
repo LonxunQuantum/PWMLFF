@@ -305,6 +305,7 @@ class NEP(nn.Module):
             q_min = torch.min(feats.reshape([-1, feats.shape[-1]]), dim=-2)[0]
             self.q_scaler = (1/(q_max-q_min)).detach()
         elif is_calc_f is False and self.update_scaler:
+
             q_max = torch.max(feats.reshape([-1, feats.shape[-1]]), dim=-2)[0]
             q_min = torch.min(feats.reshape([-1, feats.shape[-1]]), dim=-2)[0]
             self.q_scaler = torch.min(self.q_scaler, 1/(q_max-q_min)).detach()
