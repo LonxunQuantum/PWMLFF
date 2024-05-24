@@ -4,10 +4,8 @@ import glob
 from torch.utils.data import Dataset
 import torch
 import yaml
-from src.lib.NeighConst import neighconst
 from src.user.input_param import InputParam
 from pwdata import Save_Data
-import time
 from src.feature.nep_find_neigh.findneigh import FindNeigh
 
 # from numpy.ctypeslib import ndpointer
@@ -262,129 +260,6 @@ def type_map(atom_types_image, atom_type):
             atom_type_map.append(np.where(atom_type == elem)[0][0])
     assert len(atom_type_map) != 0, "this atom type didn't found"
     return atom_type_map
-
-def find_neighbore(AtomTypeMap, Position, Lattice, ImageAtomNum, Ei, 
-                   img_max_types, Rc_type, Rm_type, m_neigh, Rc_M, train_egroup):
-    """
-    Call the Fortran subroutine that finds the neighbors for each atom in the system.
-
-    Args:
-        AtomTypeMap (numpy.ndarray): List of atom types to index.
-        Position (numpy.ndarray): List of atomic positions.
-        Lattice (numpy.ndarray): List of lattice vectors.
-        ImageAtomNum (int): The number of atoms in the system.
-        Ei (numpy.ndarray): List of atomic energies.
-        img_max_types (int): The maximum number of atom types in the system.
-        Rc_type (numpy.ndarray): List of cutoff radii for each atom type.
-        Rm_type (numpy.ndarray): List of minimum cutoff radii for each atom type.
-        m_neigh (int): The maximum number of neighbors for each atom.
-        Rc_M (float): The maximum cutoff radius for the system.
-        train_egroup (bool): Whether to train the energy group.
-
-    Returns:
-        tuple: A tuple containing list_neigh, ImageDR, and max_ri.
-            - list_neigh (numpy.ndarray): The list of neighbors.
-            - ImageDR (numpy.ndarray): The displacement vectors for each neighbor.
-            - max_ri (float): The maximum value of Ri.
-    """
-    images = 1
-    ntypes = img_max_types
-    natoms = ImageAtomNum
-    Rc_type = np.asfortranarray(Rc_type)
-    type_maps = np.asfortranarray(AtomTypeMap[:natoms] + 1)
-    lattice = np.asfortranarray(Lattice.reshape(images, 3, 3))
-    position = np.asfortranarray(Position[:natoms].reshape(images, natoms, 3))
-
-    neighconst.find_neighbore(images, lattice, position, ntypes, natoms, 
-                                m_neigh, Rc_M, Rc_type, type_maps)
-    _list_neigh = neighconst.list_neigh
-    _dR_neigh = neighconst.dr_neigh
-    list_neigh = np.transpose(_list_neigh.copy(), (3, 2, 1, 0)).reshape(images, natoms, ntypes*m_neigh)
-    dR_neigh = np.transpose(_dR_neigh.copy(), (4, 3, 2, 1, 0)).reshape(images, natoms, ntypes*m_neigh, 3)
-    if train_egroup:
-        Ei = np.asfortranarray(Ei[:natoms].reshape(images, natoms))
-        neighconst.calc_egroup(images, lattice, position, natoms, Rc_M, type_maps, Ei)
-        _Egroup_weight = neighconst.fact
-        _Divider = neighconst.divider
-        _Egroup = neighconst.energy_group
-        Egroup_weight = np.transpose(_Egroup_weight.copy(), (2, 1, 0)).squeeze(0)
-        Divider = np.transpose(_Divider.copy(), (1, 0)).squeeze(0)
-        Egroup = np.transpose(_Egroup.copy(), (1, 0)).squeeze(0)
-    else:
-        Egroup_weight = None
-        Divider = None
-        Egroup = None
-    neighconst.dealloc()
-    
-    max_ri, Rij = compute_Ri(list_neigh, dR_neigh, Rc_type, Rm_type)
-    ImageDR = np.concatenate((Rij, dR_neigh), axis=-1)
-    return list_neigh.squeeze(0), ImageDR.squeeze(0), max_ri, Egroup_weight, Divider, Egroup
-
-def compute_Ri(list_neigh, dR_neigh, Rc_type, Rm_type):
-    """
-    Compute the Ri values for a given list of neighbors and their displacement vectors.
-
-    Args:
-        list_neigh (list): List of neighbor indices.
-        dR_neigh (list): List of displacement vectors for each neighbor.
-
-    Returns:
-        tuple: A tuple containing max_ri, and Rij.
-            - max_ri (torch.Tensor): The maximum value of Ri.
-            - Rij (numpy.ndarray): The squared root of the sum of the squared displacement vectors.
-    """
-    device = torch.device("cpu")
-    image_dR = torch.tensor(dR_neigh, device=device, dtype=torch.float64)
-    list_neigh = torch.tensor(list_neigh, device=device, dtype=torch.int64)
-
-    mask = list_neigh > 0
-    dR2 = torch.zeros_like(list_neigh, dtype=torch.float64)
-    Rij = torch.zeros_like(list_neigh, dtype=torch.float64)
-    dR2[mask] = torch.sum(image_dR[mask] * image_dR[mask], -1)
-    Rij[mask] = torch.sqrt(dR2[mask])
-
-    nr = torch.zeros_like(dR2)
-    inr = torch.zeros_like(dR2)
-
-    dR2_copy = dR2.unsqueeze(-1).repeat(1, 1, 1, 3)
-    Ri_xyz = torch.zeros_like(dR2_copy)
-
-    nr[mask] = dR2[mask] / Rij[mask]
-    Ri_xyz[mask] = image_dR[mask] / dR2_copy[mask]
-    inr[mask] = 1 / Rij[mask]
-
-    uu = torch.zeros_like(nr)
-    vv = torch.zeros_like(nr)
-    res = torch.zeros_like(nr)
-
-    # x < rcut_min vv = 1;
-    mask_min = nr < Rm_type[0] # why just use the first element of Rm_type? so why? emmm..
-    mask_1 = mask & mask_min
-    vv[mask_1] = 1
-
-    # rcut_min< x < rcut_max;
-    mask_max = nr < Rc_type[0]
-    mask_2 = ~mask_min & mask_max & mask
-    # uu = (xx - rmin) / (rmax - rmin);
-    uu[mask_2] = (nr[mask_2] - Rm_type[0]) / (Rc_type[0] - Rm_type[0])
-    vv[mask_2] = (
-        uu[mask_2]
-        * uu[mask_2]
-        * uu[mask_2]
-        * (-6 * uu[mask_2] * uu[mask_2] + 15 * uu[mask_2] - 10)
-        + 1
-    )
-    mask_3 = ~mask_max & mask
-    vv[mask_3] = 0
-
-    res[mask] = 1.0 / nr[mask] 
-    Ri = torch.cat((res.unsqueeze(-1), Ri_xyz), dim=-1)
-
-    vv_copy = vv.unsqueeze(-1).repeat(1, 1, 1, 4)
-    Ri[mask] *= vv_copy[mask]
-    max_ri = torch.max(Ri[:,:,:,0])
-    Rij = Rij.unsqueeze(-1).numpy()
-    return max_ri, Rij
 
 '''
 description: 

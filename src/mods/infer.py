@@ -6,7 +6,6 @@ from PWMLFF.nep_network import nep_network
 from user.input_param import InputParam
 from pwdata import Save_Data
 from pre_data.dp_data_loader import type_map, find_neighbore
-from pre_data.nep_data_loader import find_neighbore
 from pwdata import Config
 
 class Inference(object):
@@ -103,7 +102,8 @@ class Inference(object):
         Ei = np.zeros(1)
         Egroup = 0
         nghost = 0
-        from src.pre_data.find_neigh.findneigh import FindNeigh
+        from src.feature.nep_find_neigh.findneigh import FindNeigh
+
         calc = FindNeigh()
 
         # infer = Save_Data(data_path=structrue_file, format=format)
