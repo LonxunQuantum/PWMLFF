@@ -39,11 +39,12 @@ if __name__ == "__main__":
     elif cmd_type == "infer".upper():
         ckpt_file = sys.argv[2]
         structures_file = sys.argv[3]
-        format = sys.argv[4]
+        
+        format = sys.argv[4] if len(sys.argv) > 4 else None
         # ckpt_file = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/4-CH4-dbg/model_record/dp_model.ckpt"
         # structrues_file = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/4-CH4-dbg/atom.config"
         # format= "pwmat/config"
-        if format.lower() == "lammps/dump":
+        if format is not None and format.lower() == "lammps/dump":
             atom_typs = sys.argv[5:]
             if isinstance(atom_typs, list) is False:
                 atom_typs = [atom_typs]

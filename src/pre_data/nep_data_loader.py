@@ -289,19 +289,23 @@ def get_stat(config:InputParam, stat_add=None, datasets_path=None, work_dir=None
     max_atom_nums = 0
     valid_chunk = False
     for dataset_path in datasets_path:
-        atom_types_image = np.load(os.path.join(dataset_path, train_data_path, "image_type.npy"))
+        if os.path.exists(os.path.join(dataset_path, train_data_path, "image_type.npy")):
+            data_load_path = os.path.join(dataset_path, train_data_path)
+        elif os.path.exists(os.path.join(dataset_path, "image_type.npy")):
+            data_load_path = dataset_path
+        atom_types_image = np.load(os.path.join(data_load_path, "image_type.npy"))
         max_atom_nums = max(max_atom_nums, atom_types_image.shape[1])
         if energy_shift is None:
-            _atom_types = np.load(os.path.join(dataset_path, train_data_path, "atom_type.npy"))
+            _atom_types = np.load(os.path.join(data_load_path, "atom_type.npy"))
             if _atom_types.shape[1] != ntypes:
                 continue
-            lattice = np.load(os.path.join(dataset_path, train_data_path, "lattice.npy"))
+            lattice = np.load(os.path.join(data_load_path, "lattice.npy"))
             img_per_mvmt = lattice.shape[0]
             if img_per_mvmt < chunk_size:
                 continue
             valid_chunk = True
-            # position = np.load(os.path.join(dataset_path, train_data_path, "position.npy"))
-            _Ei = np.load(os.path.join(dataset_path, train_data_path, "ei.npy"))
+            # position = np.load(os.path.join(data_load_path, "position.npy"))
+            _Ei = np.load(os.path.join(data_load_path, "ei.npy"))
             type_maps = np.array(type_map(atom_types_image[0], input_atom_type))
             types, type_incides, atom_types_nums = np.unique(type_maps, return_index=True, return_counts=True)
             atom_types_nums = atom_types_nums[np.argsort(type_incides)]
@@ -312,7 +316,7 @@ def get_stat(config:InputParam, stat_add=None, datasets_path=None, work_dir=None
     if not valid_chunk and energy_shift is None:
         raise ValueError("Invalid 'chunk_size', the number of images (include all atom types) in the movement is too big, \nPlease set a smaller chunk_size (default: 10) or add more images in the movement")
 
-    return energy_shift, max_atom_nums, os.path.join(dataset_path, train_data_path)
+    return energy_shift, max_atom_nums, os.path.join(data_load_path)
 
 '''
 description: 

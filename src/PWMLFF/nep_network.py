@@ -116,7 +116,7 @@ class nep_network:
                                 \nmodel load path: {} \n or model at work path: {}\n"\
                                 .format(self.input_param.file_paths.model_load_path, self.input_param.file_paths.model_save_path))
             stat_add = [atom_map, energy_shift]
-            return energy_shift, atom_map, None 
+            # return energy_shift, None, None 
         else:
             stat_add = None
         

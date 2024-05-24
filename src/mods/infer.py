@@ -16,6 +16,14 @@ class Inference(object):
         self.device = device
         self.model, self.model_type, self.input_param = self.load_model(ckpt_file)
 
+    '''
+    description: 
+        load nep_model.ckpt or dp_model.ckpt
+    param {*} self
+    param {str} ckpt_file
+    return {*}
+    author: wuxingxing
+    '''
     def load_model(self, ckpt_file: str):
         model_checkpoint = torch.load(ckpt_file, map_location = torch.device("cpu"))
         model_checkpoint["json_file"]["model_load_file"] = ckpt_file
@@ -43,7 +51,43 @@ class Inference(object):
         model.to(self.device)
         model.eval()
         return model, model_checkpoint['json_file']['model_type'].upper(), dp_param
-            
+
+    '''
+    description: 
+    load model from nep.txt file not realized yet
+    param {*} self
+    param {str} ckpt_file
+    return {*}
+    author: wuxingxing
+    '''
+    def load_nep_from_neptxt(self, ckpt_file: str):
+        model_checkpoint = {}
+        model_checkpoint["model_load_file"] = ckpt_file
+        model_checkpoint["datasets_path"] = []
+        if "optimizer" not in model_checkpoint.keys() or \
+            model_checkpoint["optimizer"] is None:
+            model_checkpoint["optimizer"] = {}
+            model_checkpoint["optimizer"]["optimizer"] = "LKF"
+
+        if model_checkpoint['json_file']['model_type'].upper() == "DP".upper():
+            stat = [model_checkpoint["davg"], model_checkpoint["dstd"], model_checkpoint["energy_shift"]]
+            dp_param = InputParam(model_checkpoint, "train".upper())
+            dp_param.inference = True 
+            dp_trainer = dp_network(dp_param)
+            model = dp_trainer.load_model_with_ckpt(davg=stat[0], dstd=stat[1], energy_shift=stat[2])
+            model.load_state_dict(model_checkpoint["state_dict"])
+            if "compress" in model_checkpoint.keys():
+                model.set_comp_tab(model_checkpoint["compress"])
+
+        elif model_checkpoint['json_file']['model_type'].upper() == "NEP".upper():
+            dp_param = InputParam(model_checkpoint, "train".upper())
+            nep_trainer = nep_network(dp_param)
+            model, optimizer = nep_trainer.load_model_optimizer(model_checkpoint['energy_shift'])
+
+        model.to(self.device)
+        model.eval()
+        return model, model_checkpoint['json_file']['model_type'].upper(), dp_param
+
     def inference(self, structrue_file, format="config", atom_names=None):
         model_config = self.model.config
         Ei = np.zeros(1)
@@ -98,7 +142,7 @@ class Inference(object):
         data = torch.from_numpy(data).to(self.device)
         return data
 
-    def inference_nep(self, structrue_file, format="config", atom_names=None):
+    def inference_nep(self, structrue_file, format="pwmat/config", atom_names=None):
         Ei = np.zeros(1)
         Egroup = 0
         nghost = 0
@@ -107,10 +151,12 @@ class Inference(object):
         calc = FindNeigh()
 
         # infer = Save_Data(data_path=structrue_file, format=format)
-        
-        image = Config(data_path=structrue_file, format=format, atom_names=atom_names).images[0]
+        image_read = Config(data_path=structrue_file, format=format, atom_names=atom_names).images
+        if isinstance(image_read, list): # for lammps/dumps or movement .images will be list
+            image = image_read[0]
+        else:
+            image = image_read
         struc_num = 1
-
         atom_types_struc = image.atom_types_image
         atom_types = image.atom_type
         ntypes = len(atom_types)

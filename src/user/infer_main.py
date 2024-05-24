@@ -3,7 +3,7 @@ from src.mods.infer import Inference
 import os 
 import glob
 import numpy as np
-def infer_main(ckpt_file, structures_file, format= "config", atom_typs=None):
+def infer_main(ckpt_file, structures_file, format= "pwmat/config", atom_typs=None):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     infer = Inference(ckpt_file, device)
     if infer.model_type == "DP":
