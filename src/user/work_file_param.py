@@ -55,7 +55,7 @@ class WorkFileStructure(object):
     def _set_model_load_path(self, model_load_path:str):
         self.model_load_path = model_load_path
 
-    def set_inference_paths(self, json_input:dict):
+    def set_inference_paths(self, json_input:dict, is_nep_txt:bool=False):
         # load test files and check if they are exist
         raw_path = get_parameter("raw_files", json_input, [])
         for raw_data in raw_path:
@@ -82,10 +82,13 @@ class WorkFileStructure(object):
         self.datasets_path = [os.path.abspath(_) for _ in datasets_path]
 
         if not json_input["model_type"].upper() == "LINEAR":
-            model_load_path = get_required_parameter("model_load_file", json_input)
-            self.model_load_path = os.path.abspath(model_load_path)
-            if os.path.exists(self.model_load_path) is False:
-                raise Exception("the model_load_path is not exist: {}, please speccified 'model_load_path' at json file".format(self.model_load_path))
+            if is_nep_txt:
+                self.model_load_path = None
+            else:
+                model_load_path = get_required_parameter("model_load_file", json_input)
+                self.model_load_path = os.path.abspath(model_load_path)
+                if os.path.exists(self.model_load_path) is False:
+                    raise Exception("the model_load_path is not exist: {}, please speccified 'model_load_path' at json file".format(self.model_load_path))
         
         if "trainDataPath" in json_input.keys():# for test, people could set the 'trainSetDir' to 'valid', so the valid data in train dir could be used for valid
             self.trainDataPath = json_input["trainDataPath"]
@@ -222,7 +225,7 @@ class WorkFileStructure(object):
         # dicts["work_dir"] = self.work_dir
         # dicts["reserve_work_dir"] = self.reserve_work_dir
 
-        if os.path.exists(self.model_load_path):
+        if self.model_load_path is not None and os.path.exists(self.model_load_path):
             dicts["model_load_file"] = self.model_load_path
         if len(self.datasets_path) > 0:
             dicts["datasets_path"] = self.datasets_path

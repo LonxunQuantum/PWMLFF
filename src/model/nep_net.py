@@ -131,8 +131,8 @@ class NEP(nn.Module):
     '''    
     def set_cparam(self):
         if self.input_param.nep_param.c2_param is not None:
-            self.c_param_2 = torch.nn.Parameter(torch.from_numpy(self.input_param.nep_param.c2_param), requires_grad=True)
-            self.c_param_3 = torch.nn.Parameter(torch.from_numpy(self.input_param.nep_param.c3_param), requires_grad=True)
+            self.c_param_2 = torch.nn.Parameter(torch.tensor(self.input_param.nep_param.c2_param), requires_grad=True)
+            self.c_param_3 = torch.nn.Parameter(torch.tensor(self.input_param.nep_param.c3_param), requires_grad=True)
         else: # init by randly (for first training) or checkpoint
             r_k = torch.normal(mean=0, std=1, size=(self.c_num,), dtype=self.dtype)
             m = torch.rand(self.c_num, dtype=self.dtype) - 0.5
@@ -166,7 +166,7 @@ class NEP(nn.Module):
         self.q_min = None
         self.q_max = None
         if self.input_param.nep_param.q_scaler is not None:
-            self.q_scaler = torch.from_numpy(self.input_param.nep_param.q_scaler)
+            self.q_scaler = torch.tensor(self.input_param.nep_param.q_scaler, dtype=dtype, device=device)
         else:
             if q_scaler is None:
                 self.q_scaler = None
@@ -485,7 +485,7 @@ class NEP(nn.Module):
         # print("t8 {} t9 {}".format(t8-t7, t9-t8))
         del dE
         # print(-Force)
-        return -Force, Virial 
+        return -Force, -Virial
 
     def calculate_qn(self,
                      natoms_sum: int,#no use

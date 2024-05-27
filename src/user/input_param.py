@@ -222,17 +222,18 @@ class InputParam(object):
         set dp and NN inference params
     param {*} self
     param {dict} json_input
+            is_nep_txt for nep.txt file load
     return {*}
     author: wuxingxing
     '''    
-    def set_test_relative_params(self, json_input:dict):
+    def set_test_relative_params(self, json_input:dict, is_nep_txt:bool=False):
         self.inference = True
         self.recover_train = True
         self.optimizer_param.batch_size = 1     # set batch size to 1, so that each image inference info will be saved
         self.data_shuffle = False
         self.train_valid_ratio = 1
         self.format = get_parameter("format", json_input, "pwmat/movement")
-        self.file_paths.set_inference_paths(json_input)
+        self.file_paths.set_inference_paths(json_input,is_nep_txt = is_nep_txt)
     
     '''
     description: 

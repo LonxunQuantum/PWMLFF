@@ -106,7 +106,10 @@ class nep_network:
     def _get_stat(self):
         # data_file_config = self.nep_params.get_data_file_dict()
         if self.input_param.inference:
-            if os.path.exists(self.input_param.file_paths.model_load_path):
+            if self.input_param.nep_param.nep_txt_file is not None and os.path.exists(self.input_param.nep_param.nep_txt_file):
+                atom_map = self.input_param.atom_type
+                energy_shift = [1.0 for _ in atom_map] # just for init model, the bias will be replaced by nep.txt params
+            elif self.input_param.file_paths.model_load_path is not None and os.path.exists(self.input_param.file_paths.model_load_path):
                 # load davg, dstd from checkpoint of model
                 atom_map, energy_shift = load_atomtype_energyshift_from_checkpoint(self.input_param.file_paths.model_load_path)
             elif os.path.exists(self.input_param.file_paths.model_save_path):
@@ -120,6 +123,8 @@ class nep_network:
         else:
             stat_add = None
         
+        if self.input_param.file_paths.datasets_path is None or len(self.input_param.file_paths.datasets_path) == 0:# for togpumd
+            return energy_shift, 100, None
         energy_shift, max_atom_nums, image_path = get_stat(self.input_param, stat_add, self.input_param.file_paths.datasets_path, 
                          self.input_param.file_paths.json_dir, self.input_param.chunk_size)
         return energy_shift, max_atom_nums, image_path
@@ -210,7 +215,9 @@ class nep_network:
         # optionally resume from a checkpoint
         checkpoint = None
         if self.input_param.recover_train:
-            if self.inference and os.path.exists(self.input_param.file_paths.model_load_path): # recover from user input ckpt file for inference work
+            if self.inference and \
+                self.input_param.file_paths.model_load_path is not None and \
+                    os.path.exists(self.input_param.file_paths.model_load_path): # recover from user input ckpt file for inference work
                 model_path = self.input_param.file_paths.model_load_path
             else: # resume model specified by user
                 if self.input_param.nep_param.model_wb is None:
@@ -240,7 +247,8 @@ class nep_network:
                 if "compress" in checkpoint.keys():
                     model.set_comp_tab(checkpoint["compress"])
             else:
-                print("=> no checkpoint found at '{}'".format(model_path))
+                if model_path is not None:
+                    print("=> no checkpoint found at '{}'".format(model_path))
 
         if not torch.cuda.is_available():
             print("using CPU, this will be slow")

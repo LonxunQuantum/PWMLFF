@@ -329,8 +329,14 @@ def load_atomtype_energyshift_from_checkpoint(model_path):
     model_checkpoint = torch.load(model_path,map_location=torch.device("cpu"))
     atom_type_order = model_checkpoint['atom_type_order']
     energy_shift = model_checkpoint['energy_shift']
-    if atom_type_order.size == 1:   #
-        atom_type_order = [atom_type_order.tolist()]
+    
+    if isinstance(atom_type_order, float):
+        atom_type_order  = [atom_type_order]
+    if isinstance(atom_type_order, np.ndarray):
+        if len(atom_type_order).size == 1:   #
+            atom_type_order = [atom_type_order.tolist()]
+        else:
+            atom_type_order = atom_type_order.tolist()
     return atom_type_order, energy_shift
 
 '''

@@ -113,7 +113,6 @@ class FittingNet(nn.Module):
         self.layers = nn.ModuleList()
         from_nep_txt = False
         if nep_txt_param is not None:
-            print("create NEP model, the param from nep.txt files")
             from_nep_txt = True
         for i in range(1, len(self.network_size)-1):
             if from_nep_txt:

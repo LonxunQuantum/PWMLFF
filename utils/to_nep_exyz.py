@@ -88,11 +88,11 @@ def save_to_extxyz(image_data_all: list, output_path: str, data_name: str, write
     print("Convert to %s successfully!" % data_name)
 
 if __name__ == "__main__":
-    datasets_path = ["/data/home/wuxingxing/datas/pwmat_mlff_workdir/ligeps/gpumd_data/1200k_movement"]
-    save_dir = "/data/home/wuxingxing/datas/pwmat_mlff_workdir/ligeps/gpumd_data/"
+    datasets_path = ["/data/home/wuxingxing/datas/pwmat_mlff_workdir/ligeps/test_gpumd/100_test"]
+    save_dir = "/data/home/wuxingxing/datas/pwmat_mlff_workdir/ligeps/test_gpumd"
     input_format  = "pwmat/movement" # 支持格式："pwmlff/mpy","pwmat/movement","vasp/outcar",dpdata/npy","dpdata/raw"
-    valid_shuffle = True             #分割训练集验证集时，是否随机分割
-    train_valid_ratio = 0.8          #分割训练集、测试集比例
+    valid_shuffle = False             #分割训练集验证集时，是否随机分割
+    train_valid_ratio = 1          #分割训练集、测试集比例
     seed = 2024                      #随机分割时的random seed
     convert_to_xyz( input_list      =datasets_path,
                     input_format    =input_format,
@@ -101,6 +101,6 @@ if __name__ == "__main__":
                     valid_save_name ="test.xyz",
                     valid_shuffle   =valid_shuffle,
                     ratio           =train_valid_ratio, 
-                    is_valid        =False,
+                    is_valid        =True,
                     seed            =seed
     )

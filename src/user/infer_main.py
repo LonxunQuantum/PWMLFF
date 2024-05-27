@@ -3,14 +3,47 @@ from src.mods.infer import Inference
 import os 
 import glob
 import numpy as np
-def infer_main(ckpt_file, structures_file, format= "pwmat/config", atom_typs=None):
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    infer = Inference(ckpt_file, device)
+def infer_main(sys_cmd:list[str]):
+    ckpt_file = sys_cmd[0]
+    use_nep_txt = False
+    sys_index = 0
+    if "nep.txt" in ckpt_file:
+        use_nep_txt= True
+    if use_nep_txt:
+        nep_in_txt = sys_cmd[1]
+        structures_file = sys_cmd[2]
+        format = sys_cmd[3] if len(sys_cmd) > 3 else "pwmat/config"
+        sys_index = 3
+    else:
+        structures_file = sys_cmd[1]
+        format = sys_cmd[2] if len(sys_cmd) > 2 else "pwmat/config"
+        sys_index = 2
+    if format is not None and format.lower() == "lammps/dump":
+        atom_typs = sys_cmd[sys_index+1:]
+        if isinstance(atom_typs, list) is False:
+            atom_typs = [atom_typs]
+        print("Structure atom type is ", atom_typs)
+    else:
+        atom_typs = None
+    
+    if use_nep_txt is False:
+        model_checkpoint = torch.load(ckpt_file, map_location = torch.device("cpu"))
+        model_type = model_checkpoint['json_file']['model_type'].upper()
+    else:
+        model_type = "NEP"
+
+    if model_type == "DP":
+        device = torch.device("cpu")
+        if torch.cuda.is_available():
+            print("Warnning! Modify the GPU device to CPU for the DP infer interface!")
+    else:
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    infer = Inference(ckpt_file, device, nep_in_txt)
     if infer.model_type == "DP":
         infer.inference(structures_file, format, atom_typs)
     elif infer.model_type == "NEP":
         Etot, Ei, Force, Egroup, Virial = infer.inference_nep(structures_file, format, atom_typs)
-        
+
 def model_devi(ckpt_file_list, structure_dir, format, save_path):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     if os.path.isdir(structure_dir):

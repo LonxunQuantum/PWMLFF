@@ -27,7 +27,8 @@ class NepParam(object):
     author: wuxingxing
     '''    
     def __init__(self) -> None:
-        pass
+        self.nep_in_file = None
+        self.nep_txt_file = None
 
     '''
     description: 
@@ -94,11 +95,13 @@ class NepParam(object):
     '''
     description: 
     recover model from nep.txt file
+    for nep.txt in gpumd, the bias is '-' op,  but in pwmlff, the bias is '+' op
     param {str} nep_txt_file
     return {*}
     author: wuxingxing
     '''    
     def set_nep_nn_c_param_from_nep_txt(self, nep_txt_file:str):
+        self.nep_txt_file = nep_txt_file
         with open(nep_txt_file, "r") as rf:
             lines =rf.readlines()
         line_1 = lines[0].split()
@@ -129,14 +132,14 @@ class NepParam(object):
             w0 = np.array([float(_) for _ in lines[start_index        : start_index+w0_num]]).reshape(ann_num, self.feature_nums).transpose(1,0)
             start_index = start_index + w0_num
             self.model_wb.append(w0)
-            b0 = np.array([float(_) for _ in lines[start_index : start_index + b0_num]]).reshape(1,b0_num)
+            b0 = np.array([-float(_) for _ in lines[start_index : start_index + b0_num]]).reshape(1,b0_num)
             start_index = start_index + b0_num
             self.model_wb.append(b0)
             w1 = np.array([float(_) for _ in lines[start_index : start_index + b0_num]]).reshape(b0_num, 1)
             start_index = start_index + b0_num
             self.model_wb.append(w1)
 
-        self.bias_lastlayer = np.array([float(lines[start_index])]).reshape(1,1)
+        self.bias_lastlayer = np.array([-float(lines[start_index])]).reshape(1,1)
         start_index = start_index + 1
         self.c2_param = np.array([float(_) for _ in lines[start_index:start_index + self.two_c_num]]).reshape(self.n_max[0]+1, self.basis_size[0]+1, self.type_num, self.type_num).transpose(2, 3, 0, 1)
         start_index = start_index + self.two_c_num

@@ -2,6 +2,7 @@ import torch
 import numpy as np
 
 from PWMLFF.dp_network import dp_network
+from src.user.nep_work import tonepckpt
 from PWMLFF.nep_network import nep_network
 from user.input_param import InputParam
 from pwdata import Save_Data
@@ -11,10 +12,14 @@ from pwdata import Config
 class Inference(object):
     def __init__(self, 
                  ckpt_file: str, 
-                 device: torch.device) -> None:
+                 device: torch.device = None,
+                 nep_in_file:str = None) -> None:
         self.ckpt_file = ckpt_file
         self.device = device
-        self.model, self.model_type, self.input_param = self.load_model(ckpt_file)
+        if nep_in_file is None:
+            self.model, self.model_type, self.input_param = self.load_model(ckpt_file)
+        else: # load from nep.txt and nep.in
+            self.model, self.model_type, self.input_param = tonepckpt([ckpt_file, nep_in_file], save_ckpt=False)
 
     '''
     description: 
@@ -45,42 +50,6 @@ class Inference(object):
 
         elif model_checkpoint['json_file']['model_type'].upper() == "NEP".upper():
             dp_param = InputParam(model_checkpoint["json_file"], "train".upper())
-            nep_trainer = nep_network(dp_param)
-            model, optimizer = nep_trainer.load_model_optimizer(model_checkpoint['energy_shift'])
-
-        model.to(self.device)
-        model.eval()
-        return model, model_checkpoint['json_file']['model_type'].upper(), dp_param
-
-    '''
-    description: 
-    load model from nep.txt file not realized yet
-    param {*} self
-    param {str} ckpt_file
-    return {*}
-    author: wuxingxing
-    '''
-    def load_nep_from_neptxt(self, ckpt_file: str):
-        model_checkpoint = {}
-        model_checkpoint["model_load_file"] = ckpt_file
-        model_checkpoint["datasets_path"] = []
-        if "optimizer" not in model_checkpoint.keys() or \
-            model_checkpoint["optimizer"] is None:
-            model_checkpoint["optimizer"] = {}
-            model_checkpoint["optimizer"]["optimizer"] = "LKF"
-
-        if model_checkpoint['json_file']['model_type'].upper() == "DP".upper():
-            stat = [model_checkpoint["davg"], model_checkpoint["dstd"], model_checkpoint["energy_shift"]]
-            dp_param = InputParam(model_checkpoint, "train".upper())
-            dp_param.inference = True 
-            dp_trainer = dp_network(dp_param)
-            model = dp_trainer.load_model_with_ckpt(davg=stat[0], dstd=stat[1], energy_shift=stat[2])
-            model.load_state_dict(model_checkpoint["state_dict"])
-            if "compress" in model_checkpoint.keys():
-                model.set_comp_tab(model_checkpoint["compress"])
-
-        elif model_checkpoint['json_file']['model_type'].upper() == "NEP".upper():
-            dp_param = InputParam(model_checkpoint, "train".upper())
             nep_trainer = nep_network(dp_param)
             model, optimizer = nep_trainer.load_model_optimizer(model_checkpoint['energy_shift'])
 

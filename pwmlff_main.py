@@ -2,7 +2,7 @@
 import json
 import os, sys
 import argparse
-from src.user.nep_work import nep_train, nep_test, togpumd
+from src.user.nep_work import nep_train, nep_test, togpumd, tonepckpt
 from src.user.dp_work import dp_train, dp_test
 from src.user.nn_work import nn_train, gen_nn_feature, nn_test
 # from src.user.cheby_work import cheby_train, cheby_test
@@ -33,25 +33,14 @@ if __name__ == "__main__":
         compress_force_field(ckpt_file)
     elif cmd_type == "togpumd".upper():
         togpumd(sys.argv[2:])
+    elif cmd_type == "topwmlff".upper():
+        tonepckpt(sys.argv[2:])
+
     elif cmd_type == "script".upper():
         ckpt_file = sys.argv[2]
         script_model(ckpt_file)
     elif cmd_type == "infer".upper():
-        ckpt_file = sys.argv[2]
-        structures_file = sys.argv[3]
-        
-        format = sys.argv[4] if len(sys.argv) > 4 else None
-        # ckpt_file = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/4-CH4-dbg/model_record/dp_model.ckpt"
-        # structrues_file = "/data/home/hfhuang/2_MLFF/2-DP/19-json-version/4-CH4-dbg/atom.config"
-        # format= "pwmat/config"
-        if format is not None and format.lower() == "lammps/dump":
-            atom_typs = sys.argv[5:]
-            if isinstance(atom_typs, list) is False:
-                atom_typs = [atom_typs]
-            print("atom_type is ", atom_typs)
-        else:
-            atom_typs = None
-        infer_main(ckpt_file, structures_file, format=format, atom_typs=atom_typs) # config or poscar
+        infer_main(sys.argv[2:]) # config or poscar
     elif cmd_type == "model_devi".upper():
         parser = argparse.ArgumentParser()
         parser.add_argument('-m', '--model_list', help='specify input model files', nargs='+', type=str, default=None)
