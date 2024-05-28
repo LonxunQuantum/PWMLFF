@@ -333,7 +333,7 @@ def load_atomtype_energyshift_from_checkpoint(model_path):
     if isinstance(atom_type_order, float):
         atom_type_order  = [atom_type_order]
     if isinstance(atom_type_order, np.ndarray):
-        if len(atom_type_order).size == 1:   #
+        if atom_type_order.size == 1:   #
             atom_type_order = [atom_type_order.tolist()]
         else:
             atom_type_order = atom_type_order.tolist()

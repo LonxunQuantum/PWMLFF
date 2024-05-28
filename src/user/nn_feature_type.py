@@ -10,7 +10,7 @@ class Descriptor(object):
         self.Rmax = get_parameter("Rmax", json_input, 6.0)
         self.Rmin = get_parameter("Rmin", json_input, 0.5)
         self.M2 = get_parameter("M2", json_input, 16)
-        self.E_tolerance = get_parameter("E_tolerance", json_input, 9999999.99)
+        self.E_tolerance = get_parameter("E_tolerance", json_input, 9999999.0)
         self.cheby_order = get_parameter("cheby_order", json_input, 10)
         self.radial_num1 = get_parameter("radial_num1", json_input, 25)
         self.radial_num2 = get_parameter("radial_num2", json_input, 4)
@@ -270,10 +270,11 @@ class Descriptor(object):
     
     def to_dict(self):
         dicts = {}
-        dicts["Rmax"] = self.Rmax
-        dicts["Rmin"] = self.Rmin
+
         # dicts["E_tolerance"] = self.E_tolerance
         if self.model_type == "DP".upper():
+            dicts["Rmax"] = self.Rmax
+            dicts["Rmin"] = self.Rmin
             dicts["M2"] = self.M2
             dicts["network_size"] = self.network_size
             dicts["M2"] = self.M2
@@ -281,6 +282,8 @@ class Descriptor(object):
             # dicts["resnet_dt"] = self. resnet_dt 
             # dicts["activation"] = self.activation
         elif self.model_type == "NN".upper() or self.model_type == "Linear".upper():
+            dicts["Rmax"] = self.Rmax
+            dicts["Rmin"] = self.Rmin
             dicts["feature_type"] = self.feature_type
             for feature in self.feature_type:
                 feature = "{}".format(feature)
@@ -294,7 +297,7 @@ class Descriptor(object):
             dicts["n_max"] = self.n_max
             dicts["basis_size"] = self.basis_size
             dicts["l_max"] = self.l_max
-            dicts["type_weight"] = self.type_weight
+            # dicts["type_weight"] = self.type_weight
         else:
             raise Exception("descriptor to dict: the model type not realized:{}".format(self.model_type))
         

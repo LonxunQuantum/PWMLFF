@@ -7,6 +7,7 @@ def infer_main(sys_cmd:list[str]):
     ckpt_file = sys_cmd[0]
     use_nep_txt = False
     sys_index = 0
+    nep_in_txt = None
     if "nep.txt" in ckpt_file:
         use_nep_txt= True
     if use_nep_txt:

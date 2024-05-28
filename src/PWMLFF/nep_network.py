@@ -441,7 +441,7 @@ class nep_network:
             "Loss_l1": 18,
             "Loss_l2": 18,
             "real_lr": 18,
-            "time": 10,
+            "time": 12,
         }
 
         train_format = "".join(["%{}s".format(train_print_width[i]) for i in train_lists])

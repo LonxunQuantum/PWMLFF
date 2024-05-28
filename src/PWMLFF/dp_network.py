@@ -392,7 +392,7 @@ class dp_network:
             "RMSE_virial": 18,
             "RMSE_virial_per_atom": 23,
             "real_lr": 18,
-            "time": 10,
+            "time": 12,
         }
 
         train_format = "".join(["%{}s".format(train_print_width[i]) for i in train_lists])
