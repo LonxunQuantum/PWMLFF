@@ -14,18 +14,15 @@ echo "Running on nodes: $SLURM_NODELIST"
 
 start=$(date +%s)
 source /data/home/wuxingxing/anaconda3/etc/profile.d/conda.sh
-
 conda activate pwmlff24.5
-export PATH=/data/home/wuxingxing/codespace/PWMLFF2024.5/src/bin:$PATH
-export PYTHONPATH=/data/home/wuxingxing/codespace/PWMLFF2024.5/src/:$PYTHONPATH
-
+export PATH=/data/home/wuxingxing/codespace/PWMLFF2025.5/src/bin:$PATH
+export PYTHONPATH=/data/home/wuxingxing/codespace/PWMLFF2025.5/src/:$PYTHONPATH
 module load cuda/11.8-share
 module load intel/2020
 
-PWMLFF train train.json
+PWMLFF test test.json
 
 end=$(date +%s)
 take=$(( end - start ))
-echo Time taken to execute commands is ${take} seconds  > train.log
 
 

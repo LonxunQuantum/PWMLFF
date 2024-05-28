@@ -1,8 +1,8 @@
 #!/bin/sh
 #SBATCH --job-name=md1
 #SBATCH --nodes=1
-#SBATCH --ntasks-per-node=4
-#SBATCH --gres=gpu:4
+#SBATCH --ntasks-per-node=1
+#SBATCH --gres=gpu:1
 #SBATCH --gpus-per-task=1
 #SBATCH --partition=3090
 
@@ -32,7 +32,7 @@ module load intel/2020
 
 #mv jit_nep_module.pt nep.pt
 
-mpirun -np 2 lmp_mpi_gpu -in in.lammps
+mpirun -np 1 lmp_mpi_gpu -in in.lammps
 
 echo "Job $SLURM_JOB_ID done at " `date`
 

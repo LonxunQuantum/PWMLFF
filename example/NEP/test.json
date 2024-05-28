@@ -1,0 +1,11 @@
+{
+    "model_type": "NEP",
+    "atom_type": [
+        8, 72
+    ],
+    "model_load_file":"./model_record/nep_model.ckpt",
+    "format":"pwmat/movement",
+    "raw_files":["./mvms/mvm_init_000_50"],
+    "datasets_path": ["./pwdata/init_000_50", "./pwdata/init_001_50/valid"]
+}
+
