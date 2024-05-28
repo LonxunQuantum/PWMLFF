@@ -45,12 +45,12 @@ class Inference(object):
         model.eval()
         return model, model_checkpoint['json_file']['model_type'].upper(), dp_param
             
-    def inference(self, structrue_file, format="config"):
+    def inference(self, structrue_file, format="config", atom_names=None):
         model_config = self.model.config
         Ei = np.zeros(1)
         Egroup = 0
         nghost = 0
-        list_neigh, type_maps, atom_types, ImageDR = self.processed_data(structrue_file, model_config, Ei, Egroup, format)
+        list_neigh, type_maps, atom_types, ImageDR = self.processed_data(structrue_file, model_config, Ei, Egroup, format, atom_names)
         Etot, Ei, Force, Egroup, Virial = self.model(list_neigh, type_maps, atom_types, ImageDR, nghost)
         Etot = Etot.cpu().detach().numpy()
         Ei = Ei.cpu().detach().numpy()
@@ -66,8 +66,8 @@ class Inference(object):
         print("----------Virial-------------\n", Virial)
         return Etot, Ei, Force, Egroup, Virial      
                                                               
-    def processed_data(self, structrue_file, model_config, Ei, Egroup, format):
-        infer = Save_Data(data_path=structrue_file, format=format)
+    def processed_data(self, structrue_file, model_config, Ei, Egroup, format, atom_names=None):
+        infer = Save_Data(data_path=structrue_file, format=format, atom_names=atom_names)
         struc_num = 1
         if infer.image_nums != struc_num:
             raise Exception("Error! the image num in structrue file is not 1!")
@@ -99,7 +99,7 @@ class Inference(object):
         data = torch.from_numpy(data).to(self.device)
         return data
 
-    def inference_nep(self, structrue_file, format="config"):
+    def inference_nep(self, structrue_file, format="config", atom_names=None):
         Ei = np.zeros(1)
         Egroup = 0
         nghost = 0
@@ -107,14 +107,15 @@ class Inference(object):
         calc = FindNeigh()
 
         # infer = Save_Data(data_path=structrue_file, format=format)
-        image = Config(data_path=structrue_file, format=format).images
+        
+        image = Config(data_path=structrue_file, format=format, atom_names=atom_names).images[0]
         struc_num = 1
 
         atom_types_struc = image.atom_types_image
         atom_types = image.atom_type
         ntypes = len(atom_types)
-        if image.cartesian is False:
-            image._set_cartesian()
+        if image.cartesian is True:
+            image._set_fractional()
         atom_nums = image.atom_nums
         input_atom_types = np.array(self.model.atom_type)
         img_max_types = self.model.ntypes
@@ -125,21 +126,44 @@ class Inference(object):
         # Lattice [10.104840279, 0.0, -1.7274452448, 0.0, 10.28069973, 0.0, -5.1064545896e-16, 0.0, 10.275204659] 做转置后拉成一列
         # Position [96,3] 转置后拉成一列
         # 34622.19498329725 d12_radial
-        d12_radial, d12_agular, NL_radial2, NL_angular2, NN_radial2, NN_angular2 = calc.getNeigh(
+        d12_radial, d12_agular, NL_radial, NL_angular, NLT_radial, NLT_angular = calc.getNeigh(
                            self.input_param.descriptor.cutoff[0],self.input_param.descriptor.cutoff[1], 
-                            atom_nums, len(self.input_param.atom_type)*self.input_param.max_neigh_num, list(np.array(image.lattice).transpose(1, 0).reshape(-1)), np.array(image.position).transpose(1, 0).reshape(-1))
+                            len(self.input_param.atom_type)*self.input_param.max_neigh_num, list(type_maps[0]), list(np.array(image.lattice).transpose(1, 0).reshape(-1)), np.array(image.position).transpose(1, 0).reshape(-1))
 
         neigh_radial_rij   = np.array(d12_radial).reshape(atom_nums, len(self.input_param.atom_type)*self.input_param.max_neigh_num, 4)
         neigh_angular_rij  = np.array(d12_agular).reshape(atom_nums, len(self.input_param.atom_type)*self.input_param.max_neigh_num, 4)
-        neigh_radial_list  = np.array(NL_radial2).reshape(atom_nums, len(self.input_param.atom_type)*self.input_param.max_neigh_num)
-        neigh_angular_list = np.array(NL_angular2).reshape(atom_nums, len(self.input_param.atom_type)*self.input_param.max_neigh_num)
+        neigh_radial_list  = np.array(NL_radial).reshape(atom_nums, len(self.input_param.atom_type)*self.input_param.max_neigh_num)
+        neigh_angular_list = np.array(NL_angular).reshape(atom_nums, len(self.input_param.atom_type)*self.input_param.max_neigh_num)
+        neigh_radial_type_list  =  np.array(NLT_radial).reshape(atom_nums, len(self.input_param.atom_type)*self.input_param.max_neigh_num)
+        neigh_angular_type_list = np.array(NLT_angular).reshape(atom_nums, len(self.input_param.atom_type)*self.input_param.max_neigh_num)
 
         neigh_radial_rij = self.to_tensor(neigh_radial_rij).unsqueeze(0)
         neigh_radial_list = self.to_tensor(neigh_radial_list).unsqueeze(0)
+        neigh_radial_type_list = self.to_tensor(neigh_radial_type_list).unsqueeze(0)
         type_maps = self.to_tensor(type_maps).squeeze(0)
         atom_types = self.to_tensor(np.array(atom_types))
 
-        Etot, Ei, Force, Egroup, Virial = self.model(neigh_radial_list, type_maps, atom_types, neigh_radial_rij, nghost)
+        Etot, Ei, Force, Egroup, Virial = self.model(neigh_radial_list, type_maps, atom_types, neigh_radial_rij, neigh_radial_type_list, nghost)
+
+        ### debug start
+        # dR_neigh_txt = "/data/home/wuxingxing/datas/lammps_test/nep_hfo2_lmps/lmp_dug/dR_neigh.txt"
+        # dR_neigh = np.loadtxt(dR_neigh_txt).reshape(atom_nums, len(self.input_param.atom_type) * self.input_param.max_neigh_num, 4)
+        # imagetype_map_txt = "/data/home/wuxingxing/datas/lammps_test/nep_hfo2_lmps/lmp_dug/imagetype_map.txt"
+        # imagetype_map = np.loadtxt(imagetype_map_txt, dtype=int).reshape(atom_nums)
+        # neighbor_list_txt = "/data/home/wuxingxing/datas/lammps_test/nep_hfo2_lmps/lmp_dug/neighbor_list.txt"
+        # neighbor_list = np.loadtxt(neighbor_list_txt, dtype=int).reshape(atom_nums, len(self.input_param.atom_type) * self.input_param.max_neigh_num)
+        # neighbor_type_list_txt = "/data/home/wuxingxing/datas/lammps_test/nep_hfo2_lmps/lmp_dug/neighbor_type_list.txt"
+        # neighbor_type_list = np.loadtxt(neighbor_type_list_txt, dtype=int).reshape(atom_nums, len(self.input_param.atom_type) * self.input_param.max_neigh_num)
+
+        # neigh_radial_rij2 = self.to_tensor(dR_neigh).unsqueeze(0)
+        # neigh_radial_list2 = self.to_tensor(neighbor_list).unsqueeze(0)
+        # neigh_radial_type_list2 = self.to_tensor(neighbor_type_list).unsqueeze(0)
+        # type_maps2 = self.to_tensor(imagetype_map).squeeze(0)
+        # # atom_types = self.to_tensor(np.array(atom_types))
+
+        # Etot2, Ei2, Force2, Egroup2, Virial2 = self.model(neigh_radial_list2, type_maps2, atom_types, neigh_radial_rij2, neigh_radial_type_list2, 1214)
+        
+        ### debug end
         Etot = Etot.cpu().detach().numpy()
         Ei = Ei.cpu().detach().numpy()
         Force = Force.cpu().detach().numpy()

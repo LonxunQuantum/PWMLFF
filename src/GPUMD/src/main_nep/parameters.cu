@@ -18,6 +18,7 @@
 #include "utilities/error.cuh"
 #include "utilities/read_file.cuh"
 #include <cmath>
+#include <cstring>
 #include <iostream>
 
 const std::string ELEMENTS[NUM_ELEMENTS] = {
@@ -77,8 +78,8 @@ void Parameters::set_default_parameters()
   version = 4;                 // NEP4 is the best
   rc_radial = 8.0f;            // large enough for vdw/coulomb
   rc_angular = 4.0f;           // large enough in most cases
-  basis_size_radial = 12;      // large enough in most cases
-  basis_size_angular = 12;     // large enough in most cases
+  basis_size_radial = 8;       // large enough in most cases
+  basis_size_angular = 8;      // large enough in most cases
   n_max_radial = 4;            // a relatively small value to achieve high speed
   n_max_angular = 4;           // a relatively small value to achieve high speed
   L_max = 4;                   // the only supported value
@@ -91,6 +92,7 @@ void Parameters::set_default_parameters()
   lambda_shear = 1.0f;         // do not weight shear virial more by default
   force_delta = 0.0f;          // no modification of force loss
   batch_size = 1000;           // large enough in most cases
+  use_full_batch = 0;          // default is not to enable effective full-batch
   population_size = 50;        // almost optimal
   maximum_generation = 100000; // a good starting point
   type_weight_cpu.resize(NUM_ELEMENTS);
@@ -167,6 +169,11 @@ void Parameters::calculate_parameters()
     dim += 1; // concatenate temeprature with descriptors
   }
   q_scaler_cpu.resize(dim, 1.0e10f);
+#ifdef USE_FIXED_SCALER
+  for (int n = 0; n < q_scaler_cpu.size(); ++n) {
+    q_scaler_cpu[n] = 0.01f;
+  }
+#endif
 
   number_of_variables_ann = (dim + 2) * num_neurons1 * (version == 4 ? num_types : 1) + 1;
 
@@ -182,6 +189,22 @@ void Parameters::calculate_parameters()
   number_of_variables = number_of_variables_ann + number_of_variables_descriptor;
   if (train_mode == 2) {
     number_of_variables += number_of_variables_ann;
+  }
+
+  if (version == 4) {
+    if (!is_lambda_1_set) {
+      lambda_1 = sqrt(number_of_variables * 1.0e-7f / num_types);
+    }
+    if (!is_lambda_2_set) {
+      lambda_2 = sqrt(number_of_variables * 1.0e-7f / num_types);
+    }
+  } else {
+    if (!is_lambda_1_set) {
+      lambda_1 = sqrt(number_of_variables * 1.0e-7f);
+    }
+    if (!is_lambda_2_set) {
+      lambda_2 = sqrt(number_of_variables * 1.0e-7f);
+    }
   }
 
   int deviceCount;
@@ -349,6 +372,9 @@ void Parameters::report_inputs()
 
   if (is_batch_set) {
     printf("    (input)   batch size = %d.\n", batch_size);
+    if (use_full_batch) {
+      printf("        enable effective full-batch.\n");
+    }
   } else {
     printf("    (default) batch size = %d.\n", batch_size);
   }
@@ -382,7 +408,7 @@ void Parameters::report_inputs()
 void Parameters::parse_one_keyword(std::vector<std::string>& tokens)
 {
   int num_param = tokens.size();
-  const char* param[20]; // never use more than 19 parameters
+  const char* param[105]; // never use more than 104 parameters
   for (int n = 0; n < num_param; ++n) {
     param[n] = tokens[n].c_str();
   }
@@ -824,14 +850,23 @@ void Parameters::parse_batch(const char** param, int num_param)
 {
   is_batch_set = true;
 
-  if (num_param != 2) {
-    PRINT_INPUT_ERROR("batch should have 1 parameter.\n");
+  if (num_param != 2 && num_param != 3) {
+    PRINT_INPUT_ERROR("batch should have 1 or 2 parameters.\n");
   }
   if (!is_valid_int(param[1], &batch_size)) {
     PRINT_INPUT_ERROR("batch size should be an integer.\n");
   }
   if (batch_size < 1) {
     PRINT_INPUT_ERROR("batch size should >= 1.");
+  }
+
+  if (num_param == 3) {
+    if (!is_valid_int(param[2], &use_full_batch)) {
+      PRINT_INPUT_ERROR("use_full_batch should be an integer.\n");
+    }
+    if (use_full_batch != 0 && use_full_batch != 1) {
+      PRINT_INPUT_ERROR("use_full_batch should = 0 or 1.");
+    }
   }
 }
 

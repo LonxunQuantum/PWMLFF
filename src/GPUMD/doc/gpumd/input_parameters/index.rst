@@ -24,7 +24,13 @@ Below you can find a listing of keywords for the ``run.in`` input file.
    ensemble_heat
    ensemble_pimd
    ensemble_ti_spring
+   ensemble_ti_as
+   ensemble_ti_rs
+   ensemble_ti
+   ensemble_piston
+   ensemble_mirror
    ensemble_msst
+   ensemble_nphug
    fix
    time_step
    plumed
@@ -62,9 +68,12 @@ Below you can find a listing of keywords for the ``run.in`` input file.
    dump_exyz
    dump_beads
    dump_observer
+   dump_dipole
+   dump_polarizability
    dump_force
    dump_netcdf
    dump_position
    dump_restart
    dump_thermo
    dump_velocity
+   dump_piston

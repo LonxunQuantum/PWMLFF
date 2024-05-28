@@ -27,7 +27,7 @@ class KFOptimizerWrapper:
     def update_energy(
         self, inputs: list, Etot_label: torch.Tensor, update_prefactor: float = 1, train_type = "DP"
     ) -> None:
-        if train_type == "DP" or train_type == "NEP":
+        if train_type == "DP":
             Etot_predict, _, _, _, _ = self.model(
                 inputs[0],
                 inputs[1],
@@ -36,6 +36,18 @@ class KFOptimizerWrapper:
                 0,
                 inputs[4],
                 inputs[5],
+                is_calc_f=False,
+            )
+        elif train_type == "NEP":
+            Etot_predict, _, _, _, _ = self.model(
+                inputs[0],
+                inputs[1],
+                inputs[2],
+                inputs[3],
+                inputs[4],
+                0,
+                inputs[5],
+                inputs[6],
                 is_calc_f=False,
             )
         elif train_type == "NN": # nn training
@@ -104,7 +116,7 @@ class KFOptimizerWrapper:
     def update_egroup(
         self, inputs: list, Egroup_label: torch.Tensor, update_prefactor: float = 1, train_type = "DP"
     ) -> None:
-        if train_type == "DP" or train_type == "NEP":
+        if train_type == "DP":
             _, _, _, Egroup_predict, _ = self.model( #dp inputs has 7 para
                 inputs[0],
                 inputs[1],
@@ -113,6 +125,18 @@ class KFOptimizerWrapper:
                 0,
                 inputs[4],
                 inputs[5],
+                is_calc_f=False,
+            )
+        elif train_type == "NEP":
+            _, _, _, Egroup_predict, _ = self.model(
+                inputs[0],
+                inputs[1],
+                inputs[2],
+                inputs[3],
+                inputs[4],
+                0,
+                inputs[5],
+                inputs[6],
                 is_calc_f=False,
             )
         elif train_type == "NN": # nn training
@@ -174,7 +198,7 @@ class KFOptimizerWrapper:
     def update_virial(
         self, inputs: list, Virial_label: torch.Tensor, update_prefactor: float = 1, train_type = "DP"
     ) -> None:
-        if train_type == "DP" or train_type == "NEP":
+        if train_type == "DP":
             Etot_predict, _, _, _, Virial_predict = self.model(
                 inputs[0],
                 inputs[1],
@@ -183,6 +207,17 @@ class KFOptimizerWrapper:
                 0,
                 inputs[4],
                 inputs[5]
+            )
+        elif train_type == "NEP":
+            Etot_predict, _, _, _, Virial_predict = self.model(
+                inputs[0],
+                inputs[1],
+                inputs[2],
+                inputs[3],
+                inputs[4],
+                0,
+                inputs[5],
+                inputs[6]
             )
         elif train_type == "NN":
             Etot_predict, _, _, Virial_predict = self.model(
@@ -298,9 +333,13 @@ class KFOptimizerWrapper:
 
         for i in range(index.shape[0]):
             self.optimizer.zero_grad()
-            if train_type == "DP" or train_type == "NEP":
+            if train_type == "DP":
                 Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = self.model(
                     inputs[0], inputs[1], inputs[2], inputs[3], 0, inputs[4], inputs[5]
+                )
+            elif train_type == "NEP":
+                Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = self.model(
+                    inputs[0], inputs[1], inputs[2], inputs[3], inputs[4], 0, inputs[5], inputs[6]
                 )
             elif train_type == "NN":  # nn training
                 Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = self.model(
@@ -312,7 +351,7 @@ class KFOptimizerWrapper:
                 )
             else:
                 raise Exception("Error! the train type {} is not realized!".format(train_type))
-
+ 
             error_tmp = Force_label[:, index[i]] - Force_predict[:, index[i]]
             error_tmp = update_prefactor * error_tmp
             mask = error_tmp < 0
@@ -356,7 +395,7 @@ class KFOptimizerWrapper:
     def update_ei(
         self, inputs: list, Ei_label: torch.Tensor, update_prefactor: float = 1, train_type = "DP"
     ) -> None:
-        if train_type == "DP" or train_type == "NEP":
+        if train_type == "DP":
             _, Ei_predict, _, _, _ = self.model( #dp inputs has 7 para
                 inputs[0],
                 inputs[1],
@@ -365,6 +404,18 @@ class KFOptimizerWrapper:
                 0,
                 inputs[4],
                 inputs[5],
+                is_calc_f=False,
+            )
+        elif train_type == "NEP":
+            _, Ei_predict, _, _, _ = self.model(
+                inputs[0],
+                inputs[1],
+                inputs[2],
+                inputs[3],
+                inputs[4],
+                0,
+                inputs[5],
+                inputs[6],
                 is_calc_f=False,
             )
         elif train_type == "NN": # nn training

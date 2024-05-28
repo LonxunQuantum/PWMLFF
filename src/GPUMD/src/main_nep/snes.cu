@@ -31,22 +31,50 @@ https://doi.org/10.1145/2001576.2001692
 #include <cmath>
 #include <iostream>
 
+static __global__ void initialize_curand_states(curandState* state, int N, int seed)
+{
+  int n = blockIdx.x * blockDim.x + threadIdx.x;
+  if (n < N) {
+    curand_init(seed, n, 0, &state[n]);
+  }
+}
+
 SNES::SNES(Parameters& para, Fitness* fitness_function)
 {
   maximum_generation = para.maximum_generation;
   number_of_variables = para.number_of_variables;
   population_size = para.population_size;
-  eta_sigma = (3.0f + std::log(number_of_variables * 1.0f)) /
-              (5.0f * sqrt(number_of_variables * 1.0f)) / 2.0f;
+  const int N =  population_size * number_of_variables;
+  int num = number_of_variables;
+  if (para.version == 4) {
+    num /= para.num_types;
+  }
+  eta_sigma = (3.0f + std::log(num * 1.0f)) / (5.0f * sqrt(num * 1.0f)) / 2.0f;
   fitness.resize(population_size * 6 * (para.num_types + 1));
   index.resize(population_size * (para.num_types + 1));
-  population.resize(population_size * number_of_variables);
-  s.resize(population_size * number_of_variables);
+  population.resize(N);
   mu.resize(number_of_variables);
   sigma.resize(number_of_variables);
+  cost_L1reg.resize(population_size);
+  cost_L2reg.resize(population_size);
   utility.resize(population_size);
   type_of_variable.resize(number_of_variables, para.num_types);
   initialize_rng();
+
+  cudaSetDevice(0); // normally use GPU-0
+  gpu_type_of_variable.resize(number_of_variables);
+  gpu_index.resize(population_size * (para.num_types + 1));
+  gpu_utility.resize(number_of_variables);
+  gpu_sigma.resize(number_of_variables);
+  gpu_mu.resize(number_of_variables);
+  gpu_cost_L1reg.resize(population_size);
+  gpu_cost_L2reg.resize(population_size);
+  gpu_s.resize(N);
+  gpu_population.resize(N);
+  curand_states.resize(N);
+  initialize_curand_states<<<(N - 1) / 128 + 1, 128>>>(curand_states.data(), N, 1234567);
+  CUDA_CHECK_KERNEL
+
   initialize_mu_and_sigma(para);
   calculate_utility();
   find_type_of_variable(para);
@@ -68,8 +96,12 @@ void SNES::initialize_mu_and_sigma(Parameters& para)
   if (fid_restart == NULL) {
     std::uniform_real_distribution<float> r1(0, 1);
     for (int n = 0; n < number_of_variables; ++n) {
-      mu[n] = r1(rng) - 0.5f;
-      sigma[n] = 0.1f;
+      mu[n] = (r1(rng) - 0.5f) * 2.0f;
+      int num = number_of_variables;
+      if (para.version == 4) {
+        num /= para.num_types;
+      }
+      sigma[n] =  (3.0f + std::log(num * 1.0f)) / (5.0f * sqrt(num * 1.0f));
     }
   } else {
     for (int n = 0; n < number_of_variables; ++n) {
@@ -78,6 +110,13 @@ void SNES::initialize_mu_and_sigma(Parameters& para)
     }
     fclose(fid_restart);
   }
+#ifdef USE_FIXED_SCALER
+    mu[para.number_of_variables_ann - 1] = 0.0f;
+    sigma[para.number_of_variables_ann - 1] = 0.0f;
+#endif
+  cudaSetDevice(0); // normally use GPU-0
+  gpu_mu.copy_from_host(mu.data());
+  gpu_sigma.copy_from_host(sigma.data());
 }
 
 void SNES::calculate_utility()
@@ -205,7 +244,12 @@ void SNES::compute(Parameters& para, Fitness* fitness_function)
       create_population(para);
       fitness_function->compute(n, para, population.data(), fitness.data());
 
-      regularize(para);
+      if (para.version == 4) {
+        regularize_NEP4(para);
+      } else {
+        regularize(para);
+      }
+
       sort_population(para);
 
       int best_index = index[para.num_types * population_size];
@@ -254,50 +298,176 @@ void SNES::compute(Parameters& para, Fitness* fitness_function)
   }
 }
 
+static __global__ void gpu_create_population(
+  const int N,
+  const int number_of_variables,
+  const float* g_mu,
+  const float* g_sigma,
+  curandState* g_state,
+  float* g_s,
+  float* g_population)
+{
+  int n = blockIdx.x * blockDim.x + threadIdx.x;
+  if (n < N) {
+    int v = n % number_of_variables;
+    curandState state = g_state[n];
+    float s = curand_normal(&state);
+    g_s[n] = s;
+    g_population[n] = g_sigma[v] * s + g_mu[v];
+    g_state[n] = state;
+  }
+}
+
 void SNES::create_population(Parameters& para)
 {
-  std::normal_distribution<float> r1(0, 1);
-  for (int p = 0; p < population_size; ++p) {
-    for (int v = 0; v < number_of_variables; ++v) {
-      int pv = p * number_of_variables + v;
-      s[pv] = r1(rng);
-      population[pv] = sigma[v] * s[pv] + mu[v];
+  cudaSetDevice(0); // normally use GPU-0
+  const int N = population_size * number_of_variables;
+  gpu_create_population<<<(N - 1) / 128 + 1, 128>>>(
+    N, 
+    number_of_variables, 
+    gpu_mu.data(), 
+    gpu_sigma.data(), 
+    curand_states.data(), 
+    gpu_s.data(), 
+    gpu_population.data());
+  CUDA_CHECK_KERNEL
+  gpu_population.copy_to_host(population.data());
+}
+
+static __global__ void gpu_find_L1_L2_NEP4(
+  const int number_of_variables,
+  const int g_num_types,
+  const int g_type,
+  const int* g_type_of_variable,
+  const float* g_population,
+  float* gpu_cost_L1reg,
+  float* gpu_cost_L2reg)
+{
+  int bid = blockIdx.x;
+  int tid = threadIdx.x;
+  __shared__ float s_cost_L1reg[1024];
+  __shared__ float s_cost_L2reg[1024];
+  s_cost_L1reg[tid] = 0.0f;
+  s_cost_L2reg[tid] = 0.0f;
+  for (int v = tid; v < number_of_variables; v += blockDim.x) {
+    const float para = g_population[bid * number_of_variables + v];
+    if (g_type_of_variable[v] == g_type || g_type == g_num_types) {
+      s_cost_L1reg[tid] += abs(para);
+      s_cost_L2reg[tid] += para * para;
     }
+  }
+  __syncthreads();
+
+  for (int offset = blockDim.x >> 1; offset > 32; offset >>= 1) {
+    if (tid < offset) {
+      s_cost_L1reg[tid] += s_cost_L1reg[tid + offset];
+      s_cost_L2reg[tid] += s_cost_L2reg[tid + offset];
+    }
+    __syncthreads();
+  }
+
+  for (int offset = 32; offset > 0; offset >>= 1) {
+    if (tid < offset) {
+      s_cost_L1reg[tid] += s_cost_L1reg[tid + offset];
+      s_cost_L2reg[tid] += s_cost_L2reg[tid + offset];
+    }
+    __syncwarp();
+  }
+
+  if (tid == 0) {
+    gpu_cost_L1reg[bid] = s_cost_L1reg[0];
+    gpu_cost_L2reg[bid] = s_cost_L2reg[0];
+  }
+}
+
+void SNES::regularize_NEP4(Parameters& para)
+{
+  cudaSetDevice(0); // normally use GPU-0
+
+  for (int t = 0; t <= para.num_types; ++t) {
+    float num_variables = float(para.number_of_variables) / para.num_types;
+    if (t == para.num_types) {
+      num_variables = para.number_of_variables;
+    }
+    
+    gpu_find_L1_L2_NEP4<<<population_size, 1024>>>(
+      number_of_variables, 
+      para.num_types,
+      t, 
+      gpu_type_of_variable.data(), 
+      gpu_population.data(), 
+      gpu_cost_L1reg.data(), 
+      gpu_cost_L2reg.data());
+    CUDA_CHECK_KERNEL
+
+    gpu_cost_L1reg.copy_to_host(cost_L1reg.data());
+    gpu_cost_L2reg.copy_to_host(cost_L2reg.data());
+
+    for (int p = 0; p < population_size; ++p) {
+      float cost_L1 = para.lambda_1 * cost_L1reg[p] / num_variables;
+      float cost_L2 = para.lambda_2 * sqrt(cost_L2reg[p] / num_variables);
+      fitness[p + (6 * t + 0) * population_size] =
+        cost_L1 + cost_L2 + fitness[p + (6 * t + 3) * population_size] +
+        fitness[p + (6 * t + 4) * population_size] + fitness[p + (6 * t + 5) * population_size];
+      fitness[p + (6 * t + 1) * population_size] = cost_L1;
+      fitness[p + (6 * t + 2) * population_size] = cost_L2;
+    }
+  }
+}
+
+static __global__ void gpu_find_L1_L2(
+  const int number_of_variables,
+  const float* g_population,
+  float* gpu_cost_L1reg,
+  float* gpu_cost_L2reg)
+{
+  int bid = blockIdx.x;
+  int tid = threadIdx.x;
+  __shared__ float s_cost_L1reg[1024];
+  __shared__ float s_cost_L2reg[1024];
+  s_cost_L1reg[tid] = 0.0f;
+  s_cost_L2reg[tid] = 0.0f;
+  for (int v = tid; v < number_of_variables; v += blockDim.x) {
+    const float para = g_population[bid * number_of_variables + v];
+    s_cost_L1reg[tid] += abs(para);
+    s_cost_L2reg[tid] += para * para;
+  }
+  __syncthreads();
+
+  for (int offset = blockDim.x >> 1; offset > 32; offset >>= 1) {
+    if (tid < offset) {
+      s_cost_L1reg[tid] += s_cost_L1reg[tid + offset];
+      s_cost_L2reg[tid] += s_cost_L2reg[tid + offset];
+    }
+    __syncthreads();
+  }
+
+  for (int offset = 32; offset > 0; offset >>= 1) {
+    if (tid < offset) {
+      s_cost_L1reg[tid] += s_cost_L1reg[tid + offset];
+      s_cost_L2reg[tid] += s_cost_L2reg[tid + offset];
+    }
+    __syncwarp();
+  }
+
+  if (tid == 0) {
+    gpu_cost_L1reg[bid] = s_cost_L1reg[0];
+    gpu_cost_L2reg[bid] = s_cost_L2reg[0];
   }
 }
 
 void SNES::regularize(Parameters& para)
 {
-  float lambda_1 = para.lambda_1;
-  float lambda_2 = para.lambda_2;
-  if (para.lambda_1 < 0.0f || para.lambda_2 < 0.0f) {
-    float auto_reg = 1.0e30f;
-    for (int p = 0; p < population_size; ++p) {
-      float temp = fitness[p + (6 * para.num_types + 3) * population_size] +
-                   fitness[p + (6 * para.num_types + 4) * population_size] +
-                   fitness[p + (6 * para.num_types + 5) * population_size];
-      if (auto_reg > temp) {
-        auto_reg = temp;
-      }
-    }
-    if (para.lambda_1 < 0.0f) {
-      lambda_1 = auto_reg;
-    }
-    if (para.lambda_2 < 0.0f) {
-      lambda_2 = auto_reg;
-    }
-  }
+  cudaSetDevice(0); // normally use GPU-0
+  gpu_find_L1_L2<<<population_size, 1024>>>(
+    number_of_variables, gpu_population.data(), gpu_cost_L1reg.data(), gpu_cost_L2reg.data());
+  CUDA_CHECK_KERNEL
+  gpu_cost_L1reg.copy_to_host(cost_L1reg.data());
+  gpu_cost_L2reg.copy_to_host(cost_L2reg.data());
 
   for (int p = 0; p < population_size; ++p) {
-    float cost_L1 = 0.0f, cost_L2 = 0.0f;
-    for (int v = 0; v < number_of_variables; ++v) {
-      int pv = p * number_of_variables + v;
-      cost_L1 += std::abs(population[pv]);
-      cost_L2 += population[pv] * population[pv];
-    }
-
-    cost_L1 *= lambda_1 / number_of_variables;
-    cost_L2 = lambda_2 * sqrt(cost_L2 / number_of_variables);
+    float cost_L1 = para.lambda_1 * cost_L1reg[p] / number_of_variables;
+    float cost_L2 = para.lambda_2 * sqrt(cost_L2reg[p] / number_of_variables);
 
     for (int t = 0; t <= para.num_types; ++t) {
       fitness[p + (6 * t + 0) * population_size] =
@@ -338,23 +508,58 @@ void SNES::sort_population(Parameters& para)
   }
 }
 
-void SNES::update_mu_and_sigma()
+static __global__ void gpu_update_mu_and_sigma(
+  const int population_size,
+  const int number_of_variables,
+  const float eta_sigma,
+  const int* g_type_of_variable,
+  const int* g_index,
+  const float* g_utility,
+  const float* g_s,
+  float* g_mu,
+  float* g_sigma)
 {
-  for (int v = 0; v < number_of_variables; ++v) {
-    int type = type_of_variable[v];
+  const int v = blockIdx.x * blockDim.x + threadIdx.x;
+  if (v < number_of_variables) {
+    const int type = g_type_of_variable[v];
     float gradient_mu = 0.0f, gradient_sigma = 0.0f;
     for (int p = 0; p < population_size; ++p) {
-      int pv = index[type * population_size + p] * number_of_variables + v;
-      gradient_mu += s[pv] * utility[p];
-      gradient_sigma += (s[pv] * s[pv] - 1.0f) * utility[p];
+      const int pv = g_index[type * population_size + p] * number_of_variables + v;
+      const float utility = g_utility[p];
+      const float s = g_s[pv];
+      gradient_mu += s * utility;
+      gradient_sigma += (s * s - 1.0f) * utility;
     }
-    mu[v] += sigma[v] * gradient_mu;
-    sigma[v] *= std::exp(eta_sigma * gradient_sigma);
+    const float sigma = g_sigma[v];
+    g_mu[v] += sigma * gradient_mu;
+    g_sigma[v] = sigma * exp(eta_sigma * gradient_sigma);
   }
+}
+
+void SNES::update_mu_and_sigma()
+{
+  cudaSetDevice(0); // normally use GPU-0
+  gpu_type_of_variable.copy_from_host(type_of_variable.data());
+  gpu_index.copy_from_host(index.data());
+  gpu_utility.copy_from_host(utility.data());
+  gpu_update_mu_and_sigma<<<(number_of_variables - 1) / 128 + 1, 128>>>(
+    population_size,
+    number_of_variables,
+    eta_sigma,
+    gpu_type_of_variable.data(),
+    gpu_index.data(),
+    gpu_utility.data(),
+    gpu_s.data(),
+    gpu_mu.data(),
+    gpu_sigma.data());
+  CUDA_CHECK_KERNEL;
 }
 
 void SNES::output_mu_and_sigma(Parameters& para)
 {
+  cudaSetDevice(0); // normally use GPU-0
+  gpu_mu.copy_to_host(mu.data());
+  gpu_sigma.copy_to_host(sigma.data());
   FILE* fid_restart = my_fopen("nep.restart", "w");
   for (int n = 0; n < number_of_variables; ++n) {
     fprintf(fid_restart, "%15.7e %15.7e\n", mu[n], sigma[n]);

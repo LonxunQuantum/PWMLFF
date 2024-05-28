@@ -44,6 +44,17 @@ class OptimizerParam(object):
         self.train_virial = get_parameter("train_virial", optimizer_dict, False) 
         self.train_egroup = get_parameter("train_egroup", optimizer_dict, False) 
 
+        self.lambda_1 = None
+        self.lambda_2 = None
+        self.force_delta = None
+        self.population = None
+        self.generation = None
+        self.pre_fac_force = 2.0
+        self.pre_fac_etot = 1.0
+        self.pre_fac_ei = 1.0
+        self.pre_fac_virial = 1.0
+        self.pre_fac_egroup = 0.1
+
         if "KF" in self.opt_name.upper():
             self.pre_fac_force = get_parameter("pre_fac_force", optimizer_dict, 2.0) 
             self.pre_fac_etot = get_parameter("pre_fac_etot", optimizer_dict, 1.0) 
@@ -185,7 +196,6 @@ class OptimizerParam(object):
             opt_dict["force_delta"] =  self.force_delta
             opt_dict["population"] =  self.population
             opt_dict["generation"] =  self.generation
-        
         return opt_dict
 
     def snes_to_nep_txt(self):
@@ -196,12 +206,24 @@ class OptimizerParam(object):
         content += "batch       {}\n".format(self.batch_size)        
         # content += "lambda_eg   {}\n".format(self.pre_fac_egroup)
         # content += "lambda_ei   {}\n".format(self.pre_fac_ei)
-        if self.lambda_1 != -1:
+        if self.lambda_1 is not None:
             content += "lambda_1    {}\n".format(self.lambda_1)
-        if self.lambda_2 != -1:
+        else:
+            content += "lambda_1    {}\n".format(-1)
+        if self.lambda_2 is not None:
             content += "lambda_2    {}\n".format(self.lambda_2)
-        if self.force_delta is not None and self.force_delta != 0:
+        else:
+            content += "lambda_2    {}\n".format(-1)
+        if self.force_delta is not None:
             content += "force_delta {}\n".format(self.force_delta)
-        content += "population  {}\n".format(self.population)
-        content += "generation  {}\n".format(self.generation)
+        else:
+            content += "force_delta {}\n".format(0)
+        if self.population is not None:
+            content += "population  {}\n".format(self.population)
+        else:
+            content += "population  {}\n".format(100)
+        if self.generation is not None:
+            content += "generation  {}\n".format(self.generation)
+        else:
+            content += "generation  {}\n".format(10000)
         return content

@@ -6,7 +6,7 @@ time_step       1.0
 
 ensemble        nve
 dump_observer 	average 1 1 1 1
-run             2
+run             4
 
 
 

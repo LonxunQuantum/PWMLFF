@@ -23,9 +23,16 @@ pwmat_mlff_base_test
 pwmat_mlff_workdir
 al_dir
 sy_huawei_test
-.vscode/launch.json
+.vscode/*
 pwmlff_main.py
 src/pre_data/nep_neigh/
 src/pre_data/find_neigh/build
 findneigh.so
+# nep
+src/feature/nep_find_neigh/build/
+# gpumd
+src/GPUMD/src/*/*.obj
+src/GPUMD/src/*/*.o
+src/GPUMD/src/gpumd*
+src/GPUMD/src/nep*
 

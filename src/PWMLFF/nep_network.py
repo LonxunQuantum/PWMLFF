@@ -43,7 +43,7 @@ from src.optimizer.SNES import SNESOptimizer
 from src.pre_data.nep_data_loader import MovementDataset, get_stat, gen_train_data
 from src.PWMLFF.nep_mods.nep_trainer import train_KF, train, valid, save_checkpoint, predict
 from src.PWMLFF.nep_mods.nep_snes_trainer import train_snes
-from src.PWMLFF.dp_param_extract import load_davg_dstd_from_checkpoint
+from src.PWMLFF.dp_param_extract import load_atomtype_energyshift_from_checkpoint
 from src.user.input_param import InputParam
 from utils.file_operation import write_arrays_to_file
 
@@ -108,14 +108,15 @@ class nep_network:
         if self.input_param.inference:
             if os.path.exists(self.input_param.file_paths.model_load_path):
                 # load davg, dstd from checkpoint of model
-                davg, dstd, atom_map, energy_shift = load_davg_dstd_from_checkpoint(self.input_param.file_paths.model_load_path)
+                atom_map, energy_shift = load_atomtype_energyshift_from_checkpoint(self.input_param.file_paths.model_load_path)
             elif os.path.exists(self.input_param.file_paths.model_save_path):
-                davg, dstd, atom_map, energy_shift = load_davg_dstd_from_checkpoint(self.input_param.file_paths.model_save_path)
+                atom_map, energy_shift = load_atomtype_energyshift_from_checkpoint(self.input_param.file_paths.model_save_path)
             else:
                 raise Exception("Erorr! Loading model for inference can not find checkpoint: \
                                 \nmodel load path: {} \n or model at work path: {}\n"\
                                 .format(self.input_param.file_paths.model_load_path, self.input_param.file_paths.model_save_path))
-            stat_add = [davg, dstd, atom_map, energy_shift]
+            stat_add = [atom_map, energy_shift]
+            return energy_shift, atom_map, None 
         else:
             stat_add = None
         
@@ -137,9 +138,10 @@ class nep_network:
                 else:# with out data
                     pass
             train_dataset = MovementDataset(data_paths, 
-                                            config, energy_shift, max_atom_nums)
+                                            config, self.input_param, energy_shift, max_atom_nums)
             valid_dataset = None
-        else:            
+        else:           
+            print(self.input_param.file_paths.datasets_path) 
             train_dataset = MovementDataset([os.path.join(_, config['trainDataPath']) for _ in self.input_param.file_paths.datasets_path], 
                                             config, self.input_param, energy_shift, max_atom_nums)
             valid_dataset = MovementDataset([os.path.join(_, config['validDataPath']) 
@@ -185,18 +187,18 @@ class nep_network:
     
     '''
     description:
-        if davg, dstd and energy_shift not from load_data, get it from model_load_file
-    return {*}
+        if davg, dstd and energy_shift not from load_data, get it from model_load_file no use code
+    return {*} 
     author: wuxingxing
     '''
-    def get_stat(self):
-        if self.davg_dstd_energy_shift is None:
-            if os.path.exists(self.input_param.file_paths.model_load_path) is False:
-                raise Exception("ERROR! {} is not exist when get energy shift !".format(self.input_param.file_paths.model_load_path))
-            davg_dstd_energy_shift = load_davg_dstd_from_checkpoint(self.input_param.file_paths.model_load_path)
-        else:
-            davg_dstd_energy_shift = self.davg_dstd_energy_shift
-        return davg_dstd_energy_shift
+    # def get_stat(self):
+    #     if self.davg_dstd_energy_shift is None:
+    #         if os.path.exists(self.input_param.file_paths.model_load_path) is False:
+    #             raise Exception("ERROR! {} is not exist when get energy shift !".format(self.input_param.file_paths.model_load_path))
+    #         davg_dstd_energy_shift = load_atomtype_energyshift_from_checkpoint(self.input_param.file_paths.model_load_path)
+    #     else:
+    #         davg_dstd_energy_shift = self.davg_dstd_energy_shift
+    #     return davg_dstd_energy_shift
     
     def load_model_optimizer(self, energy_shift):
         # create model 
@@ -211,8 +213,11 @@ class nep_network:
             if self.inference and os.path.exists(self.input_param.file_paths.model_load_path): # recover from user input ckpt file for inference work
                 model_path = self.input_param.file_paths.model_load_path
             else: # resume model specified by user
-                model_path = self.input_param.file_paths.model_save_path  #recover from last training for training
-            if os.path.isfile(model_path):
+                if self.input_param.nep_param.model_wb is None:
+                    model_path = self.input_param.file_paths.model_save_path  #recover from last training for training
+                else:
+                    model_path = None
+            if model_path is not None and os.path.isfile(model_path):
                 print("=> loading checkpoint '{}'".format(model_path))
                 if not torch.cuda.is_available():
                     checkpoint = torch.load(model_path,map_location=torch.device('cpu') )
@@ -290,6 +295,7 @@ class nep_network:
         if self.input_param.optimizer_param.opt_name in ["LKF", "GKF", "ADAM", "SGD"]:
             if checkpoint is not None and "optimizer" in checkpoint.keys():
                 optimizer.load_state_dict(checkpoint["optimizer"])
+            if checkpoint is not None and self.input_param.optimizer_param.opt_name in ["LKF"] and "optimizer" in checkpoint.keys() and 'P' in checkpoint["optimizer"]['state'][0].keys():
                 load_p = checkpoint["optimizer"]['state'][0]['P']
                 optimizer.set_kalman_P(load_p, checkpoint["optimizer"]['state'][0]['kalman_lambda'])
         elif self.input_param.optimizer_param.opt_name in ["SNES"]:
@@ -318,10 +324,11 @@ class nep_network:
         # set params device
         return model, optimizer
 
-    def inference(self, davg, dstd, energy_shift, max_atom_nums):
+    def inference(self):
         # do inference
-        davg, dstd, energy_shift, atom_map, train_loader, val_loader = self.load_data(davg, dstd, energy_shift, max_atom_nums)
-        model, optimizer = self.load_model_optimizer(davg, dstd, energy_shift)
+        energy_shift, max_atom_nums, image_path = self._get_stat()
+        energy_shift, atom_map, train_loader, val_loader = self.load_data(energy_shift, max_atom_nums)
+        model, optimizer = self.load_model_optimizer(energy_shift)
         start = time.time()
         res_pd, etot_label_list, etot_predict_list, ei_label_list, ei_predict_list, force_label_list, force_predict_list\
         = predict(train_loader, model, self.criterion, self.device, self.input_param)
@@ -367,7 +374,7 @@ class nep_network:
         energy_shift, atom_map, train_loader, val_loader = self.load_data(energy_shift, max_atom_nums)
          #energy_shift is same as energy_shift of upper; atom_map is the user input order
         model, optimizer = self.load_model_optimizer(energy_shift)
-
+        # self.convert_to_gpumd(model) 
         if self.input_param.optimizer_param.opt_name == "SNES":
             self.input_param.optimizer_param.epochs = int(self.input_param.optimizer_param.generation/len(train_loader))
             print("Automatically adjust 'epochs' to {} based on population size (image nums {} generation {})"\
@@ -435,6 +442,7 @@ class nep_network:
         f_train_log.write("%s\n" % (train_format % tuple(train_lists)))
         f_valid_log.write("%s\n" % (valid_format % tuple(valid_lists)))
         # Sij_max = 0 # this is for dp model do type embedding
+        # self.convert_to_gpumd(model)
         for epoch in range(self.input_param.optimizer_param.start_epoch, self.input_param.optimizer_param.epochs + 1):
             # if self.dp_params.hvd: # this code maybe error, check when add multi GPU training. wu
             #     self.train_sampler.set_epoch(epoch)
@@ -456,7 +464,7 @@ class nep_network:
                         self.input_param.optimizer_param.learning_rate, self.device, self.input_param
                 )
             time_end = time.time()
-            #self.convert_to_gpumd(model)
+            # self.convert_to_gpumd(model)
 
             # evaluate on validation set
             vld_loss, vld_loss_Etot, vld_loss_Etot_per_atom, vld_loss_Force, vld_loss_Ei, val_loss_egroup, val_loss_virial, val_loss_virial_per_atom = valid(
@@ -528,7 +536,6 @@ class nep_network:
                     self.input_param.file_paths.model_name,
                     self.input_param.file_paths.model_store_dir,                    
                 )
-                self.convert_to_gpumd(model)
 
             elif self.input_param.optimizer_param.opt_name in ["LKF", "GKF"] and \
                 self.input_param.file_paths.save_p_matrix:
@@ -554,25 +561,31 @@ class nep_network:
                     "state_dict": model.state_dict(),
                     "energy_shift":energy_shift,
                     "q_scaler": model.get_q_scaler(),
-                    "atom_type_order": atom_map    #atom type order of davg/dstd/energy_shift
+                    "atom_type_order": atom_map,    #atom type order of davg/dstd/energy_shift
+                    "optimizer":optimizer.state_dict()
                     # "sij_max":Sij_max
                     },
                     self.input_param.file_paths.model_name,
                     self.input_param.file_paths.model_store_dir,
                 )
+            self.convert_to_gpumd(model)
+            
 
-    def convert_to_gpumd(self, model:NEP):
+    def convert_to_gpumd(self, model:NEP, save_dir:str = None):
         model_content = self.input_param.nep_param.to_nep_in_txt()
         train_content = self.input_param.optimizer_param.snes_to_nep_txt()
         model_content += train_content
-        save_nep_in_path = os.path.join(self.input_param.file_paths.model_store_dir, self.input_param.file_paths.nep_in_file)
-
+        if save_dir is None:
+            save_nep_in_path = os.path.join(self.input_param.file_paths.model_store_dir, self.input_param.file_paths.nep_in_file)
+            save_nep_txt_path = os.path.join(self.input_param.file_paths.model_store_dir, self.input_param.file_paths.nep_model_file)
+        else:
+            save_nep_in_path = os.path.join(save_dir, self.input_param.file_paths.nep_in_file)
+            save_nep_txt_path = os.path.join(save_dir, self.input_param.file_paths.nep_model_file)            
         # extract parameters
         txt_head = self.input_param.nep_param.to_nep_txt()
         txt_body = model.get_nn_params()
         txt_body_str = "\n".join(map(str, txt_body))
         txt_head += txt_body_str
-        save_nep_txt_path = os.path.join(self.input_param.file_paths.model_store_dir, self.input_param.file_paths.nep_model_file)
 
         with open(save_nep_in_path, 'w') as wf:
             wf.writelines(model_content)

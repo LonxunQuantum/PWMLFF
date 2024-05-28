@@ -1,0 +1,94 @@
+{
+    "model_type": "NEP",
+    "atom_type": [
+        8,
+        72
+    ],
+    "max_neigh_num": 100,
+    "seed": 2023,
+    "model_num": 1,
+    "recover_train": true,
+    "model": {
+        "descriptor": {
+            "Rmax": 6.0,
+            "Rmin": 0.5,
+            "cutoff": [
+                6.0,
+                6.0
+            ],
+            "n_max": [
+                4,
+                4
+            ],
+            "basis_size": [
+                12,
+                12
+            ],
+            "l_max": [
+                4,
+                2,
+                1
+            ],
+            "type_weight": [
+                1.0,
+                1.0
+            ]
+        },
+        "fitting_net": {
+            "network_size": [
+                100,
+                1
+            ],
+            "resnet_dt": false
+        }
+    },
+    "optimizer": {
+        "optimizer": "LKF",
+        "epochs": 10,
+        "batch_size": 4,
+        "print_freq": 10,
+        "block_size": 5120,
+        "kalman_lambda": 0.98,
+        "kalman_nue": 0.9987,
+        "train_energy": true,
+        "train_force": true,
+        "train_ei": false,
+        "train_virial": false,
+        "train_egroup": false,
+        "pre_fac_force": 2.0,
+        "pre_fac_etot": 1.0,
+        "pre_fac_ei": 1.0,
+        "pre_fac_virial": 1.0,
+        "pre_fac_egroup": 0.1
+    },
+    "datasets_path": [
+        "/data/home/wuxingxing/codespace/PWMLFF_nep/example/NEP/pwdata/init_000_50",
+        "/data/home/wuxingxing/codespace/PWMLFF_nep/example/NEP/pwdata/init_002_50",
+        "/data/home/wuxingxing/codespace/PWMLFF_nep/example/NEP/pwdata/init_004_50",
+        "/data/home/wuxingxing/codespace/PWMLFF_nep/example/NEP/pwdata/init_006_50",
+        "/data/home/wuxingxing/codespace/PWMLFF_nep/example/NEP/pwdata/init_008_50",
+        "/data/home/wuxingxing/codespace/PWMLFF_nep/example/NEP/pwdata/init_010_50",
+        "/data/home/wuxingxing/codespace/PWMLFF_nep/example/NEP/pwdata/init_012_50",
+        "/data/home/wuxingxing/codespace/PWMLFF_nep/example/NEP/pwdata/init_014_50",
+        "/data/home/wuxingxing/codespace/PWMLFF_nep/example/NEP/pwdata/init_016_50",
+        "/data/home/wuxingxing/codespace/PWMLFF_nep/example/NEP/pwdata/init_018_50",
+        "/data/home/wuxingxing/codespace/PWMLFF_nep/example/NEP/pwdata/init_020_20",
+        "/data/home/wuxingxing/codespace/PWMLFF_nep/example/NEP/pwdata/init_022_20",
+        "/data/home/wuxingxing/codespace/PWMLFF_nep/example/NEP/pwdata/init_024_20",
+        "/data/home/wuxingxing/codespace/PWMLFF_nep/example/NEP/pwdata/init_026_20",
+        "/data/home/wuxingxing/codespace/PWMLFF_nep/example/NEP/pwdata/init_001_50",
+        "/data/home/wuxingxing/codespace/PWMLFF_nep/example/NEP/pwdata/init_003_50",
+        "/data/home/wuxingxing/codespace/PWMLFF_nep/example/NEP/pwdata/init_005_50",
+        "/data/home/wuxingxing/codespace/PWMLFF_nep/example/NEP/pwdata/init_007_50",
+        "/data/home/wuxingxing/codespace/PWMLFF_nep/example/NEP/pwdata/init_009_50",
+        "/data/home/wuxingxing/codespace/PWMLFF_nep/example/NEP/pwdata/init_011_50",
+        "/data/home/wuxingxing/codespace/PWMLFF_nep/example/NEP/pwdata/init_013_50",
+        "/data/home/wuxingxing/codespace/PWMLFF_nep/example/NEP/pwdata/init_015_30",
+        "/data/home/wuxingxing/codespace/PWMLFF_nep/example/NEP/pwdata/init_017_50",
+        "/data/home/wuxingxing/codespace/PWMLFF_nep/example/NEP/pwdata/init_019_50",
+        "/data/home/wuxingxing/codespace/PWMLFF_nep/example/NEP/pwdata/init_021_20",
+        "/data/home/wuxingxing/codespace/PWMLFF_nep/example/NEP/pwdata/init_023_20",
+        "/data/home/wuxingxing/codespace/PWMLFF_nep/example/NEP/pwdata/init_025_20",
+        "/data/home/wuxingxing/codespace/PWMLFF_nep/example/NEP/pwdata/init_027_20"
+    ]
+}
