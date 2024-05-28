@@ -5,7 +5,7 @@ import argparse
 from src.user.nep_work import nep_train, nep_test, togpumd
 from src.user.dp_work import dp_train, dp_test
 from src.user.nn_work import nn_train, gen_nn_feature, nn_test
-# from src.user.cheby_work import cheby_train, cheby_test
+from src.user.cheby_work import cheby_train, cheby_test
 from src.user.linear_work import linear_train, linear_test
 from src.user.input_param import help_info
 from src.user.active_work import ff2lmps_explore
@@ -109,8 +109,8 @@ if __name__ == "__main__":
                 linear_train(json_file, cmd_type)
             elif model_type == "NEP".upper():
                 nep_train(json_file, cmd_type)
-            # elif model_type == "CHEBY".upper():
-            #     cheby_train(json_file, cmd_type)
+            elif model_type == "CHEBY".upper():
+                cheby_train(json_file, cmd_type)
             else:
                 raise Exception("Error! the model_type param in json file does not existent, you could use [DP/NN/LINEAR/NEP]")
 
@@ -125,8 +125,8 @@ if __name__ == "__main__":
             elif model_type == "NEP".upper():
                 nep_test(json_file, cmd_type)
                 pass
-            # elif model_type == "CHEBY".upper():
-            #     cheby_test(json_file, cmd_type)
+            elif model_type == "CHEBY".upper():
+                cheby_test(json_file, cmd_type)
             else:
                 raise Exception("Error! the model_type param in json file does not existent, you could use [DP/NN/LINEAR/NEP]")
           
