@@ -62,4 +62,10 @@ mkdir build
 cd build
 cmake ..
 make
+cd $current_path/feature/chebyshev
+rm build -r
+mkdir build
+cd build
+cmake ..
+make
 echo "Environment variables have been written ~/.bashrc"

@@ -87,6 +87,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
         if max(Sij_max_cpu) > Sij_max:
             Sij_max = max(Sij_max_cpu)
 
+        num_neigh_cpu = sample_batches["NumNeighbor"].int()
         dR_neigh_list_cpu = sample_batches["ListNeighbor"].int()
         natoms_img_cpu = sample_batches["ImageAtomNum"].int()
         atom_type_cpu = sample_batches["AtomType"].int()
@@ -100,6 +101,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
             natoms = natoms_img[0]
             
             dR_neigh_list = Variable(dR_neigh_list_cpu[batch_indexs, :natoms].int().to(device))
+            num_neigh = Variable(num_neigh_cpu[batch_indexs, :natoms].int().to(device))
             # atom list of image
             atom_type = Variable(atom_type_cpu[batch_indexs].to(device))
             atom_type_map = Variable(atom_type_map_cpu[batch_indexs, :natoms].to(device))
@@ -128,7 +130,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
                 ) as prof:
                     with record_function("model_inference"):
                         Etot_predict, Ei_predict, Force_predict, _ = model(
-                            dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, 0, None, None
+                            dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, num_neigh, 0, None, None
                         )   # atom_type_map: we only need the first element, because it is same for each image of MOVEMENT
 
                 print(prof.key_averages().table(sort_by="cuda_time_total"))
@@ -136,33 +138,23 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
                 prof.export_chrome_trace("model_infer.json")
             else:
                 if args.optimizer_param.train_egroup is True:
-                    Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
-                        dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, 0, Egroup_weight, Divider)
+                    Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict, dE_dc, dF_dc = model(
+                        dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, num_neigh, 0, Egroup_weight, Divider)
                 else:
                     # atom_type_map: we only need the first element, because it is same for each image of MOVEMENT
-                    Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
-                        dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, 0, None, None)
+                    Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict, dE_dc, dF_dc = model(
+                        dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, num_neigh, 0, None, None)
                     
             optimizer.zero_grad()
-
             loss_F_val = criterion(Force_predict, Force_label)
             loss_Etot_val = criterion(Etot_predict, Etot_label)
             loss_Etot_per_atom_val = loss_Etot_val/natoms/natoms
             loss_Ei_val = criterion(Ei_predict, Ei_label)
-            # loss_Ei_val = 0
+            grad_loss_dE_dc = (2.0 / dE_dc.shape[0]) * torch.sum(dE_dc * (Etot_predict - Etot_label).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1), dim=0)
+            grad_loss_dF_dc_tmp = (2.0 / dF_dc.shape[0] / 3) * torch.sum(dF_dc * (Force_predict - Force_label).unsqueeze(-2).unsqueeze(-2).unsqueeze(-2), [0, -1])
+            grad_loss_dF_dc = torch.zeros_like(grad_loss_dE_dc)
+            grad_loss_dF_dc.index_add_(0, atom_type_map[0], grad_loss_dF_dc_tmp)
 
-            #print ("Etot_predict") 
-            #print (Etot_predict)
-            
-            #print ("Force_predict")
-            #print (Force_predict)
-            
-            #print ("Virial_predict")
-            #print (Virial_predict)
-            #Ei_predict, Force_predict, Egroup_predict, Virial_predict)
-            #print("Egroup_predict",Egroup_predict)
-
-            #print("Egroup_label",Egroup_label)
             if args.optimizer_param.train_egroup is True:
                 loss_Egroup_val = criterion(Egroup_predict, Egroup_label)
             if args.optimizer_param.train_virial is True:
@@ -240,7 +232,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
                     natoms_img[0].item(),
                 )
             else:
-                loss, _, _ = dp_loss(
+                loss, pref_fi, pref_etot = dp_loss(
                     args,
                     0.001,
                     real_lr,
@@ -254,9 +246,10 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
                     natoms_img[0].item(),
                 )
             # import ipdb;ipdb.set_trace()
+            param_group['params'][0].grad = grad_loss_dE_dc * pref_etot + grad_loss_dF_dc * pref_fi
+
             loss.backward()
             optimizer.step()
-
             
             # measure accuracy and record loss
             losses.update(loss_val.item(), batch_size)
@@ -611,11 +604,11 @@ def valid(val_loader, model, criterion, device, args:InputParam):
                     Dim of Ri [bs, natoms, ntype*max_neigh_num, 4] 
                 """ 
                 if args.optimizer_param.train_egroup is True:
-                    Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
+                    Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict, _, _ = model(
                         dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, num_neigh, 0, Egroup_weight, Divider)
                 else:
                     # atom_type_map: we only need the first element, because it is same for each image of MOVEMENT
-                    Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict, _ = model(
+                    Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict, _, _ = model(
                         dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, num_neigh, 0, None, None)
                 
                 #return 
@@ -814,11 +807,11 @@ def predict(val_loader, model, criterion, device, args:InputParam, isprofile=Fal
                 ) as prof:
                     with record_function("model inference"):
                         if args.optimizer_param.train_egroup is True:
-                            Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
+                            Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict, _, _ = model(
                                 dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, num_neigh, 0, Egroup_weight, Divider)
                         else:
                             # atom_type_map: we only need the first element, because it is same for each image of MOVEMENT
-                            Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
+                            Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict, _, _ = model(
                                 dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, num_neigh, 0, None, None 
                             )
                 print(prof.key_averages().table(sort_by="cuda_time_total"))
@@ -826,11 +819,11 @@ def predict(val_loader, model, criterion, device, args:InputParam, isprofile=Fal
                 prof.export_chrome_trace("profiling_model.json")
             else:
                 if args.optimizer_param.train_egroup is True:
-                    Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
+                    Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict, _, _ = model(
                         dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, num_neigh, 0, Egroup_weight, Divider)
                 else:
                     # atom_type_map: we only need the first element, because it is same for each image of MOVEMENT
-                    Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict, _ = model(
+                    Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict, _, _ = model(
                         dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, num_neigh, 0, None, None 
                     )
             # mse

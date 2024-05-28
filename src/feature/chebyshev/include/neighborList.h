@@ -82,7 +82,8 @@ public:
         num_neigh_all = new int[images * natoms * ntypes]();
         neighbors_list_all = new int[images * natoms * ntypes * max_neighbors];
         std::fill_n(neighbors_list_all, images * natoms * ntypes * max_neighbors, -1);
-        dR_neigh_all = new Neighbor[images * natoms * ntypes * max_neighbors]();
+        // dR_neigh_all = new Neighbor[images * natoms * ntypes * max_neighbors]();
+        dR_neigh_all = new double[images * natoms * ntypes * max_neighbors * 4]();
 
         build();
     }
@@ -123,8 +124,13 @@ public:
                     num_neigh_all[i * natoms * ntypes + j * ntypes + k] = num_neigh[j][k];
                     for (int l = 0; l < num_neigh[j][k]; l++)
                     {
-                        neighbors_list_all[i * natoms * ntypes * max_neighbors + j * ntypes * max_neighbors + k * max_neighbors + l] = neighbors_list[j][k][l];
-                        dR_neigh_all[i * natoms * ntypes * max_neighbors + j * ntypes * max_neighbors + k * max_neighbors + l] = dR_neigh[j][k][l];
+                        int indices = i * natoms * ntypes * max_neighbors + j * ntypes * max_neighbors + k * max_neighbors + l;
+                        neighbors_list_all[indices] = neighbors_list[j][k][l];
+                        // dR_neigh_all[indices] = dR_neigh[j][k][l];
+                        dR_neigh_all[indices * 4] = dR_neigh[j][k][l].rij;
+                        dR_neigh_all[indices * 4 + 1] = dR_neigh[j][k][l].delx;
+                        dR_neigh_all[indices * 4 + 2] = dR_neigh[j][k][l].dely;
+                        dR_neigh_all[indices * 4 + 3] = dR_neigh[j][k][l].delz;
                     }
                 }
             }
@@ -143,11 +149,16 @@ public:
                     std::cout << "Atom " << j << " type " << k << " has " << num_neigh_all[i * natoms * ntypes + j * ntypes + k] << " neighbors" << std::endl;
                     for (int l = 0; l < num_neigh_all[i * natoms * ntypes + j * ntypes + k]; l++)
                     {
-                        std::cout << "index " << neighbors_list_all[i * natoms * ntypes * max_neighbors + j * ntypes * max_neighbors + k * max_neighbors + l] << " ";
-                        std::cout << "rij " << dR_neigh_all[i * natoms * ntypes * max_neighbors + j * ntypes * max_neighbors + k * max_neighbors + l].rij << " ";
-                        std::cout << "delx " << dR_neigh_all[i * natoms * ntypes * max_neighbors + j * ntypes * max_neighbors + k * max_neighbors + l].delx << " ";
-                        std::cout << "dely " << dR_neigh_all[i * natoms * ntypes * max_neighbors + j * ntypes * max_neighbors + k * max_neighbors + l].dely << " ";
-                        std::cout << "delz " << dR_neigh_all[i * natoms * ntypes * max_neighbors + j * ntypes * max_neighbors + k * max_neighbors + l].delz << std::endl;
+                        int indices = i * natoms * ntypes * max_neighbors + j * ntypes * max_neighbors + k * max_neighbors + l;
+                        std::cout << "index " << neighbors_list_all[indices] << " ";
+                        // std::cout << "rij " << dR_neigh_all[indices].rij << " ";
+                        // std::cout << "delx " << dR_neigh_all[indices].delx << " ";
+                        // std::cout << "dely " << dR_neigh_all[indices].dely << " ";
+                        // std::cout << "delz " << dR_neigh_all[indices].delz << std::endl;
+                        std::cout << "rij " << dR_neigh_all[indices * 4] << " ";
+                        std::cout << "delx " << dR_neigh_all[indices * 4 + 1] << " ";
+                        std::cout << "dely " << dR_neigh_all[indices * 4 + 2] << " ";
+                        std::cout << "delz " << dR_neigh_all[indices * 4 + 3] << std::endl;
                         std::cout << std::endl;
                     }
                     std::cout << std::endl;
@@ -166,7 +177,7 @@ public:
         return neighbors_list_all;
     }
 
-    Neighbor *get_dR_neigh_all() const
+    double *get_dR_neigh_all() const
     {
         return dR_neigh_all;
     }
@@ -178,16 +189,18 @@ public:
         cart_coords[2] = frac_coords[0] * box[6] + frac_coords[1] * box[7] + frac_coords[2] * box[8];
     }
 
-private:
-    int *num_neigh_all;
-    int *neighbors_list_all;
-    Neighbor *dR_neigh_all;
-    float cutoff;
     int max_neighbors;
     int ntypes;
     int natoms;
-    int *type_map;
     int images;
+    
+private:
+    int *num_neigh_all;
+    int *neighbors_list_all;
+    // Neighbor *dR_neigh_all;
+    double *dR_neigh_all;
+    float cutoff;
+    int *type_map;
     double *coords_all;
     double *box_all;
 };
@@ -219,7 +232,7 @@ extern "C"
         return neighbor->get_neighbors_list_all();
     }
 
-    Neighbor *GetDRNeighAll(MultiNeighborList *neighbor)
+    double *GetDRNeighAll(MultiNeighborList *neighbor)
     {
         return neighbor->get_dR_neigh_all();
     }

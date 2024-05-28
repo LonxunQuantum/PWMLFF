@@ -1,38 +1,14 @@
 import sys, os
 import torch
 import torch.nn as nn
-import numpy as np
 from typing import List, Tuple, Optional
 from src.user.input_param import InputParam
 import time
 
 sys.path.append(os.getcwd())
 from src.model.dp_embedding import FittingNet
-from numpy.ctypeslib import ndpointer
-import ctypes
-lib_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-lib = ctypes.CDLL(os.path.join(lib_path, 'feature/chebyshev/build/lib/libdescriptor.so')) # multi-descriptor
-lib.CreateDescriptor.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_float, 
-                                  ctypes.c_float, ctypes.c_int, ctypes.c_int, ctypes.c_int, 
-                                  ndpointer(ctypes.c_int, ndim=1, flags="C_CONTIGUOUS"),
-                                  ndpointer(ctypes.c_int, ndim=3, flags="C_CONTIGUOUS"),
-                                  ndpointer(ctypes.c_int, ndim=4, flags="C_CONTIGUOUS"),
-                                  ndpointer(ctypes.c_double, ndim=5, flags="C_CONTIGUOUS"),
-                                  ndpointer(ctypes.c_double, ndim=4, flags="C_CONTIGUOUS")]
-                                  
-lib.CreateDescriptor.restype = ctypes.c_void_p
 
-lib.show.argtypes = [ctypes.c_void_p]
-lib.DestroyDescriptor.argtypes = [ctypes.c_void_p]
-
-lib.get_feat.argtypes = [ctypes.c_void_p]
-lib.get_feat.restype = ctypes.POINTER(ctypes.c_double)
-lib.get_dfeat.argtypes = [ctypes.c_void_p]
-lib.get_dfeat.restype = ctypes.POINTER(ctypes.c_double)
-lib.get_dfeat2c.argtypes = [ctypes.c_void_p]
-lib.get_dfeat2c.restype = ctypes.POINTER(ctypes.c_double)
-lib.get_neighbor_list.argtypes = [ctypes.c_void_p]
-lib.get_neighbor_list.restype = ctypes.POINTER(ctypes.c_int)
+from feature.chebyshev.build.lib import descriptor_pybind
 
 if torch.cuda.is_available():
     lib_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "op/build/lib/libCalcOps_bind.so")
@@ -146,7 +122,7 @@ class ChebyNet(nn.Module):
         nfeat = self.m1 * self.m2
         fitnet_index = self.get_fitnet_index(atom_type)
         # t1 = time.time()
-        feat, dfeat, dfeat2c, list_neigh_alltype = self.calculate_feat(batch_size, natoms_sum, ntypes, Imagetype_map, nfeat, num_neigh, list_neigh, ImageDR, device, dtype)
+        feat, dfeat, dfeat2c, ddfeat2c, list_neigh_alltype = self.calculate_feat(batch_size, natoms_sum, ntypes, Imagetype_map, nfeat, num_neigh, list_neigh, ImageDR, device, dtype)
         feat.requires_grad_()
         # t2 = time.time()
         Ei = self.calculate_Ei(Imagetype_map, feat, batch_size, fitnet_index, device)
@@ -155,14 +131,26 @@ class ChebyNet(nn.Module):
         Etot = torch.sum(Ei, 1)
         Egroup = self.get_egroup(Ei, Egroup_weight, divider) if Egroup_weight is not None else None
         Ei = torch.squeeze(Ei, 2)
+
+        # Calculate dE / dfeat
+        mask: List[Optional[torch.Tensor]] = [torch.ones_like(Ei)]
+        dE = torch.autograd.grad([Ei], [feat], grad_outputs=mask, retain_graph=True, create_graph=True)[0]
+        assert dE is not None
+        # Calculate dE / dc
+        with torch.no_grad():
+            dE_tmp2c = (dfeat2c * dE.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1)).sum(2)
+            dE_dc = torch.zeros((batch_size, ntypes, ntypes, self.m1, self.beta), device=device, dtype=dtype)
+            dE_dc.index_add_(1, Imagetype_map, dE_tmp2c)
+        # print(dE_dc.grad_fn is not None)
+
         if is_calc_f is False:
-            Force, Virial = None, None
+            Force, Virial, dF_dc = None, None, None
         else:
             # t4 = time.time()
-            Force, Virial, dEi_dc = self.calculate_force_virial(feat, dfeat, dfeat2c, Ei, natoms_sum, Imagetype_map, m_neigh, batch_size, list_neigh_alltype, ImageDR, nghost, device, dtype)
+            Force, Virial, dF_dc = self.calculate_force_virial(dE, feat, dfeat, dfeat2c, ddfeat2c, natoms_sum, ntypes, m_neigh, batch_size, list_neigh_alltype, ImageDR, nghost, device, dtype)
             # print("Force, Etot \n", Force, Etot)
             # t5 = time.time()
-        return Etot, Ei, Force, Egroup, Virial, dEi_dc
+        return Etot, Ei, Force, Egroup, Virial, dE_dc, dF_dc
     
     def calculate_feat(self,
                      batch_size: int,
@@ -191,31 +179,30 @@ class ChebyNet(nn.Module):
             Tuple[torch.Tensor, torch.Tensor]: The feat and dfeat tensors.
         """
         c = self.c_param.cpu().numpy()
-        # c[0,1,0,0] = c[0,1,0,0] + 0.001
-        # c[0,1,1,0] = c[0,1,1,0] + 0.001
-        descriptor = lib.CreateDescriptor(batch_size, self.beta, self.m1, self.m2, self.Rc_M, self.rcut_smooth, natoms_sum, ntypes, self.m_neigh, Imagetype_map.cpu().numpy(), num_neigh.cpu().numpy(), list_neigh.cpu().numpy(), ImagedR.cpu().numpy(), c)
-        # lib.show(descriptor)
-        feat = lib.get_feat(descriptor)
-        dfeat = lib.get_dfeat(descriptor)
-        dfeat2c = lib.get_dfeat2c(descriptor)
-        list_neigh_alltype = lib.get_neighbor_list(descriptor)
-
-        feat = np.ctypeslib.as_array(feat, (batch_size * natoms_sum, nfeat))
-        dfeat = np.ctypeslib.as_array(dfeat, (batch_size, natoms_sum, nfeat, self.m_neigh, 3))
-        dfeat2c = np.ctypeslib.as_array(dfeat2c, (batch_size, natoms_sum, nfeat, ntypes, self.m1, self.beta))
-        list_neigh_alltype = np.ctypeslib.as_array(list_neigh_alltype, (batch_size, natoms_sum, self.m_neigh))
+        # c[0,0,0,0] = c[0,0,0,0] + 0.0001
+        # c[0,0,1,0] = c[0,0,1,0] - 0.0001
+        # c[0,1,0,0] = c[0,1,0,0] - 0.001
+        # c[0,1,1,0] = c[0,1,1,0] + 0.0001
+        descriptor = descriptor_pybind.MultiDescriptor(batch_size, self.beta, self.m1, self.m2, self.Rc_M, self.rcut_smooth, natoms_sum, ntypes, self.m_neigh, Imagetype_map.cpu().numpy(), num_neigh.cpu().numpy(), list_neigh.cpu().numpy(), ImagedR.cpu().numpy(), c)
+        # descriptor.show()
+        feat = descriptor.get_feat()                            # (batch_size * natoms_sum, nfeat)
+        dfeat = descriptor.get_dfeat()                          # (batch_size, natoms_sum, nfeat, m_neigh, 3)
+        dfeat2c = descriptor.get_dfeat2c()                      # (batch_size, natoms_sum, nfeat, ntypes, m1, beta)
+        ddfeat2c = descriptor.get_ddfeat2c()                    # (batch_size, natoms_sum, nfeat, ntypes, m1, beta, m_neigh, 3)
+        list_neigh_alltype = descriptor.get_neighbor_list()     # (batch_size, natoms_sum, m_neigh)
 
         feat = self.scaler.transform(feat)
         feat = torch.tensor(feat, dtype=dtype, device=device).reshape(batch_size, natoms_sum, nfeat)
         dfeat = torch.tensor(dfeat, dtype=dtype, device=device).transpose(2, 3)
         dfeat2c = torch.tensor(dfeat2c, dtype=dtype, device=device)
+        ddfeat2c = torch.tensor(ddfeat2c, dtype=dtype, device=device).transpose(2, 6)
         list_neigh_alltype = torch.tensor(list_neigh_alltype, dtype=torch.int32, device=device)
-        lib.DestroyDescriptor(descriptor)
 
         scaler = torch.tensor(self.scaler.scale_, dtype=dtype, device=device)
         dfeat = (dfeat.transpose(3, 4) * scaler).transpose(3, 4)
         dfeat2c = (dfeat2c.transpose(2, 5) * scaler).transpose(2, 5)
-        return feat, dfeat, dfeat2c, list_neigh_alltype
+        ddfeat2c = (ddfeat2c.transpose(6, 7) * scaler).transpose(6, 7)
+        return feat, dfeat, dfeat2c, ddfeat2c, list_neigh_alltype
         
     def calculate_Ei(self, 
                      Imagetype_map: torch.Tensor,
@@ -257,12 +244,13 @@ class ChebyNet(nn.Module):
         return Ei
 
     def calculate_force_virial(self, 
+                               dE: torch.Tensor,
                                feat: torch.Tensor,
                                dfeat: torch.Tensor,
                                dfeat2c: torch.Tensor,
-                               Ei: torch.Tensor,
+                               ddfeat2c: torch.Tensor,
                                natoms_sum: int,
-                               Imagetype_map: torch.Tensor,
+                               ntypes: int,
                                m_neigh: int,
                                batch_size: int,
                                list_neigh_alltype: torch.Tensor,
@@ -270,31 +258,46 @@ class ChebyNet(nn.Module):
                                nghost: int,
                                device: torch.device,
                                dtype: torch.dtype) -> Tuple[torch.Tensor, torch.Tensor]:
-        mask: List[Optional[torch.Tensor]] = [torch.ones_like(Ei)]
-        dE = torch.autograd.grad([Ei], [feat], grad_outputs=mask, retain_graph=True, create_graph=True)[0]
-        # from utils.debug_operation import check_cuda_memory
-        # print("000000000000000000000000000")
-        # check_cuda_memory(1, 1, 1)
-        assert dE is not None
+        # Step 1: Calculate d dE / d feat
+        ddE = torch.zeros_like(feat)
+        for i in range(dE.shape[2]):
+            mask: List[Optional[torch.Tensor]] = [torch.ones_like(dE[:, :, i])]
+            grad_dE_i = torch.autograd.grad(dE[:, :, i], feat, grad_outputs=mask, retain_graph=True, create_graph=True)[0]
+            ddE += grad_dE_i  
+        assert ddE is not None
+        # Step 2: Calculate dE / dx (Force calculation)
         dE_tmp = dE.repeat(1, 1, m_neigh).reshape(batch_size, natoms_sum, m_neigh, -1).unsqueeze(-2)
-        dE_dfeat = torch.matmul(dE_tmp, dfeat).sum(-2)  # partial E / partial dfeat = (partial E / partial feat) * (partial feat / partial delta(x,y,z) )
+        dE_dfeat = torch.matmul(dE_tmp, dfeat).sum(-2)  # partial E / partial delta(x,y,z) = (partial E / partial feat) * (partial feat / partial delta(x,y,z) )
+        dE_tmp.unsqueeze_(-2).unsqueeze_(-2).unsqueeze_(-2)
+        ddE.unsqueeze_(-1).unsqueeze_(-1).unsqueeze_(-1)
+        # Step 3: Calculate dF / dc
         with torch.no_grad():
-            dE_tmp2c = (dfeat2c * dE.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1)).sum(2)
-        dEi_dc = torch.zeros((batch_size, self.ntypes, self.ntypes, self.m1, self.beta), device=device, dtype=dtype)
-        dEi_dc.index_add_(1, Imagetype_map, dE_tmp2c)
-        # print(dEi_dc.grad_fn is not None)
+            ddE_f2c = ddE * dfeat2c    # partial (partial E / partial feat) / partial c
+            # 's' -> batch, 'a' -> natom, 'n' -> neigh, 'f' -> nfeat, 't' -> ntype, 'm' -> mu, 'b' -> beta, 'c' -> 3
+            dE_df2c_2 = torch.einsum('sanfc, saftmb -> santmbc', dfeat, ddE_f2c)
+            dE_df2c = torch.matmul(dE_tmp, ddfeat2c).sum(-2) + dE_df2c_2   
+            # partial F / partial c = (partial E / partial feat) * partial (partial feat / partial delta(x,y,z) ) / partial c
+            #                       + (partial (partial E / partial feat) / partial c ) * (partial feat / partial delta(x,y,z) )
+
+        # Step 4: Calculate Force
         list_neigh_map = torch.zeros_like(list_neigh_alltype)
         mask_index = list_neigh_alltype == -1
         list_index = list_neigh_alltype + 1
         list_neigh_alltype[mask_index] = 0.0
         list_neigh_map.scatter_add_(2, list_neigh_alltype.type(torch.int64), list_index)
         Force = torch.zeros((batch_size, natoms_sum + nghost + 1, 3), device=device, dtype=dtype)
+        dF_dc = torch.zeros((batch_size, natoms_sum + nghost + 1, ntypes, self.m1, self.beta, 3), device=device, dtype=dtype)
         Force[:, 1:natoms_sum + 1, :] = dE_dfeat.sum(-2)
-        # dE_tmp_list = torch.index_select(dE_tmp.reshape(batch_size*(natoms_sum+1), -1), 0, list_neigh_map.flatten()).reshape(batch_size, natoms_sum, m_neigh, 1, -1)
+        # Step 5: Calculate ∂Force / ∂c
+        dF_dc[:, 1:natoms_sum + 1, :, :, :, :] = dE_df2c.sum(2)
         Virial = torch.zeros((batch_size, 9), device=device, dtype=dtype)
         for batch_idx in range(batch_size):
             indices = list_neigh_map[batch_idx].flatten().unsqueeze(-1).expand(-1, 3).to(torch.int64)
             values = - dE_dfeat[batch_idx].view(-1, 3)
             Force[batch_idx].scatter_add_(0, indices, values).view(natoms_sum + nghost + 1, 3)
+            indices_c = list_neigh_map[batch_idx].flatten().unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).expand(-1, ntypes, self.m1, self.beta, 3).to(torch.int64)
+            values_c = - dE_df2c[batch_idx].view(-1, ntypes, self.m1, self.beta, 3)
+            dF_dc[batch_idx].scatter_add_(0, indices_c, values_c)
         Force = Force[:, 1:, :]
-        return Force, Virial, dEi_dc.sum(0) 
+        dF_dc = dF_dc[:, 1:, :, :, :, :]
+        return Force, Virial, dF_dc

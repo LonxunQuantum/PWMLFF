@@ -20,13 +20,14 @@ public:
 
     void set_cparams(int ntypes, int natoms, int beta, int m1);
 
-    void build(int m1, int m2, int max_neighbors, int ntypes, int natoms); // build descriptor
+    void build(int max_neighbors, int ntypes, int natoms); // build descriptor
 
-    void build_component(int m, int ii, int jj, double delx, double dely, double delz, int itype, int jtype,
-                         double ***rads, double ***drads, double ****drads2c, double fc, double dfc,
+    void build_component(int m, int ii, int jj, double delx, double dely, double delz, int nneigh, int itype, int jtype,
+                         double ***rads, double ***drads, double ****drads2c, double ****ddrads2c, double fc, double dfc,
                          double s, double rij, std::vector<std::vector<double>> &T,
                          std::vector<std::vector<std::vector<std::vector<double>>>> &dT,
-                         std::vector<std::vector<std::vector<std::vector<std::vector<double>>>>> &dT2c); // build 4-D descriptor component
+                         std::vector<std::vector<std::vector<std::vector<std::vector<double>>>>> &dT2c,
+                         std::vector<double> &ddT2c); // build 4-D descriptor component
 
     double *get_feat() const; // get descriptor
 
@@ -38,6 +39,8 @@ public:
     double *get_dfeat() const; // get partial derivative of descriptor with respect to rij
 
     double *get_dfeat2c() const; // get partial derivative of descriptor with respect to c
+
+    double *get_ddfeat2c() const; // get partial derivative of dfeat with respect to c
 
     void show() const; // show descriptor
 
@@ -65,6 +68,7 @@ private:
     // double ****dfeat;  // partial derivative of descriptor with respect to rij
     double *dfeat;   // partial derivative of descriptor with respect to rij
     double *dfeat2c; // partial derivative of descriptor with respect to c
+    double *ddfeat2c; // partial derivative of dfeat with respect to c
 };                   // end of class Descriptor
 
 class MultiDescriptor
@@ -75,12 +79,13 @@ public:
     MultiDescriptor(int images, int beta, int m1, int m2, float rcut_max, float rcut_smooth,
                     int natoms, int ntypes, int max_neighbors, int *type_map,
                     int *num_neigh_all, int *neighbors_list_all, double *dR_neigh_all, double *c = nullptr)
-        : images(images), natoms(natoms), max_neighbors(max_neighbors), ntypes(ntypes), m1(m1), beta(beta)
+        : images(images), natoms(natoms), max_neighbors(max_neighbors), ntypes(ntypes), m1(m1), m2(m2), beta(beta)
     {
         int nfeat = m1 * m2;
         this->feat_all = new double[images * natoms * nfeat];
         this->dfeat_all = new double[images * 3 * natoms * nfeat * max_neighbors];
         this->dfeat2c_all = new double[images * natoms * nfeat * ntypes * m1 * beta];
+        this->ddfeat2c_all = new double[images * 3 * natoms * nfeat * ntypes * m1 * beta * max_neighbors];
         this->neighbor_list_alltypes = new int[images * natoms * max_neighbors];
         this->descriptor = new Descriptor *[images];
         int offset1, offset2, offset3;
@@ -109,6 +114,7 @@ public:
         delete[] this->feat_all;
         delete[] this->dfeat_all;
         delete[] this->dfeat2c_all;
+        delete[] this->ddfeat2c_all;
         delete[] this->neighbor_list_alltypes;
     }
 
@@ -136,6 +142,8 @@ public:
             this->descriptor[i]->show();
         }
     }
+
+    int get_nfeat() const { return this->m1 * this->m2; } 
 
     // double *get_dfeat(int *size) const
     // {
@@ -179,6 +187,20 @@ public:
         return this->dfeat2c_all;
     }
 
+    double *get_ddfeat2c() const
+    {
+        double *ddfeat2c;
+        int nfeat, index;
+        for (int i = 0; i < this->images; i++)
+        {
+            ddfeat2c = this->descriptor[i]->get_ddfeat2c();
+            nfeat = this->descriptor[i]->get_nfeat();
+            index = 3 * this->natoms * nfeat * this->ntypes * this->m1 * this->beta * this->max_neighbors;
+            std::copy(ddfeat2c, ddfeat2c + index, this->ddfeat2c_all + i * index);
+        }
+        return this->ddfeat2c_all;
+    }
+
     int *get_neighbor_list() const
     {
         int *neighbor_list;
@@ -192,12 +214,14 @@ public:
         return this->neighbor_list_alltypes;
     }
 
+    int images, natoms, max_neighbors, ntypes, m1, m2, beta;
+
 private:
-    int images, natoms, max_neighbors, ntypes, m1, beta;
     Descriptor **descriptor;
     double *feat_all;
     double *dfeat_all;
     double *dfeat2c_all;
+    double *ddfeat2c_all;
     int *neighbor_list_alltypes;
 }; // end of class MultiDescriptor
 
@@ -239,11 +263,61 @@ extern "C"
         return descriptor->get_dfeat2c();
     }
 
+    double *get_ddfeat2c(MultiDescriptor *descriptor)
+    {
+        return descriptor->get_ddfeat2c();
+    }
+
     int *get_neighbor_list(MultiDescriptor *descriptor)
     {
         return descriptor->get_neighbor_list();
     }
 
 }
+/*
+In python, the following code will be executed:
+
+from numpy.ctypeslib import ndpointer
+import ctypes
+lib_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+lib = ctypes.CDLL(os.path.join(lib_path, 'feature/chebyshev/build/lib/libdescriptor.so')) # multi-descriptor
+lib.CreateDescriptor.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_float, 
+                                  ctypes.c_float, ctypes.c_int, ctypes.c_int, ctypes.c_int, 
+                                  ndpointer(ctypes.c_int, ndim=1, flags="C_CONTIGUOUS"),
+                                  ndpointer(ctypes.c_int, ndim=3, flags="C_CONTIGUOUS"),
+                                  ndpointer(ctypes.c_int, ndim=4, flags="C_CONTIGUOUS"),
+                                  ndpointer(ctypes.c_double, ndim=5, flags="C_CONTIGUOUS"),
+                                  ndpointer(ctypes.c_double, ndim=4, flags="C_CONTIGUOUS")]
+                                  
+lib.CreateDescriptor.restype = ctypes.c_void_p
+
+lib.show.argtypes = [ctypes.c_void_p]
+lib.DestroyDescriptor.argtypes = [ctypes.c_void_p]
+
+lib.get_feat.argtypes = [ctypes.c_void_p]
+lib.get_feat.restype = ctypes.POINTER(ctypes.c_double)
+lib.get_dfeat.argtypes = [ctypes.c_void_p]
+lib.get_dfeat.restype = ctypes.POINTER(ctypes.c_double)
+lib.get_dfeat2c.argtypes = [ctypes.c_void_p]
+lib.get_dfeat2c.restype = ctypes.POINTER(ctypes.c_double)
+lib.get_ddfeat2c.argtypes = [ctypes.c_void_p]
+lib.get_ddfeat2c.restype = ctypes.POINTER(ctypes.c_double)
+lib.get_neighbor_list.argtypes = [ctypes.c_void_p]
+lib.get_neighbor_list.restype = ctypes.POINTER(ctypes.c_int)
+
+descriptor = lib.CreateDescriptor(batch_size, self.beta, self.m1, self.m2, self.Rc_M, self.rcut_smooth, natoms_sum, ntypes, self.m_neigh, Imagetype_map.cpu().numpy(), num_neigh.cpu().numpy(), list_neigh.cpu().numpy(), ImagedR.cpu().numpy(), c)
+# lib.show(descriptor)
+feat = lib.get_feat(descriptor)
+dfeat = lib.get_dfeat(descriptor)
+dfeat2c = lib.get_dfeat2c(descriptor)
+ddfeat2c = lib.get_ddfeat2c(descriptor)
+list_neigh_alltype = lib.get_neighbor_list(descriptor)
+
+feat = np.ctypeslib.as_array(feat, (batch_size * natoms_sum, nfeat))
+dfeat = np.ctypeslib.as_array(dfeat, (batch_size, natoms_sum, nfeat, self.m_neigh, 3))
+dfeat2c = np.ctypeslib.as_array(dfeat2c, (batch_size, natoms_sum, nfeat, ntypes, self.m1, self.beta))
+ddfeat2c = np.ctypeslib.as_array(ddfeat2c, (batch_size, natoms_sum, nfeat, ntypes, self.m1, self.beta, self.m_neigh, 3))
+list_neigh_alltype = np.ctypeslib.as_array(list_neigh_alltype, (batch_size, natoms_sum, self.m_neigh))
+*/
 
 #endif // DESCRIPTOR_H

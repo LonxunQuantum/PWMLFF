@@ -1,4 +1,4 @@
-import os
+import os, sys
 import random
 import torch
 import time
@@ -19,43 +19,8 @@ from src.user.input_param import InputParam
 from src.pre_data.cheby_data_loader import MovementDataset
 from src.PWMLFF.cheby_mods.cheby_trainer import train_KF, train, valid, save_checkpoint, predict
 from utils.file_operation import write_arrays_to_file, smlink_file
-from numpy.ctypeslib import ndpointer
-import ctypes
-lib_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-lib_1 = ctypes.CDLL(os.path.join(lib_path, 'feature/chebyshev/build/lib/libneighborList.so')) # multi-neigh-list
-lib_2 = ctypes.CDLL(os.path.join(lib_path, 'feature/chebyshev/build/lib/libdescriptor.so')) # multi-descriptor
-lib_1.CreateNeighbor.argtypes = [ctypes.c_int, ctypes.c_float, ctypes.c_int, ctypes.c_int, ctypes.c_int, 
-                               ndpointer(ctypes.c_int, ndim=1, flags="C_CONTIGUOUS"), 
-                               ndpointer(dtype=np.float64, ndim=1, flags="C_CONTIGUOUS"), 
-                               ndpointer(dtype=np.float64, ndim=1, flags="C_CONTIGUOUS")]
-lib_2.CreateDescriptor.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_float, 
-                                  ctypes.c_float, ctypes.c_int, ctypes.c_int, ctypes.c_int, 
-                                  ndpointer(ctypes.c_int, ndim=1, flags="C_CONTIGUOUS"),
-                                  ndpointer(ctypes.c_int, ndim=3, flags="C_CONTIGUOUS"),
-                                  ndpointer(ctypes.c_int, ndim=4, flags="C_CONTIGUOUS"),
-                                  ndpointer(ctypes.c_double, ndim=5, flags="C_CONTIGUOUS")]
-                                  
-lib_1.CreateNeighbor.restype = ctypes.c_void_p
-lib_2.CreateDescriptor.restype = ctypes.c_void_p
 
-# lib_1.ShowNeighbor.argtypes = [ctypes.c_void_p]
-lib_1.DestroyNeighbor.argtypes = [ctypes.c_void_p]
-# lib_2.show.argtypes = [ctypes.c_void_p]
-lib_2.DestroyDescriptor.argtypes = [ctypes.c_void_p]
-
-lib_1.GetNumNeighAll.argtypes = [ctypes.c_void_p]
-lib_1.GetNumNeighAll.restype = ctypes.POINTER(ctypes.c_int)
-lib_1.GetNeighborsListAll.argtypes = [ctypes.c_void_p]
-lib_1.GetNeighborsListAll.restype = ctypes.POINTER(ctypes.c_int)
-lib_1.GetDRNeighAll.argtypes = [ctypes.c_void_p]
-lib_1.GetDRNeighAll.restype = ctypes.POINTER(ctypes.c_double)
-
-lib_2.get_feat.argtypes = [ctypes.c_void_p]
-lib_2.get_feat.restype = ctypes.POINTER(ctypes.c_double)
-# lib_2.get_dfeat.argtypes = [ctypes.c_void_p]
-# lib_2.get_dfeat.restype = ctypes.POINTER(ctypes.c_double)
-# lib_2.get_dfeat2c.argtypes = [ctypes.c_void_p]
-# lib_2.get_dfeat2c.restype = ctypes.POINTER(ctypes.c_double)
+from feature.chebyshev.build.lib import descriptor_pybind
 
 class cheby_network:
     def __init__(self, cheby_param: InputParam):
@@ -187,30 +152,19 @@ class cheby_network:
         beta = cheby_param.descriptor.cheby_order
         m1 = cheby_param.descriptor.radial_num1
         m2 = cheby_param.descriptor.radial_num2
-        nfeat = m1 * m2
 
         # Create neighbor list
-        mnl = lib_1.CreateNeighbor(image_num, rcut_max, max_neigh_num, ntypes, natoms, type_maps, coords_all, box_all)
-        # lib_1.ShowNeighbor(mnl)
-        num_neigh_all = lib_1.GetNumNeighAll(mnl)
-        list_neigh_all = lib_1.GetNeighborsListAll(mnl)
-        dr_neigh_all = lib_1.GetDRNeighAll(mnl)
-        num_neigh_all = np.ctypeslib.as_array(num_neigh_all, (image_num, natoms, ntypes))
-        list_neigh_all = np.ctypeslib.as_array(list_neigh_all, (image_num, natoms, ntypes, max_neigh_num))
-        dr_neigh_all = np.ctypeslib.as_array(dr_neigh_all, (image_num, natoms, ntypes, max_neigh_num, 4))   # rij, delx, dely, delz
-        descriptor = lib_2.CreateDescriptor(image_num, beta, m1, m2, rcut_max, rcut_smooth, natoms, ntypes, max_neigh_num, type_maps, num_neigh_all, list_neigh_all, dr_neigh_all, None)
-        # lib_2.show(descriptor)
-        feat = lib_2.get_feat(descriptor)
-        # dfeat = lib_2.get_dfeat(descriptor)
-        # dfeat2c = lib_2.get_dfeat2c(descriptor)
-        feat = np.ctypeslib.as_array(feat, (image_num, natoms, nfeat))
-        # dfeat = np.ctypeslib.as_array(dfeat, (image_num, natoms, nfeat, max_neigh_num, 3))
+        mnl = descriptor_pybind.MultiNeighborList(image_num, rcut_max, max_neigh_num, ntypes, natoms, type_maps, coords_all, box_all)
+        # mnl.show()
+        num_neigh_all = mnl.get_num_neigh_all()
+        list_neigh_all = mnl.get_neighbors_list_all()
+        dr_neigh_all = mnl.get_dR_neigh_all()
+        descriptor = descriptor_pybind.MultiDescriptor(image_num, beta, m1, m2, rcut_max, rcut_smooth, natoms, ntypes, max_neigh_num, type_maps, num_neigh_all, list_neigh_all, dr_neigh_all, None)
+        feat = descriptor.get_feat()
 
         # Calculate the scaler
         scaler = MinMaxScaler()
-        scaler.fit_transform(feat.reshape(-1, feat.shape[-1]))
-        lib_1.DestroyNeighbor(mnl)
-        lib_2.DestroyDescriptor(descriptor)
+        scaler.fit_transform(feat)
         return scaler   
 
     @staticmethod

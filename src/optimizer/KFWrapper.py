@@ -50,7 +50,7 @@ class KFOptimizerWrapper:
                 is_calc_f=False,
             )
         elif train_type == "CHEBY":
-            Etot_predict, _, _, _, _, _ = self.model(
+            Etot_predict, _, _, _, _, dE_dc, _ = self.model(
                 inputs[0],
                 inputs[1],
                 inputs[2],
@@ -58,7 +58,8 @@ class KFOptimizerWrapper:
                 inputs[4],
                 0,
                 inputs[5],
-                inputs[6]
+                inputs[6],
+                is_calc_f=False,
             )
         else:
             raise Exception("Error! the train type {} is not realized!".format(train_type))
@@ -91,7 +92,13 @@ class KFOptimizerWrapper:
         Etot_predict.sum().backward(retain_graph=True)# retain_graph=True is added for nep training
         error = error * math.sqrt(bs)
         #print("Etot steping")
-        self.optimizer.step(error)
+        if train_type == "CHEBY":
+            with torch.no_grad():
+                grad_loss_dE_dc = (2.0 / dE_dc.shape[0]) * torch.sum(dE_dc * (Etot_predict - Etot_label).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1), dim=0)
+            self.optimizer.step(error, c_param=self.model.c_param, c_grad=grad_loss_dE_dc)
+            # self.optimizer.step(error)
+        else:
+            self.optimizer.step(error)
         return Etot_predict
 
     def update_egroup(
@@ -300,7 +307,7 @@ class KFOptimizerWrapper:
                     inputs[0], inputs[1], inputs[2], inputs[3], inputs[4], inputs[5], inputs[6]
                 )
             elif train_type == "CHEBY":
-                Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict, dEi_dc = self.model(
+                Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict, dE_dc, dF_dc = self.model(
                     inputs[0], inputs[1], inputs[2], inputs[3], inputs[4], 0, inputs[5], inputs[6]
                 )
             else:
@@ -329,7 +336,12 @@ class KFOptimizerWrapper:
             error = error * math.sqrt(bs)
             #print("force steping")
             if train_type == "CHEBY":
-                self.optimizer.step(error, c_param=self.model.c_param, c_grad=dEi_dc)
+                with torch.no_grad():
+                    grad_loss_dF_dc_tmp = (2.0 / dF_dc.shape[0] / 3) * torch.sum(dF_dc * (Force_predict - Force_label).unsqueeze(-2).unsqueeze(-2).unsqueeze(-2), [0, -1])
+                    grad_loss_dF_dc = torch.zeros_like(dE_dc[0])
+                    grad_loss_dF_dc.index_add_(0, inputs[1], grad_loss_dF_dc_tmp)
+                self.optimizer.step(error, c_param=self.model.c_param, c_grad=grad_loss_dF_dc)
+                # self.optimizer.step(error)
             else:
                 self.optimizer.step(error)
         return Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict
