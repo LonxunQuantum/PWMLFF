@@ -53,9 +53,12 @@ def script_dp_model(model_checkpoint, ckpt_file):
     # Step 4. 
     torch_script_module = torch.jit.script(model)
     torch_script_path = os.path.dirname(os.path.abspath(ckpt_file))
-    torch_script_module.save(torch_script_path + "/torch_script_module.pt")# need to change as dp_module
+
+    save_name = "jit_dp_gpu.pt" if torch.cuda.is_available() else "jit_dp_gpu.pt"
+    model_save_path = os.path.join(torch_script_path, save_name)
+    torch_script_module.save(model_save_path)
     # the full out will be 'Type Eembeding Dp model with compress dx = 0.001'
-    print("Tracing {} successfully! The torch script module is saved in {}".format(dp_log, torch_script_path + "/torch_script_module.pt"))
+    print("Tracing {} successfully! The torch script module is saved in {}".format(dp_log, model_save_path))
 
 def script_nep_model(model_checkpoint, ckpt_file):
     energy_shift = model_checkpoint["energy_shift"]
@@ -71,5 +74,7 @@ def script_nep_model(model_checkpoint, ckpt_file):
     # Step 4. 
     torch_script_module = torch.jit.script(model)
     torch_script_path = os.path.dirname(os.path.abspath(ckpt_file))
-    torch_script_module.save(torch_script_path + "/jit_nep_module.pt")
-    print("Tracing NEP model successfully! The torch script module is saved in {}".format(torch_script_path + "/jit_nep_module.pt"))    
+    save_name = "jit_nep_gpu.pt" if torch.cuda.is_available() else "jit_nep_gpu.pt"
+    model_save_path = os.path.join(torch_script_path, save_name)
+    torch_script_module.save(model_save_path)
+    print("Tracing NEP model successfully! The torch script module is saved in {}".format(model_save_path))

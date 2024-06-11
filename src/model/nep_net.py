@@ -72,7 +72,7 @@ class NEP(nn.Module):
             params = self.fitting_net[i].get_param_list()
             nn_params.extend(params[:-1])
             type_bias.append(params[-1])
-        nn_params.append(np.mean(type_bias))
+        nn_params.extend(type_bias)
         # nn_params.extend(type_bias) # for new nep.txt test
         nn_params.extend(list(self.c_param_2.permute(2, 3, 0, 1).flatten().cpu().detach().numpy()))
         nn_params.extend(list(self.c_param_3.permute(2, 3, 0, 1).flatten().cpu().detach().numpy()))

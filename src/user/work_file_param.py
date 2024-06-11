@@ -204,7 +204,7 @@ class WorkFileStructure(object):
         self.nep_train_xyz_path = "train.xyz"
         self.nep_test_xyz_path = "test.xyz"
         self.nep_in_file = "nep.in"
-        self.nep_model_file = "nep.txt"
+        self.nep_model_file = "nep_to_lmps.txt"
         self.nep_restart_file = "nep.restart"
                                  
     def get_data_file_structure(self):

@@ -84,7 +84,7 @@ def nep_test(input_json: json, cmd:str):
         nep_param.file_paths.set_datasets_path(data_paths)
     nep_trainer.inference()
 
-def togpumd(cmd_list:list[str]):
+def toneplmps(cmd_list:list[str]):
     ckpt_file = cmd_list[0]
     model_checkpoint = torch.load(ckpt_file, map_location=torch.device("cpu"))
     json_dict_train = model_checkpoint["json_file"]
@@ -101,6 +101,10 @@ def togpumd(cmd_list:list[str]):
     # energy_shift, atom_map, train_loader, val_loader = nep_trainer.load_data(energy_shift, max_atom_nums)
     model, optimizer = nep_trainer.load_model_optimizer(energy_shift)
     nep_trainer.convert_to_gpumd(model, save_dir=os.path.dirname(os.path.abspath(ckpt_file)))
+
+def togpumd(cmd_list:list[str]):
+    from utils.nep_to_gpumd import nep_ckpt_to_gpumd
+    nep_ckpt_to_gpumd(cmd_list)
 
 def tonepckpt(cmd_list:list[str], save_ckpt:bool=True):
     nep_txt_path = cmd_list[0]

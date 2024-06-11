@@ -1,4 +1,6 @@
 import torch
+import os 
+import sys
 
 element_table = ['', 'H', 'He', 'Li', 'Be', 'B', 'C', 'N', 'O', 'F', 'Ne', 'Na', 'Mg', 'Al', 'Si', 'P', 'S', 'Cl',
                  'Ar',
@@ -114,20 +116,12 @@ def extract_model(nep_path:str):
 
     return head_content, nn_list, last_bias, c_list, q_list
 
-def calculate_common_bias(model_bias:dict, input_type:list[int], atom_nums:list[int]):
-    common_bias = 0
-    all_num = 0
-    for idx,atom in enumerate(input_type):
-        common_bias += model_bias[atom] * atom_nums[idx]
-        all_num += atom_nums[idx]
-    return common_bias/all_num
-
-if __name__ == "__main__":
-    infos = "\n\nThis tool is used to convert the nep_model.ckpt trained by PWMLFF to nep.txt format for GPUMD!\n\n"
-    infos += "This tool requires installation of pytorch in your Python environment, and there is no mandatory version requirement.\n"
-    infos += "You coud use python nep_to_gpumd.py -h for detailed parameter explanation.\n\n"
+def nep_ckpt_to_gpumd(cmd_list):
+    infos = "\n\nThis cmd is used to convert the nep_model.ckpt trained by PWMLFF to nep.txt format for GPUMD!\n\n"
+    infos += "This cmd requires installation of pytorch in your Python environment, and there is no mandatory version requirement.\n"
+    infos += "You coud use PWMLFF togpumd -h for detailed parameter explanation.\n\n"
     infos += "The command example: \n"
-    infos += "    'python nep_to_gpumd.py -m nep_model.ckpt -i 8 72 32 64'\n"
+    infos += "    'PWMLFF togpumd -m nep_model.ckpt -i 8 72 32 64'\n"
     infos += "    '8 72' is the type list of atoms in the simulated system in GPUMD, using relative atomic numbers, \n"
     infos += "    '32 64' is the number of atoms corresponding to the atomic types in your simulated system.\n\n\n"
     print(infos)
@@ -138,7 +132,7 @@ if __name__ == "__main__":
     parser.add_argument('-t', '--atom-types', help='specify the atom type list, such as 8 72', nargs='+', type=int, default=None)
     parser.add_argument('-n', '--atom-type-nums', help='specify the atom nums of each atom type', nargs='+', type=int, default=None)
     parser.add_argument('-s', '--save-name', help='specify the save name, the default is nep_to_gpumd.txt', type=str, default='nep_to_gpumd.txt')
-    args = parser.parse_args()
+    args = parser.parse_args(cmd_list)
     nep_model_path = args.nep_model_path
     atom_types = args.atom_types
     atom_type_nums = args.atom_type_nums
@@ -166,3 +160,14 @@ if __name__ == "__main__":
     print("Successfully converted from PWMLFF nep.model.ckpt to GPUMD nep.txt format!")
     print("The result file is {}.".format(save_name))
     
+
+def calculate_common_bias(model_bias:dict, input_type:list[int], atom_nums:list[int]):
+    common_bias = 0
+    all_num = 0
+    for idx,atom in enumerate(input_type):
+        common_bias += model_bias[atom] * atom_nums[idx]
+        all_num += atom_nums[idx]
+    return common_bias/all_num
+
+if __name__ == "__main__":
+    nep_ckpt_to_gpumd(sys.argv[1:])
