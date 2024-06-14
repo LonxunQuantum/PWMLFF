@@ -18,6 +18,14 @@ def write_arrays_to_file(file_path, arrays, write_patthen="w"):
             wf.write(line)
             wf.write('\n') 
 
+def write_force_ei(file_path, ei_list, f_list, write_patthen="w"):
+    with open(file_path, write_patthen) as wf:
+        for image_idx, eis in enumerate(ei_list):
+            for ei_idx, ei in enumerate(eis):
+                out_str = "{} {} {} {}".format(ei, f_list[image_idx][ei_idx*3], f_list[image_idx][ei_idx*3+1], f_list[image_idx][ei_idx*3+2])
+                wf.write(out_str)
+                wf.write('\n')
+                
 '''
 description: copy file from souce to target dir:
     if target dir does not exist, create it

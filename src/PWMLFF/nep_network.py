@@ -45,7 +45,7 @@ from src.PWMLFF.nep_mods.nep_trainer import train_KF, train, valid, save_checkpo
 from src.PWMLFF.nep_mods.nep_snes_trainer import train_snes
 from src.PWMLFF.dp_param_extract import load_atomtype_energyshift_from_checkpoint
 from src.user.input_param import InputParam
-from utils.file_operation import write_arrays_to_file
+from utils.file_operation import write_arrays_to_file, write_force_ei
 
 class nep_network:
     def __init__(self, nep_param:InputParam):
@@ -362,21 +362,25 @@ class nep_network:
         inference_path = self.input_param.file_paths.test_dir
         if os.path.exists(inference_path) is False:
             os.makedirs(inference_path)
+        write_arrays_to_file(os.path.join(inference_path, "image_atom_nums.txt"), [int(len(_)/3) for _ in force_predict_list])
         write_arrays_to_file(os.path.join(inference_path, "dft_total_energy.txt"), etot_label_list)
         write_arrays_to_file(os.path.join(inference_path, "inference_total_energy.txt"), etot_predict_list)
+        # for force
+        write_force_ei(os.path.join(inference_path, "inference_ei_force.txt"), ei_predict_list, force_predict_list)
+        write_force_ei(os.path.join(inference_path, "dft_ei_force.txt"), ei_label_list, force_label_list)
 
-        write_arrays_to_file(os.path.join(inference_path, "dft_atomic_energy.txt"), ei_label_list)
-        write_arrays_to_file(os.path.join(inference_path, "inference_atomic_energy.txt"), ei_predict_list)
+        # write_arrays_to_file(os.path.join(inference_path, "dft_atomic_energy.txt"), ei_label_list)
+        # write_arrays_to_file(os.path.join(inference_path, "inference_atomic_energy.txt"), ei_predict_list)
 
-        write_arrays_to_file(os.path.join(inference_path, "dft_force.txt"), force_label_list)
-        write_arrays_to_file(os.path.join(inference_path, "inference_force.txt"), force_predict_list)
+        # write_arrays_to_file(os.path.join(inference_path, "dft_force.txt"), force_label_list)
+        # write_arrays_to_file(os.path.join(inference_path, "inference_force.txt"), force_predict_list)
 
         res_pd.to_csv(os.path.join(inference_path, "inference_loss.csv"))
 
         with open(os.path.join(inference_path, "inference_summary.txt"), 'w') as wf:
             wf.writelines(inference_cout)
         return 
-
+                
     def train(self):
         energy_shift, max_atom_nums, image_path = self._get_stat()
         energy_shift, atom_map, train_loader, val_loader = self.load_data(energy_shift, max_atom_nums)
