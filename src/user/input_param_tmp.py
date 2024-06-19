@@ -116,7 +116,7 @@ class InputParam(object):
 
         # set optimizer
         self.optimizer_param = OptimizerParam()
-        self.optimizer_param.set_optimizer(get_parameter("optimizer", json_input, {}))
+        self.optimizer_param.set_optimizer(json_input)
     
     '''
     description: 
