@@ -17,6 +17,8 @@ subroutine scan_title (io_file, title, title_line, if_find)
         CALL transform_to_upper (tmp_char, oneline)
 
         IF (present(title_line)) title_line = oneline
+
+        IF (INDEX(oneline, "LATTICE_VELOCITY") > 0) CYCLE  ! Skip lines with "LATTICE_VELOCITY" of NPT
         
         if (index(oneline,title) > 0) then
             if (present(if_find)) if_find = .TRUE.
