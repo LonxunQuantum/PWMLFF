@@ -37,62 +37,6 @@ class LayerModule(nn.Module):
         self.bias = nn.Parameter(bias, requires_grad=True) if bias is not None else None
         self.resnet_dt = nn.Parameter(resnet_dt, requires_grad=True) if resnet_dt is not None else None
 
-class EmbeddingNet(nn.Module):
-    def __init__(self, 
-                 network_size: List[int], 
-                 bias: bool, 
-                 resnet_dt: bool, 
-                 activation: str, 
-                 magic = False):
-        super(EmbeddingNet, self).__init__()
-        self.network_size = [1] + network_size
-        self.bias_flag = bias
-        self.resnet_dt_flag = resnet_dt
-        self.activation = torch.tanh if activation == "tanh" else None
-
-        self.layers = nn.ModuleList()
-        
-        # initial weight normalization
-        for i in range(1, len(self.network_size)):
-            wij = torch.Tensor(self.network_size[i-1], self.network_size[i])
-            normal(wij, mean=0, std=(1.0 / np.sqrt(self.network_size[i-1] + self.network_size[i])))
-
-            bias = None
-            if self.bias_flag:
-                bias = torch.Tensor(1, self.network_size[i])
-                normal(bias, mean=0, std=1)
-
-            resnet_dt = None
-            if self.resnet_dt_flag:
-                resnet_dt = torch.Tensor(1, self.network_size[i])
-                normal(resnet_dt, mean=1, std=0.001)
-
-            self.layers.append(LayerModule(wij, bias, resnet_dt))
-        # print()
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        for i, layer in enumerate(self.layers):
-            if self.bias_flag and layer.bias is not None:
-                hiden = torch.matmul(x, layer.weight) + layer.bias
-            else:
-                hiden = torch.matmul(x, layer.weight)
-            
-            hiden = self.activation(hiden)
-            
-            if self.network_size[i+1] == self.network_size[i]:
-                if self.resnet_dt_flag and layer.resnet_dt is not None:
-                    x = hiden * layer.resnet_dt + x
-                else:
-                    x = hiden + x
-            elif self.network_size[i+1] == 2 * self.network_size[i]:
-                if self.resnet_dt_flag and layer.resnet_dt is not None:
-                    x = torch.cat((x, x), dim=-1)  + hiden * layer.resnet_dt
-                else:
-                    x = torch.cat((x, x), dim=-1)  + hiden
-            else:
-                x = hiden
-        return x
-
 class FittingNet(nn.Module):
 
     def __init__(self,  
@@ -103,10 +47,12 @@ class FittingNet(nn.Module):
                  input_dim: int, 
                  ener_shift: float, 
                  magic = False,
-                 nep_txt_param: List[np.array]=None):
+                 nep_txt_param: List[np.array]=None,
+                 last_bias:bool=True):
         super(FittingNet, self).__init__()
         self.network_size = [input_dim] + network_size
         self.bias_flag = bias
+        self.last_bias = last_bias #if last_bias is false, the common_bias will used, just like gpumd, the test show that common_bias have lower accuracy
         self.resnet_dt_flag = resnet_dt
         self.activation = torch.tanh if activation == "tanh" else None
 
@@ -142,11 +88,14 @@ class FittingNet(nn.Module):
             wij = torch.randn(self.network_size[i-1], self.network_size[i])
             normal(wij, mean=0, std=(1.0 / np.sqrt(self.network_size[i-1] + self.network_size[i])))
 
-            if self.bias_flag:
+            if self.last_bias:
                 bias_init = torch.randn(1, self.network_size[i])
                 normal(bias_init, mean=ener_shift, std=1.0)
         
-        self.layers.append(LayerModule(wij, bias_init, None))
+        if self.last_bias:
+            self.layers.append(LayerModule(wij, bias_init, None))
+        else:
+            self.layers.append(LayerModule(wij, None, None))
     
     '''
     description: 
@@ -157,6 +106,7 @@ class FittingNet(nn.Module):
     '''    
     def get_param_list(self):
         param_list = []
+        last_bias_list = []
         for i, layer in enumerate(self.layers):
             if i < len(self.layers) - 1:        # 对于非最后一层
                 if self.bias_flag and layer.bias is not None:
@@ -175,12 +125,12 @@ class FittingNet(nn.Module):
 
         for i, layer in enumerate(self.layers):
             if i == len(self.network_size) - 2:
-                if self.bias_flag:
+                if self.last_bias:
                     param_list.extend(list(layer.weight.flatten().cpu().detach().numpy())) # the nep use tanh(x*w - b)
-                    param_list.extend((-layer.bias).flatten().cpu().detach().numpy())
+                    last_bias_list.extend((-layer.bias).flatten().cpu().detach().numpy())
                 else:
                     param_list.extend(list(layer.weight.flatten().cpu().detach().numpy()))
-        return param_list
+        return param_list, last_bias_list
 
 
 
@@ -203,7 +153,7 @@ class FittingNet(nn.Module):
 
         for i, layer in enumerate(self.layers):
             if i == len(self.network_size) - 2:
-                if self.bias_flag:
+                if self.last_bias:
                     x = torch.matmul(x, layer.weight) + layer.bias #
                 else:
                     x = torch.matmul(x, layer.weight)

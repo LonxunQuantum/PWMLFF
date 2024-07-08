@@ -37,7 +37,9 @@ class NEP(nn.Module):
             self.dtype = torch.float32
         else:
             raise RuntimeError("train(): unsupported training data type")
-        self.set_cparam()
+        
+        self.set_cparam(np.mean(energy_shift))
+
         self.maxNeighborNum = input_param.max_neigh_num
         self.fitting_net = nn.ModuleList()
         self.update_scaler = True
@@ -52,7 +54,8 @@ class NEP(nn.Module):
                                                     input_dim = self.feature_nums,
                                                     ener_shift= energy_shift[i],
                                                     magic     = False,
-                                                    nep_txt_param = nep_txt_param
+                                                    nep_txt_param = nep_txt_param,
+                                                    last_bias= True,
                                                     #    self.nep_param["net_cfg"]["fitting_net"]["resnet_dt"],
                                                     #    self.nep_param["net_cfg"]["fitting_net"]["activation"], 
                                                     ))
@@ -69,10 +72,14 @@ class NEP(nn.Module):
         nn_params = []
         type_bias = []
         for i in range(self.ntypes):
-            params = self.fitting_net[i].get_param_list()
-            nn_params.extend(params[:-1])
-            type_bias.append(params[-1])
-        nn_params.extend(type_bias)
+            params, last_bias = self.fitting_net[i].get_param_list()
+            nn_params.extend(params)
+            if len(last_bias) > 0:
+                type_bias.append(last_bias)
+        if len(type_bias) > 0:
+            nn_params.append(np.mean(type_bias))
+        else:
+            nn_params.append(float(self.common_bias))
         # nn_params.extend(type_bias) # for new nep.txt test
         nn_params.extend(list(self.c_param_2.permute(2, 3, 0, 1).flatten().cpu().detach().numpy()))
         nn_params.extend(list(self.c_param_3.permute(2, 3, 0, 1).flatten().cpu().detach().numpy()))
@@ -130,10 +137,12 @@ class NEP(nn.Module):
     return {*}
     author: wuxingxing
     '''    
-    def set_cparam(self):
-        if self.input_param.nep_param.c2_param is not None:
+    def set_cparam(self, energy_shift:float):
+        if self.input_param.nep_param.c2_param is not None: #load from nep.txt
             self.c_param_2 = torch.nn.Parameter(torch.tensor(self.input_param.nep_param.c2_param), requires_grad=True)
             self.c_param_3 = torch.nn.Parameter(torch.tensor(self.input_param.nep_param.c3_param), requires_grad=True)
+            # add bias
+            
         else: # init by randly (for first training) or checkpoint
             r_k = torch.normal(mean=0, std=1, size=(self.c_num,), dtype=self.dtype)
             m = torch.rand(self.c_num, dtype=self.dtype) - 0.5
@@ -143,7 +152,13 @@ class NEP(nn.Module):
             self.c_param_3 = torch.nn.Parameter(c_param[self.two_c_num : ].reshape(self.ntypes, self.ntypes, (self.n_max_angular+1), (self.n_base_angular+1)), requires_grad=True)
 
             # self.c_param_2 = torch.nn.Parameter(torch.ones([self.ntypes, self.ntypes, (self.n_max_radial+1), (self.n_base_radial+1)]), requires_grad=False)
-            # self.c_param_3 = torch.nn.Parameter(torch.ones([self.ntypes, self.ntypes, (self.n_max_radial+1), (self.n_base_radial+1)]), requires_grad=False)
+            # self.c_param_3 = torch.nn.Parameter(torch.ones([self.ntypes, self.ntypes, (self.n_max_angular+1), (self.n_base_angular+1)]), requires_grad=False)
+
+            # self.c_param_2 = torch.nn.Parameter(torch.normal(mean=0, std=0.5, size = (self.ntypes, self.ntypes, (self.n_max_radial+1), (self.n_base_radial+1))), requires_grad=True)
+            # self.c_param_3 = torch.nn.Parameter(torch.normal(mean=0, std=0.5, size = (self.ntypes, self.ntypes, (self.n_max_angular+1), (self.n_base_angular+1))), requires_grad=True)
+            
+            # self.common_bias = torch.nn.Parameter(torch.tensor(energy_shift), requires_grad=True)
+            self.common_bias = None  # for nep common bias test
 
     '''
     description: 
@@ -167,12 +182,13 @@ class NEP(nn.Module):
         self.q_min = None
         self.q_max = None
         if self.input_param.nep_param.q_scaler is not None:
-            self.q_scaler = torch.tensor(self.input_param.nep_param.q_scaler, dtype=dtype, device=device)
+            self.q_scaler = torch.tensor(self.input_param.nep_param.q_scaler, dtype=dtype, device=device) #load from nep.txt
         else:
             if q_scaler is None:
+                # self.q_scaler = torch.full((self.feature_nums,), 0.01, device=device, dtype=dtype) # init 
                 self.q_scaler = None
             else:
-                self.q_scaler = torch.tensor(q_scaler, dtype=dtype, device=device)
+                self.q_scaler = torch.tensor(q_scaler, dtype=dtype, device=device) # load from ckpt file
 
         self.C3B = torch.tensor([0.238732414637843, 0.238732414637843, 0.238732414637843, #c10, c11, 12
                 0.099471839432435, 1.1936620731892151, 1.1936620731892151, 0.2984155182973038, 0.2984155182973038, #c20,c21=c22,c23=c24
@@ -253,10 +269,13 @@ class NEP(nn.Module):
    
     def forward(self, 
                 list_neigh: torch.Tensor,   # int32
-                Imagetype_map: torch.Tensor,    # int32
-                atom_type: torch.Tensor,    # int32
                 ImageDR: torch.Tensor,      # float64
                 list_neigh_type: torch.Tensor,
+                list_neigh_angular: torch.Tensor,   # int32
+                ImageDR_angular: torch.Tensor,      # float64
+                list_neigh_type_angular: torch.Tensor,
+                Imagetype_map: torch.Tensor,    # int32
+                atom_type: torch.Tensor,    # int32
                 nghost: int, 
                 Egroup_weight: Optional[torch.Tensor] = None, 
                 divider: Optional[torch.Tensor] = None, 
@@ -277,7 +296,7 @@ class NEP(nn.Module):
         Returns:
             Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]]: Tuple containing the total energy (Etot), atomic energies (Ei), forces (Force), energy group (Egroup), and virial (Virial).
         """
-        # check_cuda_memory(-1, -1, "=====FORWAR START=====") self.fitting_net[0].layers[0].weight
+        # check_cuda_memory(-1, -1, "=====FORWAR START=====") #self.fitting_net[0].layers[0].weight
         # t0 = time.time()
         device = ImageDR.device
         dtype = ImageDR.dtype
@@ -291,25 +310,46 @@ class NEP(nn.Module):
         # t1 = time.time()
         # check_cuda_memory(-1, -1, "FORWAR get_fitnet_index")
         # print("t12 {} t11 {} t10 {}".format(t1-t11, t11-t10, t10-t0))
-        Ri, Ri_d = self.calculate_Ri(doub_natoms_sum, batch_size, max_neighbor_type, Imagetype_map, ImageDR, device, dtype)
+        Ri, Ri_d, Ri_angular, Ri_d_angular = self.calculate_Ri(doub_natoms_sum, batch_size, max_neighbor_type, Imagetype_map, ImageDR, ImageDR_angular, device, dtype)
         Ri.requires_grad_()
+        Ri_angular.requires_grad_()
         # j_type_map = torch.tensor(list_neigh_type, dtype=list_neigh_type.dtype, device=list_neigh_type.device, requires_grad=False)
         j_type_map = list_neigh_type.clone().detach().requires_grad_(False)#可以在调用前做复制，从forward移出去，只有训练需要
+        j_type_map_angular = list_neigh_type_angular.clone().detach().requires_grad_(False)
         # t2 = time.time()
         # j_type = list_neigh - 1
         # neigh_j_types = torch.where(j_type != -1, Imagetype_map[j_type], -1).requires_grad_(False)
         # check_cuda_memory(-1, -1, "FORWAR calculate_Ri")
-        feats = self.calculate_qn(doub_natoms_sum, batch_size, max_neighbor_type, Imagetype_map, j_type_map, Ri, device, dtype)
+        feats = self.calculate_qn(doub_natoms_sum, batch_size, max_neighbor_type, Imagetype_map, j_type_map, Ri, j_type_map_angular, Ri_angular, device, dtype)
 
         if self.q_scaler is None:
             q_max = torch.max(feats.reshape([-1, feats.shape[-1]]), dim=-2)[0]
             q_min = torch.min(feats.reshape([-1, feats.shape[-1]]), dim=-2)[0]
             self.q_scaler = (1/(q_max-q_min)).detach()
         elif is_calc_f is False and self.update_scaler:
-
             q_max = torch.max(feats.reshape([-1, feats.shape[-1]]), dim=-2)[0]
             q_min = torch.min(feats.reshape([-1, feats.shape[-1]]), dim=-2)[0]
             self.q_scaler = torch.min(self.q_scaler, 1/(q_max-q_min)).detach()
+
+        # if self.q_scaler is None:
+        #     self.q_scaler = torch.tensor(
+        #         [0.003048953802, 0.003048953802, 0.003048953802, 0.003048953802,
+        #         0.003048953802, 0.003048953802, 0.003048953802, 0.003048953802,
+        #         0.003048953802, 0.003048953802, 0.003048953802, 0.003048953802,
+        #         0.003048953802, 0.009608285285, 0.009608285285, 0.009608285285,
+        #         0.009608285285, 0.009608285285, 0.009608285285, 0.009608285285,
+        #         0.009608285285, 0.009608285285, 0.007327494973, 0.007327494973,
+        #         0.007327494973, 0.007327494973, 0.007327494973, 0.007327494973,
+        #         0.007327494973, 0.007327494973, 0.007327494973, 0.005102386959,
+        #         0.005102386959, 0.005102386959, 0.005102386959, 0.005102386959,
+        #         0.005102386959, 0.005102386959, 0.005102386959, 0.005102386959,
+        #         0.004005835421, 0.004005835421, 0.004005835421, 0.004005835421,
+        #         0.004005835421, 0.004005835421, 0.004005835421, 0.004005835421,
+        #         0.004005835421, 0.001586713044, 0.001586713044, 0.001586713044,
+        #         0.001586713044, 0.001586713044, 0.001586713044, 0.001586713044,
+        #         0.001586713044, 0.001586713044, 0.000196557407, 0.000196557407,
+        #         0.000196557407, 0.000196557407, 0.000196557407, 0.000196557407,
+        #         0.000196557407, 0.000196557407, 0.000196557407],device=device, dtype=dtype)
             
         # t3 = time.time()
         # if self.q_scaler is None:
@@ -349,13 +389,15 @@ class NEP(nn.Module):
             # print("==single time: t1 {} t2 {} t3 {} t4 {} t5 {} t6 {}".format(t1-t0, t2-t1, t3-t2, t4-t3, t5-t4, t6-t5))
         else:
             # t4 = time.time()
-            Force, Virial = self.calculate_force_virial(Ri, Ri_d, Etot, natoms_sum, batch_size, list_neigh, ImageDR, nghost, device, dtype)
+            Force, Virial = self.calculate_force_virial(Ri, Ri_d, Ri_angular, Ri_d_angular, Etot, natoms_sum, batch_size, list_neigh, ImageDR, list_neigh_angular, ImageDR_angular, nghost, device, dtype)
             # t7 = time.time()
             # ==single time: t1 0.0015997886657714844 t2 0.0016467571258544922 t3 0.03717923164367676 t4 2.8371810913085938e-05 t5 0.0011038780212402344 t6 4.267692565917969e-05 t7 0.08994221687316895
             # print("==single time: t1 {} t2 {} t3 {} t4 {} t5 {} t6 {} t7 {}".format(t1-t0, t2-t1, t3-t2, t4-t3, t5-t4, t6-t5, t7-t6))
             # check_cuda_memory(-1, -1, "FORWAR calculate_force")
         # del Ri, Ri_d, feats
         # torch.cuda.empty_cache()
+        # tlast = time.time()
+        # print("====", tlast - t0, "====")
         return Etot, Ei, Force, Egroup, Virial
 
     def calculate_Ri(self,
@@ -364,19 +406,11 @@ class NEP(nn.Module):
                      max_neighbor_type: int,
                      Imagetype_map: torch.Tensor,
                      ImagedR: torch.Tensor, 
+                     ImagedR_angular: torch.Tensor, 
                      device: torch.device,
                      dtype: torch.dtype) -> Tuple[torch.Tensor, torch.Tensor]:
-        # R = ImagedR[:, :, :, 0]
-        # Ri = torch.zeros(batch_size, natoms_sum, max_neighbor_type, 4, dtype=dtype, device=device)
-        # Ri[:, :, :, 0] = R
-        # Ri[:, :, :, 1] = ImagedR[:, :, :, 1]
-        # Ri[:, :, :, 2] = ImagedR[:, :, :, 2]
-        # Ri[:, :, :, 3] = ImagedR[:, :, :, 3]
         mask = ImagedR[:, :, :, 0].abs() > 1e-5
         Ri_d = torch.zeros(batch_size, natoms_sum, max_neighbor_type, 4, 3, dtype=dtype, device=device)
-        # xij = ImagedR[:, :, :, 1][mask]
-        # yij = ImagedR[:, :, :, 2][mask]
-        # zij = ImagedR[:, :, :, 3][mask]
         Ri_d[:, :, :, 0, 0][mask] = ImagedR[:, :, :, 1][mask] / ImagedR[:, :, :, 0][mask]
         Ri_d[:, :, :, 1, 0][mask] = 1
         # dy
@@ -384,8 +418,21 @@ class NEP(nn.Module):
         Ri_d[:, :, :, 2, 1][mask] = 1
         # dz
         Ri_d[:, :, :, 0, 2][mask] = ImagedR[:, :, :, 3][mask] / ImagedR[:, :, :, 0][mask]
-        Ri_d[:, :, :, 3, 2][mask] = 1
-        return ImagedR, Ri_d
+        Ri_d[:, :, :, 3, 2][mask] = 1 
+
+
+        mask = ImagedR_angular[:, :, :, 0].abs() > 1e-5
+        Ri_d_angular = torch.zeros(batch_size, natoms_sum, max_neighbor_type, 4, 3, dtype=dtype, device=device)
+        Ri_d_angular[:, :, :, 0, 0][mask] = ImagedR_angular[:, :, :, 1][mask] / ImagedR_angular[:, :, :, 0][mask]
+        Ri_d_angular[:, :, :, 1, 0][mask] = 1
+        # dy
+        Ri_d_angular[:, :, :, 0, 1][mask] = ImagedR_angular[:, :, :, 2][mask] / ImagedR_angular[:, :, :, 0][mask]
+        Ri_d_angular[:, :, :, 2, 1][mask] = 1
+        # dz
+        Ri_d_angular[:, :, :, 0, 2][mask] = ImagedR_angular[:, :, :, 3][mask] / ImagedR_angular[:, :, :, 0][mask]
+        Ri_d_angular[:, :, :, 3, 2][mask] = 1 
+
+        return ImagedR, Ri_d, ImagedR_angular, Ri_d_angular
 
     def calculate_Ei(self, 
                      Imagetype_map: torch.Tensor,
@@ -418,6 +465,8 @@ class NEP(nn.Module):
                 continue
             indices = torch.arange(len(Imagetype_map.flatten()),device=device)[mask]  
             feat = feats[:, indices, :]
+            # _Ei_ntype = fit_net.forward(feat)
+            # Ei_ntype = _Ei_ntype + self.common_bias
             Ei_ntype = fit_net.forward(feat)
             Ei = Ei_ntype if Ei is None else torch.concat((Ei, Ei_ntype), dim=1)
             # print()
@@ -430,17 +479,23 @@ class NEP(nn.Module):
     def calculate_force_virial(self, 
                                Ri: torch.Tensor,
                                Ri_d: torch.Tensor,
+                               Ri_angular: torch.Tensor,
+                               Ri_d_angular: torch.Tensor,
                                Etot: torch.Tensor,
                                natoms_sum: int,
                                batch_size: int,
                                list_neigh: torch.Tensor,
                                ImageDR: torch.Tensor, 
+                               list_neigh_angular: torch.Tensor,
+                               ImageDR_angular: torch.Tensor, 
                                nghost: int,
                                device: torch.device,
                                dtype: torch.dtype) -> Tuple[torch.Tensor, torch.Tensor]:
         # t7 = time.time()
         mask: List[Optional[torch.Tensor]] = [torch.ones_like(Etot)]
         dE = torch.autograd.grad([Etot], [Ri], grad_outputs=mask, retain_graph=True, create_graph=True)[0]
+        dE_angular = torch.autograd.grad([Etot], [Ri_angular], grad_outputs=mask, retain_graph=True, create_graph=True)[0]
+        
         # t8 = time.time()
         '''
         # this result is same as the above code
@@ -482,11 +537,22 @@ class NEP(nn.Module):
             list_neigh = (list_neigh - 1).type(torch.int)
             Force = CalcOps.calculateForce(list_neigh, dE, Ri_d, Force, nghost_tensor)[0]
             Virial = CalcOps.calculateVirial(list_neigh, dE, ImageDR, Ri_d, nghost_tensor)[0]
+
+            Ri_d_angular = Ri_d_angular.view(batch_size, natoms_sum, -1, 3)
+            dE_angular = dE_angular.view(batch_size, natoms_sum, 1, -1)
+            Force_angular = -1 * torch.matmul(dE_angular, Ri_d_angular).squeeze(-2)
+            ImageDR_angular = Ri_angular[:,:,:,1:].clone()
+            nghost_tensor = torch.tensor(nghost, device=device, dtype=torch.int64)
+            list_neigh_angular = torch.unsqueeze(list_neigh_angular,2)
+            list_neigh_angular = (list_neigh_angular - 1).type(torch.int)
+            Force_angular = CalcOps.calculateForce(list_neigh_angular, dE_angular, Ri_d_angular, Force_angular, nghost_tensor)[0]
+            Virial_angular = CalcOps.calculateVirial(list_neigh_angular, dE_angular, ImageDR_angular, Ri_d_angular, nghost_tensor)[0]
+
         # t9 = time.time()
         # print("t8 {} t9 {}".format(t8-t7, t9-t8))
         del dE
         # print(-Force)
-        return -Force, -Virial
+        return -(Force + Force_angular), -(Virial + Virial_angular)
 
     def calculate_qn(self,
                      natoms_sum: int,#no use
@@ -495,24 +561,24 @@ class NEP(nn.Module):
                      Imagetype_map: torch.Tensor,
                      j_type_map: torch.Tensor,
                      Ri: torch.Tensor, 
+                     j_type_map_angular: torch.Tensor,
+                     Ri_angular: torch.Tensor, 
                      device: torch.device,
                      dtype: torch.dtype) -> torch.Tensor:
         # check_cuda_memory(-1, -1, "FORWAR calculate_qn start")
         atom_nums = Imagetype_map.shape[0]
-        R = Ri[:, :, :, 0]
-        xyz = Ri[:, :, :, 1:]
-        # feat_2b = self.cal_feat_2body(R[:, :atom_nums, :], Imagetype_map, j_type_map[:, :atom_nums, :], self.n_max_radial, self.n_base_radial, self.cutoff_radial, self.rcinv_radial)
-        # # check_cuda_memory(-1, -1, "FORWAR calculate_qn 2b end")
-        # feat_3b, feat_4b, feat_5b = self.cal_feat_multi_body(R[:,atom_nums:, :], xyz[:,atom_nums:, :], Imagetype_map, j_type_map[:, atom_nums:, :], self.n_max_angular, self.n_base_angular, self.cutoff_angular, self.rcinv_angular, self.l_max_3b)
+        c2 = self.get_c(self.c_param_2, self.n_max_radial,  self.n_base_radial,  Imagetype_map, j_type_map)
+        c3 = self.get_c(self.c_param_3, self.n_max_angular, self.n_base_angular, Imagetype_map, j_type_map_angular)
         
-        c2, c3 = self.get_c(self.c_param_2, self.c_param_3, self.n_max_radial, self.n_base_radial, self.n_max_angular, self.n_base_angular, Imagetype_map, j_type_map)
-        feat_2b = self.cal_feat_2body(R, Imagetype_map, 
-                                        # j_type_map, 
+        # R = Ri[:, :, :, 0]
+        # xyz = Ri[:, :, :, 1:]
+        feat_2b = self.cal_feat_2body(Ri[:, :, :, 0], Imagetype_map, 
                                         c2,
                                         self.n_max_radial, self.n_base_radial, self.cutoff_radial, self.rcinv_radial)
         # check_cuda_memory(-1, -1, "FORWAR calculate_qn 2b end")
-        multi_feat = self.cal_feat_multi_body(R, xyz, Imagetype_map, 
-                                        # j_type_map, 
+        # R = Ri_angular[:, :, :, 0]
+        # xyz = Ri_angular[:, :, :, 1:]
+        multi_feat = self.cal_feat_multi_body(Ri_angular[:, :, :, 0], Ri_angular[:, :, :, 1:], Imagetype_map, 
                                         c3,
                                         self.n_max_angular, self.n_base_angular, self.cutoff_angular, self.rcinv_angular, self.l_max_3b)
 
@@ -520,11 +586,8 @@ class NEP(nn.Module):
 
     def get_c(self,
             c_2b : torch.Tensor,
-            c_3b : torch.Tensor,
             n_max_r : int,
             n_base_r:int,
-            n_max_a : int,
-            n_base_a :int,
             Imagetype_map : torch.Tensor,
             j_type_map : torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]: #get c params from c[n_type,n_type, n_max, n_base] 
         batch_size = j_type_map.shape[0]
@@ -533,7 +596,6 @@ class NEP(nn.Module):
 
         # j_type_map = j_type_map.clone()
         mask = j_type_map > -1
-        # j_type_map = j_type_map -1
         j_type_map[mask] = (Imagetype_map*self.ntypes).unsqueeze(-1).unsqueeze(0).repeat(batch_size, 1, self.ntypes*self.maxNeighborNum)[mask]+j_type_map[mask]
         j_type_map3 = j_type_map.flatten()
         mask2 = j_type_map3 > -1
@@ -543,14 +605,7 @@ class NEP(nn.Module):
         c_list[mask2] = c2[j_type_map3[mask2]]
         # c1 = c[Imagetype_map, :, :, :] # search by i
         c2 = c_list.view(batch_size, atom_nums, j_list_nums, n_max_r+1, n_base_r+1)
-
-        c_3b_list = torch.zeros([j_type_map3.shape[0], n_max_a+1, n_base_a+1], dtype=c_3b.dtype, device=c_3b.device)
-        c3 = c_3b.reshape(self.ntypes_sq, c_3b.shape[-2],c_3b.shape[-1])
-        c_3b_list[mask2] = c3[j_type_map3[mask2]]
-        # c3 = c[Imagetype_map, :, :, :] # search by i
-        c3 = c_3b_list.view(batch_size, atom_nums, j_list_nums, n_max_a +1, n_base_a +1)
-
-        return c2.transpose(3, 2), c3.transpose(3, 2)
+        return c2.transpose(3, 2)
 
     # def get_c(self,
     #         c : torch.Tensor,

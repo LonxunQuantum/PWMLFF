@@ -41,7 +41,7 @@ from src.optimizer.LKF import LKFOptimizer
 from src.optimizer.SNES import SNESOptimizer
 
 from src.pre_data.nep_data_loader import MovementDataset, get_stat, gen_train_data
-from src.PWMLFF.nep_mods.nep_trainer import train_KF, train, valid, save_checkpoint, predict
+from src.PWMLFF.nep_mods.nep_trainer import train_KF, train, valid, save_checkpoint, predict, calculate_scaler
 from src.PWMLFF.nep_mods.nep_snes_trainer import train_snes
 from src.PWMLFF.dp_param_extract import load_atomtype_energyshift_from_checkpoint
 from src.user.input_param import InputParam
@@ -123,8 +123,9 @@ class nep_network:
         else:
             stat_add = None
         
-        if self.input_param.file_paths.datasets_path is None or len(self.input_param.file_paths.datasets_path) == 0:# for togpumd
+        if self.input_param.file_paths.datasets_path is None or len(self.input_param.file_paths.datasets_path) == 0:# for togpumd model
             return energy_shift, 100, None
+
         energy_shift, max_atom_nums, image_path = get_stat(self.input_param, stat_add, self.input_param.file_paths.datasets_path, 
                          self.input_param.file_paths.json_dir, self.input_param.chunk_size)
         return energy_shift, max_atom_nums, image_path
@@ -146,7 +147,6 @@ class nep_network:
                                             config, self.input_param, energy_shift, max_atom_nums)
             valid_dataset = None
         else:           
-            print(self.input_param.file_paths.datasets_path) 
             train_dataset = MovementDataset([os.path.join(_, config['trainDataPath']) for _ in self.input_param.file_paths.datasets_path], 
                                             config, self.input_param, energy_shift, max_atom_nums)
             valid_dataset = MovementDataset([os.path.join(_, config['validDataPath']) 
@@ -383,9 +383,10 @@ class nep_network:
                 
     def train(self):
         energy_shift, max_atom_nums, image_path = self._get_stat()
-        energy_shift, atom_map, train_loader, val_loader = self.load_data(energy_shift, max_atom_nums)
-         #energy_shift is same as energy_shift of upper; atom_map is the user input order
+        #energy_shift is same as energy_shift of upper; atom_map is the user input order
         model, optimizer = self.load_model_optimizer(energy_shift)
+        energy_shift, atom_map, train_loader, val_loader = self.load_data(energy_shift, max_atom_nums)
+
         # self.convert_to_gpumd(model) 
         if self.input_param.optimizer_param.opt_name == "SNES":
             self.input_param.optimizer_param.epochs = int(self.input_param.optimizer_param.generation/len(train_loader))
@@ -458,7 +459,12 @@ class nep_network:
         for epoch in range(self.input_param.optimizer_param.start_epoch, self.input_param.optimizer_param.epochs + 1):
             # if self.dp_params.hvd: # this code maybe error, check when add multi GPU training. wu
             #     self.train_sampler.set_epoch(epoch)
-
+            time_start = time.time()
+            # if epoch == 1:
+            #     calculate_scaler(
+            #             train_loader, model, self.criterion, self.device, self.input_param
+            #         )
+            # print("calculate q_scaler time is {}".format(time.time()-time_start))
             # train for one epoch
             time_start = time.time()
             if self.input_param.optimizer_param.opt_name == "LKF" or self.input_param.optimizer_param.opt_name == "GKF":
@@ -479,9 +485,10 @@ class nep_network:
             # self.convert_to_gpumd(model)
 
             # evaluate on validation set
+
             vld_loss, vld_loss_Etot, vld_loss_Etot_per_atom, vld_loss_Force, vld_loss_Ei, val_loss_egroup, val_loss_virial, val_loss_virial_per_atom = valid(
-                val_loader, model, self.criterion, self.device, self.input_param
-            )
+                    val_loader, model, self.criterion, self.device, self.input_param
+                )
 
             # if not self.dp_params.hvd or (self.dp_params.hvd and hvd.rank() == 0):
 
@@ -573,8 +580,8 @@ class nep_network:
                     "state_dict": model.state_dict(),
                     "energy_shift":energy_shift,
                     "q_scaler": model.get_q_scaler(),
-                    "atom_type_order": atom_map,    #atom type order of davg/dstd/energy_shift
-                    "optimizer":optimizer.state_dict()
+                    "atom_type_order": atom_map    #atom type order of davg/dstd/energy_shift
+                    # "optimizer":optimizer.state_dict()
                     # "sij_max":Sij_max
                     },
                     self.input_param.file_paths.model_name,
@@ -604,7 +611,7 @@ class nep_network:
 
         with open(save_nep_txt_path, 'w') as wf:
             wf.writelines(txt_head)
-        print("Successfully convert to nep.in and nep.txt file.")        
+        print("Successfully convert to nep.in and nep.txt file.") 
 
     def evaluate(self,num_thread = 1):
         """

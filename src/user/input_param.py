@@ -33,7 +33,7 @@ class InputParam(object):
         self.model_num = get_parameter("model_num", json_input, 1)
         self.recover_train = get_parameter("recover_train", json_input, True)
         self.max_neigh_num = get_parameter("max_neigh_num", json_input, 100)
-
+        
         self.profiling = get_parameter("profiling", json_input, False)#not realized
 
         self.set_feature_params(json_input)
@@ -282,7 +282,8 @@ class InputParam(object):
         params_dict["max_neigh_num"] = self.max_neigh_num
         if self.seed is not None:
             params_dict["seed"] = self.seed
-        params_dict["model_num"] = self.model_num
+        if self.model_num > 1 :
+            params_dict["model_num"] = self.model_num
         # params_dict["E_tolerance"] = self.descriptor.E_tolerance
         # params_dict["Rmax"] = self.descriptor.Rmax
         # params_dict["Rmin"] = self.Rmin

@@ -62,8 +62,6 @@ class MovementDataset(Dataset):
         data["Force"] = self.all_movement_data["forces.npy"][index]
         data["Ei"] = self.all_movement_data["ei.npy"][index]
         data["Etot"] = self.all_movement_data["energies.npy"][index]
-        # data["ListNeighbor"] = self.all_movement_data["ListNeighbor"][index]
-        # data["ImageDR"] = self.all_movement_data["ImageDR"][index]
         data["Position"] = self.all_movement_data["position.npy"][index]
         data["Lattice"] = self.all_movement_data["lattice.npy"][index]
         data["AtomType"] = self.all_movement_data["atom_type.npy"][type_index]
@@ -71,16 +69,31 @@ class MovementDataset(Dataset):
         atom_nums = self.atoms_per_dir[type_index]
         data["ImageAtomNum"] = self.atoms_per_dir[type_index]
 
-        # #radial and angular is set from nep.txt file
-        list_neigh, dR_neigh, list_neigh_type, Egroup_weight, Divider, Egroup  = self.find_neigh_nep(
+        # #radial and angular is set from nep.txt file 
+        list_neigh_radial, dR_neigh_radial, list_neigh_type_radial, \
+            list_neigh_angular, dR_neigh_angular, list_neigh_type_angular, Egroup_weight, Divider, Egroup  = self.find_neigh_nep(
                             list(data["AtomTypeMap"]),
                             list(data["Lattice"].transpose(1, 0).reshape(-1)),
                             list(data["Position"].transpose(1, 0).reshape(-1)))
 
+        # for batch > 1, the demision of each type data should be the same when use the dataloader
+        if list_neigh_radial.shape[0] < self.img_max_atom_num:
+            list_neigh_radial = np.pad(list_neigh_radial, ((0, self.img_max_atom_num - list_neigh_radial.shape[0]), (0, 0)))
+            dR_neigh_radial = np.pad(dR_neigh_radial, ((0, self.img_max_atom_num - dR_neigh_radial.shape[0]), (0, 0), (0, 0)))
+            list_neigh_type_radial = np.pad(list_neigh_type_radial, ((0, self.img_max_atom_num - list_neigh_type_radial.shape[0]), (0, 0)))
 
-        data["ListNeighbor"] = list_neigh
-        data["ListNeighborType"]=list_neigh_type
-        data["ImageDR"] = dR_neigh
+            list_neigh_angular = np.pad(list_neigh_angular, ((0, self.img_max_atom_num - list_neigh_angular.shape[0]), (0, 0)))
+            dR_neigh_angular = np.pad(dR_neigh_angular, ((0, self.img_max_atom_num - dR_neigh_angular.shape[0]), (0, 0), (0, 0)))
+            list_neigh_type_angular = np.pad(list_neigh_type_angular, ((0, self.img_max_atom_num - list_neigh_type_angular.shape[0]), (0, 0)))
+
+        data["ListNeighbor"] = list_neigh_radial
+        data["ListNeighborType"]=list_neigh_type_radial
+        data["ImageDR"] = dR_neigh_radial
+
+        data["ListNeighborAngular"] = list_neigh_angular
+        data["ListNeighborTypeAngular"]=list_neigh_type_angular
+        data["ImageDRAngular"] = dR_neigh_angular
+
         data["max_ri"] = 0
         Egroup_weight = None
         Divider = None
@@ -114,21 +127,6 @@ class MovementDataset(Dataset):
         # 34622.19498329725 d12_radial
         atom_nums = len(AtomTypeMap)
 
-        # atom_type_map_array = (ctypes.c_int * len(AtomTypeMap))(*AtomTypeMap)
-        # box_array = (ctypes.c_double * len(Lattice))(*Lattice)
-        # position_array = (ctypes.c_double * len(Position))(*Position)
-
-        # neighs_ptr = libfindneigh.get_neighs(self.cal_neigh, atom_nums, atom_type_map_array, box_array, position_array)
-        # r12_radial_ptr = ctypes.cast(neighs_ptr[0], ctypes.POINTER(ctypes.c_double))
-        # r12_angular_ptr = ctypes.cast(neighs_ptr[1], ctypes.POINTER(ctypes.c_double))
-        # NL_radial_ptr = ctypes.cast(neighs_ptr[2], ctypes.POINTER(ctypes.c_int))
-        # NL_angular_ptr = ctypes.cast(neighs_ptr[3], ctypes.POINTER(ctypes.c_int))
-        # NLT_radial_ptr = ctypes.cast(neighs_ptr[4], ctypes.POINTER(ctypes.c_int))
-        # NLT_angular_ptr = ctypes.cast(neighs_ptr[5], ctypes.POINTER(ctypes.c_int))
-
-        # d12_radial, d12_agular, NL_radial, NL_angular, NLT_radial, NLT_angular = lib.getNeigh(self.input_param.descriptor.cutoff[0],self.input_param.descriptor.cutoff[1], 
-        #     len(self.input_param.atom_type)*self.input_param.max_neigh_num, AtomTypeMap, Lattice, Position
-        # )
         d12_radial, d12_agular, NL_radial, NL_angular, NLT_radial, NLT_angular = self.calc.getNeigh(
                            self.input_param.descriptor.cutoff[0],self.input_param.descriptor.cutoff[1], 
                             len(self.input_param.atom_type)*self.input_param.max_neigh_num, AtomTypeMap, Lattice, Position)
@@ -152,7 +150,7 @@ class MovementDataset(Dataset):
         #     [ 5.20970035,  0.86372267,  0.        , -5.13760264]])
 
         # 测试新的代码，先pwdata转分数坐标，mvm_10数据 done
-        return neigh_radial_list, neigh_radial_rij, neigh_radial_type_list, Egroup_weight, Divider, Egroup
+        return neigh_radial_list, neigh_radial_rij, neigh_radial_type_list, neigh_angular_list, neigh_angular_rij, neigh_angular_type_list, Egroup_weight, Divider, Egroup
 
     def __getitem__(self, index):
         data = self.__load_data(index)
@@ -277,8 +275,8 @@ author: wuxingxing
 '''
 def get_stat(config:InputParam, stat_add=None, datasets_path=None, work_dir=None, chunk_size=10):
     train_data_path = config.file_paths.trainDataPath
-    ntypes = len(config.atom_type)
     input_atom_type = config.atom_type   # input atom type order
+    energy_dict = {}
     if stat_add is not None:
         # load from prescribed path
         print("input_atom_type and energy_shift are from model checkpoint")
@@ -295,28 +293,33 @@ def get_stat(config:InputParam, stat_add=None, datasets_path=None, work_dir=None
             data_load_path = dataset_path
         atom_types_image = np.load(os.path.join(data_load_path, "image_type.npy"))
         max_atom_nums = max(max_atom_nums, atom_types_image.shape[1])
-        if energy_shift is None:
-            _atom_types = np.load(os.path.join(data_load_path, "atom_type.npy"))
-            if _atom_types.shape[1] != ntypes:
-                continue
-            lattice = np.load(os.path.join(data_load_path, "lattice.npy"))
-            img_per_mvmt = lattice.shape[0]
-            if img_per_mvmt < chunk_size:
-                continue
-            valid_chunk = True
-            # position = np.load(os.path.join(data_load_path, "position.npy"))
-            _Ei = np.load(os.path.join(data_load_path, "ei.npy"))
-            type_maps = np.array(type_map(atom_types_image[0], input_atom_type))
-            types, type_incides, atom_types_nums = np.unique(type_maps, return_index=True, return_counts=True)
-            atom_types_nums = atom_types_nums[np.argsort(type_incides)]
-            energy_shift = calculate_energy_shift(chunk_size, _Ei, atom_types_nums)
-            energy_shift = adjust_order_same_as_user_input(energy_shift, _atom_types[0].tolist(), input_atom_type)
-            # set feature scaler
-            
-    if not valid_chunk and energy_shift is None:
-        raise ValueError("Invalid 'chunk_size', the number of images (include all atom types) in the movement is too big, \nPlease set a smaller chunk_size (default: 10) or add more images in the movement")
+        if len(energy_dict.keys()) == len(config.atom_type):
+            continue
+        lattice = np.load(os.path.join(data_load_path, "lattice.npy"))
+        img_per_mvmt = lattice.shape[0]
+        # if img_per_mvmt < chunk_size:
+        #     continue
+        _num_image_used = chunk_size if chunk_size < img_per_mvmt else img_per_mvmt
+        _atom_types = np.load(os.path.join(data_load_path, "atom_type.npy"))
+        _Ei = np.load(os.path.join(data_load_path, "ei.npy"))
+        
+        type_maps = np.array(type_map(atom_types_image[0], input_atom_type))
+        types, type_incides, atom_types_nums = np.unique(type_maps, return_index=True, return_counts=True)
+        atom_types_nums = atom_types_nums[np.argsort(type_incides)]
+        _energy_shift = calculate_energy_shift(_num_image_used, _Ei, atom_types_nums)
+        for idx, _atom_type in enumerate(_atom_types[0]):
+            if _atom_type not in energy_dict.keys():
+                energy_dict[_atom_type] = _energy_shift[idx]
+           
+    res = []
+    for atom in config.atom_type:
+        if atom in energy_dict.keys():
+            res.append(energy_dict[atom])
+        else:
+            res.append(0.0)
 
-    return energy_shift, max_atom_nums, os.path.join(data_load_path)
+    return res, max_atom_nums, os.path.join(data_load_path)
+
 
 '''
 description: 

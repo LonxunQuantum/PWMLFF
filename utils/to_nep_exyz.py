@@ -22,6 +22,7 @@ def random_index(image_nums:int, ratio:float, is_random:bool=False, seed:int=Non
 
 def convert_to_xyz(input_list:list, 
                     input_format:str, 
+                    atom_types:str,
                     save_dir:str,
                     train_save_name:str, 
                     valid_save_name:str, 
@@ -40,7 +41,7 @@ def convert_to_xyz(input_list:list,
     
     for pwdata_dir in input_list:
         # if input_format != "pwmlff/npy":# for raw datas
-        image_data = Config(data_path=pwdata_dir, format=input_format)
+        image_data = Config(data_path=pwdata_dir, format=input_format, atom_names=atom_types)
         image_list = image_data.images
         image_nums = len(image_list)
 
@@ -88,14 +89,19 @@ def save_to_extxyz(image_data_all: list, output_path: str, data_name: str, write
     print("Convert to %s successfully!" % data_name)
 
 if __name__ == "__main__":
-    datasets_path = ["/data/home/wuxingxing/datas/pwmat_mlff_workdir/ligeps/test_gpumd/100_test"]
-    save_dir = "/data/home/wuxingxing/datas/pwmat_mlff_workdir/ligeps/test_gpumd"
-    input_format  = "pwmat/movement" # 支持格式："pwmlff/mpy","pwmat/movement","vasp/outcar",dpdata/npy","dpdata/raw"
+    datasets_path = ["/data/home/wuxingxing/datas/pwmat_mlff_workdir/hfo2/lmps_test/pwmlff_setatom/96atoms/traj/0.lammpstrj"]
+    save_dir = "/data/home/wuxingxing/datas/pwmat_mlff_workdir/hfo2/lmps_test/pwmlff_setatom/96k/gpumd"
+    input_format  = "lammps/dump" # 支持格式："pwmlff/npy","pwmat/movement","vasp/outcar",dpdata/npy","dpdata/raw"
     valid_shuffle = False             #分割训练集验证集时，是否随机分割
     train_valid_ratio = 1          #分割训练集、测试集比例
     seed = 2024                      #随机分割时的random seed
+    if "lammps" in input_format:
+        atom_types = ["Hf", "O"]
+    else:
+        atom_types = None
     convert_to_xyz( input_list      =datasets_path,
                     input_format    =input_format,
+                    atom_types      =atom_types,
                     save_dir        =save_dir,
                     train_save_name ="train.xyz",
                     valid_save_name ="test.xyz",

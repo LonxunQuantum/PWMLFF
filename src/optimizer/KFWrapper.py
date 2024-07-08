@@ -6,7 +6,7 @@ import numpy as np
 import torch.distributed as dist
 import math
 import random
-
+from utils.debug_operation import check_cuda_memory
 class KFOptimizerWrapper:
     def __init__(
         self,
@@ -45,9 +45,12 @@ class KFOptimizerWrapper:
                 inputs[2],
                 inputs[3],
                 inputs[4],
-                0,
                 inputs[5],
                 inputs[6],
+                inputs[7],
+                0,
+                inputs[8],
+                inputs[9],
                 is_calc_f=False,
             )
         elif train_type == "NN": # nn training
@@ -75,7 +78,7 @@ class KFOptimizerWrapper:
         else:
             raise Exception("Error! the train type {} is not realized!".format(train_type))
         # natoms_sum = inputs[2][0, 0]
-        natoms_sum = len(inputs[1])
+        natoms_sum = inputs[0].shape[1]
         self.optimizer.set_grad_prefactor(natoms_sum)
 
         self.optimizer.zero_grad()
@@ -127,9 +130,12 @@ class KFOptimizerWrapper:
                 inputs[2],
                 inputs[3],
                 inputs[4],
-                0,
                 inputs[5],
                 inputs[6],
+                inputs[7],
+                0,
+                inputs[8],
+                inputs[9],
                 is_calc_f=False,
             )
         elif train_type == "NN": # nn training
@@ -156,7 +162,7 @@ class KFOptimizerWrapper:
             )
         else:
             raise Exception("Error! the train type {} is not realized!".format(train_type))
-        natoms_sum = len(inputs[1])
+        natoms_sum = inputs[0].shape[1]
         self.optimizer.set_grad_prefactor(1.0)
 
         self.optimizer.zero_grad()
@@ -208,9 +214,12 @@ class KFOptimizerWrapper:
                 inputs[2],
                 inputs[3],
                 inputs[4],
-                0,
                 inputs[5],
-                inputs[6]
+                inputs[6],
+                inputs[7],
+                0,
+                inputs[8],
+                inputs[9]
             )
         elif train_type == "NN":
             Etot_predict, _, _, Virial_predict = self.model(
@@ -236,7 +245,7 @@ class KFOptimizerWrapper:
         else:
             raise Exception("Error! the train type {} is not realized!".format(train_type))
 
-        natoms_sum = len(inputs[1])
+        natoms_sum = inputs[0].shape[1]
         self.optimizer.set_grad_prefactor(natoms_sum)
         
         self.optimizer.zero_grad()
@@ -318,7 +327,7 @@ class KFOptimizerWrapper:
     def update_force(
         self, inputs: list, Force_label: torch.Tensor, update_prefactor: float = 1, train_type = "DP"
     ) -> None:
-        natoms_sum = len(inputs[1])
+        natoms_sum = inputs[0].shape[1]
         bs = Force_label.shape[0]
         self.optimizer.set_grad_prefactor(natoms_sum * self.atoms_per_group * 3)
 
@@ -332,7 +341,7 @@ class KFOptimizerWrapper:
                 )
             elif train_type == "NEP":
                 Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = self.model(
-                    inputs[0], inputs[1], inputs[2], inputs[3], inputs[4], 0, inputs[5], inputs[6]
+                    inputs[0], inputs[1], inputs[2], inputs[3], inputs[4], inputs[5], inputs[6], inputs[7], 0, inputs[8], inputs[9]
                 )
             elif train_type == "NN":  # nn training
                 Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = self.model(
@@ -371,6 +380,7 @@ class KFOptimizerWrapper:
                 self.optimizer.step(error, c_param=self.model.c_param, c_grad=dEi_dc)
             else:
                 self.optimizer.step(error)
+            # check_cuda_memory(i, i, "update_force index i")
         return Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict
 
     '''
@@ -401,9 +411,12 @@ class KFOptimizerWrapper:
                 inputs[2],
                 inputs[3],
                 inputs[4],
-                0,
                 inputs[5],
                 inputs[6],
+                inputs[7],
+                0,
+                inputs[8],
+                inputs[9],
                 is_calc_f=False,
             )
         elif train_type == "NN": # nn training
@@ -431,7 +444,7 @@ class KFOptimizerWrapper:
         else:
             raise Exception("Error! the train type {} is not realized!".format(train_type))
 
-        natoms_sum = len(inputs[1])
+        natoms_sum = inputs[0].shape[1]
         #print ("natoms_sum",natoms_sum)
         bs = Ei_label.shape[0]
         self.optimizer.set_grad_prefactor(1.0)
