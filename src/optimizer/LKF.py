@@ -39,8 +39,8 @@ class LKFOptimizer(Optimizer):
         param_nums = []
         param_sum = 0
         block_size = self.__get_blocksize()
-        data_type = self._params[0].dtype
-        device = self._params[0].device
+        self.data_type = self._params[0].dtype
+        self.device = self._params[0].device
 
         for param_group in self.param_groups:
             params = param_group["params"]
@@ -70,8 +70,8 @@ class LKFOptimizer(Optimizer):
                         P.append(
                             torch.eye(
                                 block_size,
-                                dtype=data_type,
-                                device=device,
+                                dtype=self.data_type,
+                                device=self.device,
                             )
                         )
                         params_packed_index.append(block_size)
@@ -79,13 +79,13 @@ class LKFOptimizer(Optimizer):
                         P.append(
                             torch.eye(
                                 param_num - block_size * i,
-                                dtype=data_type,
-                                device=device,
+                                dtype=self.data_type,
+                                device=self.device,
                             )
                         )
                         params_packed_index.append(param_num - block_size * i)
             else:
-                P.append(torch.eye(param_num, dtype=data_type, device=device))
+                P.append(torch.eye(param_num, dtype=self.data_type, device=self.device))
                 params_packed_index.append(param_num)
 
         self._state.setdefault("P", P) 
@@ -177,6 +177,23 @@ class LKFOptimizer(Optimizer):
     def set_grad_prefactor(self, grad_prefactor):
         self.grad_prefactor = grad_prefactor
     
+    def get_loss_l2_l1(self, lambda_l2=None, lambda_l1=None):
+        L2 = torch.tensor(0.0, device=self.device, dtype=self.data_type)
+        L1 = torch.tensor(0.0, device=self.device, dtype=self.data_type)
+        param_nums = 0
+        for idx, param in enumerate(self._params):
+            if lambda_l2 is not None:
+                L2 += torch.sum(param.data**2)
+            if lambda_l1 is not None:
+                L1 += torch.sum(torch.abs(param.data))
+            param_nums += param.data.nelement()
+
+        if lambda_l2 is not None:
+            L2 = lambda_l2*(L2/param_nums)**0.5
+        if lambda_l1 is not None:
+            L1 = lambda_l1* L1/param_nums
+        return L2, L1
+
     def step(self, error, **kwargs):
         
         params_packed_index = self._state.get("params_packed_index")

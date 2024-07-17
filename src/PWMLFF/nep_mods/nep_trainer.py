@@ -14,6 +14,25 @@ from src.user.input_param import InputParam
 from utils.debug_operation import check_cuda_memory
 
 def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, args:InputParam):
+
+    def calculate_l1_l2(model, lambda_L1=None, lambda_L2=None):
+        params = model.parameters()
+        dtype = next(params).dtype
+        L1 = torch.tensor(0.0, device=device, dtype=dtype)
+        L2 = torch.tensor(0.0, device=device, dtype=dtype)
+        nums_param = 0
+        for p in params:
+            if lambda_L1 is not None:
+                L1 += torch.sum(torch.abs(p.data))
+            if lambda_L2 is not None:
+                L2 += torch.sum(p.data**2)
+            nums_param += p.data.nelement()
+        if lambda_L1 is not None:    
+            L1 = lambda_L1 * L1/nums_param
+        if lambda_L2 is not None:  
+            L2 = lambda_L2 * (L2/nums_param)**0.5
+        return L1, L2
+
     batch_time = AverageMeter("Time", ":6.3f")
     data_time = AverageMeter("Data", ":6.3f")
     losses = AverageMeter("Loss", ":.4e", Summary.AVERAGE)
@@ -24,9 +43,11 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
     loss_Virial_per_atom = AverageMeter("Virial_per_atom", ":.4e", Summary.ROOT)
     loss_Ei = AverageMeter("Ei", ":.4e", Summary.ROOT)
     loss_Egroup = AverageMeter("Egroup", ":.4e", Summary.ROOT)
+    loss_L1 = AverageMeter("Loss_L1", ":.4e", Summary.ROOT)
+    loss_L2 = AverageMeter("Loss_L2", ":.4e", Summary.ROOT)
     progress = ProgressMeter(
         len(train_loader),
-        [batch_time, data_time, losses, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_Egroup, loss_Virial, loss_Virial_per_atom],
+        [batch_time, data_time, losses, loss_L1, loss_L2, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_Egroup, loss_Virial, loss_Virial_per_atom],
         prefix="Epoch: [{}]".format(epoch),
     )
     
@@ -254,7 +275,13 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
                     natoms_img[0].item(),
                 )
             # import ipdb;ipdb.set_trace()
-            loss.backward()
+
+            if args.optimizer_param.lambda_1 is not None or args.optimizer_param.lambda_2 is not None:
+                L1, L2 = calculate_l1_l2(model, args.optimizer_param.lambda_1, args.optimizer_param.lambda_2)
+            if args.optimizer_param.lambda_1 is not None: # the L2 is set in optim.adam(weight_decay), the pytorch will use it updata params atomically
+                (L1 + loss).backward()
+            else:
+                loss.backward()
             optimizer.step()
 
             
@@ -263,6 +290,11 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
             loss_Etot.update(loss_Etot_val.item(), batch_size)
             loss_Etot_per_atom.update(loss_Etot_per_atom_val.item(), batch_size)
             loss_Ei.update(loss_Ei_val.item(), batch_size)
+            if args.optimizer_param.lambda_1 is not None:
+                loss_L1.update(L1.item(), batch_size)
+            if args.optimizer_param.lambda_2 is not None:
+                loss_L2.update(L2.item(), batch_size)
+
             if args.optimizer_param.train_egroup is True:
                 loss_Egroup.update(loss_Egroup_val.item(), batch_size)
             if args.optimizer_param.train_virial is True:
@@ -288,6 +320,8 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
         loss_Virial.root,
         loss_Virial_per_atom.root,
         real_lr,
+        loss_L1.root,
+        loss_L2.root
         # Sij_max,    
     )
 
@@ -302,15 +336,16 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
     loss_Egroup = AverageMeter("Egroup", ":.4e", Summary.ROOT)
     loss_Virial = AverageMeter("Virial", ":.4e", Summary.ROOT)
     loss_Virial_per_atom = AverageMeter("Virial_per_atom", ":.4e", Summary.ROOT)
-    
+    loss_L1 = AverageMeter("Loss_L1", ":.4e", Summary.ROOT)
+    loss_L2 = AverageMeter("Loss_L2", ":.4e", Summary.ROOT)
     progress = ProgressMeter(
         len(train_loader),
-        [batch_time, data_time, losses, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_Egroup, loss_Virial, loss_Virial_per_atom],
+        [batch_time, data_time, losses, loss_L1, loss_L2, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_Egroup, loss_Virial, loss_Virial_per_atom],
         prefix="Epoch: [{}]".format(epoch),
     )
 
     KFOptWrapper = KFOptimizerWrapper(
-        model, optimizer, args.optimizer_param.nselect, args.optimizer_param.groupsize
+        model, optimizer, args.optimizer_param.nselect, args.optimizer_param.groupsize, lambda_l1 = args.optimizer_param.lambda_1, lambda_l2 = args.optimizer_param.lambda_2
     )
     
     # switch to train mode
@@ -403,20 +438,20 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
                                         atom_type_map[0], atom_type[0],  0, None, None]
 
             if args.optimizer_param.train_virial is True:
-                Virial_predict = KFOptWrapper.update_virial(kalman_inputs, Virial_label, args.optimizer_param.pre_fac_virial, train_type = "NEP")
+                Virial_predict, L1, L2  = KFOptWrapper.update_virial(kalman_inputs, Virial_label, args.optimizer_param.pre_fac_virial, train_type = "NEP")
             if args.optimizer_param.train_energy is True: 
                 # check_cuda_memory(-1, -1, "update_energy start")
-                Etot_predict = KFOptWrapper.update_energy(kalman_inputs, Etot_label, args.optimizer_param.pre_fac_etot, train_type = "NEP")
+                Etot_predict, L1, L2 = KFOptWrapper.update_energy(kalman_inputs, Etot_label, args.optimizer_param.pre_fac_etot, train_type = "NEP")
                 # check_cuda_memory(-1, -1, "update_energy end")
             if args.optimizer_param.train_ei is True:
-                Ei_predict = KFOptWrapper.update_ei(kalman_inputs, Ei_label, args.optimizer_param.pre_fac_ei, train_type = "NEP")
+                Ei_predict, L1, L2 = KFOptWrapper.update_ei(kalman_inputs, Ei_label, args.optimizer_param.pre_fac_ei, train_type = "NEP")
 
             if args.optimizer_param.train_egroup is True:
-                Egroup_predict = KFOptWrapper.update_egroup(kalman_inputs, Egroup_label, args.optimizer_param.pre_fac_egroup, train_type = "NEP")
+                Egroup_predict, L1, L2 = KFOptWrapper.update_egroup(kalman_inputs, Egroup_label, args.optimizer_param.pre_fac_egroup, train_type = "NEP")
 
             if args.optimizer_param.train_force is True:
                 # check_cuda_memory(-1, -1, "update_force start")
-                Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = KFOptWrapper.update_force(
+                Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict, L1, L2 = KFOptWrapper.update_force(
                     kalman_inputs, Force_label, args.optimizer_param.pre_fac_force, train_type = "NEP")
                 # check_cuda_memory(-1, -1, "update_force end")
 
@@ -426,7 +461,7 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
             loss_Etot_val = criterion(Etot_predict, Etot_label)
             loss_Etot_per_atom_val = loss_Etot_val/natoms/natoms
             
-            loss_Ei_val = criterion(Ei_predict, Ei_label)   
+            loss_Ei_val = criterion(Ei_predict, Ei_label)
             if args.optimizer_param.train_egroup is True:
                 loss_Egroup_val = criterion(Egroup_predict, Egroup_label)
 
@@ -441,6 +476,10 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
             loss_Etot.update(loss_Etot_val.item(), batch_size)
             loss_Etot_per_atom.update(loss_Etot_per_atom_val.item(), batch_size)
             loss_Ei.update(loss_Ei_val.item(), batch_size)
+            if args.optimizer_param.lambda_1 is not None:
+                loss_L1.update(L1, batch_size)
+            if args.optimizer_param.lambda_2 is not None:
+                loss_L2.update(L2, batch_size)
             if args.optimizer_param.train_egroup is True:
                 loss_Egroup.update(loss_Egroup_val.item(), batch_size)
             if args.optimizer_param.train_virial is True:
@@ -470,7 +509,7 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
         batch_time.all_reduce()
     """
     progress.display_summary(["Training Set:"])
-    return losses.avg, loss_Etot.root, loss_Etot_per_atom.root, loss_Force.root, loss_Ei.root, loss_Egroup.root, loss_Virial.root, loss_Virial_per_atom.root
+    return losses.avg, loss_Etot.root, loss_Etot_per_atom.root, loss_Force.root, loss_Ei.root, loss_Egroup.root, loss_Virial.root, loss_Virial_per_atom.root, loss_L1.root, loss_L2.root
 
 '''
 description: 

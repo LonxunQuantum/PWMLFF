@@ -16,6 +16,8 @@ class KFOptimizerWrapper:
         atoms_per_group: int,
         is_distributed: bool = False,
         distributed_backend: str = "torch",  # torch or horovod
+        lambda_l1 = None,
+        lambda_l2 = None
     ) -> None:
         self.model = model
         self.optimizer = optimizer
@@ -23,6 +25,8 @@ class KFOptimizerWrapper:
         self.atoms_per_group = atoms_per_group  # 6
         self.is_distributed = is_distributed
         self.distributed_backend = distributed_backend
+        self.lambda_l1 = lambda_l1
+        self.lambda_l2 = lambda_l2
 
     def update_energy(
         self, inputs: list, Etot_label: torch.Tensor, update_prefactor: float = 1, train_type = "DP"
@@ -102,12 +106,15 @@ class KFOptimizerWrapper:
         
         Etot_predict = update_prefactor * Etot_predict
         Etot_predict[mask] = -1.0 * Etot_predict[mask]
-
-        Etot_predict.sum().backward(retain_graph=True)# retain_graph=True is added for nep training
+        if self.lambda_l2 is not None or self.lambda_l1 is not None:
+            L2, L1 = self.optimizer.get_loss_l2_l1(self.lambda_l2, self.lambda_l1)
+            (Etot_predict.sum()+ L2 + L1).backward(retain_graph=True)# retain_graph=True is added for nep training
+        else:
+            Etot_predict.sum().backward(retain_graph=True)# retain_graph=True is added for nep training
         error = error * math.sqrt(bs)
         #print("Etot steping")
         self.optimizer.step(error)
-        return Etot_predict
+        return Etot_predict, float(L1), float(L2)
 
     def update_egroup(
         self, inputs: list, Egroup_label: torch.Tensor, update_prefactor: float = 1, train_type = "DP"
@@ -192,7 +199,7 @@ class KFOptimizerWrapper:
         Egroup_predict.sum().backward()
         error = error * math.sqrt(bs)
         self.optimizer.step(error)
-        return Egroup_predict
+        return Egroup_predict, 0, 0
     
     def update_virial(
         self, inputs: list, Virial_label: torch.Tensor, update_prefactor: float = 1, train_type = "DP"
@@ -279,7 +286,7 @@ class KFOptimizerWrapper:
         error = error * math.sqrt(bs) 
         
         self.optimizer.step(error)
-        return Virial_predict
+        return Virial_predict, 0, 0
 
     def update_egroup_select(
         self, inputs: list, Egroup_label: torch.Tensor, update_prefactor: float = 1
@@ -322,7 +329,7 @@ class KFOptimizerWrapper:
             tmp_egroup_predict.sum().backward()
             error = error * math.sqrt(bs)
             self.optimizer.step(error)
-        return Egroup_predict
+        return Egroup_predict, 0, 0
 
     def update_force(
         self, inputs: list, Force_label: torch.Tensor, update_prefactor: float = 1, train_type = "DP"
@@ -372,8 +379,12 @@ class KFOptimizerWrapper:
             tmp_force_predict = Force_predict[:, index[i]] * update_prefactor
             tmp_force_predict[mask] = -1.0 * tmp_force_predict[mask]
 
-            # In order to solve a pytorch bug, reference: https://github.com/pytorch/pytorch/issues/43259
-            (tmp_force_predict.sum() + Etot_predict.sum() * 0).backward(retain_graph=True) # retain_graph=True is added for nep training
+            if self.lambda_l2 is not None or self.lambda_l1 is not None:
+                L2, L1 = self.optimizer.get_loss_l2_l1(self.lambda_l2, self.lambda_l1)
+                (tmp_force_predict.sum() + L2 + L1 + Etot_predict.sum() * 0).backward(retain_graph=True)
+            else:
+                # In order to solve a pytorch bug, reference: https://github.com/pytorch/pytorch/issues/43259
+                (tmp_force_predict.sum() + Etot_predict.sum() * 0).backward(retain_graph=True) # retain_graph=True is added for nep training
             error = error * math.sqrt(bs)
             #print("force steping")
             if train_type == "CHEBY":
@@ -381,7 +392,7 @@ class KFOptimizerWrapper:
             else:
                 self.optimizer.step(error)
             # check_cuda_memory(i, i, "update_force index i")
-        return Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict
+        return Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict, float(L1), float(L2)
 
     '''
     description: 
@@ -474,7 +485,7 @@ class KFOptimizerWrapper:
         Ei_predict.sum().backward()
         error = error * math.sqrt(bs)
         self.optimizer.step(error)
-        return Ei_predict
+        return Ei_predict, 0, 0
     
         # # |<---group1--->|<---group2--->|<-- ... -->|<---groupN--->| 
         # #     randomly choose atomidx for udpate 

@@ -282,8 +282,13 @@ class nep_network:
                 self.input_param.optimizer_param.kalman_nue
             )
         elif self.input_param.optimizer_param.opt_name == "ADAM":
-            optimizer = optim.Adam(model.parameters(), 
-                                   self.input_param.optimizer_param.learning_rate)
+            if self.input_param.optimizer_param.lambda_2 is None:
+                optimizer = optim.Adam(model.parameters(), 
+                                    self.input_param.optimizer_param.learning_rate)
+            else:
+                optimizer = optim.Adam(model.parameters(), 
+                                    self.input_param.optimizer_param.learning_rate, weight_decay=self.input_param.optimizer_param.lambda_2)
+
         elif self.input_param.optimizer_param.opt_name == "SGD":
             optimizer = optim.SGD(
                 model.parameters(), 
@@ -406,6 +411,12 @@ class nep_network:
         # Define the lists based on the training type
         train_lists = ["epoch", "loss"]
         valid_lists = ["epoch", "loss"]
+        
+        if self.input_param.optimizer_param.lambda_1 is not None:
+            train_lists.append("Loss_l1")
+        if self.input_param.optimizer_param.lambda_2 is not None:
+            train_lists.append("Loss_l2")
+
         if self.input_param.optimizer_param.train_energy:
             # train_lists.append("RMSE_Etot")
             # valid_lists.append("RMSE_Etot")
@@ -423,9 +434,7 @@ class nep_network:
         if self.input_param.optimizer_param.train_virial:
             train_lists.append("RMSE_virial_per_atom")
             valid_lists.append("RMSE_virial_per_atom")
-        if self.input_param.optimizer_param.opt_name == "SNES":
-            train_lists.append("Loss_l1")
-            train_lists.append("Loss_l2")
+
             # valid_lists.append("Loss_l1")
             # valid_lists.append("Loss_l2")
         if self.input_param.optimizer_param.opt_name == "LKF" or self.input_param.optimizer_param.opt_name == "GKF":
@@ -436,6 +445,8 @@ class nep_network:
         train_print_width = {
             "epoch": 5,
             "loss": 18,
+            "Loss_l1": 18,
+            "Loss_l2": 18,
             "RMSE_Etot": 18,
             "RMSE_Etot_per_atom": 21,
             "RMSE_Ei": 18,
@@ -443,10 +454,8 @@ class nep_network:
             "RMSE_F": 18,
             "RMSE_virial": 18,
             "RMSE_virial_per_atom": 23,
-            "Loss_l1": 18,
-            "Loss_l2": 18,
             "real_lr": 18,
-            "time": 12,
+            "time": 18,
         }
 
         train_format = "".join(["%{}s".format(train_print_width[i]) for i in train_lists])
@@ -468,7 +477,7 @@ class nep_network:
             # train for one epoch
             time_start = time.time()
             if self.input_param.optimizer_param.opt_name == "LKF" or self.input_param.optimizer_param.opt_name == "GKF":
-                loss, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_egroup, loss_virial, loss_virial_per_atom = train_KF(
+                loss, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_egroup, loss_virial, loss_virial_per_atom, loss_l1, loss_l2 = train_KF(
                     train_loader, model, self.criterion, optimizer, epoch, self.device, self.input_param
                 )
 
@@ -477,7 +486,7 @@ class nep_network:
                     train_loader, model, self.criterion, optimizer, epoch, self.device, self.input_param
                 )
             else:
-                loss, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_egroup, loss_virial, loss_virial_per_atom, real_lr = train(
+                loss, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_egroup, loss_virial, loss_virial_per_atom, real_lr, loss_l1, loss_l2 = train(
                     train_loader, model, self.criterion, optimizer, epoch, \
                         self.input_param.optimizer_param.learning_rate, self.device, self.input_param
                 )
@@ -504,6 +513,10 @@ class nep_network:
                 epoch,
                 vld_loss,
             )
+            if self.input_param.optimizer_param.lambda_1 is not None:
+                train_log_line += "%18.10e" % (loss_l1)
+            if self.input_param.optimizer_param.lambda_2 is not None:
+                train_log_line += "%18.10e" % (loss_l2)
 
             if self.input_param.optimizer_param.train_energy:
                 # train_log_line += "%18.10e" % (loss_Etot)
@@ -524,13 +537,11 @@ class nep_network:
                 # valid_log_line += "%18.10e" % (val_loss_virial)
                 train_log_line += "%23.10e" % (loss_virial_per_atom)
                 valid_log_line += "%23.10e" % (val_loss_virial_per_atom)
-            if self.input_param.optimizer_param.opt_name == "SNES": 
-                train_log_line += "%18.10e" % (loss_l1)
-                train_log_line += "%18.10e" % (loss_l2)
+
             if self.input_param.optimizer_param.opt_name == "LKF" or self.input_param.optimizer_param.opt_name == "GKF":
-                train_log_line += "%10.4f" % (time_end - time_start)
+                train_log_line += "%18.4f" % (time_end - time_start)
             else:
-                train_log_line += "%18.10e%10.4f" % (-1 , time_end - time_start)
+                train_log_line += "%18.10e%18.4f" % (real_lr , time_end - time_start)
 
             f_train_log.write("%s\n" % (train_log_line))
             f_valid_log.write("%s\n" % (valid_log_line))

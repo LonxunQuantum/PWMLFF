@@ -14,6 +14,17 @@ class OptimizerParam(object):
         # the start epoch could be reset at the resume model code block
         self.reset_epoch = get_parameter("reset_epoch", optimizer_dict, False)
         self.start_epoch = get_parameter("start_epoch", optimizer_dict, 1)
+
+        self.lambda_1 = None
+        self.lambda_2 = None
+        self.lambda_1 = get_parameter("lambda_1", optimizer_dict, None) # weight of regularization term
+        if self.lambda_1 is not None and self.lambda_1 < 0:
+            raise Exception("ERROR! the lambda_1 should >= 0 !")
+
+        self.lambda_2 = get_parameter("lambda_2", optimizer_dict, None) # weight of norm regularization term
+        if self.lambda_2 is not None and self.lambda_2 < 0:
+            raise Exception("ERROR! the lambda_2 should >= 0 !")
+            
         # self.optimizer_param = OptimizerParam(optimizer_type, start_epoch=start_epoch, epochs=epochs, batch_size=batch_size, \
                                         #  print_freq=print_freq)
         if "KF" in self.opt_name.upper():  #set Kalman Filter Optimizer params
@@ -44,8 +55,7 @@ class OptimizerParam(object):
         self.train_virial = get_parameter("train_virial", optimizer_dict, False) 
         self.train_egroup = get_parameter("train_egroup", optimizer_dict, False) 
 
-        self.lambda_1 = None
-        self.lambda_2 = None
+
         self.force_delta = None
         self.population = None
         self.generation = None
@@ -97,13 +107,7 @@ class OptimizerParam(object):
             except Exception:
                 print('Read snes optimizer param from json file')
             # from 'optimizer' dict
-            self.lambda_1 = get_parameter("lambda_1", optimizer_dict, -1) # weight of regularization term
-            if self.lambda_1 != -1 and self.lambda_1 < 0:
-                raise Exception("ERROR! the lambda_1 should >= 0 or lambda_1 = -1 for automatically determined in training!")
 
-            self.lambda_2 = get_parameter("lambda_2", optimizer_dict, -1) # weight of norm regularization term
-            if self.lambda_2 != -1 and self.lambda_2 < 0:
-                raise Exception("ERROR! the lambda_2 should >= 0 or lambda_2 = -1 for automatically determined in training!")
 
             self.pre_fac_ei = get_parameter("lambda_ei", optimizer_dict, 1.0) # weight of energy loss term
             self.pre_fac_egroup = get_parameter("lambda_eg", optimizer_dict, 0.1) # weight of energy loss term
@@ -134,6 +138,11 @@ class OptimizerParam(object):
         opt_dict["epochs"] = self.epochs
         opt_dict["batch_size"] = self.batch_size
         opt_dict["print_freq"] = self.print_freq
+        if self.lambda_1 is not None:
+            opt_dict["lambda_1"] =  self.lambda_1
+        if self.lambda_2 is not None:  
+            opt_dict["lambda_2"] =  self.lambda_2
+
         if "KF" in self.opt_name:
             if "LKF" in self.opt_name:
                 opt_dict["block_size"] = self.block_size 
@@ -191,8 +200,6 @@ class OptimizerParam(object):
             opt_dict["pre_fac_virial"] = self.pre_fac_virial
             opt_dict["pre_fac_egroup"] = self.pre_fac_egroup
 
-            opt_dict["lambda_1"] =  self.lambda_1
-            opt_dict["lambda_2"] =  self.lambda_2
             opt_dict["force_delta"] =  self.force_delta
             opt_dict["population"] =  self.population
             opt_dict["generation"] =  self.generation
@@ -208,12 +215,8 @@ class OptimizerParam(object):
         # content += "lambda_ei   {}\n".format(self.pre_fac_ei)
         if self.lambda_1 is not None:
             content += "lambda_1    {}\n".format(self.lambda_1)
-        else:
-            content += "lambda_1    {}\n".format(-1)
         if self.lambda_2 is not None:
             content += "lambda_2    {}\n".format(self.lambda_2)
-        else:
-            content += "lambda_2    {}\n".format(-1)
         if self.force_delta is not None:
             content += "force_delta {}\n".format(self.force_delta)
         else:
