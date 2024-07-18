@@ -24,7 +24,8 @@ class OptimizerParam(object):
         self.lambda_2 = get_parameter("lambda_2", optimizer_dict, None) # weight of norm regularization term
         if self.lambda_2 is not None and self.lambda_2 < 0:
             raise Exception("ERROR! the lambda_2 should >= 0 !")
-            
+        
+        self.noise = False
         # self.optimizer_param = OptimizerParam(optimizer_type, start_epoch=start_epoch, epochs=epochs, batch_size=batch_size, \
                                         #  print_freq=print_freq)
         if "KF" in self.opt_name.upper():  #set Kalman Filter Optimizer params
@@ -33,6 +34,20 @@ class OptimizerParam(object):
             self.block_size = get_parameter("block_size", optimizer_dict, 5120)
             self.nselect = get_parameter("nselect", optimizer_dict, 24)
             self.groupsize = get_parameter("groupsize", optimizer_dict, 6)
+            
+            self.q0 = get_parameter("q0", optimizer_dict, None) 
+            self.qmin = get_parameter("qmin", optimizer_dict, None)
+            if (self.q0 is None and self.qmin is not None) or \
+                       (self.q0 is not None and self.qmin is None):
+                print("Warning! If you want to add noise to KF optimizer, please set the 'q0' and 'qmin' together!")
+                self.q0 = None
+                self.qmin = None
+            elif (self.q0 is not None and self.qmin is not None):
+                if self.q0 <= self.qmin:
+                    raise Exception("Error! the q0 should bigger than qmin!")
+                if self.qmin < 0:
+                    raise Exception("Error! the qmin should > 0")
+
         elif "ADAM" in self.opt_name.upper():   # set ADAM Optimizer params
             self.learning_rate = get_parameter("learning_rate", optimizer_dict, 0.001)
             self.weight_decay = get_parameter("weight_decay", optimizer_dict, 1e-4)
@@ -71,7 +86,7 @@ class OptimizerParam(object):
             self.pre_fac_ei = get_parameter("pre_fac_ei", optimizer_dict, 1.0) 
             self.pre_fac_virial = get_parameter("pre_fac_virial", optimizer_dict, 1.0) 
             self.pre_fac_egroup = get_parameter("pre_fac_egroup", optimizer_dict, 0.1) 
-            
+
         elif "ADAM" in self.opt_name.upper():
             self.start_pre_fac_force = get_parameter("start_pre_fac_force", optimizer_dict, 1000) 
             self.start_pre_fac_etot = get_parameter("start_pre_fac_etot", optimizer_dict, 0.02) 

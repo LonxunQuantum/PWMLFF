@@ -354,6 +354,8 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
     end = time.time()
     for i, sample_batches in enumerate(train_loader):
         # measure data loading time
+        iters = len(train_loader)
+        cur_iter = (epoch-1) * iters + i # epoch is start from 1
         data_time.update(time.time() - end)
         # load data to cpu
         if args.precision == "float64":
@@ -438,21 +440,21 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
                                         atom_type_map[0], atom_type[0],  0, None, None]
 
             if args.optimizer_param.train_virial is True:
-                Virial_predict, L1, L2  = KFOptWrapper.update_virial(kalman_inputs, Virial_label, args.optimizer_param.pre_fac_virial, train_type = "NEP")
+                Virial_predict, L1, L2  = KFOptWrapper.update_virial(kalman_inputs, Virial_label, args.optimizer_param.pre_fac_virial, train_type = "NEP", iters=iters, cur_iter=cur_iter)
             if args.optimizer_param.train_energy is True: 
                 # check_cuda_memory(-1, -1, "update_energy start")
-                Etot_predict, L1, L2 = KFOptWrapper.update_energy(kalman_inputs, Etot_label, args.optimizer_param.pre_fac_etot, train_type = "NEP")
+                Etot_predict, L1, L2 = KFOptWrapper.update_energy(kalman_inputs, Etot_label, args.optimizer_param.pre_fac_etot, train_type = "NEP", iters=iters, cur_iter=cur_iter)
                 # check_cuda_memory(-1, -1, "update_energy end")
             if args.optimizer_param.train_ei is True:
-                Ei_predict, L1, L2 = KFOptWrapper.update_ei(kalman_inputs, Ei_label, args.optimizer_param.pre_fac_ei, train_type = "NEP")
+                Ei_predict, L1, L2 = KFOptWrapper.update_ei(kalman_inputs, Ei_label, args.optimizer_param.pre_fac_ei, train_type = "NEP", iters=iters, cur_iter=cur_iter)
 
             if args.optimizer_param.train_egroup is True:
-                Egroup_predict, L1, L2 = KFOptWrapper.update_egroup(kalman_inputs, Egroup_label, args.optimizer_param.pre_fac_egroup, train_type = "NEP")
+                Egroup_predict, L1, L2 = KFOptWrapper.update_egroup(kalman_inputs, Egroup_label, args.optimizer_param.pre_fac_egroup, train_type = "NEP", iters=iters, cur_iter=cur_iter)
 
             if args.optimizer_param.train_force is True:
                 # check_cuda_memory(-1, -1, "update_force start")
                 Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict, L1, L2 = KFOptWrapper.update_force(
-                    kalman_inputs, Force_label, args.optimizer_param.pre_fac_force, train_type = "NEP")
+                    kalman_inputs, Force_label, args.optimizer_param.pre_fac_force, train_type = "NEP", iters=iters, cur_iter=cur_iter)
                 # check_cuda_memory(-1, -1, "update_force end")
 
             loss_F_val = criterion(Force_predict, Force_label)

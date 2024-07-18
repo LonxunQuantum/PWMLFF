@@ -10,6 +10,8 @@ class LKFOptimizer(Optimizer):
         kalman_lambda=0.98,
         kalman_nue=0.9987,
         block_size=5120,
+        q0 = None,
+        qmin = None
     ):
 
         defaults = dict(
@@ -32,9 +34,11 @@ class LKFOptimizer(Optimizer):
         self._state = self.state[self._params[0]]
         self._state.setdefault("kalman_lambda", kalman_lambda)
         
+        self.q0 = q0
+        self.qmin = qmin
         self.__init_P()
 
-    def __init_P(self):
+    def __init_P(self, q0=None):
 
         param_nums = []
         param_sum = 0
@@ -91,6 +95,13 @@ class LKFOptimizer(Optimizer):
         self._state.setdefault("P", P) 
         self._state.setdefault("weights_num", len(P))
         self._state.setdefault("params_packed_index", params_packed_index)
+        Q = []
+        if self.q0 is not None:
+            for p in P:
+                Q.append(self.q0 * p.clone().detach().requires_grad_(False))
+            self._state.setdefault("Q", Q)
+            self._state.setdefault("qt", self.q0)
+
 
     def __get_blocksize(self):
         return self.param_groups[0]["block_size"]
@@ -113,11 +124,30 @@ class LKFOptimizer(Optimizer):
                     res.append(weight[i * block_size :])
         return res
 
-    def __update(self, H, error, weights):
+    '''
+    description: 
+     if q0 is not None, update params with noise, then the iters and cur_iter should not be None
+    param {*} self
+    param {*} H
+    param {*} error
+    param {*} weights
+    param {*} iters: the iteration nums in epoch
+    param {*} cur_iter: the current iteration, accumulated in the global epoch
+    return {*}
+    author: wuxingxing
+    '''
+    def __update(self, H, error, weights, iters=None, cur_iter=None):
         P = self._state.get("P")
         kalman_lambda = self._state.get("kalman_lambda")
         weights_num = self._state.get("weights_num")
         params_packed_index = self._state.get("params_packed_index")
+        update_qt = False
+        if self.q0 is not None:
+            Q = self._state.get("Q")
+            qt = self._state.get("qt")
+            qt_next = max(self.q0*math.exp(-cur_iter/(iters*0.4343)), self.qmin)
+            if (qt_next - 10**-8) > self.qmin:
+                update_qt = True
 
         block_size = self.__get_blocksize()
         kalman_nue = self.__get_nue()
@@ -138,12 +168,17 @@ class LKFOptimizer(Optimizer):
             K = torch.matmul(P[i], H[i])
 
             weights[i] = weights[i] + A * error * K
-
-            P[i] = (1 / kalman_lambda) * (P[i] - A * torch.matmul(K, K.T))
+            if self.q0 is None:
+                P[i] = (1 / kalman_lambda) * (P[i] - A * torch.matmul(K, K.T))
+            else:
+                P[i] = (1 / kalman_lambda) * (P[i] - A * torch.matmul(K, K.T) + Q[i])
+                if update_qt:
+                    Q[i] = (qt_next/qt)*Q[i] # Q_t+1 = (q_t+1/q_t) * Qt = q_t+1 * I
 
         kalman_lambda = kalman_nue * kalman_lambda + 1 - kalman_nue
         self._state.update({"kalman_lambda": kalman_lambda})
-
+        if update_qt:
+            self._state.update({"qt": qt_next})
         i = 0
         param_sum = 0
         for param_group in self.param_groups:
@@ -194,7 +229,7 @@ class LKFOptimizer(Optimizer):
             L1 = lambda_l1* L1/param_nums
         return L2, L1
 
-    def step(self, error, **kwargs):
+    def step(self, error, iters, cur_iter, **kwargs):
         
         params_packed_index = self._state.get("params_packed_index")
 
@@ -258,8 +293,7 @@ class LKFOptimizer(Optimizer):
                     weights.append(res)
                     param_sum = 0
                     param_index += 1
-
-        self.__update(H, error, weights)
+        self.__update(H, error, weights, iters, cur_iter)
     
     """
     @Description :

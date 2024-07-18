@@ -29,7 +29,7 @@ class KFOptimizerWrapper:
         self.lambda_l2 = lambda_l2
 
     def update_energy(
-        self, inputs: list, Etot_label: torch.Tensor, update_prefactor: float = 1, train_type = "DP"
+        self, inputs: list, Etot_label: torch.Tensor, update_prefactor: float = 1, train_type = "DP", iters=None, cur_iter=None
     ) -> None:
         if train_type == "DP":
             Etot_predict, _, _, _, _ = self.model(
@@ -111,13 +111,14 @@ class KFOptimizerWrapper:
             (Etot_predict.sum()+ L2 + L1).backward(retain_graph=True)# retain_graph=True is added for nep training
         else:
             Etot_predict.sum().backward(retain_graph=True)# retain_graph=True is added for nep training
+            L2, L1 = 0, 0
         error = error * math.sqrt(bs)
         #print("Etot steping")
-        self.optimizer.step(error)
+        self.optimizer.step(error, iters, cur_iter)
         return Etot_predict, float(L1), float(L2)
 
     def update_egroup(
-        self, inputs: list, Egroup_label: torch.Tensor, update_prefactor: float = 1, train_type = "DP"
+        self, inputs: list, Egroup_label: torch.Tensor, update_prefactor: float = 1, train_type = "DP", iters=None, cur_iter=None
     ) -> None:
         if train_type == "DP":
             _, _, _, Egroup_predict, _ = self.model( #dp inputs has 7 para
@@ -198,11 +199,11 @@ class KFOptimizerWrapper:
 
         Egroup_predict.sum().backward()
         error = error * math.sqrt(bs)
-        self.optimizer.step(error)
+        self.optimizer.step(error, iters, cur_iter)
         return Egroup_predict, 0, 0
     
     def update_virial(
-        self, inputs: list, Virial_label: torch.Tensor, update_prefactor: float = 1, train_type = "DP"
+        self, inputs: list, Virial_label: torch.Tensor, update_prefactor: float = 1, train_type = "DP", iters=None, cur_iter=None
     ) -> None:
         if train_type == "DP":
             Etot_predict, _, _, _, Virial_predict = self.model(
@@ -285,11 +286,11 @@ class KFOptimizerWrapper:
 
         error = error * math.sqrt(bs) 
         
-        self.optimizer.step(error)
+        self.optimizer.step(error, iters, cur_iter)
         return Virial_predict, 0, 0
 
     def update_egroup_select(
-        self, inputs: list, Egroup_label: torch.Tensor, update_prefactor: float = 1
+        self, inputs: list, Egroup_label: torch.Tensor, update_prefactor: float = 1, iters = None, cur_iter = None
     ) -> None:
         '''
         A select atoms version for egroup update.
@@ -328,11 +329,11 @@ class KFOptimizerWrapper:
 
             tmp_egroup_predict.sum().backward()
             error = error * math.sqrt(bs)
-            self.optimizer.step(error)
+            self.optimizer.step(error, iters, cur_iter)
         return Egroup_predict, 0, 0
 
     def update_force(
-        self, inputs: list, Force_label: torch.Tensor, update_prefactor: float = 1, train_type = "DP"
+        self, inputs: list, Force_label: torch.Tensor, update_prefactor: float = 1, train_type = "DP", iters=None, cur_iter=None
     ) -> None:
         natoms_sum = inputs[0].shape[1]
         bs = Force_label.shape[0]
@@ -385,12 +386,13 @@ class KFOptimizerWrapper:
             else:
                 # In order to solve a pytorch bug, reference: https://github.com/pytorch/pytorch/issues/43259
                 (tmp_force_predict.sum() + Etot_predict.sum() * 0).backward(retain_graph=True) # retain_graph=True is added for nep training
+                L2, L1 = 0, 0
             error = error * math.sqrt(bs)
             #print("force steping")
             if train_type == "CHEBY":
                 self.optimizer.step(error, c_param=self.model.c_param, c_grad=dEi_dc)
             else:
-                self.optimizer.step(error)
+                self.optimizer.step(error, iters, cur_iter)
             # check_cuda_memory(i, i, "update_force index i")
         return Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict, float(L1), float(L2)
 
@@ -402,7 +404,7 @@ class KFOptimizerWrapper:
     author: wuxingxing
     '''
     def update_ei(
-        self, inputs: list, Ei_label: torch.Tensor, update_prefactor: float = 1, train_type = "DP"
+        self, inputs: list, Ei_label: torch.Tensor, update_prefactor: float = 1, train_type = "DP", iters=None, cur_iter=None
     ) -> None:
         if train_type == "DP":
             _, Ei_predict, _, _, _ = self.model( #dp inputs has 7 para
@@ -484,7 +486,7 @@ class KFOptimizerWrapper:
 
         Ei_predict.sum().backward()
         error = error * math.sqrt(bs)
-        self.optimizer.step(error)
+        self.optimizer.step(error, iters, cur_iter)
         return Ei_predict, 0, 0
     
         # # |<---group1--->|<---group2--->|<-- ... -->|<---groupN--->| 
