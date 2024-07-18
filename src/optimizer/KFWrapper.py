@@ -94,7 +94,7 @@ class KFOptimizerWrapper:
         error = error * update_prefactor
         error[mask] = -1 * error[mask]
         error = error.mean()
-
+        error = error * math.sqrt(bs)
         # if self.is_distributed:
         #     if self.distributed_backend == "horovod":
         #         import horovod as hvd
@@ -109,10 +109,10 @@ class KFOptimizerWrapper:
         if self.lambda_l2 is not None or self.lambda_l1 is not None:
             L2, L1 = self.optimizer.get_loss_l2_l1(self.lambda_l2, self.lambda_l1)
             (Etot_predict.sum()+ L2 + L1).backward(retain_graph=True)# retain_graph=True is added for nep training
+            error = error + L2 + L1
         else:
             Etot_predict.sum().backward(retain_graph=True)# retain_graph=True is added for nep training
             L2, L1 = 0, 0
-        error = error * math.sqrt(bs)
         #print("Etot steping")
         self.optimizer.step(error, iters, cur_iter)
         return Etot_predict, float(L1), float(L2)
@@ -367,6 +367,7 @@ class KFOptimizerWrapper:
             mask = error_tmp < 0
             error_tmp[mask] = -1 * error_tmp[mask]
             error = error_tmp.mean() / natoms_sum
+            error = error * math.sqrt(bs)
 
             # if self.is_distributed:
             #     if self.distributed_backend == "horovod":
@@ -383,11 +384,11 @@ class KFOptimizerWrapper:
             if self.lambda_l2 is not None or self.lambda_l1 is not None:
                 L2, L1 = self.optimizer.get_loss_l2_l1(self.lambda_l2, self.lambda_l1)
                 (tmp_force_predict.sum() + L2 + L1 + Etot_predict.sum() * 0).backward(retain_graph=True)
+                error = error + L2 + L1
             else:
                 # In order to solve a pytorch bug, reference: https://github.com/pytorch/pytorch/issues/43259
                 (tmp_force_predict.sum() + Etot_predict.sum() * 0).backward(retain_graph=True) # retain_graph=True is added for nep training
                 L2, L1 = 0, 0
-            error = error * math.sqrt(bs)
             #print("force steping")
             if train_type == "CHEBY":
                 self.optimizer.step(error, c_param=self.model.c_param, c_grad=dEi_dc)
