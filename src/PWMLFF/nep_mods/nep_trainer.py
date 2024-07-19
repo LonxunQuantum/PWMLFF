@@ -23,10 +23,10 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
         nums_param = 0
         for p in params:
             if lambda_L1 is not None:
-                L1 += torch.sum(torch.abs(p.data))
+                L1 += torch.sum(torch.abs(p))
             if lambda_L2 is not None:
-                L2 += torch.sum(p.data**2)
-            nums_param += p.data.nelement()
+                L2 += torch.sum(p**2)
+            nums_param += p.nelement()
         if lambda_L1 is not None:    
             L1 = lambda_L1 * L1/nums_param
         if lambda_L2 is not None:  
@@ -278,6 +278,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
 
             if args.optimizer_param.lambda_1 is not None or args.optimizer_param.lambda_2 is not None:
                 L1, L2 = calculate_l1_l2(model, args.optimizer_param.lambda_1, args.optimizer_param.lambda_2)
+                # (L2 + L1 + loss).backward()
             if args.optimizer_param.lambda_1 is not None: # the L2 is set in optim.adam(weight_decay), the pytorch will use it updata params atomically
                 (L1 + loss).backward()
             else:
@@ -470,7 +471,14 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
             if args.optimizer_param.train_virial is True:
                 loss_Virial_val = criterion(Virial_predict, Virial_label.squeeze(1))
                 loss_Virial_per_atom_val = loss_Virial_val/natoms/natoms
+            
             loss_val = loss_F_val + loss_Etot_val*natoms
+            if args.optimizer_param.lambda_1 is not None:
+                loss_L1.update(L1, batch_size)
+                loss_val += L1
+            if args.optimizer_param.lambda_2 is not None:
+                loss_L2.update(L2, batch_size)
+                loss_val += L2
 
             # measure accuracy and record loss
             losses.update(loss_val.item(), batch_size)
@@ -478,10 +486,7 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
             loss_Etot.update(loss_Etot_val.item(), batch_size)
             loss_Etot_per_atom.update(loss_Etot_per_atom_val.item(), batch_size)
             loss_Ei.update(loss_Ei_val.item(), batch_size)
-            if args.optimizer_param.lambda_1 is not None:
-                loss_L1.update(L1, batch_size)
-            if args.optimizer_param.lambda_2 is not None:
-                loss_L2.update(L2, batch_size)
+
             if args.optimizer_param.train_egroup is True:
                 loss_Egroup.update(loss_Egroup_val.item(), batch_size)
             if args.optimizer_param.train_virial is True:

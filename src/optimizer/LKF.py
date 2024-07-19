@@ -218,10 +218,10 @@ class LKFOptimizer(Optimizer):
         param_nums = 0
         for idx, param in enumerate(self._params):
             if lambda_l2 is not None:
-                L2 += torch.sum(param.data**2)
+                L2 += torch.sum(param**2)
             if lambda_l1 is not None:
-                L1 += torch.sum(torch.abs(param.data))
-            param_nums += param.data.nelement()
+                L1 += torch.sum(torch.abs(param))
+            param_nums += param.nelement()
 
         if lambda_l2 is not None:
             L2 = lambda_l2*(L2/param_nums)**0.5
