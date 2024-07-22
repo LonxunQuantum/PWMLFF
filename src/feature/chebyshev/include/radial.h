@@ -22,9 +22,11 @@ public:
 
     CoordType get_dsmooth(CoordType rij) const; // get partial derivative of smooth switching function with respect to rij
 
-private:
     CoordType rcut_max;
     CoordType rcut_smooth;
+private:
+    // CoordType rcut_max;
+    // CoordType rcut_smooth;
 };   // end of class SwithFunc
 
 
@@ -99,17 +101,18 @@ SmoothFunc<CoordType>::SmoothFunc(const SmoothFunc& other) {
 /**
  * @brief Get the smooth switching function.
  * 
- * @param rij The distance between two atoms.
+ * @param rij The sqrt(sum(distance**2)) between two atoms.
  */
 template <typename CoordType>
 CoordType SmoothFunc<CoordType>::get_smooth(CoordType rij) const {
     CoordType fc;
-    CoordType uu = (rij - this->rcut_smooth) / (this->rcut_max - this->rcut_smooth);
+    // CoordType uu = (rij - this->rcut_smooth) / (this->rcut_max - this->rcut_smooth);
 
     if (rij < this->rcut_smooth) {
         fc = 1.0;
     } else if (rij >= this->rcut_smooth && rij < this->rcut_max) {
-        fc = std::pow(uu, 3) * (-6.0 * std::pow(uu, 2) + 15.0 * uu - 10.0) + 1.0;
+        // fc = std::pow(uu, 3) * (-6.0 * std::pow(uu, 2) + 15.0 * uu - 10.0) + 1.0;
+        fc = 0.5 * (std::cos(M_PI * (rij - this->rcut_smooth) / (this->rcut_max - this->rcut_smooth)) + 1.0);
     } else {
         fc = 0.0;
     }
@@ -122,12 +125,13 @@ CoordType SmoothFunc<CoordType>::get_smooth(CoordType rij) const {
 template <typename CoordType>
 CoordType SmoothFunc<CoordType>::get_dsmooth(CoordType rij) const {
     CoordType dfc;
-    CoordType uu = (rij - this->rcut_smooth) / (this->rcut_max - this->rcut_smooth);
+    // CoordType uu = (rij - this->rcut_smooth) / (this->rcut_max - this->rcut_smooth);
 
     if (rij < this->rcut_smooth) {
         dfc = 0.0;
     } else if (rij >= this->rcut_smooth && rij < this->rcut_max) {
-        dfc = 1.0 / (this->rcut_max - this->rcut_smooth) * (-30.0 * std::pow(uu, 4) + 60.0 * std::pow(uu, 3) - 30.0 * std::pow(uu, 2));
+        // dfc = 1.0 / (this->rcut_max - this->rcut_smooth) * (-30.0 * std::pow(uu, 4) + 60.0 * std::pow(uu, 3) - 30.0 * std::pow(uu, 2));
+        dfc = -0.5 * M_PI / (this->rcut_max - this->rcut_smooth) * std::sin(M_PI * (rij - this->rcut_smooth) / (this->rcut_max - this->rcut_smooth));
     } else {
         dfc = 0.0;
     }
@@ -264,6 +268,8 @@ template <typename CoordType>
 void Radial<CoordType>::build(CoordType rij, int itype, int jtype) {
     CoordType fc = this->smooth.get_smooth(rij);
     CoordType dfc = this->smooth.get_dsmooth(rij);
+    CoordType rcut_max = this->smooth.rcut_max;
+    CoordType rcut_smooth = this->smooth.rcut_smooth;
     Chebyshev1st<CoordType> cheb = this->chebyshev;
     cheb.build(rij);
     // cheb.show();
@@ -275,10 +281,18 @@ void Radial<CoordType>::build(CoordType rij, int itype, int jtype) {
         for (int ii = 0; ii < this->beta; ii++) {
             int index = itype * this->ntypes * this->mu * this->beta + jtype * this->mu * this->beta + m * this->beta + ii;
             // std::cout << "index: " << index << std::endl;
-            this->rads[itype][jtype][m] += vals[ii] * fc * this->c[index];     // \sum_{i=0}^{beta-1} c* vals[i] * fc, vals[i] is the i-th Chebyshev polynomial value
-            this->drads[itype][jtype][m] += (ders2r[ii] * fc + vals[ii] * dfc) * this->c[index];     // \sum_{i=0}^{beta-1} c * ders2r[i] * fc + c * vals[i] * dfc, ders2r[i] is the i-th Chebyshev polynomial derivative with respect to rij
-            this->drads2c[itype][jtype][m][ii] = vals[ii] * fc;
-            this->ddrads2c[itype][jtype][m][ii] = (ders2r[ii] * fc + vals[ii] * dfc);
+            // this->rads[itype][jtype][m] += vals[ii] * fc * this->c[index];     // \sum_{i=0}^{beta-1} c* vals[i] * fc, vals[i] is the i-th Chebyshev polynomial value
+            // this->drads[itype][jtype][m] += (ders2r[ii] * fc + vals[ii] * dfc) * this->c[index];     // \sum_{i=0}^{beta-1} c * ders2r[i] * fc + c * vals[i] * dfc, ders2r[i] is the i-th Chebyshev polynomial derivative with respect to rij
+            // this->drads2c[itype][jtype][m][ii] = vals[ii] * fc;
+            // this->ddrads2c[itype][jtype][m][ii] = (ders2r[ii] * fc + vals[ii] * dfc);
+            this->rads[itype][jtype][m] += 0.5 * (vals[ii] * (2.0 * std::pow((rij - rcut_smooth) / (rcut_max - rcut_smooth) - 1.0, 2) - 1.0) + 1.0) * fc * this->c[index];
+            this->drads[itype][jtype][m] += 0.5 * this->c[index] * ((ders2r[ii] * (2.0 * std::pow((rij - rcut_smooth) / (rcut_max - rcut_smooth) - 1.0, 2) - 1.0) + \
+                                            vals[ii] * 4.0 * ((rij - rcut_smooth) / (rcut_max - rcut_smooth) - 1.0) * (1.0 / (rcut_max - rcut_smooth))) * fc + \
+                                            0.5 * (vals[ii] * (2.0 * std::pow((rij - rcut_smooth) / (rcut_max - rcut_smooth) - 1.0, 2) - 1.0) + 1.0) * dfc);
+            this->drads2c[itype][jtype][m][ii] = 0.5 * (vals[ii] * (2.0 * std::pow((rij - rcut_smooth) / (rcut_max - rcut_smooth) - 1.0, 2) - 1.0) + 1.0) * fc;
+            this->ddrads2c[itype][jtype][m][ii] = 0.5 * (ders2r[ii] * (2.0 * std::pow((rij - rcut_smooth) / (rcut_max - rcut_smooth) - 1.0, 2) - 1.0) + \
+                                            vals[ii] * 4.0 * ((rij - rcut_smooth) / (rcut_max - rcut_smooth) - 1.0) * (1.0 / (rcut_max - rcut_smooth)) + \
+                                            0.5 * (vals[ii] * (2.0 * std::pow((rij - rcut_smooth) / (rcut_max - rcut_smooth) - 1.0, 2) - 1.0) + 1.0) * dfc);
         }
     }
 

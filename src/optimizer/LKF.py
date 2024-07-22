@@ -195,31 +195,28 @@ class LKFOptimizer(Optimizer):
             #if (True in torch.isnan(param.grad)):
             #    print("nan found:")
             #    print(param.grad)
-            if idx == 0 and kwargs.get('c_param') is not None:
-                # get c_param for chebychev
-                c_param = kwargs.get('c_param')
-                c_grad = kwargs.get('c_grad')
-                tmp = c_param.reshape(c_param.nelement(), 1)
-                tmp_grad = c_grad.reshape(c_grad.nelement(), 1)
-            else:
-                if param.ndim > 1:
-                    tmp = param.data.T.contiguous().reshape(param.data.nelement(), 1)
-                    if param.grad is None:
-                        tmp_grad = torch.zeros_like(tmp)
-                    else:
-                        tmp_grad = (
-                            (param.grad / self.grad_prefactor)
-                            .T.contiguous()
-                            .reshape(param.grad.nelement(), 1)
-                        )
+            if idx == 0 and kwargs.get('c_grad') is not None:
+                # get c_grad for chebychev
+                param.grad = kwargs.get('c_grad')
+
+            if param.ndim > 1:
+                tmp = param.data.T.contiguous().reshape(param.data.nelement(), 1)
+                if param.grad is None:
+                    tmp_grad = torch.zeros_like(tmp)
                 else:
-                    tmp = param.data.reshape(param.data.nelement(), 1)
-                    if param.grad is None:
-                        tmp_grad = torch.zeros_like(tmp)
-                    else:
-                        tmp_grad = (param.grad / self.grad_prefactor).reshape(
-                            param.grad.nelement(), 1
-                        )
+                    tmp_grad = (
+                        (param.grad / self.grad_prefactor)
+                        .T.contiguous()
+                        .reshape(param.grad.nelement(), 1)
+                    )
+            else:
+                tmp = param.data.reshape(param.data.nelement(), 1)
+                if param.grad is None:
+                    tmp_grad = torch.zeros_like(tmp)
+                else:
+                    tmp_grad = (param.grad / self.grad_prefactor).reshape(
+                        param.grad.nelement(), 1
+                    )
 
             tmp = self.__split_weights(tmp)
             tmp_grad = self.__split_weights(tmp_grad)

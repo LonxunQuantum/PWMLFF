@@ -274,13 +274,13 @@ void NeighborList::build(double* coords, double* box, int*** neighbors_list, int
 
     然后，这个位移向量 delta 被用于计算原子 i 和 j 之间的距离，以确定它们是否是邻居。如果 i 和 j 是同一个原子，并且 ia, ib, 和 ic 都是0（也就是说，为原始盒子的时候），那么就跳过这次循环，因为一个原子不能是它自己的邻居。
     */
-    for (int i = 0; i < natoms; i++) {
+    for (int i = 0; i < natoms; ++i) {
         std::fill_n(num_types, ntypes, 0);
         int count_radial = 0;   // number of neighbors
-        for (int j = 0; j < natoms; j++) {
-            for (int ia = 0; ia < ncells[0]; ia++) {
-                for (int ib = 0; ib < ncells[1]; ib++) {
-                    for (int ic = 0; ic < ncells[2]; ic++) {
+        for (int j = 0; j < natoms; ++j) {
+            for (int ia = 0; ia < ncells[0]; ++ia) {
+                for (int ib = 0; ib < ncells[1]; ++ib) {
+                    for (int ic = 0; ic < ncells[2]; ++ic) {
                         if (i == j && ia == 0 && ib == 0 && ic == 0) {
                             continue;
                         }
@@ -292,6 +292,9 @@ void NeighborList::build(double* coords, double* box, int*** neighbors_list, int
                         delx = coords[3 * i] - coords[3 * j] + delta[0];
                         dely = coords[3 * i + 1] - coords[3 * j + 1] + delta[1];
                         delz = coords[3 * i + 2] - coords[3 * j + 2] + delta[2];
+                        // if (i == 0) {
+                        //     std::cout << "delx: " << delx << " " << dely << " " << delz << std::endl;
+                        // }
 
                         applyMic(ebox, delx, dely, delz);
                         rsq = delx * delx + dely * dely + delz * delz;

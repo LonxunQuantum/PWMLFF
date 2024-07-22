@@ -9,7 +9,6 @@ import torch.nn.parallel
 import torch.optim as optim
 import torch.utils.data
 import torch.utils.data.distributed
-from sklearn.preprocessing import MinMaxScaler
 
 from src.model.cheby_net import ChebyNet
 from src.optimizer.GKF import GKFOptimizer
@@ -25,7 +24,7 @@ from feature.chebyshev.build.lib import descriptor_pybind
 class cheby_network:
     def __init__(self, cheby_param: InputParam):
         self.cheby_param = cheby_param
-        self.davg_dstd_energy_shift = None # scaler/energy_shift from training data
+        self.davg_dstd_energy_shift = None # energy_shift from training data
         torch.set_printoptions(precision = 12)
         if self.cheby_param.seed is not None:
             random.seed(self.cheby_param.seed)
@@ -73,15 +72,15 @@ class cheby_network:
     def _get_stat(self):
         if self.cheby_param.inference:
             if os.path.exists(self.cheby_param.file_paths.model_load_path):
-                # load scaler from checkpoint of model
-                scaler, atom_map, energy_shift = self.load_stat_from_checkpoint(self.cheby_param.file_paths.model_load_path)
+                # load energy_shift from checkpoint of model
+                atom_map, energy_shift = self.load_stat_from_checkpoint(self.cheby_param.file_paths.model_load_path)
             elif os.path.exists(self.cheby_param.file_paths.model_save_path):
-                scaler, atom_map, energy_shift = self.load_stat_from_checkpoint(self.cheby_param.file_paths.model_save_path)
+                atom_map, energy_shift = self.load_stat_from_checkpoint(self.cheby_param.file_paths.model_save_path)
             else:
                 raise Exception("Erorr! Loading model for inference can not find checkpoint: \
                                 \nmodel load path: {} \n or model at work path: {}\n"\
                                 .format(self.cheby_param.file_paths.model_load_path, self.cheby_param.file_paths.model_save_path))
-            stat_add = [scaler, atom_map, energy_shift]
+            stat_add = [atom_map, energy_shift]
         else:
             stat_add = None
         
@@ -91,7 +90,7 @@ class cheby_network:
         input_atom_type = np.array(self.cheby_param.atom_type)   # input atom type order
         if stat_add is not None:
             print("input_atom_type and energy_shift are read from model checkpoint")
-            scaler, input_atom_type, energy_shift = stat_add
+            input_atom_type, energy_shift = stat_add
         else:
             energy_shift = None
 
@@ -110,19 +109,19 @@ class cheby_network:
                 if img_per_mvmt < self.cheby_param.chunk_size:
                     continue
                 valid_chunk = True
-                position = np.load(os.path.join(dataset_path, train_data_path, "position.npy"))
+                # position = np.load(os.path.join(dataset_path, train_data_path, "position.npy"))
                 _Ei = np.load(os.path.join(dataset_path, train_data_path, "ei.npy"))
                 type_maps = np.array(dp_mlff.type_map(atom_types_image[0], input_atom_type))
                 types, type_incides, atom_types_nums = np.unique(type_maps, return_index=True, return_counts=True)
                 atom_types_nums = atom_types_nums[np.argsort(type_incides)]
-                scaler = cheby_network.calculate_scaler(self.cheby_param, type_maps, lattice, position)
+                # scaler = cheby_network.calculate_scaler(self.cheby_param, type_maps, lattice, position)
                 energy_shift = dp_mlff.calculate_energy_shift(self.cheby_param.chunk_size, _Ei, atom_types_nums)
                 energy_shift = cheby_network.adjust_order_same_as_user_input(energy_shift, _atom_types[0].tolist(), input_atom_type)
 
         if not valid_chunk and energy_shift is None:
             raise ValueError("Invalid chunk size, the number of images (include all atom types) in the movement is too small, \nPlease set a smaller chunk_size (default: 10) or add more images in the datasets")
         
-        return scaler, energy_shift, max_atom_nums
+        return energy_shift, max_atom_nums
        
     @staticmethod
     def calculate_scaler(cheby_param:InputParam, type_maps:np.ndarray, lattice:np.ndarray, position:np.ndarray):
@@ -162,10 +161,16 @@ class cheby_network:
         descriptor = descriptor_pybind.MultiDescriptor(image_num, beta, m1, m2, rcut_max, rcut_smooth, natoms, ntypes, max_neigh_num, type_maps, num_neigh_all, list_neigh_all, dr_neigh_all, None)
         feat = descriptor.get_feat()
 
-        # Calculate the scaler
-        scaler = MinMaxScaler()
-        scaler.fit_transform(feat)
-        return scaler   
+        # # Calculate the scaler
+        scalers = {}
+        for type in range(ntypes):
+            indices = np.where(type_maps == type)[0]
+            feat_type = feat[:, indices].flatten()
+            scaler = StandardScaler()
+            # scaler = MinMaxScaler()
+            scaler.fit_transform(feat_type)
+            scalers[type] = scaler
+        return scalers
 
     @staticmethod
     def adjust_order_same_as_user_input(energy_shift:list, atom_type_order:list, atom_type_list:list):
@@ -232,7 +237,7 @@ class cheby_network:
     
     '''
     description:
-        if scaler and energy_shift not from load_data, get it from model_load_file
+        if energy_shift not from load_data, get it from model_load_file
     return {*}
     author: wuxingxing
     '''
@@ -245,9 +250,9 @@ class cheby_network:
             davg_dstd_energy_shift = self.davg_dstd_energy_shift
         return davg_dstd_energy_shift
     
-    def load_model_optimizer(self, scaler, energy_shift):
+    def load_model_optimizer(self, energy_shift):
         # create model        
-        model = ChebyNet(self.cheby_param, scaler, energy_shift)
+        model = ChebyNet(self.cheby_param, energy_shift)
         model = model.to(self.training_type)
 
         # optionally resume from a checkpoint
@@ -262,7 +267,7 @@ class cheby_network:
                 if not torch.cuda.is_available():
                     checkpoint = torch.load(model_path,map_location=torch.device('cpu') )
                 elif self.cheby_param.gpu is None:
-                    checkpoint = torch.load(model_path)
+                    checkpoint = torch.load(model_path,map_location=torch.device('cpu'))
                 elif torch.cuda.is_available():
                     # Map model to be loaded to specified single gpu.
                     loc = "cuda:{}".format(self.cheby_param.gpu)
@@ -346,10 +351,10 @@ class cheby_network:
 
         return model, optimizer
 
-    def inference(self, scaler, energy_shift, max_atom_nums):
+    def inference(self, energy_shift, max_atom_nums):
         # do inference
         atom_map, train_loader, val_loader = self.load_data(max_atom_nums)
-        model, optimizer = self.load_model_optimizer(scaler, energy_shift)
+        model, optimizer = self.load_model_optimizer(energy_shift)
         start = time.time()
         res_pd, etot_label_list, etot_predict_list, ei_label_list, ei_predict_list, force_label_list, force_predict_list\
         = predict(train_loader, model, self.criterion, self.device, self.cheby_param)
@@ -390,9 +395,9 @@ class cheby_network:
             wf.writelines(inference_cout)
         return 
 
-    def train(self, scaler, energy_shift, max_atom_nums):
+    def train(self, energy_shift, max_atom_nums):
         atom_map, train_loader, val_loader = self.load_data(max_atom_nums)
-        model, optimizer = self.load_model_optimizer(scaler, energy_shift)
+        model, optimizer = self.load_model_optimizer(energy_shift)
         if not os.path.exists(self.cheby_param.file_paths.model_store_dir):
             os.makedirs(self.cheby_param.file_paths.model_store_dir)
         if self.cheby_param.model_num == 1:
@@ -527,7 +532,6 @@ class cheby_network:
                     "json_file":self.cheby_param.to_dict(),
                     "epoch": epoch,
                     "state_dict": model.state_dict(),
-                    "scaler": scaler,
                     "energy_shift":energy_shift,
                     "atom_type_order": atom_map,
                     "sij_max":Sij_max,
@@ -542,7 +546,6 @@ class cheby_network:
                     "json_file":self.cheby_param.to_dict(),
                     "epoch": epoch,
                     "state_dict": model.state_dict(),
-                    "scaler": scaler,
                     "energy_shift":energy_shift,
                     "atom_type_order": atom_map,
                     "sij_max":Sij_max
@@ -551,15 +554,51 @@ class cheby_network:
                     self.cheby_param.file_paths.model_store_dir,
                 )
 
-    def load_model_with_ckpt(self, scaler, energy_shift):
-        model, optimizer = self.load_model_optimizer(scaler, energy_shift)
+    def load_model_with_ckpt(self, energy_shift):
+        model, optimizer = self.load_model_optimizer(energy_shift)
         return model
     
     def load_stat_from_checkpoint(self, model_path):
         model_checkpoint = torch.load(model_path,map_location=torch.device("cpu"))
-        scaler = model_checkpoint['scaler']
         atom_type_order = model_checkpoint['atom_type_order']
         energy_shift = model_checkpoint['energy_shift']
         if atom_type_order.size == 1:
             atom_type_order = [atom_type_order.tolist()]
-        return scaler, atom_type_order, energy_shift
+        return atom_type_order, energy_shift
+
+class MinMaxScaler:
+    def __init__(self):
+        self.min_val = None
+        self.max_val = None
+
+    def fit(self, data):
+        self.min_val = data.min()
+        self.max_val = data.max()
+        self.scale_ = self.max_val - self.min_val
+
+    def transform(self, data):
+        if self.min_val is None or self.max_val is None:
+            raise Exception("You need to call `fit` before `transform`.")
+        return (data - self.min_val) / self.scale_
+
+    def fit_transform(self, data):
+        self.fit(data)
+        return self.transform(data)
+
+class StandardScaler:
+    def __init__(self):
+        self.mean = None
+        self.std = None
+
+    def fit(self, data):
+        self.mean = data.mean()
+        self.std = data.std()
+
+    def transform(self, data):
+        if self.mean is None or self.std is None:
+            raise Exception("You need to call `fit` before `transform`.")
+        return (data - self.mean) / self.std
+
+    def fit_transform(self, data):
+        self.fit(data)
+        return self.transform(data)

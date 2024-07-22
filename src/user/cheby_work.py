@@ -12,8 +12,8 @@ def cheby_train(input_json: json, cmd:str):
     if len(cheby_param.file_paths.raw_path) > 0:
         datasets_path = cheby_trainer.generate_data()
         cheby_param.file_paths.set_datasets_path(datasets_path)
-    scaler, energy_shift, max_atom_nums = cheby_trainer._get_stat()
-    cheby_trainer.train(scaler, energy_shift, max_atom_nums)
+    energy_shift, max_atom_nums = cheby_trainer._get_stat()
+    cheby_trainer.train(energy_shift, max_atom_nums)
     if os.path.exists(cheby_param.file_paths.model_save_path) is False:
         if os.path.exists(cheby_param.file_paths.model_load_path):
             cheby_param.file_paths.model_save_path = cheby_param.file_paths.model_load_path
@@ -31,5 +31,5 @@ def cheby_test(input_json: json, cmd:str):
     if len(cheby_param.file_paths.raw_path) > 0:
         datasets_path = cheby_trainer.generate_data()
         cheby_param.file_paths.set_datasets_path(datasets_path)
-    scaler, energy_shift, max_atom_nums = cheby_trainer._get_stat()
-    cheby_trainer.inference(scaler, energy_shift, max_atom_nums)
+    energy_shift, max_atom_nums = cheby_trainer._get_stat()
+    cheby_trainer.inference(energy_shift, max_atom_nums)

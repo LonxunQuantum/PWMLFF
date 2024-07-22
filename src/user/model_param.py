@@ -82,7 +82,7 @@ class ModelParam(object):
         if len(network_size) > 1 and network_size[-1] != 1:
             raise Exception("Error: The last layer of the fitting network should have a size of 1 for etot energy, but the input size is {}!".format(network_size[-1]))
         bias = True # get_parameter("bias", fitting_net_dict, True)
-        resnet_dt = False # get_parameter("resnet_dt", fitting_net_dict, False)
+        resnet_dt = get_parameter("resnet_dt", fitting_net_dict, False)
         activation = "tanh" #get_parameter("activation", fitting_net_dict, )
         self.fitting_net = NetParam("fitting_net")
         self.fitting_net.set_params(network_size, bias, resnet_dt, activation)

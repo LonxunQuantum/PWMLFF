@@ -161,6 +161,24 @@ class FittingNet(nn.Module):
                 else:
                     x = torch.matmul(x, layer.weight)
         return x
+    
+    def forward_test(self, x: torch.Tensor) -> torch.Tensor:
+        for i, layer in enumerate(self.layers):
+            if i < len(self.layers) - 1:        # 对于非最后一层
+                if self.bias_flag and layer.bias is not None:
+                    hiden = torch.matmul(x, layer.weight) + layer.bias
+                else:
+                    hiden = torch.matmul(x, layer.weight)
+
+                x = self.activation(hiden)
+
+        for i, layer in enumerate(self.layers):
+            if i == len(self.network_size) - 2:
+                if self.bias_flag:
+                    x = torch.matmul(x, layer.weight) + layer.bias
+                else:
+                    x = torch.matmul(x, layer.weight)
+        return x
 '''    
 class EmbeddingNet0(nn.Module):
     def __init__(self, 

@@ -61,7 +61,9 @@ private:
     // int **neighbor_list_alltypes; // neighbor list for all atom types, including self
     int *neighbor_list_alltypes; // neighbor list for all atom types, including self
     // Neighbor **dR_neigh_alltypes; // partial derivative of neighbor list with respect to rij
+    double *dR_neigh_alltypes; // partial derivative of neighbor list with respect to rij
     // int ***ind_neigh_alltypes;    // index of neighbors for all atom types, including self
+    int *ind_neigh_alltypes;    // index of neighbors for all atom types, including self
     double *feat;                 // descriptor
     // double ****dfeat_tmp;
     double *dfeat_tmp;

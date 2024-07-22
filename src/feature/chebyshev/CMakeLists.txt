@@ -11,6 +11,8 @@ execute_process(COMMAND python3 -c "import pybind11; print(pybind11.__path__[0])
 string(REPLACE "\n" "/share/cmake" PYBIND11_CMAKE_PREFIX_PATH "${PYBIND11_PATH}")
 list(APPEND CMAKE_PREFIX_PATH ${PYBIND11_CMAKE_PREFIX_PATH})
 find_package(pybind11 CONFIG REQUIRED)
+# Find OpenMP
+# find_package(OpenMP REQUIRED)
 
 
 
@@ -33,7 +35,6 @@ add_library(descriptor SHARED ${CMAKE_CURRENT_SOURCE_DIR}/src/descriptor.cpp)
 # add_library(test_radial SHARED ${CMAKE_CURRENT_SOURCE_DIR}/test/test_radial.cpp)
 # target_include_directories(test_radial PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 # target_include_directories(test_basic PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-# target_include_directories(neighborList PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_include_directories(neighborList PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_include_directories(descriptor PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
@@ -47,3 +48,12 @@ pybind11_add_module(descriptor_pybind ${CMAKE_CURRENT_SOURCE_DIR}/src/descriptor
 
 # Link the libraries
 target_link_libraries(descriptor_pybind PRIVATE descriptor)
+
+# if(OpenMP_CXX_FOUND)
+#     target_link_libraries(descriptor PRIVATE OpenMP::OpenMP_CXX)
+#     target_link_libraries(neighborList PRIVATE OpenMP::OpenMP_CXX)
+#     target_link_libraries(descriptor_pybind PRIVATE OpenMP::OpenMP_CXX)
+#     target_compile_options(descriptor PRIVATE ${OpenMP_CXX_FLAGS})
+#     target_compile_options(neighborList PRIVATE ${OpenMP_CXX_FLAGS})
+#     target_compile_options(descriptor_pybind PRIVATE ${OpenMP_CXX_FLAGS})
+# endif()

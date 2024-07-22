@@ -372,7 +372,7 @@ nLayers = 3
 nodeDim = [15,15,1]
 nNodes = np.array([[15,15],[15,15],[1,1]])
 b_init=np.array([0.0 for i in range(10)])      # energy of one atom, for different types, just a rough value
-#nLayers = 4
+# nLayers = 4
 #nNodes = np.array([[16,],[64,],[32,],[1,]])
 dwidth = 3.0
 

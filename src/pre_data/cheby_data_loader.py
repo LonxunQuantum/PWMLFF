@@ -5,26 +5,7 @@ from torch.utils.data import Dataset
 import torch
 import yaml
 from NeighConst import neighconst
-from numpy.ctypeslib import ndpointer
-import ctypes
-lib_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-lib = ctypes.CDLL(os.path.join(lib_path, 'feature/chebyshev/build/lib/libneighborList.so')) # multi-neigh-list
-lib.CreateNeighbor.argtypes = [ctypes.c_int, ctypes.c_float, ctypes.c_int, ctypes.c_int, ctypes.c_int, 
-                               ndpointer(ctypes.c_int, ndim=1, flags="C_CONTIGUOUS"), 
-                               ndpointer(dtype=np.float64, ndim=1, flags="C_CONTIGUOUS"), 
-                               ndpointer(dtype=np.float64, ndim=1, flags="C_CONTIGUOUS")]
-                                  
-lib.CreateNeighbor.restype = ctypes.c_void_p
-
-# lib.ShowNeighbor.argtypes = [ctypes.c_void_p]
-lib.DestroyNeighbor.argtypes = [ctypes.c_void_p]
-
-lib.GetNumNeighAll.argtypes = [ctypes.c_void_p]
-lib.GetNumNeighAll.restype = ctypes.POINTER(ctypes.c_int)
-lib.GetNeighborsListAll.argtypes = [ctypes.c_void_p]
-lib.GetNeighborsListAll.restype = ctypes.POINTER(ctypes.c_int)
-lib.GetDRNeighAll.argtypes = [ctypes.c_void_p]
-lib.GetDRNeighAll.restype = ctypes.POINTER(ctypes.c_double)
+from feature.chebyshev.build.lib import descriptor_pybind
 
 
 class MovementDataset(Dataset):
@@ -214,24 +195,20 @@ def find_neighbore(AtomTypeMap, Position, Lattice, natoms, Ei,
         train_egroup (bool): Whether to train the energy group.
 
     Returns:
-        num_neigh_all (numpy.ndarray): The number of neighbors for each atom in the system.
-        list_neigh_all (numpy.ndarray): The list of neighbors for each atom in the system.
-        dr_neigh_all (numpy.ndarray): The distance vector between each atom and its neighbors.
+        num_neigh (numpy.ndarray): The number of neighbors for each atom in the system.
+        list_neigh (numpy.ndarray): The list of neighbors for each atom in the system.
+        dr_neigh (numpy.ndarray): The distance vector between each atom and its neighbors.
         max_ri (float): The maximum distance between an atom and its neighbors.
     """
     images = 1
     type_maps = AtomTypeMap[:natoms].astype(np.int32)
 
     # Create neighbor list
-    mnl = lib.CreateNeighbor(images, Rc_M, m_neigh, ntypes, natoms, type_maps, Position.flatten(), Lattice.flatten())
-    # lib.ShowNeighbor(mnl)
-    num_neigh_all = lib.GetNumNeighAll(mnl)
-    list_neigh_all = lib.GetNeighborsListAll(mnl)
-    dr_neigh_all = lib.GetDRNeighAll(mnl)
-    num_neigh_all = np.ctypeslib.as_array(num_neigh_all, (images, natoms, ntypes)).squeeze(0)
-    list_neigh_all = np.ctypeslib.as_array(list_neigh_all, (images, natoms, ntypes, m_neigh)).squeeze(0)
-    dr_neigh_all = np.ctypeslib.as_array(dr_neigh_all, (images, natoms, ntypes, m_neigh, 4)).squeeze(0)   # rij, delx, dely, delz
-    max_ri = np.max(dr_neigh_all[:, :, :, 0])
+    mnl = descriptor_pybind.MultiNeighborList(images, Rc_M, m_neigh, ntypes, natoms, type_maps, Position.flatten(), Lattice.flatten())
+    num_neigh = mnl.get_num_neigh_all().squeeze(0)
+    list_neigh = mnl.get_neighbors_list_all().squeeze(0)
+    dr_neigh = mnl.get_dR_neigh_all().squeeze(0)        # rij, delx, dely, delz
+    max_ri = np.max(dr_neigh[:, :, :, 0])
 
     if train_egroup:
         type_maps = np.asfortranarray(AtomTypeMap[:natoms] + 1)
@@ -251,11 +228,6 @@ def find_neighbore(AtomTypeMap, Position, Lattice, natoms, Ei,
         Egroup = None
     neighconst.dealloc()
 
-    # Delete neighbor list
-    num_neigh = num_neigh_all.copy()
-    list_neigh = list_neigh_all.copy()
-    dr_neigh = dr_neigh_all.copy()
-    lib.DestroyNeighbor(mnl)
     return num_neigh, list_neigh, dr_neigh, Egroup_weight, Divider, Egroup, max_ri
 
 

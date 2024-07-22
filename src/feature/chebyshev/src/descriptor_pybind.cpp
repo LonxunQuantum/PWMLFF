@@ -35,7 +35,7 @@ PYBIND11_MODULE(descriptor_pybind, m)
         //     // Create a Python array with the result
         //     return py::array_t<double>(size, result); })
         .def("get_feat", [](MultiDescriptor &instance)
-             { return py::array_t<double>({instance.images * instance.natoms, instance.get_nfeat()}, instance.get_feat()); })
+             { return py::array_t<double>({instance.images, instance.natoms, instance.get_nfeat()}, instance.get_feat()); })
         .def("get_dfeat", [](MultiDescriptor &instance)
              { return py::array_t<double>({instance.images, instance.natoms, instance.get_nfeat(), instance.max_neighbors, 3}, instance.get_dfeat()); })
         .def("get_dfeat2c", [](MultiDescriptor &instance)

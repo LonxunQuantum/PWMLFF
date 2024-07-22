@@ -138,11 +138,11 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
                 prof.export_chrome_trace("model_infer.json")
             else:
                 if args.optimizer_param.train_egroup is True:
-                    Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict, dE_dc, dF_dc = model(
+                    Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
                         dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, num_neigh, 0, Egroup_weight, Divider)
                 else:
                     # atom_type_map: we only need the first element, because it is same for each image of MOVEMENT
-                    Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict, dE_dc, dF_dc = model(
+                    Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
                         dR_neigh_list, atom_type_map[0], atom_type[0], ImageDR, num_neigh, 0, None, None)
                     
             optimizer.zero_grad()
@@ -150,10 +150,10 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
             loss_Etot_val = criterion(Etot_predict, Etot_label)
             loss_Etot_per_atom_val = loss_Etot_val/natoms/natoms
             loss_Ei_val = criterion(Ei_predict, Ei_label)
-            grad_loss_dE_dc = (2.0 / dE_dc.shape[0]) * torch.sum(dE_dc * (Etot_predict - Etot_label).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1), dim=0)
-            grad_loss_dF_dc_tmp = (2.0 / dF_dc.shape[0] / 3) * torch.sum(dF_dc * (Force_predict - Force_label).unsqueeze(-2).unsqueeze(-2).unsqueeze(-2), [0, -1])
-            grad_loss_dF_dc = torch.zeros_like(grad_loss_dE_dc)
-            grad_loss_dF_dc.index_add_(0, atom_type_map[0], grad_loss_dF_dc_tmp)
+            # grad_loss_dE_dc = (2.0 / dE_dc.shape[0]) * torch.sum(dE_dc * (Etot_predict - Etot_label).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1), dim=0)
+            # grad_loss_dF_dc_tmp = (2.0 / dF_dc.shape[0] / 3) * torch.sum(dF_dc * (Force_predict - Force_label).unsqueeze(-2).unsqueeze(-2).unsqueeze(-2), [0, -1])
+            # grad_loss_dF_dc = torch.zeros_like(grad_loss_dE_dc)
+            # grad_loss_dF_dc.index_add_(0, atom_type_map[0], grad_loss_dF_dc_tmp)
 
             if args.optimizer_param.train_egroup is True:
                 loss_Egroup_val = criterion(Egroup_predict, Egroup_label)
@@ -246,7 +246,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
                     natoms_img[0].item(),
                 )
             # import ipdb;ipdb.set_trace()
-            param_group['params'][0].grad = grad_loss_dE_dc * pref_etot + grad_loss_dF_dc * pref_fi
+            # param_group['params'][0].grad = grad_loss_dE_dc * pref_etot + grad_loss_dF_dc * pref_fi
 
             loss.backward()
             optimizer.step()
@@ -304,7 +304,7 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
     )
 
     KFOptWrapper = KFOptimizerWrapper(
-        model, optimizer, args.optimizer_param.nselect, args.optimizer_param.nselect
+        model, optimizer, args.optimizer_param.nselect, args.optimizer_param.groupsize
     )
     
     # switch to train mode
@@ -438,7 +438,7 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
                         kalman_inputs, Force_label, args.optimizer_param.pre_fac_force, train_type = "CHEBY")
 
             loss_F_val = criterion(Force_predict, Force_label)
-
+                    
             # divide by natoms 
             loss_Etot_val = criterion(Etot_predict, Etot_label)
             loss_Etot_per_atom_val = loss_Etot_val/natoms/natoms
