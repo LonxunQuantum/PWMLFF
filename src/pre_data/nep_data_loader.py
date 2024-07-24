@@ -277,8 +277,8 @@ author: wuxingxing
 '''
 def get_stat(config:InputParam, stat_add=None, datasets_path=None, work_dir=None, chunk_size=10):
     train_data_path = config.file_paths.trainDataPath
-    ntypes = len(config.atom_type)
     input_atom_type = config.atom_type   # input atom type order
+    energy_dict = {}
     if stat_add is not None:
         # load from prescribed path
         print("input_atom_type and energy_shift are from model checkpoint")
@@ -295,28 +295,32 @@ def get_stat(config:InputParam, stat_add=None, datasets_path=None, work_dir=None
             data_load_path = dataset_path
         atom_types_image = np.load(os.path.join(data_load_path, "image_type.npy"))
         max_atom_nums = max(max_atom_nums, atom_types_image.shape[1])
-        if energy_shift is None:
-            _atom_types = np.load(os.path.join(data_load_path, "atom_type.npy"))
-            if _atom_types.shape[1] != ntypes:
-                continue
-            lattice = np.load(os.path.join(data_load_path, "lattice.npy"))
-            img_per_mvmt = lattice.shape[0]
-            if img_per_mvmt < chunk_size:
-                continue
-            valid_chunk = True
-            # position = np.load(os.path.join(data_load_path, "position.npy"))
-            _Ei = np.load(os.path.join(data_load_path, "ei.npy"))
-            type_maps = np.array(type_map(atom_types_image[0], input_atom_type))
-            types, type_incides, atom_types_nums = np.unique(type_maps, return_index=True, return_counts=True)
-            atom_types_nums = atom_types_nums[np.argsort(type_incides)]
-            energy_shift = calculate_energy_shift(chunk_size, _Ei, atom_types_nums)
-            energy_shift = adjust_order_same_as_user_input(energy_shift, _atom_types[0].tolist(), input_atom_type)
-            # set feature scaler
-            
-    if not valid_chunk and energy_shift is None:
-        raise ValueError("Invalid 'chunk_size', the number of images (include all atom types) in the movement is too big, \nPlease set a smaller chunk_size (default: 10) or add more images in the movement")
+        if len(energy_dict.keys()) == len(config.atom_type):
+            continue
+        lattice = np.load(os.path.join(data_load_path, "lattice.npy"))
+        img_per_mvmt = lattice.shape[0]
+        # if img_per_mvmt < chunk_size:
+        #     continue
+        _num_image_used = chunk_size if chunk_size < img_per_mvmt else img_per_mvmt
+        _atom_types = np.load(os.path.join(data_load_path, "atom_type.npy"))
+        _Ei = np.load(os.path.join(data_load_path, "ei.npy"))
+        
+        type_maps = np.array(type_map(atom_types_image[0], input_atom_type))
+        types, type_incides, atom_types_nums = np.unique(type_maps, return_index=True, return_counts=True)
+        atom_types_nums = atom_types_nums[np.argsort(type_incides)]
+        _energy_shift = calculate_energy_shift(_num_image_used, _Ei, atom_types_nums)
+        for idx, _atom_type in enumerate(_atom_types[0]):
+            if _atom_type not in energy_dict.keys():
+                energy_dict[_atom_type] = _energy_shift[idx]
+           
+    res = []
+    for atom in config.atom_type:
+        if atom in energy_dict.keys():
+            res.append(energy_dict[atom])
+        else:
+            res.append(0.0)
 
-    return energy_shift, max_atom_nums, os.path.join(data_load_path)
+    return res, max_atom_nums, os.path.join(data_load_path)
 
 '''
 description: 

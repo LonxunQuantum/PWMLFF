@@ -146,7 +146,6 @@ class nep_network:
                                             config, self.input_param, energy_shift, max_atom_nums)
             valid_dataset = None
         else:           
-            print(self.input_param.file_paths.datasets_path) 
             train_dataset = MovementDataset([os.path.join(_, config['trainDataPath']) for _ in self.input_param.file_paths.datasets_path], 
                                             config, self.input_param, energy_shift, max_atom_nums)
             valid_dataset = MovementDataset([os.path.join(_, config['validDataPath']) 
@@ -574,7 +573,7 @@ class nep_network:
                     "energy_shift":energy_shift,
                     "q_scaler": model.get_q_scaler(),
                     "atom_type_order": atom_map,    #atom type order of davg/dstd/energy_shift
-                    "optimizer":optimizer.state_dict()
+                    # "optimizer":optimizer.state_dict()
                     # "sij_max":Sij_max
                     },
                     self.input_param.file_paths.model_name,

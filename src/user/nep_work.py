@@ -150,8 +150,8 @@ def tonepckpt(cmd_list:list[str], save_ckpt:bool=True):
             "q_scaler": model.get_q_scaler(),
             "optimizer":optimizer.state_dict()
             },
-            "nep_from_txt.ckpt",
+            "nep_from_gpumd.ckpt",
             os.getcwd()
         )
-    print("Convert the nep.txt to nep_from_txt.ckpt format successfully!")
+    print("Convert the nep.txt to nep_from_gpumd.ckpt format successfully!")
     return model, "NEP", nep_param

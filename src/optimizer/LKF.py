@@ -47,14 +47,11 @@ class LKFOptimizer(Optimizer):
             for index, param in enumerate(params):
                 param_num = param.data.nelement()
                 if param_sum + param_num > block_size:
-                    if index == 0:
-                        #when the first layer params nums more than block_size, 
-                        # the first P matrix will be [], this 'elif' is handling for this bug
-                        param_nums.append(param_num)
-                        param_sum = 0
-                    else:
-                        param_nums.append(param_sum)
+                    if param_sum == 0:
                         param_sum = param_num
+                        continue
+                    param_nums.append(param_sum)
+                    param_sum = param_num
                 else:
                     param_sum += param_num
         
