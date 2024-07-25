@@ -275,7 +275,9 @@ class nep_network:
                 self.input_param.optimizer_param.kalman_nue,
                 self.input_param.optimizer_param.block_size,
                 self.input_param.optimizer_param.q0,
-                self.input_param.optimizer_param.qmin
+                self.input_param.optimizer_param.qmin,
+                self.input_param.optimizer_param.p0_weight,
+                self.input_param.optimizer_param.kalman_lambda_weight
             )
         elif self.input_param.optimizer_param.opt_name == "GKF":
             optimizer = GKFOptimizer(

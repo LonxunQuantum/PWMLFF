@@ -48,6 +48,9 @@ class OptimizerParam(object):
                 if self.qmin < 0:
                     raise Exception("Error! the qmin should > 0")
 
+            self.p0_weight = get_parameter("p0_weight", optimizer_dict, None)
+            self.kalman_lambda_weight = get_parameter("kalman_lambda_weight", optimizer_dict, None)
+            
         elif "ADAM" in self.opt_name.upper():   # set ADAM Optimizer params
             self.learning_rate = get_parameter("learning_rate", optimizer_dict, 0.001)
             self.weight_decay = get_parameter("weight_decay", optimizer_dict, 1e-4)

@@ -11,7 +11,9 @@ class LKFOptimizer(Optimizer):
         kalman_nue=0.9987,
         block_size=5120,
         q0 = None,
-        qmin = None
+        qmin = None,
+        p0_weight = None,
+        kalman_lambda_weight=None
     ):
 
         defaults = dict(
@@ -36,6 +38,8 @@ class LKFOptimizer(Optimizer):
         
         self.q0 = q0
         self.qmin = qmin
+        self.p0_weight = p0_weight
+        self.kalman_lambda_weight = kalman_lambda_weight
         self.__init_P()
 
     def __init_P(self, q0=None):
@@ -71,26 +75,22 @@ class LKFOptimizer(Optimizer):
                 block_num = math.ceil(param_num / block_size)
                 for i in range(block_num):
                     if i != block_num - 1:
-                        P.append(
-                            torch.eye(
-                                block_size,
-                                dtype=self.data_type,
-                                device=self.device,
-                            )
-                        )
+                        _tmp = torch.eye(block_size, dtype=self.data_type, device=self.device,)
                         params_packed_index.append(block_size)
                     else:
-                        P.append(
-                            torch.eye(
-                                param_num - block_size * i,
-                                dtype=self.data_type,
-                                device=self.device,
-                            )
-                        )
+                        _tmp = torch.eye(param_num - block_size * i, dtype=self.data_type, device=self.device,)
                         params_packed_index.append(param_num - block_size * i)
+                    if self.p0_weight is not None:
+                        P.append(self.p0_weight * _tmp)
+                    else:
+                        P.append(_tmp)
             else:
-                P.append(torch.eye(param_num, dtype=self.data_type, device=self.device))
+                _tmp = torch.eye(param_num, dtype=self.data_type, device=self.device)
                 params_packed_index.append(param_num)
+                if self.p0_weight is not None:
+                    P.append(self.p0_weight * _tmp)
+                else:
+                    P.append(_tmp)
 
         self._state.setdefault("P", P) 
         self._state.setdefault("weights_num", len(P))
@@ -98,7 +98,14 @@ class LKFOptimizer(Optimizer):
         Q = []
         if self.q0 is not None:
             for p in P:
-                Q.append(self.q0 * p.clone().detach().requires_grad_(False))
+                Q.append(
+                    # self.q0 * p.clone().detach().requires_grad_(False)
+                    self.q0 * torch.eye(
+                                p.shape[0],
+                                dtype=self.data_type,
+                                device=self.device,
+                            )
+                    )
             self._state.setdefault("Q", Q)
             self._state.setdefault("qt", self.q0)
 
@@ -155,8 +162,10 @@ class LKFOptimizer(Optimizer):
         tmp = 0
         
         for i in range(weights_num):
-            tmp = tmp + (kalman_lambda + torch.matmul(torch.matmul(H[i].T, P[i]), H[i]))
-
+            if self.kalman_lambda_weight is not None:
+                tmp = tmp + (self.kalman_lambda_weight * kalman_lambda + torch.matmul(torch.matmul(H[i].T, P[i]), H[i]))
+            else:
+                tmp = tmp + (kalman_lambda + torch.matmul(torch.matmul(H[i].T, P[i]), H[i]))
         A = 1 / tmp
 
         for i in range(weights_num):
@@ -228,6 +237,23 @@ class LKFOptimizer(Optimizer):
         if lambda_l1 is not None:
             L1 = lambda_l1* L1/param_nums
         return L2, L1
+
+    def print_L2(self, lambda_l2=1, lambda_l1=1):
+        L2 = torch.tensor(0.0, device=self.device, dtype=self.data_type).detach().requires_grad_(False)
+        L1 = torch.tensor(0.0, device=self.device, dtype=self.data_type).detach().requires_grad_(False)
+        param_nums = 0
+        for idx, param in enumerate(self._params):
+            if lambda_l2 is not None:
+                L2 += torch.sum(param**2)
+            if lambda_l1 is not None:
+                L1 += torch.sum(torch.abs(param))
+            param_nums += param.nelement()
+
+        if lambda_l2 is not None:
+            L2 = lambda_l2*(L2/param_nums)**0.5
+        if lambda_l1 is not None:
+            L1 = lambda_l1* L1/param_nums
+        return float(L2), float(L1)
 
     def step(self, error, iters, cur_iter, **kwargs):
         

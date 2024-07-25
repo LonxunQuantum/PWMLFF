@@ -279,6 +279,8 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
             if args.optimizer_param.lambda_1 is not None or args.optimizer_param.lambda_2 is not None:
                 L1, L2 = calculate_l1_l2(model, args.optimizer_param.lambda_1, args.optimizer_param.lambda_2)
                 # (L2 + L1 + loss).backward()
+                loss_val += L1
+                loss_val += L2
             if args.optimizer_param.lambda_1 is not None: # the L2 is set in optim.adam(weight_decay), the pytorch will use it updata params atomically
                 (L1 + loss).backward()
             else:
@@ -473,9 +475,18 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
                 loss_Virial_per_atom_val = loss_Virial_val/natoms/natoms
             
             loss_val = loss_F_val + loss_Etot_val*natoms
+            
+            if args.optimizer_param.lambda_1 is None and args.optimizer_param.lambda_2 is None:
+                _L2, _L1 = KFOptWrapper.optimizer.print_L2()
+                loss_L1.update(_L1, batch_size)
+                # loss_val += _L1
+                loss_L2.update(_L2, batch_size)
+                # loss_val += _L2
+
             if args.optimizer_param.lambda_1 is not None:
                 loss_L1.update(L1, batch_size)
                 loss_val += L1
+
             if args.optimizer_param.lambda_2 is not None:
                 loss_L2.update(L2, batch_size)
                 loss_val += L2
