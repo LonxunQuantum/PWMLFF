@@ -75,12 +75,12 @@ class NEP(nn.Module):
             params, last_bias = self.fitting_net[i].get_param_list()
             nn_params.extend(params)
             if len(last_bias) > 0:
-                type_bias.append(last_bias)
-        if len(type_bias) > 0:
-            nn_params.append(np.mean(type_bias))
-        else:
-            nn_params.append(float(self.common_bias))
-        # nn_params.extend(type_bias) # for new nep.txt test
+                type_bias.extend(last_bias)
+        # if len(type_bias) > 0:
+        #     nn_params.append(np.mean(type_bias))
+        # else:
+        #     nn_params.append(float(self.common_bias))
+        nn_params.extend(type_bias) # for new nep.txt test
         nn_params.extend(list(self.c_param_2.permute(2, 3, 0, 1).flatten().cpu().detach().numpy()))
         nn_params.extend(list(self.c_param_3.permute(2, 3, 0, 1).flatten().cpu().detach().numpy()))
         nn_params.extend(list(self.q_scaler.flatten().cpu().detach().numpy()))
@@ -408,7 +408,7 @@ class NEP(nn.Module):
                      ImagedR: torch.Tensor, 
                      ImagedR_angular: torch.Tensor, 
                      device: torch.device,
-                     dtype: torch.dtype) -> Tuple[torch.Tensor, torch.Tensor]:
+                     dtype: torch.dtype) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         mask = ImagedR[:, :, :, 0].abs() > 1e-5
         Ri_d = torch.zeros(batch_size, natoms_sum, max_neighbor_type, 4, 3, dtype=dtype, device=device)
         Ri_d[:, :, :, 0, 0][mask] = ImagedR[:, :, :, 1][mask] / ImagedR[:, :, :, 0][mask]
@@ -494,7 +494,8 @@ class NEP(nn.Module):
         # t7 = time.time()
         mask: List[Optional[torch.Tensor]] = [torch.ones_like(Etot)]
         dE = torch.autograd.grad([Etot], [Ri], grad_outputs=mask, retain_graph=True, create_graph=True)[0]
-        dE_angular = torch.autograd.grad([Etot], [Ri_angular], grad_outputs=mask, retain_graph=True, create_graph=True)[0]
+        mask_angular: List[Optional[torch.Tensor]] = [torch.ones_like(Etot)]
+        dE_angular = torch.autograd.grad([Etot], [Ri_angular], grad_outputs=mask_angular, retain_graph=True, create_graph=True)[0]
         
         # t8 = time.time()
         '''
@@ -527,6 +528,25 @@ class NEP(nn.Module):
                 # testyy = (ImageDR[batch_idx, :, :, 2] * dE_Rid[batch_idx, :, :, 1]).sum(dim=1)
                 Virial[batch_idx, [3, 6, 7]] = Virial[batch_idx, [1, 2, 5]]
             Force = Force[:, 1:, :]
+
+            dE_angular = torch.unsqueeze(dE_angular, dim=-1)
+            dE_Rid_angular = torch.mul(dE_angular, Ri_d_angular).sum(dim=-2)
+            Force_angular = torch.zeros((batch_size, natoms_sum + nghost + 1, 3), device=device, dtype=dtype)
+            Force_angular[:, 1:natoms_sum + 1, :] = -1 * dE_Rid_angular.sum(dim=-2)
+            Virial_angular = torch.zeros((batch_size, 9), device=device, dtype=dtype)
+            for batch_idx in range(batch_size):
+                indice = list_neigh_angular[batch_idx].flatten().unsqueeze(-1).expand(-1, 3).to(torch.int64) # list_neigh_angular's index start from 1, so the Force's dimension should be natoms_sum + 1
+                values = dE_Rid_angular[batch_idx].view(-1, 3)
+                Force_angular[batch_idx].scatter_add_(0, indice, values).view(natoms_sum + nghost + 1, 3)
+                Virial_angular[batch_idx, 0] = (ImageDR_angular[batch_idx, :, :, 1] * dE_Rid_angular[batch_idx, :, :, 0]).flatten().sum(dim=0) # xx
+                Virial_angular[batch_idx, 1] = (ImageDR_angular[batch_idx, :, :, 1] * dE_Rid_angular[batch_idx, :, :, 1]).flatten().sum(dim=0) # xy
+                Virial_angular[batch_idx, 2] = (ImageDR_angular[batch_idx, :, :, 1] * dE_Rid_angular[batch_idx, :, :, 2]).flatten().sum(dim=0) # xz
+                Virial_angular[batch_idx, 4] = (ImageDR_angular[batch_idx, :, :, 2] * dE_Rid_angular[batch_idx, :, :, 1]).flatten().sum(dim=0) # yy
+                Virial_angular[batch_idx, 5] = (ImageDR_angular[batch_idx, :, :, 2] * dE_Rid_angular[batch_idx, :, :, 2]).flatten().sum(dim=0) # yz
+                Virial_angular[batch_idx, 8] = (ImageDR_angular[batch_idx, :, :, 3] * dE_Rid_angular[batch_idx, :, :, 2]).flatten().sum(dim=0) # zz
+                Virial_angular[batch_idx, [3, 6, 7]] = Virial_angular[batch_idx, [1, 2, 5]]
+            Force_angular = Force_angular[:, 1:, :]
+            
         else:
             Ri_d = Ri_d.view(batch_size, natoms_sum, -1, 3)
             dE = dE.view(batch_size, natoms_sum, 1, -1)
@@ -589,7 +609,7 @@ class NEP(nn.Module):
             n_max_r : int,
             n_base_r:int,
             Imagetype_map : torch.Tensor,
-            j_type_map : torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]: #get c params from c[n_type,n_type, n_max, n_base] 
+            j_type_map : torch.Tensor) -> torch.Tensor: #get c params from c[n_type,n_type, n_max, n_base] 
         batch_size = j_type_map.shape[0]
         atom_nums = j_type_map.shape[1]
         j_list_nums = j_type_map.shape[2]

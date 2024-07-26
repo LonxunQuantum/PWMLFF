@@ -243,6 +243,19 @@ class LKFOptimizer(Optimizer):
                     param_index += 1
 
         self.__update(H, error, weights)
+
+        # param_len = len(self.param_groups[0]["params"]) - 2
+        # exculed = []
+        # for idx in range(0, int(param_len/4)):
+        #     exculed.append(2 + idx*4 + 1) #b0
+        #     exculed.append(2 + idx*4 + 3) #b1
+        # for idx, param in enumerate(self.param_groups[0]["params"]):
+        #     if idx in exculed:
+        #         continue
+        #     param.data = param.data * (1 - 10**-3)
+        
+            # for index, param in enumerate(params):
+            #     param_num = param.data.nelement()
     
     """
     @Description :

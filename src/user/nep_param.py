@@ -109,7 +109,7 @@ class NepParam(object):
         assert type_num == self.type_num
 
         cutoffs = lines[1].split()
-        assert int(self.cutoff[0]) == int(cutoffs[1]) and int(self.cutoff[1]) == int(cutoffs[2])
+        assert float(self.cutoff[0]) == float(cutoffs[1]) and float(self.cutoff[1]) == float(cutoffs[2])
 
         n_maxs =  lines[2].split() 
         assert int(self.n_max[0]) == int(n_maxs[1]) and int(self.n_max[1]) == int(n_maxs[2])

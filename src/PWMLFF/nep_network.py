@@ -446,7 +446,7 @@ class nep_network:
             "Loss_l1": 18,
             "Loss_l2": 18,
             "real_lr": 18,
-            "time": 12,
+            "time": 18,
         }
 
         train_format = "".join(["%{}s".format(train_print_width[i]) for i in train_lists])
@@ -530,7 +530,7 @@ class nep_network:
             if self.input_param.optimizer_param.opt_name == "LKF" or self.input_param.optimizer_param.opt_name == "GKF":
                 train_log_line += "%10.4f" % (time_end - time_start)
             else:
-                train_log_line += "%18.10e%10.4f" % (-1 , time_end - time_start)
+                train_log_line += "%18.10e%18.4f" % (real_lr , time_end - time_start)
 
             f_train_log.write("%s\n" % (train_log_line))
             f_valid_log.write("%s\n" % (valid_log_line))

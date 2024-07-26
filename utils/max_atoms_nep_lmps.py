@@ -14,16 +14,12 @@ def calcualte_atomnum_lmps():
         memory_needed_mb += atom_nums * 4 / 1024 / 1024  # NN_angular
         memory_needed_mb += atom_nums * 100 * 4 / 1024 / 1024  # NL_angular
         memory_needed_mb += atom_nums * 8 / 1024 / 1024  # potential_per_atom
-        memory_needed_mb += atom_nums * 4 / 1024 / 1024  # ilist
-        memory_needed_mb += atom_nums * 4 / 1024 / 1024  # numneigh
-        memory_needed_mb += atom_nums * 500 * 4 / 1024 / 1024  # firstneigh
-        memory_needed_mb += atom_nums * 500 * 6 * 4 / 1024 / 1024  # r12
+        memory_needed_mb += atom_nums * 4 / 1024 / 1024  # itype
         memory_needed_mb += atom_nums * 50 * 4 / 1024 / 1024  # Fp
         memory_needed_mb += atom_nums * 15 * 24 * 4 / 1024 / 1024  # sum_fxyz
-        memory_needed_mb += atom_nums * 1.5 * 3 * 8 / 1024 / 1024  # force_per_atom
-        memory_needed_mb += atom_nums * 1.5 * 9 * 8 / 1024 / 1024  # virial_per_atom
-        memory_needed_mb += atom_nums * 1.5 * 4 / 1024 / 1024  # type
-        memory_needed_mb += atom_nums * 1.5 * 3 * 8 / 1024 / 1024  # position
+        memory_needed_mb += atom_nums * 1 * 3 * 8 / 1024 / 1024  # force_per_atom
+        memory_needed_mb += atom_nums * 1 * 9 * 8 / 1024 / 1024  # virial_per_atom
+        memory_needed_mb += atom_nums * 1 * 3 * 8 / 1024 / 1024  # position
 
         # Check if memory requirement exceeds the limit
         if memory_needed_mb > memory_limit_mb:
@@ -85,4 +81,5 @@ def calculate_percentage_lmps():
 
 if __name__ == '__main__':
     # calculate_percentage_lmps()
-    need_memroy()
+    # need_memroy()
+    calcualte_atomnum_lmps()

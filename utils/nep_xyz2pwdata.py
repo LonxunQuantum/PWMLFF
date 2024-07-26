@@ -120,7 +120,7 @@ def print_dir(json_path:str):
     # with open("/data/home/wuxingxing/datas/PWMLFF_library_data/nep-data/16_metal/train/tmp/dir_list", 'w') as wf:
     #     wf.writelines(content)
 
-    train_dict = json.load(open())
+    train_dict = json.load(open(json_path))
     train_dict['datasets_path'] = res
     json.dump(train_dict, open(json_path, "w"), indent=4)
 

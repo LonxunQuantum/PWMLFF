@@ -153,12 +153,30 @@ class Inference(object):
         neigh_angular_type_list = np.array(NLT_angular).reshape(atom_nums, len(self.input_param.atom_type)*self.input_param.max_neigh_num)
 
         neigh_radial_rij = self.to_tensor(neigh_radial_rij).unsqueeze(0)
+        neigh_angular_rij = self.to_tensor(neigh_angular_rij).unsqueeze(0)
+
         neigh_radial_list = self.to_tensor(neigh_radial_list).unsqueeze(0)
+        neigh_angular_list = self.to_tensor(neigh_angular_list).unsqueeze(0)
+
         neigh_radial_type_list = self.to_tensor(neigh_radial_type_list).unsqueeze(0)
+        neigh_angular_type_list = self.to_tensor(neigh_angular_type_list).unsqueeze(0)
+        
         type_maps = self.to_tensor(type_maps).squeeze(0)
         atom_types = self.to_tensor(np.array(atom_types))
 
-        Etot, Ei, Force, Egroup, Virial = self.model(neigh_radial_list, type_maps, atom_types, neigh_radial_rij, neigh_radial_type_list, nghost)
+        # Etot, Ei, Force, Egroup, Virial = self.model(neigh_radial_list, type_maps, atom_types, neigh_radial_rij, neigh_radial_type_list, nghost)
+
+        Etot, Ei, Force, Egroup, Virial = self.model(
+            neigh_radial_list, 
+            neigh_radial_rij,
+            neigh_radial_type_list,
+            neigh_angular_list,
+            neigh_angular_rij,
+            neigh_angular_type_list,
+            type_maps, 
+            atom_types, 
+            0
+            )
 
         ### debug start
         # dR_neigh_txt = "/data/home/wuxingxing/datas/lammps_test/nep_hfo2_lmps/lmp_dug/dR_neigh.txt"

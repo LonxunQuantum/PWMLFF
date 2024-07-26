@@ -348,7 +348,7 @@ def calculate_energy_shift(chunk_size, _Ei, atom_types_nums):
 
 def gen_train_data(train_ratio, raw_data_path, datasets_path,
                    train_data_path, valid_data_path, 
-                   data_shuffle=True, seed=2024, format="movement"):
+                   data_shuffle=True, seed=2024, format="pwmat/movement", atom_names=None):
     """
     Generate training data for MLFF model.
 
@@ -372,7 +372,7 @@ def gen_train_data(train_ratio, raw_data_path, datasets_path,
         save_dir = os.path.join(datasets_path, data_name)
         labels_path.append(os.path.join(save_dir, os.path.basename(data_path)))
         Save_Data(data_path, save_dir, train_data_path, valid_data_path, 
-                    train_ratio, data_shuffle, seed, format)
+                    train_ratio, data_shuffle, seed, format, atom_names = atom_names)
     return labels_path
 
 def main():
