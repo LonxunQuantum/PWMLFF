@@ -320,7 +320,6 @@ def get_stat(config:InputParam, stat_add=None, datasets_path=None, work_dir=None
 
     return res, max_atom_nums, os.path.join(data_load_path)
 
-
 '''
 description: 
 param {list} energy_shift
