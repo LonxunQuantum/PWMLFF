@@ -107,6 +107,7 @@ class KFOptimizerWrapper:
         Etot_predict = update_prefactor * Etot_predict
         Etot_predict[mask] = -1.0 * Etot_predict[mask]
         if self.lambda_l2 is not None or self.lambda_l1 is not None:
+            raise Exception("ERROR! the LKF does not support lambda_2 and lambda_1 param!!!\n")
             L2, L1 = self.optimizer.get_loss_l2_l1(self.lambda_l2, self.lambda_l1)
             (Etot_predict.sum()+ L2 + L1).backward(retain_graph=True)# retain_graph=True is added for nep training
             error = error + L2 + L1

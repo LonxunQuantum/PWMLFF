@@ -13,25 +13,30 @@ from torch.profiler import profile, record_function, ProfilerActivity
 from src.user.input_param import InputParam
 from utils.debug_operation import check_cuda_memory
 
+def calculate_l1_l2(model, lambda_L1=None, lambda_L2=None):
+    params = model.parameters()
+    dtype = next(params).dtype
+    device = next(params).device
+    L1 = torch.tensor(0.0, device=device, dtype=dtype)
+    L2 = torch.tensor(0.0, device=device, dtype=dtype)
+    L1_print = torch.tensor(0.0, device=device, dtype=dtype).detach().requires_grad_(False)
+    L2_print = torch.tensor(0.0, device=device, dtype=dtype).detach().requires_grad_(False)
+    nums_param = 0
+    for p in params:
+        L1 += torch.sum(torch.abs(p))
+        L2 += torch.sum(p**2)
+        nums_param += p.nelement()
+    L1_print = L1 / nums_param
+    L2_print = L2 / nums_param
+    if lambda_L1 is not None:
+        L1 = lambda_L1 * L1/nums_param
+    if lambda_L2 is not None:
+        L2 = lambda_L2 * (L2/nums_param)**0.5
+    return L1, L2, L1_print, L2_print
+    
 def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, args:InputParam):
 
-    def calculate_l1_l2(model, lambda_L1=None, lambda_L2=None):
-        params = model.parameters()
-        dtype = next(params).dtype
-        L1 = torch.tensor(0.0, device=device, dtype=dtype)
-        L2 = torch.tensor(0.0, device=device, dtype=dtype)
-        nums_param = 0
-        for p in params:
-            if lambda_L1 is not None:
-                L1 += torch.sum(torch.abs(p))
-            if lambda_L2 is not None:
-                L2 += torch.sum(p**2)
-            nums_param += p.nelement()
-        if lambda_L1 is not None:    
-            L1 = lambda_L1 * L1/nums_param
-        if lambda_L2 is not None:  
-            L2 = lambda_L2 * (L2/nums_param)**0.5
-        return L1, L2
+
 
     batch_time = AverageMeter("Time", ":6.3f")
     data_time = AverageMeter("Data", ":6.3f")
@@ -275,28 +280,29 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
                     natoms_img[0].item(),
                 )
             # import ipdb;ipdb.set_trace()
-
-            if args.optimizer_param.lambda_1 is not None or args.optimizer_param.lambda_2 is not None:
-                L1, L2 = calculate_l1_l2(model, args.optimizer_param.lambda_1, args.optimizer_param.lambda_2)
-                # (L2 + L1 + loss).backward()
-                loss_val += L1
+            _L1, _L2, L1, L2 = calculate_l1_l2(model, args.optimizer_param.lambda_1, args.optimizer_param.lambda_2)
+            if args.optimizer_param.lambda_2 is not None:
                 loss_val += L2
+
             if args.optimizer_param.lambda_1 is not None: # the L2 is set in optim.adam(weight_decay), the pytorch will use it updata params atomically
-                (L1 + loss).backward()
+                (_L1 + loss).backward()
+                loss_val += L1
             else:
                 loss.backward()
             optimizer.step()
 
+            loss_L1.update(L1.item(), batch_size)
+            loss_L2.update(L2.item(), batch_size)
             
             # measure accuracy and record loss
             losses.update(loss_val.item(), batch_size)
             loss_Etot.update(loss_Etot_val.item(), batch_size)
             loss_Etot_per_atom.update(loss_Etot_per_atom_val.item(), batch_size)
             loss_Ei.update(loss_Ei_val.item(), batch_size)
-            if args.optimizer_param.lambda_1 is not None:
-                loss_L1.update(L1.item(), batch_size)
-            if args.optimizer_param.lambda_2 is not None:
-                loss_L2.update(L2.item(), batch_size)
+            # if args.optimizer_param.lambda_1 is not None:
+            #     loss_L1.update(L1.item(), batch_size)
+            # if args.optimizer_param.lambda_2 is not None:
+            #     loss_L2.update(L2.item(), batch_size)
 
             if args.optimizer_param.train_egroup is True:
                 loss_Egroup.update(loss_Egroup_val.item(), batch_size)
@@ -476,20 +482,20 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
             
             loss_val = loss_F_val + loss_Etot_val*natoms
             
-            if args.optimizer_param.lambda_1 is None and args.optimizer_param.lambda_2 is None:
-                _L2, _L1 = KFOptWrapper.optimizer.print_L2()
-                loss_L1.update(_L1, batch_size)
-                # loss_val += _L1
-                loss_L2.update(_L2, batch_size)
-                # loss_val += _L2
+            # if args.optimizer_param.lambda_1 is None and args.optimizer_param.lambda_2 is None:
+            L1, L2, _L1, _L2 = calculate_l1_l2(model, args.optimizer_param.lambda_1, args.optimizer_param.lambda_2)
+            loss_L1.update(_L1, batch_size)
+            # loss_val += _L1
+            loss_L2.update(_L2, batch_size)
+            # loss_val += _L2
 
-            if args.optimizer_param.lambda_1 is not None:
-                loss_L1.update(L1, batch_size)
-                loss_val += L1
+            # if args.optimizer_param.lambda_1 is not None:
+            #     loss_L1.update(L1, batch_size)
+            #     loss_val += L1
 
-            if args.optimizer_param.lambda_2 is not None:
-                loss_L2.update(L2, batch_size)
-                loss_val += L2
+            # if args.optimizer_param.lambda_2 is not None:
+            #     loss_L2.update(L2, batch_size)
+            #     loss_val += L2
 
             # measure accuracy and record loss
             losses.update(loss_val.item(), batch_size)
