@@ -11,6 +11,20 @@ from src.optimizer.KFWrapper import KFOptimizerWrapper
 # import horovod.torch as hvd
 from torch.profiler import profile, record_function, ProfilerActivity
 from src.user.input_param import InputParam
+def print_l1_l2(model):
+    params = model.parameters()
+    dtype = next(params).dtype
+    device = next(params).device
+    L1 = torch.tensor(0.0, device=device, dtype=dtype).detach().requires_grad_(False)
+    L2 = torch.tensor(0.0, device=device, dtype=dtype).detach().requires_grad_(False)
+    nums_param = 0
+    for p in params:
+        L1 += torch.sum(torch.abs(p))
+        L2 += torch.sum(p**2)
+        nums_param += p.nelement()
+    L1 = L1 / nums_param
+    L2 = L2 / nums_param
+    return L1, L2
 
 def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, args:InputParam):
     batch_time = AverageMeter("Time", ":6.3f")
@@ -23,9 +37,11 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
     loss_Virial_per_atom = AverageMeter("Virial_per_atom", ":.4e", Summary.ROOT)
     loss_Ei = AverageMeter("Ei", ":.4e", Summary.ROOT)
     loss_Egroup = AverageMeter("Egroup", ":.4e", Summary.ROOT)
+    loss_L1 = AverageMeter("Loss_L1", ":.4e", Summary.ROOT)
+    loss_L2 = AverageMeter("Loss_L2", ":.4e", Summary.ROOT)
     progress = ProgressMeter(
         len(train_loader),
-        [batch_time, data_time, losses, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_Egroup, loss_Virial, loss_Virial_per_atom],
+        [batch_time, data_time, losses, loss_L1, loss_L2, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_Egroup, loss_Virial, loss_Virial_per_atom],
         prefix="Epoch: [{}]".format(epoch),
     )
     
@@ -257,12 +273,19 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
             loss.backward()
             optimizer.step()
 
-            
+            L1, L2 = print_l1_l2(model)
+            if args.optimizer_param.lambda_2 is not None:
+                loss_val += L2
+
             # measure accuracy and record loss
             losses.update(loss_val.item(), batch_size)
             loss_Etot.update(loss_Etot_val.item(), batch_size)
             loss_Etot_per_atom.update(loss_Etot_per_atom_val.item(), batch_size)
             loss_Ei.update(loss_Ei_val.item(), batch_size)
+
+            loss_L1.update(L1.item(), batch_size)
+            loss_L2.update(L2.item(), batch_size)
+
             if args.optimizer_param.train_egroup is True:
                 loss_Egroup.update(loss_Egroup_val.item(), batch_size)
             if args.optimizer_param.train_virial is True:
@@ -288,7 +311,9 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
         loss_Virial.root,
         loss_Virial_per_atom.root,
         real_lr,
-        Sij_max,    
+        Sij_max,   
+        loss_L1.root,
+        loss_L2.root 
     )
 
 
@@ -302,16 +327,18 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
     loss_Ei = AverageMeter("Ei", ":.4e", Summary.ROOT)
     loss_Egroup = AverageMeter("Egroup", ":.4e", Summary.ROOT)
     loss_Virial = AverageMeter("Virial", ":.4e", Summary.ROOT)
+    loss_L1 = AverageMeter("Loss_L1", ":.4e", Summary.ROOT)
+    loss_L2 = AverageMeter("Loss_L2", ":.4e", Summary.ROOT)    
     loss_Virial_per_atom = AverageMeter("Virial_per_atom", ":.4e", Summary.ROOT)
     
     progress = ProgressMeter(
         len(train_loader),
-        [batch_time, data_time, losses, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_Egroup, loss_Virial, loss_Virial_per_atom],
+        [batch_time, data_time, losses, loss_L1, loss_L2, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_Egroup, loss_Virial, loss_Virial_per_atom],
         prefix="Epoch: [{}]".format(epoch),
     )
 
     KFOptWrapper = KFOptimizerWrapper(
-        model, optimizer, args.optimizer_param.nselect, args.optimizer_param.groupsize
+        model, optimizer, args.optimizer_param.nselect, args.optimizer_param.groupsize, lambda_l1 = args.optimizer_param.lambda_1, lambda_l2 = args.optimizer_param.lambda_2
     )
     
     # switch to train mode
@@ -443,6 +470,7 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
                         kalman_inputs, Force_label, args.optimizer_param.pre_fac_force)
 
             loss_F_val = criterion(Force_predict, Force_label)
+            L1, L2 = print_l1_l2(model)
 
             # divide by natoms 
             loss_Etot_val = criterion(Etot_predict, Etot_label)
@@ -456,9 +484,17 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
                 loss_Virial_val = criterion(Virial_predict, Virial_label.squeeze(1))
                 loss_Virial_per_atom_val = loss_Virial_val/natoms/natoms
             loss_val = loss_F_val + loss_Etot_val*natoms
+            
+            if args.optimizer_param.lambda_2 is not None:
+                loss_val += L2
+            if args.optimizer_param.lambda_1 is not None:
+                loss_val += L1
 
             # measure accuracy and record loss
             losses.update(loss_val.item(), batch_size)
+
+            loss_L1.update(L1.item(), batch_size)
+            loss_L2.update(L2.item(), batch_size)
 
             loss_Etot.update(loss_Etot_val.item(), batch_size)
             loss_Etot_per_atom.update(loss_Etot_per_atom_val.item(), batch_size)
@@ -491,7 +527,7 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
         batch_time.all_reduce()
     """
     progress.display_summary(["Training Set:"])
-    return losses.avg, loss_Etot.root, loss_Etot_per_atom.root, loss_Force.root, loss_Ei.root, loss_Egroup.root, loss_Virial.root, loss_Virial_per_atom.root, Sij_max
+    return losses.avg, loss_Etot.root, loss_Etot_per_atom.root, loss_Force.root, loss_Ei.root, loss_Egroup.root, loss_Virial.root, loss_Virial_per_atom.root, Sij_max, loss_L1.root, loss_L2.root
 
 '''
 description: 

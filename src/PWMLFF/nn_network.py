@@ -433,7 +433,8 @@ class nn_network:
                 self.model.parameters(),
                 self.dp_params.optimizer_param.kalman_lambda,
                 self.dp_params.optimizer_param.kalman_nue,
-                self.dp_params.optimizer_param.block_size
+                self.dp_params.optimizer_param.block_size,
+                self.dp_params.optimizer_param.p0_weight
             )
         elif opt_optimizer == "GKF":
             self.optimizer = GKFOptimizer(
@@ -442,7 +443,13 @@ class nn_network:
                 self.dp_params.optimizer_param.kalman_nue
             )
         elif opt_optimizer == "ADAM":
-            self.optimizer = optim.Adam(self.model.parameters(), self.dp_params.optimizer_param.learning_rate)
+            if self.dp_params.optimizer_param.lambda_2 is None:
+                self.optimizer = optim.Adam(self.model.parameters(), 
+                                    self.dp_params.optimizer_param.learning_rate)
+            else:
+                self.optimizer = optim.Adam(self.model.parameters(), 
+                                    self.dp_params.optimizer_param.learning_rate, weight_decay=self.dp_params.optimizer_param.lambda_2)
+
         elif opt_optimizer == "SGD":
             self.optimizer = optim.SGD(
                 self.model.parameters(),
@@ -497,6 +504,10 @@ class nn_network:
         # Define the lists based on the training type
         train_lists = ["epoch", "loss"]
         valid_lists = ["epoch", "loss"]
+        if self.dp_params.optimizer_param.lambda_1 is not None:
+            train_lists.append("Loss_l1")
+        if self.dp_params.optimizer_param.lambda_2 is not None:
+            train_lists.append("Loss_l2")
 
         if self.dp_params.optimizer_param.train_energy:
             # train_lists.append("RMSE_Etot")
@@ -532,8 +543,10 @@ class nn_network:
             "RMSE_F": 18,
             "RMSE_virial": 18,
             "RMSE_virial_per_atom": 23,
+            "Loss_l1": 18,
+            "Loss_l2": 18,
             "real_lr": 18,
-            "time": 12,
+            "time": 18,
         }
 
         train_format = "".join(["%{}s".format(train_print_width[i]) for i in train_lists])
@@ -547,11 +560,11 @@ class nn_network:
             time_start = time.time()
             # check_cuda_memory(epoch, self.dp_params.optimizer_param.epochs, "before train")
             if self.dp_params.optimizer_param.opt_name == "LKF" or self.dp_params.optimizer_param.opt_name == "GKF":
-                loss, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_egroup, loss_virial, loss_virial_per_atom = train_KF(
+                loss, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_egroup, loss_virial, loss_virial_per_atom, loss_l1, loss_l2 = train_KF(
                     self.train_loader, self.model, self.criterion, self.optimizer, epoch, self.device, self.dp_params
                 )
             else:
-                loss, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_egroup, loss_virial, loss_virial_per_atom, real_lr = train(
+                loss, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_egroup, loss_virial, loss_virial_per_atom, real_lr, loss_l1, loss_l2 = train(
                     self.train_loader, self.model, self.criterion, self.optimizer, epoch, \
                         self.dp_params.optimizer_param.learning_rate, self.device, self.dp_params
                 )
@@ -574,6 +587,10 @@ class nn_network:
                 epoch,
                 vld_loss,
             )
+            if self.dp_params.optimizer_param.lambda_1 is not None:
+                train_log_line += "%18.10e" % (loss_l1)
+            if self.dp_params.optimizer_param.lambda_2 is not None:
+                train_log_line += "%18.10e" % (loss_l2)
 
             if self.dp_params.optimizer_param.train_energy:
                 # train_log_line += "%18.10e" % (loss_Etot)
@@ -596,9 +613,9 @@ class nn_network:
                 valid_log_line += "%23.10e" % (val_loss_virial_per_atom)
 
             if self.dp_params.optimizer_param.opt_name == "LKF" or self.dp_params.optimizer_param.opt_name == "GKF":
-                train_log_line += "%10.4f" % (time_end - time_start)
+                train_log_line += "%18.4f" % (time_end - time_start)
             else:
-                train_log_line += "%18.10e%10.4f" % (real_lr, time_end - time_start)
+                train_log_line += "%18.10e%18.4f" % (real_lr, time_end - time_start)
 
             f_train_log.write("%s\n" % (train_log_line))
             f_valid_log.write("%s\n" % (valid_log_line))

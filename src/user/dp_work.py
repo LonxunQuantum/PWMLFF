@@ -23,8 +23,8 @@ def dp_train(input_json: json, cmd:str):
     if len(dp_param.file_paths.raw_path) > 0:
         datasets_path = dp_trainer.generate_data()
         dp_param.file_paths.set_datasets_path(datasets_path)
-    davg, dstd, energy_shift, max_atom_nums = dp_trainer._get_stat()
-    dp_trainer.train(davg, dstd, energy_shift, max_atom_nums)
+    
+    dp_trainer.train()
     if os.path.exists(dp_param.file_paths.model_save_path) is False:
         if os.path.exists(dp_param.file_paths.model_load_path):
             dp_param.file_paths.model_save_path = dp_param.file_paths.model_load_path

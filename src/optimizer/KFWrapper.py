@@ -16,6 +16,8 @@ class KFOptimizerWrapper:
         atoms_per_group: int,
         is_distributed: bool = False,
         distributed_backend: str = "torch",  # torch or horovod
+        lambda_l1 = None,
+        lambda_l2 = None
     ) -> None:
         self.model = model
         self.optimizer = optimizer
@@ -23,7 +25,9 @@ class KFOptimizerWrapper:
         self.atoms_per_group = atoms_per_group  # 6
         self.is_distributed = is_distributed
         self.distributed_backend = distributed_backend
-
+        self.lambda_l1 = lambda_l1
+        self.lambda_l2 = lambda_l2
+        
     def update_energy(
         self, inputs: list, Etot_label: torch.Tensor, update_prefactor: float = 1, train_type = "DP"
     ) -> None:

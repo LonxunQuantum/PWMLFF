@@ -323,9 +323,12 @@ class NEP(nn.Module):
         feats = self.calculate_qn(doub_natoms_sum, batch_size, max_neighbor_type, Imagetype_map, j_type_map, Ri, j_type_map_angular, Ri_angular, device, dtype)
 
         if self.q_scaler is None:
-            q_max = torch.max(feats.reshape([-1, feats.shape[-1]]), dim=-2)[0]
-            q_min = torch.min(feats.reshape([-1, feats.shape[-1]]), dim=-2)[0]
-            self.q_scaler = (1/(q_max-q_min)).detach()
+            if batch_size * natoms_sum < 2:
+                self.q_scaler = torch.ones(feats.shape[-1], device=device, dtype=dtype).detach()
+            else:
+                q_max = torch.max(feats.reshape([-1, feats.shape[-1]]), dim=-2)[0]
+                q_min = torch.min(feats.reshape([-1, feats.shape[-1]]), dim=-2)[0]
+                self.q_scaler = (1/(q_max-q_min)).detach()
         elif is_calc_f is False and self.update_scaler:
             q_max = torch.max(feats.reshape([-1, feats.shape[-1]]), dim=-2)[0]
             q_min = torch.min(feats.reshape([-1, feats.shape[-1]]), dim=-2)[0]

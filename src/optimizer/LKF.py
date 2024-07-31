@@ -10,6 +10,7 @@ class LKFOptimizer(Optimizer):
         kalman_lambda=0.98,
         kalman_nue=0.9987,
         block_size=5120,
+        p0_weight = None
     ):
 
         defaults = dict(
@@ -31,7 +32,7 @@ class LKFOptimizer(Optimizer):
         # the first param, because this helps with casting in load_state_dict
         self._state = self.state[self._params[0]]
         self._state.setdefault("kalman_lambda", kalman_lambda)
-        
+        self.p0_weight = p0_weight
         self.__init_P()
 
     def __init_P(self):
@@ -39,8 +40,8 @@ class LKFOptimizer(Optimizer):
         param_nums = []
         param_sum = 0
         block_size = self.__get_blocksize()
-        data_type = self._params[0].dtype
-        device = self._params[0].device
+        self.data_type = self._params[0].dtype
+        self.device = self._params[0].device
 
         for param_group in self.param_groups:
             params = param_group["params"]
@@ -67,26 +68,22 @@ class LKFOptimizer(Optimizer):
                 block_num = math.ceil(param_num / block_size)
                 for i in range(block_num):
                     if i != block_num - 1:
-                        P.append(
-                            torch.eye(
-                                block_size,
-                                dtype=data_type,
-                                device=device,
-                            )
-                        )
+                        _tmp = torch.eye(block_size, dtype=self.data_type, device=self.device,)
                         params_packed_index.append(block_size)
                     else:
-                        P.append(
-                            torch.eye(
-                                param_num - block_size * i,
-                                dtype=data_type,
-                                device=device,
-                            )
-                        )
+                        _tmp = torch.eye(param_num - block_size * i, dtype=self.data_type, device=self.device,)
                         params_packed_index.append(param_num - block_size * i)
+                    if self.p0_weight is not None:
+                        P.append(self.p0_weight * _tmp)
+                    else:
+                        P.append(_tmp)
             else:
-                P.append(torch.eye(param_num, dtype=data_type, device=device))
+                _tmp = torch.eye(param_num, dtype=self.data_type, device=self.device)
                 params_packed_index.append(param_num)
+                if self.p0_weight is not None:
+                    P.append(self.p0_weight * _tmp)
+                else:
+                    P.append(_tmp)
 
         self._state.setdefault("P", P) 
         self._state.setdefault("weights_num", len(P))

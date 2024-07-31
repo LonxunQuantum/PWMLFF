@@ -101,7 +101,8 @@ def toneplmps(cmd_list:list[str]):
     # energy_shift, atom_map, train_loader, val_loader = nep_trainer.load_data(energy_shift, max_atom_nums)
     model, optimizer = nep_trainer.load_model_optimizer(energy_shift)
     nep_trainer.convert_to_gpumd(model, save_dir=os.path.dirname(os.path.abspath(ckpt_file)))
-
+    print("Successfully convert to nep.in and nep.txt file.") 
+    
 def togpumd(cmd_list:list[str]):
     from utils.nep_to_gpumd import nep_ckpt_to_gpumd
     nep_ckpt_to_gpumd(cmd_list)

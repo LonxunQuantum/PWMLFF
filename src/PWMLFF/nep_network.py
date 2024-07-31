@@ -273,7 +273,8 @@ class nep_network:
                 model.parameters(),
                 self.input_param.optimizer_param.kalman_lambda,
                 self.input_param.optimizer_param.kalman_nue,
-                self.input_param.optimizer_param.block_size
+                self.input_param.optimizer_param.block_size,
+                self.input_param.optimizer_param.p0_weight
             )
         elif self.input_param.optimizer_param.opt_name == "GKF":
             optimizer = GKFOptimizer(
@@ -282,8 +283,13 @@ class nep_network:
                 self.input_param.optimizer_param.kalman_nue
             )
         elif self.input_param.optimizer_param.opt_name == "ADAM":
-            optimizer = optim.Adam(model.parameters(), 
-                                   self.input_param.optimizer_param.learning_rate)
+            if self.input_param.optimizer_param.lambda_2 is None:
+                optimizer = optim.Adam(model.parameters(), 
+                                    self.input_param.optimizer_param.learning_rate)
+            else:
+                optimizer = optim.Adam(model.parameters(), 
+                                    self.input_param.optimizer_param.learning_rate, weight_decay=self.input_param.optimizer_param.lambda_2)
+
         elif self.input_param.optimizer_param.opt_name == "SGD":
             optimizer = optim.SGD(
                 model.parameters(), 
@@ -406,6 +412,12 @@ class nep_network:
         # Define the lists based on the training type
         train_lists = ["epoch", "loss"]
         valid_lists = ["epoch", "loss"]
+        
+        if self.input_param.optimizer_param.lambda_1 is not None:
+            train_lists.append("Loss_l1")
+        if self.input_param.optimizer_param.lambda_2 is not None:
+            train_lists.append("Loss_l2")
+
         if self.input_param.optimizer_param.train_energy:
             # train_lists.append("RMSE_Etot")
             # valid_lists.append("RMSE_Etot")
@@ -468,7 +480,7 @@ class nep_network:
             # train for one epoch
             time_start = time.time()
             if self.input_param.optimizer_param.opt_name == "LKF" or self.input_param.optimizer_param.opt_name == "GKF":
-                loss, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_egroup, loss_virial, loss_virial_per_atom = train_KF(
+                loss, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_egroup, loss_virial, loss_virial_per_atom, loss_l1, loss_l2 = train_KF(
                     train_loader, model, self.criterion, optimizer, epoch, self.device, self.input_param
                 )
 
@@ -477,7 +489,7 @@ class nep_network:
                     train_loader, model, self.criterion, optimizer, epoch, self.device, self.input_param
                 )
             else:
-                loss, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_egroup, loss_virial, loss_virial_per_atom, real_lr = train(
+                loss, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_egroup, loss_virial, loss_virial_per_atom, real_lr, loss_l1, loss_l2 = train(
                     train_loader, model, self.criterion, optimizer, epoch, \
                         self.input_param.optimizer_param.learning_rate, self.device, self.input_param
                 )
@@ -504,6 +516,10 @@ class nep_network:
                 epoch,
                 vld_loss,
             )
+            if self.input_param.optimizer_param.lambda_1 is not None:
+                train_log_line += "%18.10e" % (loss_l1)
+            if self.input_param.optimizer_param.lambda_2 is not None:
+                train_log_line += "%18.10e" % (loss_l2)
 
             if self.input_param.optimizer_param.train_energy:
                 # train_log_line += "%18.10e" % (loss_Etot)
@@ -528,7 +544,7 @@ class nep_network:
                 train_log_line += "%18.10e" % (loss_l1)
                 train_log_line += "%18.10e" % (loss_l2)
             if self.input_param.optimizer_param.opt_name == "LKF" or self.input_param.optimizer_param.opt_name == "GKF":
-                train_log_line += "%10.4f" % (time_end - time_start)
+                train_log_line += "%18.4f" % (time_end - time_start)
             else:
                 train_log_line += "%18.10e%18.4f" % (real_lr , time_end - time_start)
 
@@ -549,8 +565,8 @@ class nep_network:
                     "atom_type_order": atom_map,    #atom type order of davg/dstd/energy_shift, the user input order
                     "m":optimizer.get_m(),
                     "s": optimizer.get_s(),
-                    "q_scaler": model.get_q_scaler(),
-                    "optimizer":optimizer.state_dict()                        
+                    "q_scaler": model.get_q_scaler()
+                    # "optimizer":optimizer.state_dict()                        
                     },
                     self.input_param.file_paths.model_name,
                     self.input_param.file_paths.model_store_dir,                    
@@ -589,16 +605,24 @@ class nep_network:
                 )
             self.convert_to_gpumd(model)
             
-
+    '''
+    description: 
+        delete nep.in file, this file not used
+    param {*} self
+    param {NEP} model
+    param {str} save_dir
+    return {*}
+    author: wuxingxing
+    '''
     def convert_to_gpumd(self, model:NEP, save_dir:str = None):
-        model_content = self.input_param.nep_param.to_nep_in_txt()
-        train_content = self.input_param.optimizer_param.snes_to_nep_txt()
-        model_content += train_content
+        # model_content = self.input_param.nep_param.to_nep_in_txt()
+        # train_content = self.input_param.optimizer_param.snes_to_nep_txt()
+        # model_content += train_content
         if save_dir is None:
-            save_nep_in_path = os.path.join(self.input_param.file_paths.model_store_dir, self.input_param.file_paths.nep_in_file)
+            # save_nep_in_path = os.path.join(self.input_param.file_paths.model_store_dir, self.input_param.file_paths.nep_in_file)
             save_nep_txt_path = os.path.join(self.input_param.file_paths.model_store_dir, self.input_param.file_paths.nep_model_file)
         else:
-            save_nep_in_path = os.path.join(save_dir, self.input_param.file_paths.nep_in_file)
+            # save_nep_in_path = os.path.join(save_dir, self.input_param.file_paths.nep_in_file)
             save_nep_txt_path = os.path.join(save_dir, self.input_param.file_paths.nep_model_file)            
         # extract parameters
         txt_head = self.input_param.nep_param.to_nep_txt()
@@ -606,12 +630,12 @@ class nep_network:
         txt_body_str = "\n".join(map(str, txt_body))
         txt_head += txt_body_str
 
-        with open(save_nep_in_path, 'w') as wf:
-            wf.writelines(model_content)
+        # with open(save_nep_in_path, 'w') as wf:
+        #     wf.writelines(model_content)
 
         with open(save_nep_txt_path, 'w') as wf:
             wf.writelines(txt_head)
-        print("Successfully convert to nep.in and nep.txt file.") 
+        # print("Successfully convert to nep.in and nep.txt file.") 
 
     def evaluate(self,num_thread = 1):
         """
