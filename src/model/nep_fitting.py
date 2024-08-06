@@ -83,7 +83,7 @@ class FittingNet(nn.Module):
         i = len(self.network_size) - 1
         if from_nep_txt:
             wij = torch.from_numpy(nep_txt_param[2])
-            bias_init = torch.from_numpy(nep_txt_param[3])
+            bias_init = nep_txt_param[3] * torch.ones(1)
         else:
             wij = torch.randn(self.network_size[i-1], self.network_size[i])
             normal(wij, mean=0, std=(1.0 / np.sqrt(self.network_size[i-1] + self.network_size[i])))

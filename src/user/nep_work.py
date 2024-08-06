@@ -109,7 +109,7 @@ def togpumd(cmd_list:list[str]):
 
 def tonepckpt(cmd_list:list[str], save_ckpt:bool=True):
     nep_txt_path = cmd_list[0]
-    nep_in_path = cmd_list[1]
+    # nep_in_path = cmd_list[1]
     input_dict = {}
     input_dict["model_type"] = "NEP"
     # get atom_type from nep.txt file
@@ -118,13 +118,13 @@ def tonepckpt(cmd_list:list[str], save_ckpt:bool=True):
         if len(line_one.split()) < 3:
             raise Exception("ERROR! The nep.txt file is not correct! The first line should have at least three elements, such as 'nep4 1 Li'! Please check the path {}".format(nep_txt_path))
         atom_type_str = line_one.split()[2:]
-    with open(nep_in_path, 'r') as rf:
-        line_one = rf.readline()
-        if len(line_one.split()) != 2:
-            raise Exception("ERROR! The nep.in file is not correct! The first line should have 2 elements,such as 'version 4'! Please check the path {}".format(nep_in_path))
+    # with open(nep_in_path, 'r') as rf:
+    #     line_one = rf.readline()
+    #     if len(line_one.split()) != 2:
+    #         raise Exception("ERROR! The nep.in file is not correct! The first line should have 2 elements,such as 'version 4'! Please check the path {}".format(nep_in_path))
     atom_type_list = get_atomic_number_from_name(atom_type_str)
     input_dict["atom_type"] = atom_type_list
-    input_dict["nep_in_file"] = nep_in_path
+    # input_dict["nep_in_file"] = nep_in_path
     input_dict["nep_txt_file"] = nep_txt_path
     input_dict["datasets_path"] = []
     input_dict["raw_files"] = []

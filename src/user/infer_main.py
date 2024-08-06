@@ -7,18 +7,18 @@ def infer_main(sys_cmd:list[str]):
     ckpt_file = sys_cmd[0]
     use_nep_txt = False
     sys_index = 0
-    nep_in_txt = None
+    # nep_in_txt = None
     if ".txt" in ckpt_file:
         use_nep_txt= True
-    if use_nep_txt:
-        nep_in_txt = sys_cmd[1]
-        structures_file = sys_cmd[2]
-        format = sys_cmd[3] if len(sys_cmd) > 3 else "pwmat/config"
-        sys_index = 3
-    else:
-        structures_file = sys_cmd[1]
-        format = sys_cmd[2] if len(sys_cmd) > 2 else "pwmat/config"
-        sys_index = 2
+    # if use_nep_txt:
+    #     # nep_in_txt = sys_cmd[1]
+    #     structures_file = sys_cmd[1]
+    #     format = sys_cmd[2] if len(sys_cmd) > 2 else "pwmat/config"
+    #     sys_index = 2
+    # else:
+    structures_file = sys_cmd[1]
+    format = sys_cmd[2] if len(sys_cmd) > 2 else "pwmat/config"
+    sys_index = 2
     if format is not None and format.lower() == "lammps/dump":
         atom_typs = sys_cmd[sys_index+1:]
         if isinstance(atom_typs, list) is False:
@@ -39,7 +39,7 @@ def infer_main(sys_cmd:list[str]):
             print("Warnning! Modify the GPU device to CPU for the DP infer interface!")
     else:
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    infer = Inference(ckpt_file, device, nep_in_txt)
+    infer = Inference(ckpt_file, device, use_nep_txt)
     if infer.model_type == "DP":
         infer.inference(structures_file, format, atom_typs)
     elif infer.model_type == "NEP":

@@ -13,13 +13,13 @@ class Inference(object):
     def __init__(self, 
                  ckpt_file: str, 
                  device: torch.device = None,
-                 nep_in_file:str = None) -> None:
+                 nep_txt:bool = False) -> None:
         self.ckpt_file = ckpt_file
         self.device = device
-        if nep_in_file is None:
+        if nep_txt is False:
             self.model, self.model_type, self.input_param = self.load_model(ckpt_file)
         else: # load from nep.txt and nep.in
-            self.model, self.model_type, self.input_param = tonepckpt([ckpt_file, nep_in_file], save_ckpt=False)
+            self.model, self.model_type, self.input_param = tonepckpt([ckpt_file], save_ckpt=False)
 
     '''
     description: 
@@ -129,6 +129,9 @@ class Inference(object):
         atom_types_struc = image.atom_types_image
         atom_types = image.atom_type
         ntypes = len(atom_types)
+        # print("=========position==========\n")
+        # print(image.position)
+        cart_postion = image.position
         if image.cartesian is True:
             image._set_fractional()
         atom_nums = image.atom_nums

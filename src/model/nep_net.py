@@ -46,7 +46,7 @@ class NEP(nn.Module):
         for i in range(self.ntypes):
             nep_txt_param = None
             if input_param.nep_param.c2_param is not None:
-                nep_txt_param = [input_param.nep_param.model_wb[i*3+0], input_param.nep_param.model_wb[i*3+1], input_param.nep_param.model_wb[i*3+2], input_param.nep_param.bias_lastlayer]
+                nep_txt_param = [input_param.nep_param.model_wb[i*3+0], input_param.nep_param.model_wb[i*3+1], input_param.nep_param.model_wb[i*3+2], input_param.nep_param.bias_lastlayer[i]]
             self.fitting_net.append(FittingNet(network_size   = self.neuron, #[50, 1]
                                                     bias      = True,
                                                     resnet_dt = False,

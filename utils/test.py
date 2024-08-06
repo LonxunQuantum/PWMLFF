@@ -78,26 +78,28 @@ if __name__ == "__main__":
     # with open("/data/home/wuxingxing/datas/PWMLFF_library_data/nep-data/16_metal/train/tmp/dir_list", 'w') as wf:
     #     wf.writelines(content)
     
-    res = [23296, 11520, 2560, 80, 80, 1, 2560, 80, 80, 1, 2560, 80, 80, 1, 2560, 80, 80, 1, 2560, 80, 80, 1, 2560, 80, 80, 1, 2560, 80, 80, 1, 2560, 80, 80, 1, 2560, 80, 80, 1, 2560, 80, 80, 1, 2560, 80, 80, 1, 2560, 80, 80, 1, 2560, 80, 80, 1, 2560, 80, 80, 1, 2560, 80, 80, 1, 2560, 80, 80, 1]
+    # res = [23296, 11520, 2560, 80, 80, 1, 2560, 80, 80, 1, 2560, 80, 80, 1, 2560, 80, 80, 1, 2560, 80, 80, 1, 2560, 80, 80, 1, 2560, 80, 80, 1, 2560, 80, 80, 1, 2560, 80, 80, 1, 2560, 80, 80, 1, 2560, 80, 80, 1, 2560, 80, 80, 1, 2560, 80, 80, 1, 2560, 80, 80, 1, 2560, 80, 80, 1, 2560, 80, 80, 1]
 
-    param_nums = []
-    param_sum = 0
-    block_size = 2721
+    # param_nums = []
+    # param_sum = 0
+    # block_size = 2721
 
-    for index, param in enumerate(res):
-        param_num = param
-        print(param_num, param_sum, block_size)
-        if param_sum + param_num > block_size:
-            #when the first layer params nums more than block_size, 
-            # the first P matrix will be [], this 'elif' is handling for this bug
-            if param_sum == 0:
-                param_sum = param_num
-                continue
-            param_nums.append(param_sum)
-            param_sum = param_num
-        else:
-            param_sum += param_num
+    # for index, param in enumerate(res):
+    #     param_num = param
+    #     print(param_num, param_sum, block_size)
+    #     if param_sum + param_num > block_size:
+    #         #when the first layer params nums more than block_size, 
+    #         # the first P matrix will be [], this 'elif' is handling for this bug
+    #         if param_sum == 0:
+    #             param_sum = param_num
+    #             continue
+    #         param_nums.append(param_sum)
+    #         param_sum = param_num
+    #     else:
+    #         param_sum += param_num
     
-    param_nums.append(param_sum)
-    print(param_nums)
+    # param_nums.append(param_sum)
+    # print(param_nums)
 
+
+    file_path = "/data/home/wuxingxing/datas/pwmat_mlff_workdir/hfo2/lmps_test/debug/64cpu/traj/2001.dump"

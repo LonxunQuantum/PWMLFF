@@ -104,30 +104,53 @@ class NepParam(object):
         self.nep_txt_file = nep_txt_file
         with open(nep_txt_file, "r") as rf:
             lines =rf.readlines()
+
+        line_num = len(lines)
+
         line_1 = lines[0].split()
         version, type_num, type_list = line_1[0], int(line_1[1]), line_1[2:]
-        assert type_num == self.type_num
+        self.type_num = type_num
+
+        use_zbl = False
+        use_fixed_zbl = False
+        if "zbl" in lines[1]:
+            zbl_line = lines[1].split()
+            if float(zbl_line[1]) < 1e-04 and float(zbl_line[2]) < 1e-04:
+                use_fixed_zbl = True
+            else:
+                lines[1:-1] = lines[2:]
+            use_zbl = True
 
         cutoffs = lines[1].split()
-        assert float(self.cutoff[0]) == float(cutoffs[1]) and float(self.cutoff[1]) == float(cutoffs[2])
+        self.cutoff = [float(cutoffs[1]), float(cutoffs[2])]
 
         n_maxs =  lines[2].split() 
-        assert int(self.n_max[0]) == int(n_maxs[1]) and int(self.n_max[1]) == int(n_maxs[2])
+        self.n_max = [int(n_maxs[1]), int(n_maxs[2])]
 
         basis_size =  lines[3].split() 
-        assert int(self.basis_size[0]) == int(basis_size[1]) and int(self.basis_size[1]) == int(basis_size[2])  
+        self.basis_size = [int(basis_size[1]),int(basis_size[2])]
 
         l_maxs =  lines[4].split() 
-        assert int(self.l_max[0]) == int(l_maxs[1]) and int(self.l_max[1]) == int(l_maxs[2])    
+        self.l_max = [int(l_maxs[1]), int(l_maxs[2]), int(l_maxs[3])]
 
         anns = lines[5].split()
         ann_num = int(anns[1])
-        assert ann_num == self.neuron[0]
+        self.neuron = [ann_num, 1]
+        self.set_feature_params()
+
         #num_w0 
         self.model_wb = []
         start_index = 6
         w0_num = self.feature_nums*ann_num
         b0_num = ann_num
+        ann_nums= (w0_num + b0_num*2) * self.type_num + self.type_num
+        need_line = 6 + ann_nums + self.c_num + self.feature_nums
+        if use_zbl:
+            if use_fixed_zbl:
+                need_line += 1 + (self.type_num+1)*self.type_num/2
+            else:
+                need_line += 1
+        is_gpumd_nep = False if need_line == line_num else True
         for i in range(0, self.type_num):
             w0 = np.array([float(_) for _ in lines[start_index        : start_index+w0_num]]).reshape(ann_num, self.feature_nums).transpose(1,0)
             start_index = start_index + w0_num
@@ -139,15 +162,28 @@ class NepParam(object):
             start_index = start_index + b0_num
             self.model_wb.append(w1)
 
-        self.bias_lastlayer = np.array([-float(lines[start_index])]).reshape(1,1)
-        start_index = start_index + 1
+        if is_gpumd_nep:
+            print("The nep.txt file is from GPUMD")
+            common_bias = -float(lines[start_index])
+            self.bias_lastlayer = np.array([common_bias for _ in range(0, self.type_num)])
+            start_index = start_index + 1
+        else:
+            print("The nep.txt file is from PWMLFF")
+            self.bias_lastlayer = np.array([-float(_) for _ in lines[start_index : start_index + self.type_num]])
+            start_index = start_index + self.type_num
+
         self.c2_param = np.array([float(_) for _ in lines[start_index:start_index + self.two_c_num]]).reshape(self.n_max[0]+1, self.basis_size[0]+1, self.type_num, self.type_num).transpose(2, 3, 0, 1)
         start_index = start_index + self.two_c_num
         self.c3_param = np.array([float(_) for _ in lines[start_index:start_index + self.three_c_num]]).reshape(self.n_max[1]+1, self.basis_size[1]+1, self.type_num, self.type_num).transpose(2, 3, 0, 1)
         start_index = start_index + self.three_c_num
         self.q_scaler = np.array([float(_) for _ in lines[start_index:start_index + self.feature_nums]])
         start_index += self.feature_nums
-        assert start_index == len(lines)
+        if use_zbl:
+            if start_index + 1 != line_num:
+                raise Exception("extract the nep.txt {} error! the params need {} but has {}\n".format(nep_txt_file, start_index + 1, len(lines)))
+        else:
+            if start_index != line_num:
+                raise Exception("extract the nep.txt {} error! the params need {} but has {}\n".format(nep_txt_file, start_index, len(lines)))
 
     '''
     description: 

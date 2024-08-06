@@ -79,13 +79,13 @@ class InputParam(object):
         self.model_param.set_nn_fitting_net(get_parameter("fitting_net",nep_dict, {}))
         self.is_dfeat_sparse = get_parameter("is_dfeat_sparse", json_input, False)  #for nn, 'true' not realized
 
-        nep_in_file = get_parameter("nep_in_file", json_input, None)
+        # nep_in_file = get_parameter("nep_in_file", json_input, None)
         nep_param = NepParam()
-        if nep_in_file is not None:
-            nep_param.set_nep_param_from_nep_in(nep_in_file, self.atom_type)
-            nep_txt_file = get_parameter("nep_txt_file", json_input, None)
-            if nep_txt_file is not None:
-                nep_param.set_nep_nn_c_param_from_nep_txt(nep_txt_file)
+        # if nep_in_file is not None:
+        #     nep_param.set_nep_param_from_nep_in(nep_in_file, self.atom_type)
+        nep_txt_file = get_parameter("nep_txt_file", json_input, None)
+        if nep_txt_file is not None:
+            nep_param.set_nep_nn_c_param_from_nep_txt(nep_txt_file)
         else:
             nep_param.set_nep_param_from_json(json_input, self.atom_type)
         self.nep_param = nep_param
@@ -94,7 +94,7 @@ class InputParam(object):
         self.descriptor.n_max = nep_param.n_max
         self.descriptor.basis_size = nep_param.basis_size
         self.descriptor.l_max = nep_param.l_max
-        self.descriptor.type_weight = nep_param.type_weight
+        # self.descriptor.type_weight = nep_param.type_weight
 
 
     '''
