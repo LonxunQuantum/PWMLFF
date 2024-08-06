@@ -118,9 +118,18 @@ class NepParam(object):
             if float(zbl_line[1]) < 1e-04 and float(zbl_line[2]) < 1e-04:
                 use_fixed_zbl = True
             else:
+                self.zbl = [float(zbl_line[1]), float(zbl_line[2])]
+                if self.zbl[0] > self.zbl[1] or self.zbl[0] > 2.5 or self.zbl[1] > 2.5 :
+                    raise Exception("ERROR! the inner should smaller than outer of zbl in nep.txt! And both of them should be smaller than 2.5!\n The inner = 0.5*outer should be a reasonable choice. ")
+                if self.zbl[1] > 2.5:
+                    print("Warning! the input zbl outer param should smaller than 2.5! Automatically adjust outer to 2.5!")
+                    self.zbl[1] = 2.5
+                    if self.zbl[0] > self.zbl[1]:
+                        print("Warning! the input zbl outer param should smaller than 2.5! Automatically adjust outer to 2.5!")
                 lines[1:-1] = lines[2:]
+                
             use_zbl = True
-
+            
         cutoffs = lines[1].split()
         self.cutoff = [float(cutoffs[1]), float(cutoffs[2])]
 

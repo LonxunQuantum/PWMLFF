@@ -191,7 +191,7 @@ class InputParam(object):
     '''    
     def set_feature_params(self, json_input:dict):
         # set feature related params
-        self.valid_shuffle = get_parameter("valid_shuffle", json_input, True)
+        self.valid_shuffle = get_parameter("valid_shuffle", json_input, False)
         self.data_shuffle = get_parameter("data_shuffle", json_input, True)
         self.train_valid_ratio = get_parameter("train_valid_ratio", json_input, 0.8)
         self.seed = get_parameter("seed", json_input, 2023)
@@ -232,6 +232,7 @@ class InputParam(object):
         self.optimizer_param.batch_size = 1     # set batch size to 1, so that each image inference info will be saved
         self.data_shuffle = False
         self.train_valid_ratio = 1
+        self.valid_shuffle = False
         self.format = get_parameter("format", json_input, "pwmat/movement")
         self.file_paths.set_inference_paths(json_input,is_nep_txt = is_nep_txt)
     
