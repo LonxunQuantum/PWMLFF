@@ -58,7 +58,7 @@ def script_dp_model(model_checkpoint, ckpt_file, script_save_name:None):
         save_name = "jit_dp_gpu.pt" if torch.cuda.is_available() else "jit_dp_cpu.pt"
     else:
         save_name = script_save_name
-    model_save_path = os.path.join(torch_script_path, save_name)
+    model_save_path = save_name# os.path.join(torch_script_path, save_name)
     torch_script_module.save(model_save_path)
     # the full out will be 'Type Eembeding Dp model with compress dx = 0.001'
     print("Tracing {} successfully! The torch script module is saved in {}".format(dp_log, model_save_path))
@@ -81,6 +81,6 @@ def script_nep_model(model_checkpoint, ckpt_file, script_save_name:None):
         save_name = "jit_nep_gpu.pt" if torch.cuda.is_available() else "jit_nep_cpu.pt"
     else:
         save_name = script_save_name
-    model_save_path = os.path.join(torch_script_path, save_name)
+    model_save_path = save_name #os.path.join(torch_script_path, save_name)
     torch_script_module.save(model_save_path)
     print("Tracing NEP model successfully! The torch script module is saved in {}".format(model_save_path))
