@@ -110,22 +110,22 @@ class NepParam(object):
         line_1 = lines[0].split()
         version, type_num, type_list = line_1[0], int(line_1[1]), line_1[2:]
         self.type_num = type_num
-
+        self.zbl = None
         use_zbl = False
-        use_fixed_zbl = False
+        self.use_fixed_zbl = False
         if "zbl" in lines[1]:
             zbl_line = lines[1].split()
             if float(zbl_line[1]) < 1e-04 and float(zbl_line[2]) < 1e-04:
-                use_fixed_zbl = True
+                self.use_fixed_zbl = True
+                raise Exception("ERROR! The fixed zbl is not supported!")
             else:
-                self.zbl = [float(zbl_line[1]), float(zbl_line[2])]
-                if self.zbl[0] > self.zbl[1] or self.zbl[0] > 2.5 or self.zbl[1] > 2.5 :
-                    raise Exception("ERROR! the inner should smaller than outer of zbl in nep.txt! And both of them should be smaller than 2.5!\n The inner = 0.5*outer should be a reasonable choice. ")
-                if self.zbl[1] > 2.5:
-                    print("Warning! the input zbl outer param should smaller than 2.5! Automatically adjust outer to 2.5!")
-                    self.zbl[1] = 2.5
-                    if self.zbl[0] > self.zbl[1]:
-                        print("Warning! the input zbl outer param should smaller than 2.5! Automatically adjust outer to 2.5!")
+                self.zbl = float(zbl_line[2])
+                # print("use zbl: {}".format(self.zbl))
+                # if self.zbl[0] > self.zbl[1] or self.zbl[0] > 2.5 :
+                #     raise Exception("ERROR! the inner should smaller than outer of zbl in nep.txt! And both of them should be smaller than 2.5!\n The inner = 0.5*outer should be a reasonable choice. ")
+                # elif self.zbl[1] > 2.5:
+                #     print("Warning! the input zbl outer param should smaller than 2.5! Automatically adjust outer to 2.5!")
+                #     self.zbl[1] = 2.5
                 lines[1:-1] = lines[2:]
                 
             use_zbl = True
@@ -155,7 +155,7 @@ class NepParam(object):
         ann_nums= (w0_num + b0_num*2) * self.type_num + self.type_num
         need_line = 6 + ann_nums + self.c_num + self.feature_nums
         if use_zbl:
-            if use_fixed_zbl:
+            if self.use_fixed_zbl:
                 need_line += 1 + (self.type_num+1)*self.type_num/2
             else:
                 need_line += 1
@@ -216,7 +216,12 @@ class NepParam(object):
         self.type_weight = get_parameter("type_weight", descriptor_dict, type_list_weight_default) # force weights for different atom types
         self.model_type = 0 # select to train potential 0, dipole 1, or polarizability 2
         self.prediction = 0 # select between training and prediction (inference)
-        self.zbl = None # outer cutoff for the universal ZBL potential [Ziegler1985]
+        self.zbl = get_parameter("zbl", descriptor_dict, None)
+        if self.zbl is not None:
+            if self.zbl > 2.5 or self.zbl < 1.0:
+                raise Exception("ERROR! the 'zbl' in json file should be between 1.0 and 2.5")
+        self.use_fixed_zbl = False
+
         self.cutoff = get_parameter("cutoff", descriptor_dict, [6.0, 6.0]) # radial () and angular () cutoffs # use dp rcut, default to 6
         self.n_max = get_parameter("n_max", descriptor_dict, [4, 4]) # size of radial () and angular () basis
         if len(self.n_max) != 2:
@@ -343,7 +348,11 @@ class NepParam(object):
     
     def to_nep_txt(self):
         content = ""
-        content += "nep4   {}\n".format(self.type)    #line1
+        if self.zbl is not None:
+            content += "nep4_zbl   {}\n".format(self.type)    #line1
+            content += "zbl   {} {}\n".format(self.zbl/2, self.zbl)    #line zbl
+        else:
+            content += "nep4   {}\n".format(self.type)    #line1
         content += "cutoff {}\n".format(" ".join(map(str, self.cutoff)))    #line2
         content += "n_max  {}\n".format(" ".join(map(str, self.n_max)))    #line3
         content += "basis_size {}\n".format(" ".join(map(str, self.basis_size)))    #line4

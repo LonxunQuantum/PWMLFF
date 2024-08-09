@@ -94,6 +94,7 @@ class InputParam(object):
         self.descriptor.n_max = nep_param.n_max
         self.descriptor.basis_size = nep_param.basis_size
         self.descriptor.l_max = nep_param.l_max
+        self.descriptor.zbl = nep_param.zbl
         # self.descriptor.type_weight = nep_param.type_weight
 
 

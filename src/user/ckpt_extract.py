@@ -21,16 +21,16 @@ def extract_force_field(ckpt_file, cmd_type):
     else:
         raise Exception("Error! The extract command {} not realized. ".format(cmd_type))
 
-def script_model(ckpt_file):
+def script_model(ckpt_file, script_save_name:None):
     # Step 1.
     model_checkpoint = torch.load(ckpt_file,map_location=torch.device("cpu"))
     model_type = model_checkpoint["json_file"]["model_type"].upper()
     if model_type == "DP":
-        script_dp_model(model_checkpoint, ckpt_file)
+        script_dp_model(model_checkpoint, ckpt_file, script_save_name)
     elif model_type == "NEP":
-        script_nep_model(model_checkpoint, ckpt_file)
+        script_nep_model(model_checkpoint, ckpt_file, script_save_name)
 
-def script_dp_model(model_checkpoint, ckpt_file):
+def script_dp_model(model_checkpoint, ckpt_file, script_save_name:None):
     stat = [model_checkpoint["davg"], model_checkpoint["dstd"], model_checkpoint["energy_shift"]]
     # Step 2.
     model_checkpoint["json_file"]["model_load_file"] = ckpt_file #the model will reload from this path
@@ -54,13 +54,16 @@ def script_dp_model(model_checkpoint, ckpt_file):
     torch_script_module = torch.jit.script(model)
     torch_script_path = os.path.dirname(os.path.abspath(ckpt_file))
 
-    save_name = "jit_dp_gpu.pt" if torch.cuda.is_available() else "jit_dp_cpu.pt"
+    if script_save_name is None:
+        save_name = "jit_dp_gpu.pt" if torch.cuda.is_available() else "jit_dp_cpu.pt"
+    else:
+        save_name = script_save_name
     model_save_path = os.path.join(torch_script_path, save_name)
     torch_script_module.save(model_save_path)
     # the full out will be 'Type Eembeding Dp model with compress dx = 0.001'
     print("Tracing {} successfully! The torch script module is saved in {}".format(dp_log, model_save_path))
 
-def script_nep_model(model_checkpoint, ckpt_file):
+def script_nep_model(model_checkpoint, ckpt_file, script_save_name:None):
     energy_shift = model_checkpoint["energy_shift"]
     # Step 2.
     model_checkpoint["json_file"]["model_load_file"] = ckpt_file #the model will reload from this path
@@ -74,7 +77,10 @@ def script_nep_model(model_checkpoint, ckpt_file):
     # Step 4. 
     torch_script_module = torch.jit.script(model)
     torch_script_path = os.path.dirname(os.path.abspath(ckpt_file))
-    save_name = "jit_nep_gpu.pt" if torch.cuda.is_available() else "jit_nep_cpu.pt"
+    if script_save_name is None:
+        save_name = "jit_nep_gpu.pt" if torch.cuda.is_available() else "jit_nep_cpu.pt"
+    else:
+        save_name = script_save_name
     model_save_path = os.path.join(torch_script_path, save_name)
     torch_script_module.save(model_save_path)
     print("Tracing NEP model successfully! The torch script module is saved in {}".format(model_save_path))

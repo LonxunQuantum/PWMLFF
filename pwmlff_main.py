@@ -40,7 +40,11 @@ if __name__ == "__main__":
 
     elif cmd_type == "script".upper():
         ckpt_file = sys.argv[2]
-        script_model(ckpt_file)
+        if len(sys.argv) > 3:
+            script_save_name = sys.argv[3]
+        else:
+            script_save_name = None
+        script_model(ckpt_file, script_save_name)
     elif cmd_type == "infer".upper():
         infer_main(sys.argv[2:]) # config or poscar
     elif cmd_type == "model_devi".upper():

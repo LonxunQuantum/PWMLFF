@@ -294,6 +294,8 @@ class Descriptor(object):
             dicts["radial_num2"] = self.radial_num2
         elif self.model_type.upper() == "NEP":
             dicts["cutoff"] = self.cutoff
+            if self.zbl is not None:
+                dicts["zbl"] = self.zbl
             dicts["n_max"] = self.n_max
             dicts["basis_size"] = self.basis_size
             dicts["l_max"] = self.l_max
