@@ -234,7 +234,7 @@ class dp_network:
                 print("=> no checkpoint found at '{}'".format(model_path))
 
         if not torch.cuda.is_available():
-            print("using CPU, this will be slow")
+            print("using CPU")
             '''
         elif self.dp_params.hvd:
             if torch.cuda.is_available():

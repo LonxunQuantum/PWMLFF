@@ -63,6 +63,8 @@ class WorkFileStructure(object):
                 raise Exception("Error! test data: {} file not exist!".format(raw_data))
         raw_path = [os.path.abspath(_) for _ in raw_path]
         self.raw_path = raw_path
+        self.format = get_parameter("format", json_input, "pwmat/movement").lower()
+        self.atom_names = get_parameter("atom_names", json_input, None)
         datasets_path = get_parameter("datasets_path", json_input, [])
         if isinstance(datasets_path, list) is False:
             datasets_path = [datasets_path]
@@ -164,6 +166,7 @@ class WorkFileStructure(object):
     def set_train_valid_file(self, json_input:dict):
         # set trian movement file path
         raw_path = get_parameter("raw_files", json_input, [])
+        self.format = get_parameter("format", json_input, "pwmat/movement").lower()
         for raw_data in raw_path:
             if os.path.exists(raw_data) is False:
                 raise Exception("Error! train data: {} file not exist!".format(raw_data))

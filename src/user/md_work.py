@@ -16,6 +16,13 @@ def ff2lmps_explore(input_json: json):
     #adpt_trainer.train() 
     #adpt_trainer.lmp_get_err()
 
+'''
+description: 
+This method has been abandoned
+param {json} input_json
+return {*}
+author: wuxingxing
+'''
 def run_gpumd(input_json:json):
     gpumd_param = GPUmdParam(input_json)
     gpumd = GPUMD(gpumd_param)

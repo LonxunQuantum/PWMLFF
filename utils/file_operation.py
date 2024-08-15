@@ -11,12 +11,24 @@ def write_line_to_file(file_path, line, write_patthen="w"):
 def write_arrays_to_file(file_path, arrays, write_patthen="w"):
     with open(file_path, write_patthen) as wf:
         for data in arrays:
-            if isinstance(data, list):
+            if isinstance(data, np.ndarray):
+                if data.ndim == 1:
+                    line = ' '.join(data.astype('str'))
+                    wf.write(line)
+                    wf.write('\n')
+                else:
+                    for _data in data:
+                        line = ' '.join(_data.astype('str'))
+                        wf.write(line)
+                        wf.write('\n')
+            elif isinstance(data, list):
                 line = ' '.join(np.array(data).astype('str'))
+                wf.write(line)
+                wf.write('\n')
             else:
                 line = "{}".format(data)
-            wf.write(line)
-            wf.write('\n') 
+                wf.write(line)
+                wf.write('\n')
 
 def write_force_ei(file_path, ei_list, f_list, write_patthen="w"):
     with open(file_path, write_patthen) as wf:

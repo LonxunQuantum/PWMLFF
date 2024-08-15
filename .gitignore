@@ -36,3 +36,4 @@ src/GPUMD/src/*/*.o
 src/GPUMD/src/gpumd*
 src/GPUMD/src/nep*
 
+src/feature/nep_find_neigh/src/.vscode/

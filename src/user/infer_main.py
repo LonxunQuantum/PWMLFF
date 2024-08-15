@@ -5,20 +5,12 @@ import glob
 import numpy as np
 def infer_main(sys_cmd:list[str]):
     ckpt_file = sys_cmd[0]
-    use_nep_txt = False
     sys_index = 0
-    # nep_in_txt = None
-    if ".txt" in ckpt_file:
-        use_nep_txt= True
-    # if use_nep_txt:
-    #     # nep_in_txt = sys_cmd[1]
-    #     structures_file = sys_cmd[1]
-    #     format = sys_cmd[2] if len(sys_cmd) > 2 else "pwmat/config"
-    #     sys_index = 2
-    # else:
     structures_file = sys_cmd[1]
     format = sys_cmd[2] if len(sys_cmd) > 2 else "pwmat/config"
     sys_index = 2
+    use_nep_txt = False
+    device = None
     if format is not None and format.lower() == "lammps/dump":
         atom_typs = sys_cmd[sys_index+1:]
         if isinstance(atom_typs, list) is False:
@@ -26,24 +18,30 @@ def infer_main(sys_cmd:list[str]):
         print("Structure atom type is ", atom_typs)
     else:
         atom_typs = None
-    
-    if use_nep_txt is False:
+    try:
         model_checkpoint = torch.load(ckpt_file, map_location = torch.device("cpu"))
         model_type = model_checkpoint['json_file']['model_type'].upper()
-    else:
-        model_type = "NEP"
-
+    except Exception as e:
+        with open(ckpt_file, 'r') as rf:
+            line = rf.readline()
+        if 'nep' in line:
+            model_type = "NEP"
+            use_nep_txt= True
+        else:
+            raise Exception("Cannot recognize the model! {}".foramt(ckpt_file))
     if model_type == "DP":
         device = torch.device("cpu")
         if torch.cuda.is_available():
-            print("Warnning! Modify the GPU device to CPU for the DP infer interface!")
+            print("Warnning! Modify the GPU device to CPU for the DP infer interface!") # dp gpu interface has error
+    elif model_type == "NEP":
+        use_nep_txt = True
     else:
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     infer = Inference(ckpt_file, device, use_nep_txt)
-    if infer.model_type == "DP":
+    if model_type == "DP":
         infer.inference(structures_file, format, atom_typs)
-    elif infer.model_type == "NEP":
-        Etot, Ei, Force, Egroup, Virial = infer.inference_nep(structures_file, format, atom_typs)
+    elif model_type == "NEP":
+        infer.inference_nep_txt(structures_file, format, atom_typs)
 
 def model_devi(ckpt_file_list, structure_dir, format, save_path):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")

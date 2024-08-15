@@ -63,6 +63,15 @@ def script_dp_model(model_checkpoint, ckpt_file, script_save_name:None):
     # the full out will be 'Type Eembeding Dp model with compress dx = 0.001'
     print("Tracing {} successfully! The torch script module is saved in {}".format(dp_log, model_save_path))
 
+'''
+description: 
+the script function of nep_model.ckpt is deprecated
+param {*} model_checkpoint
+param {*} ckpt_file
+param {None} script_save_name
+return {*}
+author: wuxingxing
+'''
 def script_nep_model(model_checkpoint, ckpt_file, script_save_name:None):
     energy_shift = model_checkpoint["energy_shift"]
     # Step 2.

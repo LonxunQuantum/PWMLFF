@@ -666,7 +666,7 @@ class nn_network:
         self.set_model_optimizer()
         # initialize the optimizer and related scheduler
         if self.dp_params.inference:
-            predict(self.train_loader, self.model, self.criterion, self.device, self.dp_params)
+            predict(self.train_loader, self.val_loader, self.model, self.criterion, self.device, self.dp_params)
         else:
             self.train()
 

@@ -6,8 +6,39 @@ import torch
 import yaml
 from src.user.input_param import InputParam
 from pwdata import Save_Data
+from pwdata import Config
 from src.feature.nep_find_neigh.findneigh import FindNeigh
 
+class NepTestData():
+    def __init__(self, input_param:InputParam):
+        self.image_list = []
+        self.input_param = input_param
+        # if self.input_param.file_paths.raw_path is not None and len(self.input_param.raw_files) > 0:
+        #     for config in self.input_param.file_paths.raw_path:
+        #         # for lammps traj
+        #         _config_list = glob.glob(config)
+        #         if len(_config_list) > 0:
+        #             for _config in _config_list:
+        #                 image_read = Config(data_path=_config, format=self.input_param.file_paths.format, atom_names=self.input_param.file_paths.atom_names).images
+        #                 if isinstance(image_read, list):
+        #                     image_list.append(image_read)
+        #                 else:
+        #                     image_list.extend(image_read)
+        if self.input_param.file_paths.datasets_path is not None and len(self.input_param.file_paths.datasets_path) > 0:
+            for config in self.input_param.file_paths.datasets_path:
+                image_read = Config(data_path=config, format="pwmlff/npy").images
+                if isinstance(image_read, list):
+                    self.image_list.extend(image_read)
+                else:
+                    self.image_list.append(image_read)
+        for image in self.image_list:
+            # if image.cartesian is True:
+            #     image._set_fractional()
+            if image.cartesian is False:
+                image._set_cartesian()
+
+        # return image_list
+        
 # from numpy.ctypeslib import ndpointer
 # import ctypes
 # lib_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

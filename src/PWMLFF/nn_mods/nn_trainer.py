@@ -652,7 +652,7 @@ param {*} args
 return {*}
 author: wuxingxing
 '''
-def predict(val_loader, model, criterion, device, args:InputParam):
+def predict(train_loader, valid_loader, model, criterion, device, args:InputParam):
     train_lists = ["img_idx", "RMSE_Etot", "RMSE_Etot_per_atom", "RMSE_Ei", "RMSE_F"]
     if args.optimizer_param.train_egroup:
         train_lists.append("RMSE_Egroup")
@@ -672,99 +672,102 @@ def predict(val_loader, model, criterion, device, args:InputParam):
         lab_Ei_save_path = os.path.join(inf_dir,"dft_atomic_energy.txt")
     inference_path = os.path.join(inf_dir,"inference_summary.txt") 
 
-    for i, sample_batches in enumerate(val_loader):
-        if args.precision == "float64":
-            Ei_label_cpu = sample_batches['output_energy'][:,:,:].double()
-            Force_label_cpu = sample_batches['output_force'][:,:,:].double()
-            input_data_cpu = sample_batches['input_feat'].double()
-            dfeat_cpu = sample_batches['input_dfeat'].double()
+    for _val_loader in [train_loader, valid_loader]:
+        count = 0
+        for i, sample_batches in enumerate(_val_loader):
+            if args.precision == "float64":
+                Ei_label_cpu = sample_batches['output_energy'][:,:,:].double()
+                Force_label_cpu = sample_batches['output_force'][:,:,:].double()
+                input_data_cpu = sample_batches['input_feat'].double()
+                dfeat_cpu = sample_batches['input_dfeat'].double()
+                if args.file_paths.alive_atomic_energy and args.optimizer_param.train_egroup:
+                    Egroup_label_cpu = sample_batches['input_egroup'].double()
+                    egroup_weight_cpu = sample_batches['input_egroup_weight'].double()
+                    divider_cpu = sample_batches['input_divider'].double()
+                if args.optimizer_param.train_egroup is True:
+                    pass
+                if args.optimizer_param.train_virial is True:
+                    Virial_label_cpu = sample_batches["Virial"].double()
+            else:
+                Ei_label_cpu = sample_batches['output_energy'][:,:,:].float()
+                Force_label_cpu = sample_batches['output_force'][:,:,:].float()
+                input_data_cpu = sample_batches['input_feat'].float()
+                dfeat_cpu = sample_batches['input_dfeat'].float()
+                if args.file_paths.alive_atomic_energy and args.optimizer_param.train_egroup:
+                    Egroup_label = sample_batches['input_egroup'].float()
+                    egroup_weight = sample_batches['input_egroup_weight'].float()
+                    divider = sample_batches['input_divider'].float()
+                if args.optimizer_param.train_egroup is True:
+                    pass
+                if args.optimizer_param.train_virial is True:
+                    Virial_label_cpu = sample_batches["Virial"].double()
+
+            neighbor_cpu = sample_batches['input_nblist'].int()
+            natoms_img_cpu = sample_batches['natoms_img'].int()
+            atom_type_cpu = sample_batches['atom_type'].int()
+
+            Ei_label = Variable(Ei_label_cpu.to(device))
+            Etot_label = torch.sum(Ei_label, dim=1)
+            Force_label = Variable(Force_label_cpu.to(device))   #[40,108,3]
+            input_data = Variable(input_data_cpu.to(device), requires_grad=True)
+            dfeat = Variable(dfeat_cpu.to(device))
             if args.file_paths.alive_atomic_energy and args.optimizer_param.train_egroup:
-                Egroup_label_cpu = sample_batches['input_egroup'].double()
-                egroup_weight_cpu = sample_batches['input_egroup_weight'].double()
-                divider_cpu = sample_batches['input_divider'].double()
+                Egroup_label = Variable(Egroup_label_cpu.to(device))
+                egroup_weight = Variable(egroup_weight_cpu.to(device))
+                divider = Variable(divider_cpu.to(device))
             if args.optimizer_param.train_egroup is True:
                 pass
             if args.optimizer_param.train_virial is True:
-                Virial_label_cpu = sample_batches["Virial"].double()
-        else:
-            Ei_label_cpu = sample_batches['output_energy'][:,:,:].float()
-            Force_label_cpu = sample_batches['output_force'][:,:,:].float()
-            input_data_cpu = sample_batches['input_feat'].float()
-            dfeat_cpu = sample_batches['input_dfeat'].float()
-            if args.file_paths.alive_atomic_energy and args.optimizer_param.train_egroup:
-                Egroup_label = sample_batches['input_egroup'].float()
-                egroup_weight = sample_batches['input_egroup_weight'].float()
-                divider = sample_batches['input_divider'].float()
+                Virial_label = Variable(Virial_label_cpu.to(device))
+
+            neighbor = Variable(neighbor_cpu.to(device))  # [40,108,100]
+            natoms_img = Variable(natoms_img_cpu.to(device))
+            natom = natoms_img[0,1:].sum()
+            atom_type = Variable(atom_type_cpu.to(device))
+            batch_size = len(sample_batches)
+
+            if args.optimizer_param.train_egroup:
+                kalman_inputs = [input_data, dfeat, neighbor, natoms_img, atom_type, egroup_weight, divider]
+            else:
+                kalman_inputs = [input_data, dfeat, neighbor, natoms_img, atom_type, None, None]
+            Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = \
+                model(kalman_inputs[0], kalman_inputs[1], kalman_inputs[2], kalman_inputs[3], kalman_inputs[4], kalman_inputs[5], kalman_inputs[6])
+
+            # mse
+            loss_Etot_val = criterion(Etot_predict, Etot_label)
+            loss_F_val = criterion(Force_predict, Force_label)
+            loss_Ei_val = criterion(Ei_predict, Ei_label)
             if args.optimizer_param.train_egroup is True:
-                pass
-            if args.optimizer_param.train_virial is True:
-                Virial_label_cpu = sample_batches["Virial"].double()
+                loss_Egroup_val = criterion(Egroup_predict, Egroup_label)
+            # rmse
+            Etot_rmse = loss_Etot_val ** 0.5
+            etot_atom_rmse = Etot_rmse / natoms_img[0][0]
+            Ei_rmse = loss_Ei_val ** 0.5
+            F_rmse = loss_F_val ** 0.5
 
-        neighbor_cpu = sample_batches['input_nblist'].int()
-        natoms_img_cpu = sample_batches['natoms_img'].int()
-        atom_type_cpu = sample_batches['atom_type'].int()
-
-        Ei_label = Variable(Ei_label_cpu.to(device))
-        Etot_label = torch.sum(Ei_label, dim=1)
-        Force_label = Variable(Force_label_cpu.to(device))   #[40,108,3]
-        input_data = Variable(input_data_cpu.to(device), requires_grad=True)
-        dfeat = Variable(dfeat_cpu.to(device))
-        if args.file_paths.alive_atomic_energy and args.optimizer_param.train_egroup:
-            Egroup_label = Variable(Egroup_label_cpu.to(device))
-            egroup_weight = Variable(egroup_weight_cpu.to(device))
-            divider = Variable(divider_cpu.to(device))
-        if args.optimizer_param.train_egroup is True:
-            pass
-        if args.optimizer_param.train_virial is True:
-            Virial_label = Variable(Virial_label_cpu.to(device))
-
-        neighbor = Variable(neighbor_cpu.to(device))  # [40,108,100]
-        natoms_img = Variable(natoms_img_cpu.to(device))
-        natom = natoms_img[0,1:].sum()
-        atom_type = Variable(atom_type_cpu.to(device))
-        batch_size = len(sample_batches)
-
-        if args.optimizer_param.train_egroup:
-            kalman_inputs = [input_data, dfeat, neighbor, natoms_img, atom_type, egroup_weight, divider]
-        else:
-            kalman_inputs = [input_data, dfeat, neighbor, natoms_img, atom_type, None, None]
-        Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = \
-            model(kalman_inputs[0], kalman_inputs[1], kalman_inputs[2], kalman_inputs[3], kalman_inputs[4], kalman_inputs[5], kalman_inputs[6])
-
-        # mse
-        loss_Etot_val = criterion(Etot_predict, Etot_label)
-        loss_F_val = criterion(Force_predict, Force_label)
-        loss_Ei_val = criterion(Ei_predict, Ei_label)
-        if args.optimizer_param.train_egroup is True:
-            loss_Egroup_val = criterion(Egroup_predict, Egroup_label)
-        # rmse
-        Etot_rmse = loss_Etot_val ** 0.5
-        etot_atom_rmse = Etot_rmse / natoms_img[0][0]
-        Ei_rmse = loss_Ei_val ** 0.5
-        F_rmse = loss_F_val ** 0.5
-
-        res_list = [i, float(Etot_rmse), float(etot_atom_rmse), float(Ei_rmse), float(F_rmse)]
-        if args.optimizer_param.train_egroup:
-            res_list.append(float(loss_Egroup_val))
-        res_pd.loc[res_pd.shape[0]] = res_list
-        
-        #''.join(map(str, list(np.array(Force_predict.flatten().cpu().data))))
-        ''.join(map(str, list(np.array(Force_predict.flatten().cpu().data))))
-        write_line_to_file(inf_force_save_path, \
-                            ' '.join(np.array(Force_predict.flatten().cpu().data).astype('str')), "a")
-        write_line_to_file(lab_force_save_path, \
-                            ' '.join(np.array(Force_label.flatten().cpu().data).astype('str')), "a")
-        if args.file_paths.alive_atomic_energy:
-            write_line_to_file(inf_Ei_save_path, \
-                            ' '.join(np.array(Ei_predict.flatten().cpu().data).astype('str')), "a")
-            write_line_to_file(lab_Ei_save_path, \
-                            ' '.join(np.array(Ei_label.flatten().cpu().data).astype('str')), "a")
-        
-        write_line_to_file(inf_energy_save_path, \
-                            ' '.join(np.array(Etot_predict.flatten().cpu().data).astype('str')), "a")
-        write_line_to_file(lab_energy_save_path, \
-                            ' '.join(np.array(Etot_label.flatten().cpu().data).astype('str')), "a")
-        
+            res_list = [count, float(Etot_rmse), float(etot_atom_rmse), float(Ei_rmse), float(F_rmse)]
+            if args.optimizer_param.train_egroup:
+                res_list.append(float(loss_Egroup_val))
+            res_pd.loc[res_pd.shape[0]] = res_list
+            
+            #''.join(map(str, list(np.array(Force_predict.flatten().cpu().data))))
+            ''.join(map(str, list(np.array(Force_predict.flatten().cpu().data))))
+            write_line_to_file(inf_force_save_path, \
+                                ' '.join(np.array(Force_predict.flatten().cpu().data).astype('str')), "a")
+            write_line_to_file(lab_force_save_path, \
+                                ' '.join(np.array(Force_label.flatten().cpu().data).astype('str')), "a")
+            if args.file_paths.alive_atomic_energy:
+                write_line_to_file(inf_Ei_save_path, \
+                                ' '.join(np.array(Ei_predict.flatten().cpu().data).astype('str')), "a")
+                write_line_to_file(lab_Ei_save_path, \
+                                ' '.join(np.array(Ei_label.flatten().cpu().data).astype('str')), "a")
+            
+            write_line_to_file(inf_energy_save_path, \
+                                ' '.join(np.array(Etot_predict.flatten().cpu().data).astype('str')), "a")
+            write_line_to_file(lab_energy_save_path, \
+                                ' '.join(np.array(Etot_label.flatten().cpu().data).astype('str')), "a")
+            
+            count = count + 1
     res_pd.to_csv(res_pd_save_path)
     
     inference_cout = ""

@@ -9,7 +9,6 @@ from src.user.nn_work import nn_train, gen_nn_feature, nn_test
 from src.user.linear_work import linear_train, linear_test
 from src.user.input_param import help_info
 from src.user.active_work import ff2lmps_explore
-from src.user.md_work import run_gpumd
 from utils.json_operation import get_parameter, get_required_parameter
 from utils.gen_multi_train import multi_train
 from src.user.ckpt_extract import extract_force_field, script_model
@@ -131,8 +130,6 @@ if __name__ == "__main__":
                 pass
             elif model_type == "NN".upper():
                 gen_nn_feature(json_file, cmd_type)
-            elif model_type == "NEP".upper():
-                pass
                 # gen_nep_feature(json_file, cmd_type)
             else:
                 raise Exception("Error! the model_type param in json file does not existent, you could use [DP/NN/LINEAR/NEP]")
@@ -140,8 +137,6 @@ if __name__ == "__main__":
         elif cmd_type == "explore".upper():
             # for now, only support explore for DP model
             ff2lmps_explore(json_file)
-        elif cmd_type == "gpumd".upper():
-            run_gpumd(json_file)
         else:
             raise Exception("Error! the cmd type {} does not existent, you could use train or test!".format(cmd_type))
         
