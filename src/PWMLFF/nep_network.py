@@ -404,7 +404,7 @@ class nep_network:
     return {*}
     author: wuxingxing
     '''    
-    def nep_inference(self, nep_txt_path):
+    def gpu_nep_inference(self, nep_txt_path):
         time0 = time.time()
         train_lists = ["img_idx"] #"Etot_lab", "Etot_pre", "Ei_lab", "Ei_pre", "Force_lab", "Force_pre"
         train_lists.extend(["RMSE_Etot", "RMSE_Etot_per_atom", "RMSE_Ei", "RMSE_F"])
@@ -413,10 +413,9 @@ class nep_network:
         if self.input_param.optimizer_param.train_virial:
             train_lists.append("RMSE_virial")
             train_lists.append("RMSE_virial_per_atom")
-
-        
-        self.calc = FindNeigh()
-        self.calc.init_model(nep_txt_path)
+        from src.feature.NEP_GPU import nep3_module
+        self.calc = nep3_module.NEP3()
+        self.calc.init_from_file(nep_txt_path, is_rank_0=True, in_device_id=0)
         # get data
 
         images = NepTestData(self.input_param).image_list
@@ -443,11 +442,24 @@ class nep_network:
             if ntypes > img_max_types:
                 raise Exception("Error! the atom types in structrue file is larger than the max atom types in model!")
             type_maps = np.array(type_map(atom_types_struc, input_atom_types)).reshape(1, -1)
-            ei_predict, force_predict, virial_predict = self.calc.inference(
+            ei_predict = np.zeros(atom_nums, dtype=np.float64)
+            force_predict = np.zeros(atom_nums*3, dtype=np.float64)
+            virial_predict = np.zeros(9, dtype=np.float64)
+            lattic = list(np.array(image.lattice).transpose(1, 0).reshape(-1))
+            self.calc.compute_pwmlff(
+                atom_nums, 
+                ntypes*100, 
                 list(type_maps[0]), 
-                list(np.array(image.lattice).transpose(1, 0).reshape(-1)), 
-                np.array(image.position).transpose(1, 0).reshape(-1)
-            )
+                lattic, 
+                list(np.array(image.position).transpose(1, 0).reshape(-1)), 
+                ei_predict, 
+                force_predict, 
+                virial_predict)
+            # ei_predict, force_predict, virial_predict = self.calc.inference(
+            #     list(type_maps[0]), 
+            #     list(np.array(image.lattice).transpose(1, 0).reshape(-1)), 
+            #     np.array(image.position).transpose(1, 0).reshape(-1)
+            # )
 
             ei_predict   = np.array(ei_predict).reshape(atom_nums)
             etot_predict = np.sum(ei_predict)
@@ -562,7 +574,7 @@ class nep_network:
 
         return result
 
-    def multi_process_nep_inference(self, nep_txt_path):
+    def multi_cpus_nep_inference(self, nep_txt_path):
         cpu_count = multiprocessing.cpu_count()
         print("The CPUs: {}".format(cpu_count))
 
@@ -660,8 +672,7 @@ class nep_network:
             wf.writelines(inference_cout)
         time2 = time.time()
         print("The test work finished, the calculate time {} write time {} all time {}".format(time1 - time0, time2 - time1, time2 - time0))
-
-        
+       
                 
     def train(self):
         energy_shift, max_atom_nums, image_path = self._get_stat()
@@ -963,3 +974,163 @@ class nep_network:
         print (command)
         subprocess.run(command, shell=True) 
 
+
+    """
+    # mulit gpu, code has error for gpus more than 1
+    # CUDA Error:
+    # File:       /data/home/wuxingxing/codespace/PWMLFF_nep/src/feature/NEP_GPU/utilities/gpu_vector.cu
+    # Line:       65
+    # Error code: 3
+    # Error text: initialization error
+
+    def set_device(self, device_id):
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(device_id)
+
+    def process_images(self, images, nep_txt_path, gpu_id):
+        # global calc
+        self.set_device(gpu_id)
+        
+        # 初始化NEP计算模块
+        from src.feature.NEP_GPU import nep3_module
+        calc = nep3_module.NEP3()
+        calc.init_from_file(nep_txt_path, is_rank_0=True, in_device_id=gpu_id)
+        
+        # 结果收集
+        etot_rmse = []
+        etot_atom_rmse = []
+        ei_rmse = []
+        force_rmse = []
+        virial_rmse = []
+        virial_atom_rmse = []
+        atom_num_list = []
+        etot_label_list, etot_predict_list = [], []
+        ei_label_list, ei_predict_list = [], []
+        force_label_list, force_predict_list = [], []
+        virial_label_list, virial_predict_list = [], []
+        train_lists = ["img_idx"] #"Etot_lab", "Etot_pre", "Ei_lab", "Ei_pre", "Force_lab", "Force_pre"
+        train_lists.extend(["RMSE_Etot", "RMSE_Etot_per_atom", "RMSE_Ei", "RMSE_F"])
+        # if self.input_param.optimizer_param.train_egroup:
+        #     train_lists.append("RMSE_Egroup")
+        if self.input_param.optimizer_param.train_virial:
+            train_lists.append("RMSE_virial")
+            train_lists.append("RMSE_virial_per_atom")
+
+        res_pd = pd.DataFrame(columns=train_lists)
+        img_max_types = len(self.input_param.atom_type)
+        for idx, image in enumerate(images):
+            atom_nums = image.atom_nums
+            atom_num_list.append(atom_nums)
+            atom_types_struc = image.atom_types_image
+            input_atom_types = np.array(self.input_param.atom_type)
+            atom_types = image.atom_type
+            ntypes = len(atom_types)
+            if ntypes > img_max_types:
+                raise Exception("Error! the atom types in structrue file is larger than the max atom types in model!")
+            type_maps = np.array(type_map(atom_types_struc, input_atom_types)).reshape(1, -1)
+            ei_predict = np.zeros(atom_nums, dtype=np.float64)
+            force_predict = np.zeros(atom_nums*3, dtype=np.float64)
+            virial_predict = np.zeros(9, dtype=np.float64)
+            lattic = list(np.array(image.lattice).transpose(1, 0).reshape(-1))
+            calc.compute_pwmlff(
+                atom_nums, 
+                ntypes*100, 
+                list(type_maps[0]), 
+                lattic, 
+                list(np.array(image.position).transpose(1, 0).reshape(-1)), 
+                ei_predict, 
+                force_predict, 
+                virial_predict)
+            ei_predict   = np.array(ei_predict).reshape(atom_nums)
+            etot_predict = np.sum(ei_predict)
+            etot_rmse.append(np.abs(etot_predict-image.Ep))
+            etot_label_list.append(image.Ep)
+            etot_predict_list.append(etot_predict)
+
+            etot_atom_rmse.append(etot_rmse[-1]/atom_nums)
+            ei_rmse.append(np.sqrt(np.mean((ei_predict - image.atomic_energy)**2)))
+            force_predict = np.array(force_predict).reshape(3, atom_nums).transpose(1, 0)
+            force_rmse.append(np.sqrt(np.mean((force_predict - image.force) ** 2)))
+
+            ei_predict_list.append(ei_predict)
+            force_predict_list.append(force_predict)
+            ei_label_list.append(image.atomic_energy)
+            force_label_list.append(image.force)
+            
+            virial_predict = np.array(virial_predict)
+            if self.input_param.optimizer_param.train_virial and len(image.virial) > 0:
+                virial_rmse.append(np.mean((virial_predict - image.virial) ** 2))
+                virial_atom_rmse.append(virial_rmse[-1]/atom_nums/atom_nums)
+                virial_label_list.append(image.virial)
+                virial_predict_list.append(virial_predict)
+            res_pd.loc[res_pd.shape[0]] = [idx, etot_rmse[-1], etot_atom_rmse[-1], ei_rmse[-1], force_rmse[-1]]
+        print("gpu {} done! res_pd.shape {}".format(gpu_id, res_pd.shape))
+        return (res_pd, atom_num_list, etot_label_list, etot_predict_list, ei_label_list, ei_predict_list, force_label_list, force_predict_list, virial_label_list, virial_predict_list)
+
+
+    def run_parallel_inference(self, nep_txt_path):
+        time0 = time.time()
+        from multiprocessing import Pool
+        images = NepTestData(self.input_param).image_list
+        n_images = len(images)
+        n_procs = min(torch.cuda.device_count(), 4)  # 使用4个进程
+        print("================nprocs ================ {}".format(n_procs))
+        chunk_size = n_images // n_procs
+        
+        # 将images列表划分为多个子列表，每个子列表将由一个进程处理
+        image_chunks = [images[i:i + chunk_size] for i in range(0, n_images, chunk_size)]
+        
+        # 使用多进程并行处理
+        with Pool(processes=n_procs) as pool:
+            results = pool.starmap(self.process_images, [(chunk, nep_txt_path, i) for i, chunk in enumerate(image_chunks)])
+
+        # 合并所有进程的结果
+        res_pd = pd.concat([res[0] for res in results])
+        atom_num_list = [item for res in results for item in res[1]]
+        etot_label_list = [item for res in results for item in res[2]]
+        etot_predict_list = [item for res in results for item in res[3]]
+        ei_label_list = [item for res in results for item in res[4]]
+        ei_predict_list = [item for res in results for item in res[5]]
+        force_label_list = [item for res in results for item in res[6]]
+        force_predict_list = [item for res in results for item in res[7]]
+        virial_label_list = [item for res in results for item in res[8]]
+        virial_predict_list = [item for res in results for item in res[9]]
+
+        # 保存最终的结果到文件
+        inference_path = self.input_param.file_paths.test_dir
+        if not os.path.exists(inference_path):
+            os.makedirs(inference_path)
+
+        inference_cout = ""#"RMSE_Etot", "RMSE_Etot_per_atom", "RMSE_Ei", "RMSE_F", "RMSE_virial", "RMSE_virial_per_atom"
+        inference_cout += "For {} images: \n".format(len(images))
+        inference_cout += "Avarage REMSE of Etot: {} \n".format(np.mean(res_pd["RMSE_Etot"]))
+        inference_cout += "Avarage REMSE of Etot per atom: {} \n".format(np.mean(res_pd["RMSE_Etot_per_atom"]))
+        inference_cout += "Avarage REMSE of Ei: {} \n".format(np.mean(res_pd["RMSE_Ei"]))
+        inference_cout += "Avarage REMSE of RMSE_F: {} \n".format(np.mean(res_pd["RMSE_F"]))
+        # if self.input_param.optimizer_param.train_egroup:
+        #     inference_cout += "Avarage REMSE of RMSE_Egroup: {} \n".format(res_pd['RMSE_Egroup'].mean())
+        if self.input_param.optimizer_param.train_virial:
+            inference_cout += "Avarage REMSE of RMSE_virial: {} \n".format(np.mean(res_pd["RMSE_virial"]))
+            inference_cout += "Avarage REMSE of RMSE_virial_per_atom: {} \n".format(np.mean(res_pd["RMSE_virial_per_atom"]))
+        
+        inference_cout += "\nMore details can be found under the file directory:\n{}\n".format(os.path.realpath(self.input_param.file_paths.test_dir))
+        print(inference_cout)
+
+
+        write_arrays_to_file(os.path.join(inference_path, "image_atom_nums.txt"), atom_num_list)
+        write_arrays_to_file(os.path.join(inference_path, "dft_total_energy.txt"), etot_label_list)
+        write_arrays_to_file(os.path.join(inference_path, "inference_total_energy.txt"), etot_predict_list)
+        write_arrays_to_file(os.path.join(inference_path, "dft_force.txt"), force_label_list)
+        write_arrays_to_file(os.path.join(inference_path, "inference_force.txt"), force_predict_list)
+        write_arrays_to_file(os.path.join(inference_path, "dft_atomic_energy.txt"), ei_label_list)
+        write_arrays_to_file(os.path.join(inference_path, "inference_atomic_energy.txt"), ei_predict_list)
+        
+        if self.input_param.optimizer_param.train_virial:
+            write_arrays_to_file(os.path.join(inference_path, "dft_virial.txt"), virial_label_list)
+            write_arrays_to_file(os.path.join(inference_path, "inference_virial.txt"), virial_predict_list)
+
+        res_pd.to_csv(os.path.join(inference_path, "inference_loss.csv"))
+        with open(os.path.join(inference_path, "inference_summary.txt"), 'w') as wf:
+            wf.write(inference_cout)
+        
+        print("The test work finished, total time taken: {:.2f} seconds".format(time.time() - time0))
+    """

@@ -194,9 +194,14 @@ class Inference(object):
         return data
 
     def inference_nep_txt(self, structrue_file, format="pwmat/config", atom_names=None):
-        from src.feature.nep_find_neigh.findneigh import FindNeigh
-        calc = FindNeigh()
-        calc.init_model(self.ckpt_file)
+        if torch.cuda.is_available():
+            from src.feature.NEP_GPU import nep3_module
+            calc = nep3_module.NEP3()
+            calc.init_from_file(self.ckpt_file, is_rank_0=True, in_device_id=0)
+        else:
+            from src.feature.nep_find_neigh.findneigh import FindNeigh
+            calc = FindNeigh()
+            calc.init_model(self.ckpt_file)
         # infer = Save_Data(data_path=structrue_file, format=format)
         image_read = Config(data_path=structrue_file, format=format, atom_names=atom_names).images
         if not isinstance(image_read, list): # for lammps/dumps or movement .images will be list
@@ -221,11 +226,25 @@ class Inference(object):
                 raise Exception("Error! the atom types in structrue file is larger than the max atom types in model!")
             type_maps = np.array(type_map(atom_types_struc, input_atom_types)).reshape(1, -1)
 
-            ei_predict, force_predict, virial_predict = calc.inference(
+            if torch.cuda.is_available():
+                ei_predict = np.zeros(atom_nums, dtype=np.float64)
+                force_predict = np.zeros(atom_nums*3, dtype=np.float64)
+                virial_predict = np.zeros(9, dtype=np.float64)
+                calc.compute_pwmlff(
+                    atom_nums, 
+                    ntypes*100, 
                     list(type_maps[0]), 
                     list(np.array(image.lattice).transpose(1, 0).reshape(-1)), 
-                    np.array(image.position).transpose(1, 0).reshape(-1)
-            )
+                    list(np.array(image.position).transpose(1, 0).reshape(-1)), 
+                    ei_predict, 
+                    force_predict, 
+                    virial_predict)
+            else:
+                ei_predict, force_predict, virial_predict = calc.inference(
+                        list(type_maps[0]), 
+                        list(np.array(image.lattice).transpose(1, 0).reshape(-1)), 
+                        np.array(image.position).transpose(1, 0).reshape(-1)
+                )
 
             ei_predict   = np.array(ei_predict).reshape(atom_nums)
             force_predict = np.array(force_predict).reshape(3, atom_nums).transpose(1, 0)

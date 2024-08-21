@@ -83,8 +83,10 @@ def nep_test(input_json: json, cmd:str):
         data_paths = nep_trainer.generate_data()
         nep_param.file_paths.set_datasets_path(data_paths)
     # nep_trainer.inference()
-    # nep_trainer.nep_inference(model_load_path)
-    nep_trainer.multi_process_nep_inference(model_load_path)
+    if nep_trainer.device.type == 'cuda':
+        nep_trainer.gpu_nep_inference(model_load_path)
+    else: #cpu
+        nep_trainer.multi_cpus_nep_inference(model_load_path)
     if "tmp_pwmlff_nep_test" in model_load_path:
         os.remove(model_load_path)
 

@@ -967,6 +967,9 @@ void find_descriptor_small_box(
       find_fc(paramb.rc_radial, paramb.rcinv_radial, d12, fc12);
       int t2 = g_type[n2];
       double fn12[MAX_NUM_N];
+      // if (n1 ==0){
+      //   printf("n1 %d t1 %d n2 %d t2 %d r12 %f fc %f\n", n1, t1, n2, t2, d12, fc12);
+      // }
       if (paramb.version == 2) {
         find_fn(paramb.n_max_radial, paramb.rcinv_radial, d12, fc12, fn12);
         for (int n = 0; n <= paramb.n_max_radial; ++n) {
@@ -1055,6 +1058,9 @@ void find_descriptor_small_box(
 
     if (calculating_potential || calculating_latent_space || calculating_polarizability) {
       for (int d = 0; d < annmb.dim; ++d) {
+        // if (n1==0) {
+        // printf("n1 %d all[%d]=%f q[%d]=%f scaler[%d]=%f\n", n1, d, q[d] * paramb.q_scaler[d], d, q[d], d, paramb.q_scaler[d]);
+        // }
         q[d] = q[d] * paramb.q_scaler[d];
       }
 
@@ -1089,6 +1095,7 @@ void find_descriptor_small_box(
       if (calculating_potential) {
         g_potential[n1] += F;
       }
+      // printf("e[%d]=%f\n", n1, F);
       for (int d = 0; d < annmb.dim; ++d) {
         g_Fp[d * N + n1] = Fp[d] * paramb.q_scaler[d];
       }
@@ -1333,7 +1340,7 @@ void find_force_angular_small_box(
         }
       }
 #endif
-
+      // printf("angular_in n1=%d, n2=%d, r12=%f, f12[0]=%f, f12[1]=%f, f12[2]=%f\n",n1, n2, d12, f12[0],f12[1],f12[2]);
       if (g_fx) {
         g_fx[n1] += f12[0];
         g_fx[n2] -= f12[0];
@@ -1401,7 +1408,12 @@ void find_force_ZBL_small_box(
       int index = i1 * N + n1;
       int n2 = g_NL[index];
       double r12[3] = {g_x12[index], g_y12[index], g_z12[index]};
-      double d12 = sqrt(r12[0] * r12[0] + r12[1] * r12[1] + r12[2] * r12[2]);
+      double d12sq = r12[0] * r12[0] + r12[1] * r12[1] + r12[2] * r12[2];
+      double max_rc_outer = 2.5;
+      if (d12sq >= max_rc_outer * max_rc_outer) {
+        continue;
+      }
+      double d12 = sqrt(d12sq);
       double d12inv = 1.0 / d12;
       double f, fp;
       int type2 = g_type[n2];
@@ -2117,6 +2129,9 @@ void find_neighbor_compute(
 
             double distance_square = x12 * x12 + y12 * y12 + z12 * z12;
             if (distance_square < rc_radial * rc_radial) {
+              // if (n1 == 0 or n1 == 10) {
+              //   printf("radial n1 = %d, n2 = %d, r12 = %f %f\n", n1, n2, distance_square, sqrt(distance_square));
+              // }
               g_NL_radial[count_radial * N + n1] = n2;
               g_x12_radial[count_radial * N + n1] = x12;
               g_y12_radial[count_radial * N + n1] = y12;
@@ -2124,6 +2139,9 @@ void find_neighbor_compute(
               count_radial++;
             }
             if (distance_square < rc_angular * rc_angular) {
+              // if (n1 == 0 or n1 == 10) {
+              //   printf("angular n1 = %d, n2 = %d, r12 = %f %f\n", n1, n2, distance_square, sqrt(distance_square));
+              // }
               g_NL_angular[count_angular * N + n1] = n2;
               g_x12_angular[count_angular * N + n1] = x12;
               g_y12_angular[count_angular * N + n1] = y12;
@@ -2772,7 +2790,13 @@ void NEP3_CPU::compute(
     paramb.rc_radial, paramb.rc_angular, N, MN, box, position, num_cells, ebox, 
     NN_radial, NL_radial, NN_angular, NL_angular, 
     r12);
-
+  // for (int i=0; i < N; i++){
+  //   printf("atom %d neighbors %d, neighbor list is: \n", i, NN_radial[i]);
+  //   for (int j=0; j < NN_radial[i]; j++){
+  //     printf("%d ",NL_radial[j * N + i]);
+  //   }
+  //   printf("\n");
+  // }
   find_descriptor_small_box(
     true, false, false, false, paramb, annmb, N, NN_radial.data(), NL_radial.data(),
     NN_angular.data(), NL_angular.data(), type.data(), r12.data(), r12.data() + size_x12,
@@ -2790,7 +2814,9 @@ void NEP3_CPU::compute(
     gnp_radial.data(),
 #endif
     force.data(), force.data() + N, force.data() + N * 2, nullptr, total_virial.data());
-
+  // for (int ii = 0; ii < N; ii++) {
+  // printf("radial force f[%d]=%f %f %f\n", ii, force[ii], force[ii + N], force[ii + N * 2]);
+  // }
   find_force_angular_small_box(
     false, paramb, annmb, N, NN_angular.data(), NL_angular.data(), type.data(),
     r12.data() + size_x12 * 3, r12.data() + size_x12 * 4, r12.data() + size_x12 * 5, Fp.data(),
@@ -2800,12 +2826,21 @@ void NEP3_CPU::compute(
 #endif
     force.data(), force.data() + N, force.data() + N * 2, nullptr, total_virial.data());
 
+  // for (int ii = 0; ii < N; ii++) {
+  // printf("angular force f[%d]=%f %f %f\n", ii, force[ii], force[ii + N], force[ii + N * 2]);
+  // }
   if (zbl.enabled) {
     find_force_ZBL_small_box(
       N, zbl, NN_angular.data(), NL_angular.data(), type.data(), r12.data() + size_x12 * 3,
       r12.data() + size_x12 * 4, r12.data() + size_x12 * 5, force.data(), force.data() + N,
       force.data() + N * 2, nullptr, potential.data(), total_virial.data());
   }
+  // for (int ii = 0; ii < N; ii++) {
+  // printf("zbl e[%d]=%f\n", ii, potential[ii]);
+  // }
+  // for (int ii = 0; ii < N; ii++) {
+  // printf("zbl force f[%d]=%f %f %f\n", ii, force[ii], force[ii + N], force[ii + N * 2]);
+  // }
   total_virial[3] = total_virial[1]; //yx
   total_virial[6] = total_virial[2]; //zx
   total_virial[7] = total_virial[5]; //zy
