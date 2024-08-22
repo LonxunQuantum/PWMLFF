@@ -4,8 +4,13 @@ rm -f bin/*.x
 rm -f bin/*.py
 rm -rf op/build
 
+#nep cpu
 rm -rf feature/nep_find_neigh/build/*
 rm feature/nep_find_neigh/findneigh.so
+#nep gpu
+rm -rf feature/NEP_GPU/build/*
+rm -rf feature/NEP_GPU/*/*.o
+rm feature/NEP_GPU/nep3_module.so
 
 
 make clean -C pre_data/gen_feature

@@ -15,9 +15,18 @@ mkdir build
 cd build
 cmake -Dpybind11_DIR=$(python -m pybind11 --cmakedir) .. && make
 cp findneigh.* ../findneigh.so
+
+cd ../../NEP_GPU
+rm -rf build/*
+rm nep3_module.so
+mkdir build
+cd build
+cmake -Dpybind11_DIR=$(python -m pybind11 --cmakedir) .. && make
+cp nep3_module.* ../nep3_module.so
 cd ..
 cd ..
 cd ..
+
 # compile gpumd
 #make -C GPUMD/src
 
