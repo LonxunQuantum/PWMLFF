@@ -32,7 +32,9 @@ class OptimizerParam(object):
             self.block_size = get_parameter("block_size", optimizer_dict, 5120)
             self.nselect = get_parameter("nselect", optimizer_dict, 24)
             self.groupsize = get_parameter("groupsize", optimizer_dict, 6)
-            self.p0_weight = get_parameter("p0_weight", optimizer_dict, None)
+            self.p0_weight = get_parameter("p0_weight", optimizer_dict, 0.01)
+            if self.p0_weight > 1.0:
+                raise Exception("ERROR! the p0_weight must be less than 1.0, with 0.01 as default value. If set to 1, it means regularization is not applicable.")
 
         elif "ADAM" in self.opt_name.upper():   # set ADAM Optimizer params
             self.learning_rate = get_parameter("learning_rate", optimizer_dict, 0.001)
@@ -159,8 +161,7 @@ class OptimizerParam(object):
             opt_dict["pre_fac_virial"] = self.pre_fac_virial
             opt_dict["pre_fac_egroup"] = self.pre_fac_egroup
 
-            if self.p0_weight is not None:
-                opt_dict["p0_weight"] = self.p0_weight
+            opt_dict["p0_weight"] = self.p0_weight
 
         elif "SGD" in self.opt_name or "ADAM" in self.opt_name:
             if "SGD" in self.opt_name:
