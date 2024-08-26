@@ -489,7 +489,7 @@ class NEP(nn.Module):
         dE = torch.autograd.grad([Ei], [Ri], grad_outputs=mask, retain_graph=True, create_graph=True)[0]
         '''
         assert dE is not None
-        if True: #device.type == "cpu"
+        if device.type == "cpu": #True: 
             dE = torch.unsqueeze(dE, dim=-1)
             # dE * Ri_d [batch, natom, max_neighbor * len(atom_type),4,1] * [batch, natom, max_neighbor * len(atom_type), 4, 3]
             # dE_Rid [batch, natom, max_neighbor * len(atom_type), 3]
@@ -946,23 +946,23 @@ class NEP(nn.Module):
         fc[mask] = 1
         return fc
     
-    def cal_zbl_phi(self,
-        rij: torch.Tensor,
-        type_zbl:torch.Tensor,
-        type_map:torch.Tensor,
-        atom_type: torch.Tensor
-        ):
-        zj = torch.zeros_like(type_zbl)
-        mask = type_zbl != -1
-        zj[mask] = atom_type[type_zbl[mask]]
-        zi = atom_type[type_map]
-        alpha = ((zi.view(1, zi.shape[0], 1))**0.23 + zj**0.23) * 2.134563
-        x = rij[mask] * alpha[mask]
-        phi = self.zbl_para[0] * torch.exp(-self.zbl_para[1]* x) + \
-                self.zbl_para[2] * torch.exp(-self.zbl_para[3]* x) + \
-                    self.zbl_para[4] * torch.exp(-self.zbl_para[5]* x) + \
-                        self.zbl_para[6] * torch.exp(-self.zbl_para[7]* x)
-        ZiZj = zi.view(1, zi.shape[0], 1) * zj
+    # def cal_zbl_phi(self,
+    #     rij: torch.Tensor,
+    #     type_zbl:torch.Tensor,
+    #     type_map:torch.Tensor,
+    #     atom_type: torch.Tensor
+    #     ):
+    #     zj = torch.zeros_like(type_zbl)
+    #     mask = type_zbl != -1
+    #     zj[mask] = atom_type[type_zbl[mask]]
+    #     zi = atom_type[type_map]
+    #     alpha = ((zi.view(1, zi.shape[0], 1))**0.23 + zj**0.23) * 2.134563
+    #     x = rij[mask] * alpha[mask]
+    #     phi = self.zbl_para[0] * torch.exp(-self.zbl_para[1]* x) + \
+    #             self.zbl_para[2] * torch.exp(-self.zbl_para[3]* x) + \
+    #                 self.zbl_para[4] * torch.exp(-self.zbl_para[5]* x) + \
+    #                     self.zbl_para[6] * torch.exp(-self.zbl_para[7]* x)
+    #     ZiZj = zi.view(1, zi.shape[0], 1) * zj
 
-        Ei_zbl = self.K_C_SP * ZiZj * phi / rij
+    #     Ei_zbl = self.K_C_SP * ZiZj * phi / rij
         

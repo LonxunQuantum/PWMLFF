@@ -104,10 +104,10 @@ class KFOptimizerWrapper:
         #         dist.all_reduce(error)
         #         error /= dist.get_world_size()
         
-        Etot_predict = update_prefactor * Etot_predict
-        Etot_predict[mask] = -1.0 * Etot_predict[mask]
+        _Etot_predict = update_prefactor * Etot_predict
+        _Etot_predict[mask] = -1.0 * _Etot_predict[mask]
 
-        Etot_predict.sum().backward(retain_graph=True)# retain_graph=True is added for nep training
+        _Etot_predict.sum().backward(retain_graph=True)# retain_graph=True is added for nep training
         error = error * math.sqrt(bs)
         #print("Etot steping")
         self.optimizer.step(error)
@@ -201,6 +201,10 @@ class KFOptimizerWrapper:
     def update_virial(
         self, inputs: list, Virial_label: torch.Tensor, update_prefactor: float = 1, train_type = "DP"
     ) -> None:
+        data_mask = Virial_label[:, 9] > 0
+        _Virial_label = Virial_label[:, :9][data_mask]
+        if data_mask.any().item() is False:
+            return None
         if train_type == "DP":
             Etot_predict, _, _, _, Virial_predict = self.model(
                 inputs[0],
@@ -253,10 +257,9 @@ class KFOptimizerWrapper:
         self.optimizer.set_grad_prefactor(natoms_sum)
         
         self.optimizer.zero_grad()
-
-        bs = Virial_label.shape[0]  
+        bs = _Virial_label.shape[0]  
         
-        error = Virial_label.squeeze(1) - Virial_predict
+        error = _Virial_label.squeeze(1) - Virial_predict[data_mask]
         error = error / natoms_sum
         mask = error < 0
 
@@ -275,10 +278,10 @@ class KFOptimizerWrapper:
         #         dist.all_reduce(error)
         #         error /= dist.get_world_size()
 
-        Virial_predict = update_prefactor * Virial_predict
-        Virial_predict[mask] = -1.0 * Virial_predict[mask]
+        _Virial_predict = update_prefactor * Virial_predict[data_mask]
+        _Virial_predict[mask] = -1.0 * _Virial_predict[mask]
         
-        Virial_predict.sum().backward()
+        _Virial_predict.sum().backward()
 
         error = error * math.sqrt(bs) 
         
@@ -472,10 +475,10 @@ class KFOptimizerWrapper:
         #         dist.all_reduce(error)
         #         error /= dist.get_world_size()
         
-        Ei_predict = update_prefactor * Ei_predict
-        Ei_predict[mask] = -1.0 * Ei_predict[mask]
+        _Ei_predict = update_prefactor * Ei_predict
+        _Ei_predict[mask] = -1.0 * _Ei_predict[mask]
 
-        Ei_predict.sum().backward()
+        _Ei_predict.sum().backward()
         error = error * math.sqrt(bs)
         self.optimizer.step(error)
         return Ei_predict

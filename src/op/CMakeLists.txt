@@ -1,3 +1,5 @@
+#add_definitions(-D_GLIBCXX_USE_CXX11_ABI=0)
+
 # 1. Basic info 
 cmake_minimum_required(VERSION 3.2 FATAL_ERROR)
 project(CalcOps)

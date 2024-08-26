@@ -66,14 +66,22 @@ class GKFOptimizer(Optimizer):
                     )  # (param.grad / natoms_sum)?
                     weights = param.data.T.reshape(param.data.nelement(), 1)
                 else:
-                    H = torch.cat(
-                        (
-                            H,
-                            (param.grad / self.grad_prefactor).T.reshape(
-                                param.grad.nelement(), 1
-                            ),
+                    if param.grad is None:
+                        H = torch.cat(
+                            (
+                                H,
+                                torch.zeros_like(param.data.T.contiguous().reshape(param.data.nelement(), 1)),
+                            )
                         )
-                    )
+                    else:
+                        H = torch.cat(
+                            (
+                                H,
+                                (param.grad / self.grad_prefactor).T.reshape(
+                                    param.grad.nelement(), 1
+                                ),
+                            )
+                        )
                     weights = torch.cat(
                         (weights, param.data.T.reshape(param.data.nelement(), 1))
                     )  #!!!!waring, should use T

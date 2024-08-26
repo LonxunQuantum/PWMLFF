@@ -87,13 +87,14 @@ class MovementDataset(Dataset):
         images_per_dir = []
         atoms_per_dir = []
         all_has_virial = True # maybe some dirs do not have virials.npy, do not load virials.npy file
-        for dir in self.dirs:
-            vir_list = glob.glob(os.path.join(dir, "virials.npy"))
-            if len(vir_list) == 0:
-                all_has_virial = False
-                break
+        # for dir in self.dirs:
+            # vir_list = glob.glob(os.path.join(dir, "virials.npy"))
+            # if len(vir_list) == 0:
+            #     all_has_virial = False       
+            #     break
         for dir in self.dirs:
             npy_files = [f for f in os.listdir(dir) if f.endswith(".npy")]
+            has_virial = False
             file_data_dict = {}
             for npy_file in npy_files:
                 if all_has_virial is False and "virials.npy" == os.path.basename(npy_file):
@@ -111,8 +112,14 @@ class MovementDataset(Dataset):
                 elif npy_file == "position.npy":
                     images = file_data.shape[0]
                     file_data = file_data.reshape(images, -1, 3)
-
+                elif npy_file == "virials.npy":
+                    ones_column = np.ones((file_data.shape[0], 1))
+                    file_data = np.hstack((file_data, ones_column))
+                    has_virial = True
                 file_data_dict[npy_file] = file_data
+            if has_virial is False:
+                file_data_dict["virials.npy"] = np.zeros((images, 10)) # cur-dir has no virial, use 0 to occupy space to 10
+
             type_maps = type_map(file_data_dict["image_type.npy"][0], self.atom_types)
             file_data_dict["type_maps"] = np.array(type_maps).reshape(1, -1)
 
