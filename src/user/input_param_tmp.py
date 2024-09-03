@@ -1,6 +1,7 @@
 import os
 import json
 from utils.json_operation import get_parameter, get_required_parameter
+from utils.nep_to_gpumd import get_atomic_name_from_str
 from src.user.nn_feature_type import Descriptor
 from src.user.model_param import ModelParam
 from src.user.optimizer_param import OptimizerParam
@@ -26,8 +27,8 @@ class InputParam(object):
         self.cmd = cmd
         self.inference = True if self.cmd == "test".upper() else False
         self.model_type = get_required_parameter("model_type", json_input).upper()
-        self.atom_type = get_required_parameter("atom_type", json_input)
-
+        
+        self.atom_type = get_atomic_name_from_str(get_required_parameter("atom_type", json_input))
         self.model_num = get_parameter("model_num", json_input, 1)
         self.recover_train = get_parameter("recover_train", json_input, True)
         self.max_neigh_num = get_parameter("max_neigh_num", json_input, 100)

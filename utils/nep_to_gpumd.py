@@ -39,6 +39,12 @@ def get_atomic_name_from_number(atomic_number:list[int]):
         res.append(element_table[number])
     return res
 
+def get_atomic_name_from_str(atom_strs):
+    try:
+        return [int(_) for _ in atom_strs]
+    except ValueError:
+        return get_atomic_number_from_name(atom_strs)
+
 '''
 description: 
 
@@ -137,20 +143,21 @@ def nep_ckpt_to_gpumd(cmd_list):
     infos += "You coud use PWMLFF togpumd -h for detailed parameter explanation.\n\n"
     infos += "The command example: \n"
     infos += "    'PWMLFF togpumd -m nep_model.ckpt -t 8 72 -n 32 64 -s gpumd.txt'\n"
-    infos += "    '8 72' is the type list of atoms in the simulated system in GPUMD, using relative atomic numbers, \n"
+    infos += "    'or PWMLFF togpumd -m nep_model.ckpt -t O Hf -n 32 64 -s gpumd.txt'\n"
+    infos += "    '8 72' is the type list of atoms in the simulated system in GPUMD, you could also use the atom type names such as O Hf , \n"
     infos += "    '32 64' is the number of atoms corresponding to the atomic types in your simulated system.\n\n\n"
     print(infos)
 
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('-m', '--nep-model-path', help='specify the path of nep_model.ckpt', type=str, default='nep_model.ckpt')
-    parser.add_argument('-t', '--atom-types', help='specify the atom type list, such as 8 72', nargs='+', type=int, default=None)
+    parser.add_argument('-t', '--atom-types', help='specify the atom type list, such as 8 72, or O Hf', nargs='+', type=str, default=None)
     parser.add_argument('-n', '--atom-type-nums', help='specify the atom nums of each atom type', nargs='+', type=int, default=None)
     parser.add_argument('-s', '--save-name', help='specify the save name, the default is nep_to_gpumd.txt', type=str, default='nep_to_gpumd.txt')
     args = parser.parse_args(cmd_list)
     nep_model_path = args.nep_model_path
-    atom_types = args.atom_types
     atom_type_nums = args.atom_type_nums
+    atom_types = get_atomic_name_from_str(args.atom_types)
     save_name = args.save_name
 
     # os.chdir("/data/home/wuxingxing/datas/pwmat_mlff_workdir/hfo2/nep_lkf/model_record")

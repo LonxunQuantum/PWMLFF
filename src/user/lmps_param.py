@@ -2,7 +2,7 @@ import json
 import os 
 
 from utils.json_operation import get_parameter, get_required_parameter
-
+from utils.nep_to_gpumd import get_atomic_name_from_str
 class LmpParam(object):
     def __init__(self, lmp_json:json, working_dir:str) -> None:
         self.json_dir = os.getcwd()
@@ -26,7 +26,7 @@ class LmpParam(object):
         self.struct_dir = get_parameter("struct_dir", lmp_json,  None)
         self.ff_file = get_parameter("ff_file", lmp_json,  [])
         self.node_num = get_parameter("node_num", lmp_json,  1)
-        self.atom_type = get_parameter("atom_type", lmp_json,  [])
+        self.atom_type = get_atomic_name_from_str(get_parameter("atom_type", lmp_json,  []))
         self.success_bar = get_parameter("success_bar", lmp_json,  0.15)
         self.candidate_bar = get_parameter("candidate_bar", lmp_json,  0.35)
         self.lmp_damp = get_parameter("lmp_damp", lmp_json,  25)
