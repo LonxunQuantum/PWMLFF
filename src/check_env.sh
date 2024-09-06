@@ -53,11 +53,11 @@ check_ifort_mkl() {
 # 检查 GCC 版本是否为 8.x
 check_gcc_version() {
     if command -v gcc &> /dev/null; then
-        gcc_version=$(gcc -dumpversion)
-        if [[ $gcc_version == 8.* ]]; then
-            echo "5. GCC version is 8.x, current version is $gcc_version."
+        gcc_version=$(gcc -dumpversion | cut -d. -f1)
+        if [ "$gcc_version" -eq 8 ]; then
+            echo "5. GCC version is exactly 8, current version is $gcc_version."
         else
-            echo "5. GCC version is not 8.x, current version is $gcc_version."
+            echo "5. GCC version is not 8, current version is $gcc_version."
         fi
     else
         echo "5. GCC not found."
