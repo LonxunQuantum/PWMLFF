@@ -435,10 +435,13 @@ class nep_network:
         for idx, image in enumerate(images):
             atom_nums = image.atom_nums
             atom_num_list.append(atom_nums)
-            atom_types_struc = image.atom_types_image
+            if isinstance(image.atom_types_image.tolist(), int):
+                atom_types_struc = [image.atom_types_image.tolist()]
+            else:
+                atom_types_struc = image.atom_types_image.tolist()
             input_atom_types = np.array(self.input_param.atom_type)
             atom_types = image.atom_type
-            ntypes = len(atom_types)
+            ntypes = 1 if isinstance(atom_types.tolist(), int) else len(atom_types)
             if ntypes > img_max_types:
                 raise Exception("Error! the atom types in structrue file is larger than the max atom types in model!")
             type_maps = np.array(type_map(atom_types_struc, input_atom_types)).reshape(1, -1)
