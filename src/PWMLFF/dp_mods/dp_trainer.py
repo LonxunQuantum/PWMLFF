@@ -888,7 +888,12 @@ def predict(val_loader, model, criterion, device, args:InputParam, isprofile=Fal
                 loss_Egroup_val = criterion(Egroup_predict, Egroup_label)
 
             if args.optimizer_param.train_virial is True:
-                loss_Virial_val = criterion(Virial_predict, Virial_label.squeeze(1))
+                data_mask = Virial_label[:, 9] > 0  # 判断最后一列是否大于 0
+                _Virial_label = Virial_label[:, :9][data_mask]
+                if data_mask.any().item():
+                    loss_Virial_val = criterion(Virial_predict[data_mask], _Virial_label)
+                else:
+                    loss_Virial_val = torch.tensor(0.0)
                 loss_Virial_per_atom_val = loss_Virial_val/natoms/natoms
             # rmse
             Etot_rmse = loss_Etot_val ** 0.5
