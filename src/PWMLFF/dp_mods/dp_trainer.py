@@ -767,6 +767,7 @@ author: wuxingxing
 def predict(val_loader, model, criterion, device, args:InputParam, isprofile=False):
     train_lists = ["img_idx"] #"Etot_lab", "Etot_pre", "Ei_lab", "Ei_pre", "Force_lab", "Force_pre"
     train_lists.extend(["RMSE_Etot", "RMSE_Etot_per_atom", "RMSE_Ei", "RMSE_F"])
+    atom_num_list = []
     if args.optimizer_param.train_egroup:
         train_lists.append("RMSE_Egroup")
     if args.optimizer_param.train_virial:
@@ -832,7 +833,7 @@ def predict(val_loader, model, criterion, device, args:InputParam, isprofile=Fal
             # transport data to GPU
             natoms_img = Variable(natoms_img_cpu[batch_indexs].int().to(device))
             natoms = natoms_img[0]
-            
+            atom_num_list.append(int(natoms))
             dR_neigh_list = Variable(dR_neigh_list_cpu[batch_indexs, :natoms].int().to(device))
             # atom list of image
             atom_type = Variable(atom_type_cpu[batch_indexs].to(device))
@@ -909,15 +910,15 @@ def predict(val_loader, model, criterion, device, args:InputParam, isprofile=Fal
                 res_list.append(float(loss_Virial_val))
                 res_list.append(float(loss_Virial_per_atom_val))
             
-            force_label_list.append(Force_label.flatten().cpu().numpy())
-            force_predict_list.append(Force_predict.flatten().detach().cpu().numpy())
-            ei_label_list.append(Ei_label.flatten().cpu().numpy())
-            ei_predict_list.append(Ei_predict.flatten().detach().cpu().numpy())
+            force_label_list.append(Force_label.squeeze().cpu().numpy())
+            force_predict_list.append(Force_predict.detach().squeeze().cpu().numpy())
+            ei_label_list.append(Ei_label.flatten().cpu().numpy().tolist())
+            ei_predict_list.append(Ei_predict.flatten().detach().cpu().numpy().tolist())
             etot_label_list.append(float(Etot_label))
             etot_predict_list.append(float(Etot_predict))
             res_pd.loc[res_pd.shape[0]] = res_list
     
-    return res_pd, etot_label_list, etot_predict_list, ei_label_list, ei_predict_list, force_label_list, force_predict_list
+    return atom_num_list, res_pd, etot_label_list, etot_predict_list, ei_label_list, ei_predict_list, force_label_list, force_predict_list
 
 def save_checkpoint(state, filename, prefix):
     filename = os.path.join(prefix, filename)

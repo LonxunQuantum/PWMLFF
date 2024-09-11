@@ -308,14 +308,14 @@ class dp_network:
         davg, dstd, energy_shift, atom_map, train_loader, val_loader = self.load_data(davg, dstd, energy_shift, max_atom_nums)
         model, optimizer = self.load_model_optimizer(davg, dstd, energy_shift)
         start = time.time()
-        res_pd, etot_label_list, etot_predict_list, ei_label_list, ei_predict_list, force_label_list, force_predict_list\
+        atom_num_list, res_pd, etot_label_list, etot_predict_list, ei_label_list, ei_predict_list, force_label_list, force_predict_list\
         = predict(train_loader, model, self.criterion, self.device, self.dp_params)
         end = time.time()
         print("fitting time:", end - start, 's')
 
         # print infos
         inference_cout = ""
-        inference_cout += "For {} images: \n".format(res_pd.shape[0])
+        inference_cout += "For {} images: \n".format(len(train_loader))
         inference_cout += "Avarage REMSE of Etot: {} \n".format(res_pd['RMSE_Etot'].mean())
         inference_cout += "Avarage REMSE of Etot per atom: {} \n".format(res_pd['RMSE_Etot_per_atom'].mean())
         inference_cout += "Avarage REMSE of Ei: {} \n".format(res_pd['RMSE_Ei'].mean())
@@ -332,6 +332,8 @@ class dp_network:
         inference_path = self.dp_params.file_paths.test_dir
         if os.path.exists(inference_path) is False:
             os.makedirs(inference_path)
+
+        write_arrays_to_file(os.path.join(inference_path, "image_atom_nums.txt"), atom_num_list)
         write_arrays_to_file(os.path.join(inference_path, "dft_total_energy.txt"), etot_label_list)
         write_arrays_to_file(os.path.join(inference_path, "inference_total_energy.txt"), etot_predict_list)
 

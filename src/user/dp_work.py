@@ -56,6 +56,7 @@ def dp_test(input_json: json, cmd:str):
         datasets_path = dp_trainer.generate_data()
         dp_param.file_paths.set_datasets_path(datasets_path)
     davg, dstd, energy_shift, max_atom_nums = dp_trainer._get_stat()
+    dp_trainer.dp_params.optimizer_param.train_virial = False
     dp_trainer.inference(davg, dstd, energy_shift, max_atom_nums)
 
 '''
