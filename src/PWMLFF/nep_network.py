@@ -466,8 +466,8 @@ class nep_network:
 
             ei_predict   = np.array(ei_predict).reshape(atom_nums)
             etot_predict = np.sum(ei_predict)
-            etot_rmse.append(np.abs(etot_predict-image.Ep))
-            etot_label_list.append(image.Ep)
+            etot_rmse.append(np.abs(etot_predict-image.Ep[0]))
+            etot_label_list.append(image.Ep[0])
             etot_predict_list.append(etot_predict)
 
             etot_atom_rmse.append(etot_rmse[-1]/atom_nums)
