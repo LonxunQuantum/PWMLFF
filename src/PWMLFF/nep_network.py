@@ -962,6 +962,7 @@ class nep_network:
     param {*} self
     return {*}
     author: wuxingxing
+    '''
     def inference(self):
         # do inference
         energy_shift, max_atom_nums, image_path = self._get_stat()
@@ -996,21 +997,16 @@ class nep_network:
         write_arrays_to_file(os.path.join(inference_path, "dft_total_energy.txt"), etot_label_list)
         write_arrays_to_file(os.path.join(inference_path, "inference_total_energy.txt"), etot_predict_list)
         # for force
-        write_force_ei(os.path.join(inference_path, "inference_ei_force.txt"), ei_predict_list, force_predict_list)
-        write_force_ei(os.path.join(inference_path, "dft_ei_force.txt"), ei_label_list, force_label_list)
-
-        # write_arrays_to_file(os.path.join(inference_path, "dft_atomic_energy.txt"), ei_label_list)
-        # write_arrays_to_file(os.path.join(inference_path, "inference_atomic_energy.txt"), ei_predict_list)
-
-        # write_arrays_to_file(os.path.join(inference_path, "dft_force.txt"), force_label_list)
-        # write_arrays_to_file(os.path.join(inference_path, "inference_force.txt"), force_predict_list)
+        write_arrays_to_file(os.path.join(inference_path, "dft_force.txt"), [_.reshape(-1,3) for _ in force_label_list])
+        write_arrays_to_file(os.path.join(inference_path, "inference_force.txt"), [_.reshape(-1,3) for _ in force_predict_list])
+        # ei
+        write_arrays_to_file(os.path.join(inference_path, "dft_atomic_energy.txt"), ei_label_list)
+        write_arrays_to_file(os.path.join(inference_path, "inference_atomic_energy.txt"), ei_predict_list)
 
         res_pd.to_csv(os.path.join(inference_path, "inference_loss.csv"))
-
         with open(os.path.join(inference_path, "inference_summary.txt"), 'w') as wf:
             wf.writelines(inference_cout)
         return 
-    '''    
 
     '''
     description: 
@@ -1268,6 +1264,5 @@ class nep_network:
             wf.writelines(inference_cout)
 
         time2 = time.time()
-        print(f"The test work finished, the calculate time {time1 - time0} write time {time2 - time1} all time {time2 - time0}")
-          
+        # print(f"The test work finished, the calculate time {time1 - time0} write time {time2 - time1} all time {time2 - time0}")
           
