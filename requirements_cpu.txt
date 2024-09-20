@@ -1,0 +1,15 @@
+numpy==1.26.4
+torch==2.2.0
+-f https://download.pytorch.org/whl/torch_stable.html
+
+ase
+tqdm
+cmake
+pyyaml
+pandas
+scikit-learn-intelex
+matplotlib
+pwdata
+pwact
+pybind11
+charset_normalizer==3.3.2
