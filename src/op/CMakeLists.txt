@@ -35,25 +35,13 @@ execute_process(
     OUTPUT_STRIP_TRAILING_WHITESPACE
 )
 
+# 5. Always add CPU subdirectory
+add_subdirectory(cmake/cpu)
+
+# 6. Conditionally add GPU subdirectory
 if(HAS_CUDA_SUPPORT)
     message(STATUS "CUDA is available. Adding GPU subdirectory.")
     add_subdirectory(cmake/gpu)
-    add_subdirectory(cmake/cpu)
 else()
     message(STATUS "CUDA is not available. Skipping GPU subdirectory.")
-    add_subdirectory(cmake/cpu)
-    # 5. Post-build steps: Copy CPU libraries as GPU-compatible libraries
-    add_custom_command(TARGET cpu POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy
-            ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libCalcOps_bind_cpu.so
-            ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libCalcOps_bind.so
-        COMMAND ${CMAKE_COMMAND} -E copy
-            ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libCalcOps_bind_cpu.so
-            ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libCalcOps_cuda.so
-        COMMENT "Copying CPU libraries to GPU-compatible libraries."
-    )
 endif()
-
-# 继续添加 CPU 子目录
-#add_subdirectory(cmake/cpu)
-
