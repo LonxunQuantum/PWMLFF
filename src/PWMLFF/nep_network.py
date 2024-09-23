@@ -1264,5 +1264,5 @@ class nep_network:
             wf.writelines(inference_cout)
 
         time2 = time.time()
-        # print(f"The test work finished, the calculate time {time1 - time0} write time {time2 - time1} all time {time2 - time0}")
+        print(f"The test work finished, the calculate time {time1 - time0} write time {time2 - time1} all time {time2 - time0}")
           

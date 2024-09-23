@@ -1,5 +1,5 @@
 setuptools==68.0.0
-numpy==1.26.4
+numpy==1.26.2
 torch==2.2.0+cu118
 -f https://download.pytorch.org/whl/torch_stable.html
 
