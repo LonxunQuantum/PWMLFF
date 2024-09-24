@@ -87,7 +87,8 @@ mkdir build
 cd build
 cmake ..
 make
-
+cd ..
+cd ..
 ################################################################
 #Writing environment variable
 
