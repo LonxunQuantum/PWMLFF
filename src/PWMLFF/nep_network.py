@@ -43,6 +43,7 @@ from src.PWMLFF.dp_param_extract import load_atomtype_energyshift_from_checkpoin
 from src.user.input_param import InputParam
 from utils.file_operation import write_arrays_to_file, write_force_ei
 
+from src.aux.inference_plot import inference_plot
 import concurrent.futures
 import multiprocessing
 from queue import Queue
@@ -952,6 +953,7 @@ class nep_network:
         with open(os.path.join(inference_path, "inference_summary.txt"), 'w') as wf:
             wf.writelines(inference_cout)
         time2 = time.time()
+        inference_plot(inference_path)
         print("The test work finished, the calculate time {} write time {} all time {}".format(time1 - time0, time2 - time1, time2 - time0))
 
 
@@ -1006,7 +1008,7 @@ class nep_network:
         res_pd.to_csv(os.path.join(inference_path, "inference_loss.csv"))
         with open(os.path.join(inference_path, "inference_summary.txt"), 'w') as wf:
             wf.writelines(inference_cout)
-        return 
+        inference_plot(inference_path)
 
     '''
     description: 
@@ -1136,6 +1138,7 @@ class nep_network:
         res_pd.to_csv(os.path.join(inference_path, "inference_loss.csv"))
         with open(os.path.join(inference_path, "inference_summary.txt"), 'w') as wf:
             wf.writelines(inference_cout)
+        inference_plot(inference_path)
         time1 = time.time()
         print("The test work finished, the time {}".format(time1-time0))
 
@@ -1262,7 +1265,7 @@ class nep_network:
         res_pd.to_csv(os.path.join(inference_path, "inference_loss.csv"))
         with open(os.path.join(inference_path, "inference_summary.txt"), 'w') as wf:
             wf.writelines(inference_cout)
-
+        inference_plot(inference_path)
         time2 = time.time()
         print(f"The test work finished, the calculate time {time1 - time0} write time {time2 - time1} all time {time2 - time0}")
           

@@ -18,8 +18,6 @@ sys.path.append(codepath+'/../aux')
 sys.path.append(codepath+'/../lib')
 sys.path.append(codepath+'/../..')
 
-from statistics import mode 
-from turtle import Turtle, update
 import torch
     
 import time
@@ -46,6 +44,7 @@ from src.PWMLFF.dp_param_extract import load_davg_dstd_from_checkpoint, load_dav
 from src.user.input_param import InputParam
 from utils.file_operation import write_arrays_to_file, copy_movements_to_work_dir, smlink_file
 #from data_loader_2type_dp import MovementDataset, get_torch_data
+from src.aux.inference_plot import inference_plot
 
 class dp_network:
     def __init__(self, dp_param:InputParam):
@@ -347,6 +346,7 @@ class dp_network:
 
         with open(os.path.join(inference_path, "inference_summary.txt"), 'w') as wf:
             wf.writelines(inference_cout)
+        inference_plot(inference_path)
         return 
 
     def train(self):
