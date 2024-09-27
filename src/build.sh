@@ -16,16 +16,22 @@ cd build
 cmake -Dpybind11_DIR=$(python -m pybind11 --cmakedir) .. && make
 cp findneigh.* ../findneigh.so
 
-cd ../../NEP_GPU
-rm -rf build/*
-rm nep3_module.so
-mkdir build
-cd build
-cmake -Dpybind11_DIR=$(python -m pybind11 --cmakedir) .. && make
-cp nep3_module.* ../nep3_module.so
-cd ..
-cd ..
-cd ..
+if python -c "import torch; exit(0) if torch.version.cuda is not None else exit(1)"; then
+    cd ../../NEP_GPU
+    echo "PyTorch with CUDA detected, proceeding with NEP_GPU build."
+    rm -rf build/*
+    rm nep3_module.so
+    mkdir build
+    cd build
+    cmake -Dpybind11_DIR=$(python -m pybind11 --cmakedir) .. && make
+    cp nep3_module.* ../nep3_module.so
+    cd ..
+    cd ..
+    cd ..
+else
+    echo "No CUDA support in PyTorch, skipping NEP_GPU build."
+    cd ../../../
+fi
 
 # compile gpumd
 #make -C GPUMD/src
@@ -64,6 +70,28 @@ cd ..            # back to src dir
 ################################################################
 #Writing environment variable
 
+#current_path=$(pwd)
+
+#if ! grep -q "^export PYTHONPATH=.*$current_path" ~/.bashrc; then
+#  echo "export PYTHONPATH=$current_path:\$PYTHONPATH" >> ~/.bashrc
+#fi
+
+#if ! grep -q "^export PATH=.*$current_path/bin" ~/.bashrc; then
+#  echo "export PATH=$current_path/bin:\$PATH" >> ~/.bashrc
+#fi
+##################################################################
+cd op
+rm build -r
+# python setup.py install --user
+mkdir build
+cd build
+cmake ..
+make
+cd ..
+cd ..
+################################################################
+#Writing environment variable
+
 current_path=$(pwd)
 
 if ! grep -q "^export PYTHONPATH=.*$current_path" ~/.bashrc; then
@@ -74,11 +102,4 @@ if ! grep -q "^export PATH=.*$current_path/bin" ~/.bashrc; then
   echo "export PATH=$current_path/bin:\$PATH" >> ~/.bashrc
 fi
 ##################################################################
-cd op
-rm build -r
-# python setup.py install --user
-mkdir build
-cd build
-cmake ..
-make
 echo "Environment variables have been written ~/.bashrc"

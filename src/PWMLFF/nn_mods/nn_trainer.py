@@ -10,10 +10,9 @@ from torch.autograd import Variable
 from loss.dploss import dp_loss, adjust_lr
 from optimizer.KFWrapper import KFOptimizerWrapper
 # import horovod.torch as hvd
-from torch.profiler import profile, record_function, ProfilerActivity
-from src.aux.plot_nn_inference import plot
+from src.aux.inference_plot import inference_plot
 from src.user.input_param import InputParam
-from utils.file_operation import write_line_to_file
+from utils.file_operation import write_arrays_to_file
 
 def print_l1_l2(model):
     params = model.parameters()
@@ -653,27 +652,25 @@ return {*}
 author: wuxingxing
 '''
 def predict(train_loader, valid_loader, model, criterion, device, args:InputParam):
-    train_lists = ["img_idx", "RMSE_Etot", "RMSE_Etot_per_atom", "RMSE_Ei", "RMSE_F"]
+
+    train_lists = ["img_idx"] #"Etot_lab", "Etot_pre", "Ei_lab", "Ei_pre", "Force_lab", "Force_pre"
+    train_lists.extend(["RMSE_Etot", "RMSE_Etot_per_atom", "RMSE_Ei", "RMSE_F"])
     if args.optimizer_param.train_egroup:
         train_lists.append("RMSE_Egroup")
-    res_pd = pd.DataFrame(columns=train_lists)
+    if args.optimizer_param.train_virial:
+        train_lists.append("RMSE_virial")
+        train_lists.append("RMSE_virial_per_atom")
 
-    inf_dir = args.file_paths.test_dir
-    if os.path.exists(inf_dir) is True:
-        shutil.rmtree(inf_dir)
-    os.mkdir(inf_dir)
-    res_pd_save_path = os.path.join(inf_dir, "inference_loss.csv")
-    inf_force_save_path = os.path.join(inf_dir,"inference_force.txt")
-    lab_force_save_path = os.path.join(inf_dir,"dft_force.txt")
-    inf_energy_save_path = os.path.join(inf_dir,"inference_total_energy.txt")
-    lab_energy_save_path = os.path.join(inf_dir,"dft_total_energy.txt")
-    if args.file_paths.alive_atomic_energy:
-        inf_Ei_save_path = os.path.join(inf_dir,"inference_atomic_energy.txt")
-        lab_Ei_save_path = os.path.join(inf_dir,"dft_atomic_energy.txt")
-    inference_path = os.path.join(inf_dir,"inference_summary.txt") 
+    res_pd = pd.DataFrame(columns=train_lists)
+    force_label_list = []
+    force_predict_list = []
+    ei_label_list = []
+    ei_predict_list = []
+    etot_label_list = []
+    etot_predict_list = []
+    model.eval()
 
     for _val_loader in [train_loader, valid_loader]:
-        count = 0
         for i, sample_batches in enumerate(_val_loader):
             if args.precision == "float64":
                 Ei_label_cpu = sample_batches['output_energy'][:,:,:].double()
@@ -745,60 +742,65 @@ def predict(train_loader, valid_loader, model, criterion, device, args:InputPara
             Ei_rmse = loss_Ei_val ** 0.5
             F_rmse = loss_F_val ** 0.5
 
-            res_list = [count, float(Etot_rmse), float(etot_atom_rmse), float(Ei_rmse), float(F_rmse)]
+            res_list = [i, float(Etot_rmse), float(etot_atom_rmse), float(Ei_rmse), float(F_rmse)]
             if args.optimizer_param.train_egroup:
                 res_list.append(float(loss_Egroup_val))
             res_pd.loc[res_pd.shape[0]] = res_list
-            
-            #''.join(map(str, list(np.array(Force_predict.flatten().cpu().data))))
-            ''.join(map(str, list(np.array(Force_predict.flatten().cpu().data))))
-            write_line_to_file(inf_force_save_path, \
-                                ' '.join(np.array(Force_predict.flatten().cpu().data).astype('str')), "a")
-            write_line_to_file(lab_force_save_path, \
-                                ' '.join(np.array(Force_label.flatten().cpu().data).astype('str')), "a")
-            if args.file_paths.alive_atomic_energy:
-                write_line_to_file(inf_Ei_save_path, \
-                                ' '.join(np.array(Ei_predict.flatten().cpu().data).astype('str')), "a")
-                write_line_to_file(lab_Ei_save_path, \
-                                ' '.join(np.array(Ei_label.flatten().cpu().data).astype('str')), "a")
-            
-            write_line_to_file(inf_energy_save_path, \
-                                ' '.join(np.array(Etot_predict.flatten().cpu().data).astype('str')), "a")
-            write_line_to_file(lab_energy_save_path, \
-                                ' '.join(np.array(Etot_label.flatten().cpu().data).astype('str')), "a")
-            
-            count = count + 1
-    res_pd.to_csv(res_pd_save_path)
-    
+            # if args.optimizer_param.train_virial:
+            #     res_list.append(float(loss_Virial_val))
+            #     res_list.append(float(loss_Virial_per_atom_val))
+            force_label_list.append(Force_label.flatten().cpu().numpy())
+            force_predict_list.append(Force_predict.flatten().detach().cpu().numpy())
+            ei_label_list.append(Ei_label.flatten().cpu().numpy())
+            ei_predict_list.append(Ei_predict.flatten().detach().cpu().numpy())
+            etot_label_list.append(float(Etot_label))
+            etot_predict_list.append(float(Etot_predict))
+            res_pd.loc[res_pd.shape[0]] = res_list
+
+    # print infos
     inference_cout = ""
     inference_cout += "For {} images: \n".format(res_pd.shape[0])
     inference_cout += "Avarage REMSE of Etot: {} \n".format(res_pd['RMSE_Etot'].mean())
     inference_cout += "Avarage REMSE of Etot per atom: {} \n".format(res_pd['RMSE_Etot_per_atom'].mean())
-    if args.file_paths.alive_atomic_energy:
-        inference_cout += "Avarage REMSE of Ei: {} \n".format(res_pd['RMSE_Ei'].mean())
+    inference_cout += "Avarage REMSE of Ei: {} \n".format(res_pd['RMSE_Ei'].mean())
     inference_cout += "Avarage REMSE of RMSE_F: {} \n".format(res_pd['RMSE_F'].mean())
     if args.optimizer_param.train_egroup:
         inference_cout += "Avarage REMSE of RMSE_Egroup: {} \n".format(res_pd['RMSE_Egroup'].mean())
-    # if args.optimizer_param.train_virial:  #not realized
-    #     inference_cout += "Avarage REMSE of RMSE_virial: {} \n".format(res_pd['RMSE_virial'].mean())
-    #     inference_cout += "Avarage REMSE of RMSE_virial_per_atom: {} \n".format(res_pd['RMSE_virial_per_atom'].mean())
-
-    inference_cout += "\nMore details can be found under the file directory:\n{}\n".format(inf_dir)
+    if args.optimizer_param.train_virial:
+        inference_cout += "Avarage REMSE of RMSE_virial: {} \n".format(res_pd['RMSE_virial'].mean())
+        inference_cout += "Avarage REMSE of RMSE_virial_per_atom: {} \n".format(res_pd['RMSE_virial_per_atom'].mean())
+    
+    inference_cout += "\nMore details can be found under the file directory:\n{}\n".format(os.path.realpath(args.file_paths.test_dir))
     print(inference_cout)
 
-    if args.file_paths.alive_atomic_energy:
-        if args.optimizer_param.train_ei or args.optimizer_param.train_egroup:
-            plot_ei = True
-        else:
-            plot_ei = False
-    else:
-        plot_ei = False
-        
-    plot(inf_dir, plot_ei = plot_ei)
+    inference_path = args.file_paths.test_dir
+    if os.path.exists(inference_path) is False:
+        os.makedirs(inference_path)
 
-    with open(inference_path, 'w') as wf:
+    write_arrays_to_file(os.path.join(inference_path, "image_atom_nums.txt"), [int(len(_)/3) for _ in force_predict_list])
+    write_arrays_to_file(os.path.join(inference_path, "dft_total_energy.txt"), etot_label_list)
+    write_arrays_to_file(os.path.join(inference_path, "inference_total_energy.txt"), etot_predict_list)
+    # for force
+    write_arrays_to_file(os.path.join(inference_path, "dft_force.txt"), [_.reshape(-1,3) for _ in force_label_list])
+    write_arrays_to_file(os.path.join(inference_path, "inference_force.txt"), [_.reshape(-1,3) for _ in force_predict_list])
+    # ei
+    write_arrays_to_file(os.path.join(inference_path, "dft_atomic_energy.txt"), ei_label_list)
+    write_arrays_to_file(os.path.join(inference_path, "inference_atomic_energy.txt"), ei_predict_list)
+
+    res_pd.to_csv(os.path.join(inference_path, "inference_loss.csv"))
+
+    # if args.file_paths.alive_atomic_energy:
+    #     if args.optimizer_param.train_ei or args.optimizer_param.train_egroup:
+    #         plot_ei = True
+    #     else:
+    #         plot_ei = False
+    # else:
+    #     plot_ei = False
+    inference_plot(inference_path)
+
+    with open(os.path.join(inference_path, "inference_summary.txt"), 'w') as wf:
         wf.writelines(inference_cout)
-    return
+    return 
     
 def save_checkpoint(state, filename, prefix):
     filename = os.path.join(prefix, filename)

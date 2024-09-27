@@ -77,7 +77,7 @@ void FindNeigh::init_model(const std::string& potential_filename) {
 
 void FindNeigh::allocate_memory(const int N)
 {
-  if (num_atoms < N) {
+  if (num_atoms != N) {
     potential.resize(N);
     force.resize(N * 3);
     virial.resize(N * 9);

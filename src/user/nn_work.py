@@ -117,5 +117,6 @@ def copy_test_result(target_dir, test_dir):
     # copy inference result
     target_test_dir = os.path.join(target_dir, os.path.basename(test_dir))
     for file in os.listdir(test_dir):
+        if os.path.isfile(os.path.join(test_dir, file)):
         # if file.endswith(".txt") or file.endswith('.csv'):
-        copy_file(os.path.join(test_dir, file), os.path.join(target_test_dir, os.path.basename(file)))
+            copy_file(os.path.join(test_dir, file), os.path.join(target_test_dir, os.path.basename(file)))

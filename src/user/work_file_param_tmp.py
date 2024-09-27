@@ -59,7 +59,9 @@ class WorkFileStructure(object):
 
     def set_inference_paths(self, json_input:dict):
         # load test files and check if they are exist
-        test_movement_path = get_parameter("test_movement_file", json_input, [])
+        test_movement_path = get_parameter("raw_files", json_input, [])
+        if len(test_movement_path) == 0:
+            test_movement_path = get_parameter("test_movement_file", json_input, [])
         if isinstance(test_movement_path, list) is False:
             test_movement_path = [test_movement_path]
         for mvm in test_movement_path:
@@ -151,7 +153,10 @@ class WorkFileStructure(object):
 
     def set_train_valid_file(self, json_input:dict):
         # set trian movement file path
-        train_movement_path = get_parameter("train_movement_file", json_input, [])
+        train_movement_path = get_parameter("raw_files", json_input, [])
+        if len(train_movement_path) == 0:
+            train_movement_path = get_parameter("train_movement_file", json_input, [])
+
         for mvm in train_movement_path:
             if os.path.exists(mvm) is False:
                 raise Exception("Error! train movement: {} file not exist!".format(mvm))
@@ -209,7 +214,7 @@ class WorkFileStructure(object):
         if os.path.exists(self.model_load_path):
             dicts["model_load_file"] = self.model_load_path
         if len(self.train_movement_path) > 0 and self.cmd == "train".upper():
-            dicts["train_movement_file"] = self.train_movement_path
+            dicts["raw_files"] = self.train_movement_path
             # dicts["model_store_dir"] = self.model_store_dir
         
         # if len(self.train_feature_path) > 0:
@@ -217,7 +222,7 @@ class WorkFileStructure(object):
             # dicts["train_dir_name"] = self.train_dir
 
         if len(self.test_movement_path) > 0 and self.cmd == "test".upper():
-            dicts["test_movement_file"] = self.test_movement_path
+            dicts["raw_files"] = self.test_movement_path
             # dicts["test_dir_name"] = self.test_dir
 
         return dicts
