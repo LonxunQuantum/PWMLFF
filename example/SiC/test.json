@@ -1,0 +1,5 @@
+{   
+    "test_movement_file":["./MD/MOVEMENT"],
+    "model_type": "Linear",
+    "atom_type":[14, 6]
+}

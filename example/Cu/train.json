@@ -1,0 +1,5 @@
+{   
+    "raw_files":["0_300_MOVEMENT", "1_500_MOVEMENT"],
+    "model_type": "DP",
+    "atom_type":[29]
+}

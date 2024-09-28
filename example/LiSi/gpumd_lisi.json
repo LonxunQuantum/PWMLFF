@@ -1,6 +1,0 @@
-{
-    "potential_file" : "nep.txt",
-    "run_in_file": "run.in",
-    "md_init_config": "atom.config",
-    "model_type":"NEP"
-}

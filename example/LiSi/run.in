@@ -1,7 +1,0 @@
-potential   nep.txt
-velocity    300
-
-ensemble    nve 
-compute_dos 5 200 400.0
-run         200000 
-

@@ -1,0 +1,6 @@
+{
+    "model_type": "NEP",
+    "test_movement_file":["MOVEMENT"],
+    "model_load_file":"./model_record/nep_model.ckpt",
+    "_model_load_file":"./model_record/nep_to_lmps.txt"
+}
