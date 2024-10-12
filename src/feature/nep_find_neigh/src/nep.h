@@ -112,7 +112,6 @@ public:
 
   void find_neigh(
     const double rc_radial,
-    const double rc_angular,
     const int MN, // max neighs of config ,which will be num_types * max_neigh set in json file
     const std::vector<int>& atom_type_map,
     const std::vector<double>& box,

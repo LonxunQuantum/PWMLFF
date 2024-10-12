@@ -276,9 +276,11 @@ class NEP(nn.Module):
                 list_neigh: torch.Tensor,   # int32
                 ImageDR: torch.Tensor,      # float64
                 list_neigh_type: torch.Tensor,
+                ImageDR_d: torch.Tensor,      # float64
                 list_neigh_angular: torch.Tensor,   # int32
                 ImageDR_angular: torch.Tensor,      # float64
                 list_neigh_type_angular: torch.Tensor,
+                ImageDR_angular_d: torch.Tensor,      # float64
                 Imagetype_map: torch.Tensor,    # int32
                 atom_type: torch.Tensor,    # int32
                 nghost: int, 
@@ -310,9 +312,15 @@ class NEP(nn.Module):
         doub_natoms_sum = list_neigh.shape[1]
         max_neighbor_type = list_neigh.shape[2]  # ntype * max_neighbor_num
         fitnet_index = self.get_fitnet_index(atom_type)
-        Ri, Ri_d, Ri_angular, Ri_d_angular = self.calculate_Ri(doub_natoms_sum, batch_size, max_neighbor_type, Imagetype_map, ImageDR, ImageDR_angular, device, dtype)
+        # Ri, Ri_d, Ri_angular, Ri_d_angular = self.calculate_Ri(doub_natoms_sum, batch_size, max_neighbor_type, Imagetype_map, ImageDR, ImageDR_angular, device, dtype)
+        Ri = ImageDR
+        Ri_d = ImageDR_d
         Ri.requires_grad_()
+
+        Ri_angular = ImageDR_angular
+        Ri_d_angular = ImageDR_angular_d
         Ri_angular.requires_grad_()
+        
         # j_type_map = torch.tensor(list_neigh_type, dtype=list_neigh_type.dtype, device=list_neigh_type.device, requires_grad=False)
         j_type_map = list_neigh_type.clone().detach().requires_grad_(False)#可以在调用前做复制，从forward移出去，只有训练需要
         j_type_map_angular = list_neigh_type_angular.clone().detach().requires_grad_(False)
@@ -711,7 +719,7 @@ class NEP(nn.Module):
         # check_cuda_memory(-1, -1, "FORWAR calculate_qn 2b c2")
         fk = self.cal_fk(rij, n_base, rcut, rcinv)
         # check_cuda_memory(-1, -1, "FORWAR calculate_qn 2b fk")
-        fk_res = fk.unsqueeze(2).repeat(1, 1, n_max+1, 1, 1)    # n_max_r+1 个feature区别是在c系数上，fk是一样的
+        fk_res = fk.unsqueeze(2).repeat(1, 1, n_max+1, 1, 1)    # n_max_r+1 个feature区别是在c系数上，fk是一样的 c2 [4, 96, 5, 200, 13]
         # check_cuda_memory(-1, -1, "FORWAR calculate_qn 2b fk_res")
         feat_2b = (c2 * fk_res).sum(-1).sum(-1) # sum n_base_r and sum j
         # check_cuda_memory(-1, -1, "FORWAR calculate_qn 2b feat_2b")
@@ -749,7 +757,7 @@ class NEP(nn.Module):
         fk = self.cal_fk(rij, n_base, rcut, rcinv)
         # check_cuda_memory(-1, -1, "FORWAR calculate_qn fk start")
         # c * tk # now fk 是对的 c3 不对，rij 对，
-        gn1 = (c3 * (fk.unsqueeze(2).repeat(1, 1, n_max+1, 1, 1))).sum(-1)   # n_max_r 个feature区别是在c系数上，fk是一样的 # sum n_base
+        gn1 = (c3 * (fk.unsqueeze(2).repeat(1, 1, n_max+1, 1, 1))).sum(-1)   # n_max_r 个feature区别是在c系数上，fk是一样的 # sum n_base c3 [4, 96, 5, 200, 13]
         # check_cuda_memory(-1, -1, "FORWAR calculate_qn gn1 start")
         gn2 = gn1.unsqueeze(-1).repeat(1, 1, 1, 1, 24) # lmax_3body = 4 [1, 96, 5, 200, 24]
         # check_cuda_memory(-1, -1, "FORWAR calculate_qn gn2 start")

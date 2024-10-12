@@ -1,0 +1,27 @@
+{
+    "model_type": "DP",
+    "atom_type": [47, 79],
+    "model_load_file": "./model_record/dp_model.ckpt",
+
+    "datasets_path": [
+      "../PWdata_cpu/Ag10Au14",
+      "../PWdata_cpu/Ag22Au10",
+      "../PWdata_cpu/Ag28Au4",
+      "../PWdata_cpu/Ag32Au16",
+      "../PWdata_cpu/Ag4Au20",
+      "../PWdata_cpu/Ag8Au40",
+      "../PWdata_cpu/Au32",
+      "../PWdata_cpu/Ag12Au12",
+      "../PWdata_cpu/Ag24Au24",
+      "../PWdata_cpu/Ag29Au19",
+      "../PWdata_cpu/Ag3Au21",
+      "../PWdata_cpu/Ag5Au43",
+      "../PWdata_cpu/Ag8Au8",
+      "../PWdata_cpu/Ag12Au36",
+      "../PWdata_cpu/Ag27Au21",
+      "../PWdata_cpu/Ag30Au18",
+      "../PWdata_cpu/Ag45Au3",
+      "../PWdata_cpu/Ag7Au17",
+      "../PWdata_cpu/Ag9Au15"
+  ]
+}

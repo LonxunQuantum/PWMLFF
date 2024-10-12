@@ -41,3 +41,4 @@ src/feature/NEP_GPU_largebox_findneigh_error
 src/feature/nep_find_neigh/.vscode
 src/std_compile.log
 
+src/test/test_workdir*

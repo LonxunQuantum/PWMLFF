@@ -54,7 +54,7 @@ class FindNeigh
 {
   public:
     FindNeigh();
-    std::tuple<std::vector<double>, std::vector<double>, std::vector<int>, std::vector<int>, std::vector<int>, std::vector<int>> getNeigh(double, double, int, std::vector<int>, std::vector<double>, std::vector<double>);
+    std::tuple<std::vector<double>, std::vector<int>, std::vector<int>> getNeigh(double, int, std::vector<int>, std::vector<double>, std::vector<double>);
     std::tuple<std::vector<double>, std::vector<double>, std::vector<double>> inference(std::vector<int>, std::vector<double>, std::vector<double>);
     void allocate_memory(const int N);
     void init_model(const std::string& potential_filename);
@@ -98,16 +98,15 @@ std::tuple<std::vector<double>, std::vector<double>, std::vector<double>> FindNe
   return std::make_tuple(potential, force, total_virial);
 }
 
-std::tuple<std::vector<double>, std::vector<double>, std::vector<int>, std::vector<int>, std::vector<int>, std::vector<int>> FindNeigh::getNeigh(
+std::tuple<std::vector<double>, std::vector<int>, std::vector<int>> FindNeigh::getNeigh(
   double rc_radial,
-  double rc_angular,
   int max_neigh_num,
   std::vector<int> atom_type_map,
   std::vector<double> box,
   std::vector<double> position)
 {
-  calc.find_neigh(rc_radial, rc_angular, max_neigh_num, atom_type_map, box, position);
-  return std::make_tuple(calc.r12_radial, calc.r12_angular, calc.NL_radial, calc.NL_angular, calc.NLT_radial, calc.NLT_angular);
+  calc.find_neigh(rc_radial, max_neigh_num, atom_type_map, box, position);
+  return std::make_tuple(calc.r12_radial, calc.NL_radial, calc.NLT_radial);
 }
 
 PYBIND11_MODULE(findneigh, m){

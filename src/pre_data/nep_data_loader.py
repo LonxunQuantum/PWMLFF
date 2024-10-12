@@ -84,7 +84,7 @@ class MovementDataset(Dataset):
 
         # test
 
-        # data = self.__load_data(0)
+        data = self.__load_data(0)
         # print()
 
     def __load_data(self, index):
@@ -102,7 +102,7 @@ class MovementDataset(Dataset):
 
         # #radial and angular is set from nep.txt file 
         list_neigh_radial, dR_neigh_radial, list_neigh_type_radial, \
-            list_neigh_angular, dR_neigh_angular, list_neigh_type_angular, Egroup_weight, Divider, Egroup  = self.find_neigh_nep(
+            Egroup_weight, Divider, Egroup  = self.find_neigh_nep(
                             list(data["AtomTypeMap"]),
                             list(data["Lattice"].transpose(1, 0).reshape(-1)),
                             list(data["Position"].transpose(1, 0).reshape(-1)))
@@ -113,17 +113,9 @@ class MovementDataset(Dataset):
             dR_neigh_radial = np.pad(dR_neigh_radial, ((0, self.img_max_atom_num - dR_neigh_radial.shape[0]), (0, 0), (0, 0)))
             list_neigh_type_radial = np.pad(list_neigh_type_radial, ((0, self.img_max_atom_num - list_neigh_type_radial.shape[0]), (0, 0)))
 
-            list_neigh_angular = np.pad(list_neigh_angular, ((0, self.img_max_atom_num - list_neigh_angular.shape[0]), (0, 0)))
-            dR_neigh_angular = np.pad(dR_neigh_angular, ((0, self.img_max_atom_num - dR_neigh_angular.shape[0]), (0, 0), (0, 0)))
-            list_neigh_type_angular = np.pad(list_neigh_type_angular, ((0, self.img_max_atom_num - list_neigh_type_angular.shape[0]), (0, 0)))
-
         data["ListNeighbor"] = list_neigh_radial
         data["ListNeighborType"]=list_neigh_type_radial
         data["ImageDR"] = dR_neigh_radial
-
-        data["ListNeighborAngular"] = list_neigh_angular
-        data["ListNeighborTypeAngular"]=list_neigh_type_angular
-        data["ImageDRAngular"] = dR_neigh_angular
 
         data["max_ri"] = 0
         Egroup_weight = None
@@ -158,16 +150,13 @@ class MovementDataset(Dataset):
         # 34622.19498329725 d12_radial
         atom_nums = len(AtomTypeMap)
 
-        d12_radial, d12_agular, NL_radial, NL_angular, NLT_radial, NLT_angular = self.calc.getNeigh(
-                           self.input_param.descriptor.cutoff[0],self.input_param.descriptor.cutoff[1], 
+        d12_radial, NL_radial, NLT_radial = self.calc.getNeigh(
+                           self.input_param.descriptor.cutoff[0],
                             len(self.input_param.atom_type)*self.input_param.max_neigh_num, AtomTypeMap, Lattice, Position)
         
         neigh_radial_rij   = np.array(d12_radial).reshape(atom_nums, len(self.input_param.atom_type)*self.input_param.max_neigh_num, 4)
-        neigh_angular_rij  = np.array(d12_agular).reshape(atom_nums, len(self.input_param.atom_type)*self.input_param.max_neigh_num, 4)
         neigh_radial_list  = np.array(NL_radial).reshape(atom_nums, len(self.input_param.atom_type)*self.input_param.max_neigh_num)
-        neigh_angular_list = np.array(NL_angular).reshape(atom_nums, len(self.input_param.atom_type)*self.input_param.max_neigh_num)
         neigh_radial_type_list  =  np.array(NLT_radial).reshape(atom_nums, len(self.input_param.atom_type)*self.input_param.max_neigh_num)
-        neigh_angular_type_list = np.array(NLT_angular).reshape(atom_nums, len(self.input_param.atom_type)*self.input_param.max_neigh_num)
         # np.sum(neigh_radial_rij)
         # 16070.331055526085
         # print("tall {} t2 {} t3 {} t4 {} t5 {} t6 {}".format(t4-t2, t2-t1, t3-t2, t4-t3, t5-t4, t6-t5))
@@ -181,7 +170,7 @@ class MovementDataset(Dataset):
         #     [ 5.20970035,  0.86372267,  0.        , -5.13760264]])
 
         # 测试新的代码，先pwdata转分数坐标，mvm_10数据 done
-        return neigh_radial_list, neigh_radial_rij, neigh_radial_type_list, neigh_angular_list, neigh_angular_rij, neigh_angular_type_list, Egroup_weight, Divider, Egroup
+        return neigh_radial_list, neigh_radial_rij, neigh_radial_type_list, Egroup_weight, Divider, Egroup
 
     def __getitem__(self, index):
         data = self.__load_data(index)

@@ -2161,7 +2161,6 @@ void find_neighbor_compute(
 
 void find_neighbor_list_small_box(
   const double rc_radial,
-  const double rc_angular,
   const int N,
   const int MN,
   const std::vector<int>& atom_type_map,
@@ -2172,12 +2171,8 @@ void find_neighbor_list_small_box(
   std::vector<int>& g_NN_radial,
   std::vector<int>& g_NL_radial,
   std::vector<int>& g_NLT_radial,
-  std::vector<int>& g_NN_angular,
-  std::vector<int>& g_NL_angular,
-  std::vector<int>& g_NLT_angular,
   // std::vector<double>& r12,
   std::vector<double>& r12_radial,
-  std::vector<double>& r12_angular,
   bool do_inference = false
   )
 {
@@ -2191,11 +2186,6 @@ void find_neighbor_list_small_box(
   double* g_x12_radial = r12_radial.data();
   double* g_y12_radial = r12_radial.data();
   double* g_z12_radial = r12_radial.data();
-
-  double* g_r12_angular= r12_angular.data();
-  double* g_x12_angular= r12_angular.data();
-  double* g_y12_angular= r12_angular.data();
-  double* g_z12_angular= r12_angular.data();
 
 #if defined(_OPENMP)
 #pragma omp parallel for
@@ -2249,14 +2239,6 @@ void find_neighbor_list_small_box(
               g_z12_radial[n1*MN*4 + 4*count_radial+3] = z12;
               count_radial++;
               } 
-              if (distance_square < rc_angular * rc_angular) {
-                g_NL_angular[ n1*MN   +   count_angular  ] = n2;
-                g_r12_angular[n1*MN*4 + 4*count_angular  ] = sqrt(distance_square);
-                g_x12_angular[n1*MN*4 + 4*count_angular+1] = x12;
-                g_y12_angular[n1*MN*4 + 4*count_angular+2] = y12;
-                g_z12_angular[n1*MN*4 + 4*count_angular+3] = z12;
-                count_angular++;
-              }
             } else {// for pwmlff nep training
               if (distance_square < rc_radial * rc_radial) {
                 g_NLT_radial[n1*MN   +   count_radial  ] = atom_type_map[n2];
@@ -2267,15 +2249,6 @@ void find_neighbor_list_small_box(
                 g_z12_radial[n1*MN*4 + 4*count_radial+3] = z12;
                 count_radial++;
               } 
-              if (distance_square < rc_angular * rc_angular) {
-                g_NLT_angular[n1*MN   +   count_angular  ] = atom_type_map[n2];
-                g_NL_angular[ n1*MN   +   count_angular  ] = n2+1;
-                g_r12_angular[n1*MN*4 + 4*count_angular  ] = sqrt(distance_square);
-                g_x12_angular[n1*MN*4 + 4*count_angular+1] = x12;
-                g_y12_angular[n1*MN*4 + 4*count_angular+2] = y12;
-                g_z12_angular[n1*MN*4 + 4*count_angular+3] = z12;
-                count_angular++;
-              }
             }
           }
         }
@@ -2283,7 +2256,6 @@ void find_neighbor_list_small_box(
     }
 
     g_NN_radial[n1] = count_radial;
-    g_NN_angular[n1] = count_angular;
   }
 }
 
@@ -2988,7 +2960,6 @@ void NEP3_CPU::set_dftd3_para_all(
 
 void NEP3_CPU::find_neigh(
   const double rc_radial,
-  const double rc_angular,
   const int MN,
   const std::vector<int>& atom_type_map,
   const std::vector<double>& box,
@@ -3008,14 +2979,10 @@ void NEP3_CPU::find_neigh(
   NN_radial.assign(N, 0);
   NL_radial.assign(N * MN, 0);
   NLT_radial.assign(N * MN, -1);
-  NN_angular.assign(N, 0);
-  NL_angular.assign(N * MN, 0);
-  NLT_angular.assign(N * MN, -1);
   // r12.assign(N * MN * 6);
   r12_radial.assign(N * MN * 4, 0);
-  r12_angular.assign(N * MN * 4, 0);
 
   
   find_neighbor_list_small_box(
-    rc_radial, rc_angular, N, MN, atom_type_map, box, position, num_cells, ebox, NN_radial, NL_radial, NLT_radial, NN_angular, NL_angular, NLT_angular, r12_radial, r12_angular);
+    rc_radial, N, MN, atom_type_map, box, position, num_cells, ebox, NN_radial, NL_radial, NLT_radial, r12_radial);
 }
