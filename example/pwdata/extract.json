@@ -2,6 +2,7 @@
     "seed": 666,
     "valid_shuffle": false,
     "train_valid_ratio": 0.8,
+    "format":"pwmat/movement",
     "raw_files": [
         "./MOVEMENT",
         "./MOVEMENT_ec"

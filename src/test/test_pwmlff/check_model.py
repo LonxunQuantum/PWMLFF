@@ -22,7 +22,11 @@ def check_train_slurm_jobs(slurm_files:list[str]):
             continue
         std_json = json.load(open(os.path.join(work_dir, "std_input.json")))
         model_type = get_required_parameter("model_type", std_json)
-        if model_type == "LINEAR":
+        if model_type.lower() == "LINEAR".lower():
+            if os.path.exists(os.path.join(work_dir, "test_result/evaluation_plots.png")):
+                success_test[work_dir_name] = True
+            else:
+                failed_test[work_dir_name] = "Linear Failed"
             continue
         epochs = get_required_parameter("epochs", std_json["optimizer"])
         res1, check1 = check_ckpt_model(model_record=os.path.join(work_dir, "model_record"), model_type=model_type)

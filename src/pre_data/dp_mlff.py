@@ -137,15 +137,19 @@ def get_stat(config, stat_add=None, datasets_path=None, work_dir=None, chunk_siz
     train_data_path = config["trainDataPath"]
     ntypes = len(config["atomType"])
     input_atom_type = np.array([(_['type']) for _ in config["atomType"]])   # input atom type order
+    davg_res = []
+    dstd_res = []
+    energy_res=[]
     if stat_add is not None:
         # load from prescribed path
         print("davg and dstd are from model checkpoint")
-        davg, dstd, input_atom_type, energy_shift = stat_add
+        davg_res, dstd_res, input_atom_type, energy_res = stat_add
+        calculate_davg = False
     else:
-        davg, dstd = None, None
+        calculate_davg = True
     
     max_atom_nums = 0
-    valid_chunk = False
+    searched_atom = []
     for dataset_path in datasets_path:
         if os.path.exists(os.path.join(dataset_path, "image_type.npy")):
             atom_types_image_path = os.path.join(dataset_path, "image_type.npy")
@@ -161,28 +165,38 @@ def get_stat(config, stat_add=None, datasets_path=None, work_dir=None, chunk_siz
             ei_path = os.path.join(dataset_path, train_data_path, "ei.npy")
         atom_types_image = np.load(atom_types_image_path)
         max_atom_nums = max(max_atom_nums, atom_types_image.shape[1])
-        if davg is None:
-            _atom_types = np.load(atom_type_path)
-            if _atom_types.shape[1] != ntypes:
+        
+        if calculate_davg:
+            if len(searched_atom) == ntypes:
                 continue
+            _atom_types = np.load(atom_type_path)
+            print(_atom_types.shape[1], atom_type_path)
+            # if _atom_types.shape[1] != ntypes:
+            #     continue
             # the davg and dstd only need calculate one time
             # the davg, dstd and energy_shift atom order are the same --> movement's atom order
             lattice = np.load(lattice_path)
             img_per_mvmt = lattice.shape[0]
-            if img_per_mvmt < chunk_size:
-                continue
-            valid_chunk = True
+            # if img_per_mvmt < chunk_size:
+            #     continue
+            chunk_size = min(img_per_mvmt, 10)
             position = np.load(position_path)
             _Ei = np.load(ei_path)
             type_maps = np.array(type_map(atom_types_image[0], input_atom_type))
-            davg, dstd, atom_types_nums = calculate_davg_dstd(config, lattice, position, chunk_size, _atom_types[0], input_atom_type, ntypes, type_maps)
-            energy_shift = calculate_energy_shift(chunk_size, _Ei, atom_types_nums)
-            davg, dstd, energy_shift = adjust_order_same_as_user_input(davg, dstd, energy_shift, _atom_types[0].tolist(), input_atom_type)
+            _davg, _dstd, atom_types_nums = calculate_davg_dstd(config, lattice, position, chunk_size, _atom_types[0], input_atom_type, ntypes, type_maps)
+            _energy_shift = calculate_energy_shift(chunk_size, _Ei, atom_types_nums)
+            for idx, _type in enumerate(_atom_types[0].tolist()):
+                if _type not in searched_atom:
+                    searched_atom.append(_type)
+                    davg_res.append(np.tile(_davg[idx], config["maxNeighborNum"]*ntypes).reshape(-1,4))
+                    dstd_res.append(np.tile(_dstd[idx], config["maxNeighborNum"]*ntypes).reshape(-1,4))
+                    energy_res.append(_energy_shift[idx])
+    if calculate_davg:
+        davg_res = np.array(davg_res).reshape(ntypes, -1)
+        dstd_res = np.array(dstd_res).reshape(ntypes, -1)
+        davg_res, dstd_res, energy_res = adjust_order_same_as_user_input(davg_res, dstd_res, energy_res, searched_atom, input_atom_type)
     
-    if not valid_chunk and davg is None:
-        raise ValueError("Invalid chunk size, the number of images (include all atom types) in the movement is too small, \nPlease set a smaller chunk_size (default: 10) or add more images in the movement")
-
-    return davg, dstd, energy_shift, max_atom_nums
+    return davg_res, dstd_res, energy_res, max_atom_nums
     # if os.path.exists(os.path.join(work_dir, "davg.npy")) is False:
     #     np.save(os.path.join(work_dir, "davg.npy"), davg)
     #     np.save(os.path.join(work_dir, "dstd.npy"), dstd)
@@ -253,7 +267,13 @@ def calculate_davg_dstd(config, lattice, position, chunk_size, _atom_types, inpu
     _dR_neigh = neighconst.dr_neigh
     list_neigh = np.transpose(_list_neigh, (3, 2, 1, 0))
     dR_neigh = np.transpose(_dR_neigh, (4, 3, 2, 1, 0))
-    davg, dstd = calc_stat(config, dR_neigh, list_neigh, m_neigh, natoms, ntypes, atom_types_nums)
+    atom_type_list = []
+    for atom in list(_atom_types):
+        atom_type_list.append(list(input_atom_type).index(atom))
+    atom_type_list = sorted(atom_type_list)
+    # dR_neigh = dR_neigh[:, :, atom_type_list, :,:]
+    # list_neigh = list_neigh[:,:,atom_type_list,:]
+    davg, dstd = calc_stat(config, np.copy(dR_neigh[:, :, atom_type_list, :,:]), np.copy(list_neigh[:,:,atom_type_list,:]), m_neigh, natoms, len(atom_type_list), atom_types_nums)
     neighconst.dealloc()
     return davg, dstd, atom_types_nums
 
@@ -313,16 +333,19 @@ def calc_stat(config, dR_neigh, list_neigh, m_neigh, natoms, ntypes, atom_types_
             compute_std(sum_Ri2_a, sum_Ri_a, sum_n),
         ]
             
-        davg.append(
-            np.tile(davg_unit, m_neigh * ntypes).reshape(-1, 4)
-        )
-        dstd.append(
-            np.tile(dstd_unit, m_neigh * ntypes).reshape(-1, 4)
-        )
+        # davg.append(
+        #     np.tile(davg_unit, m_neigh * ntypes).reshape(-1, 4)
+        # )
+        # dstd.append(
+        #     np.tile(dstd_unit, m_neigh * ntypes).reshape(-1, 4)
+        # )
+        davg.append(davg_unit)
+        dstd.append(dstd_unit)
+
         atom_sum = atom_sum + atom_types_nums[i]
 
-    davg = np.array(davg).reshape(ntypes, -1)
-    dstd = np.array(dstd).reshape(ntypes, -1)
+    # davg = np.array(davg).reshape(ntypes, -1)
+    # dstd = np.array(dstd).reshape(ntypes, -1)
     return davg, dstd
 
 def calculate_energy_shift(chunk_size, _Ei, atom_types_nums):

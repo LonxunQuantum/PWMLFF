@@ -23,7 +23,7 @@ class MovementDataset(Dataset):
         self.dstd = np.array(dstd)
         self.ener_shift = np.array(energy_shift)
         self.all_movement_data, self.total_images, self.images_per_dir, self.atoms_per_dir = self.__concatenate_data()
-            
+
     def __load_data(self, index):
         type_index = np.searchsorted(np.cumsum(self.images_per_dir), index + 1)
         data = {}

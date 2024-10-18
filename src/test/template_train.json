@@ -191,16 +191,18 @@
         {"_idx":7,  "json_file" : "Ag-Au-D3/NEP/adam_nep.json",  "model_type" :"NEP", "do_test": true, "pwdata":"Ag-Au-D3/PWdata_cpu"},
         {"_idx":8,  "json_file" : "Ag-Au-D3/NEP/lkf_nep.json",   "model_type" :"NEP", "do_test": true, "pwdata":"Ag-Au-D3/PWdata_cpu"},
         {"_idx":9,  "json_file" : "Ag-Au-D3/DP/adam_train.json", "model_type" :"DP",  "do_test": true, "pwdata":"Ag-Au-D3/PWdata_cpu"},
-        {"_idx":10, "json_file" : "Ag-Au-D3/DP/lkf_train.json",  "model_type" :"DP",  "do_test": true, "pwdata":"Ag-Au-D3/PWdata_cpu"}
+        {"_idx":10, "json_file" : "Ag-Au-D3/DP/lkf_train.json",  "model_type" :"DP",  "do_test": true, "pwdata":"Ag-Au-D3/PWdata_cpu"},
+        {"_idx":11, "json_file" : "LiSiC/dp_train.json",  "model_type" :"DP",  "do_test": true, "pwdata":"LiSiC/PWdata"},
+        {"_idx":12, "json_file" : "LiSiC/nep_train.json",  "model_type" :"NEP",  "do_test": true, "pwdata":"LiSiC/PWdata"}
     ],
 
     "work_dir": "./test_workdir2",
     "work_list": [
         {
             "_work_type":"mcloud envs(gpu and cpu) for DP, NEP",
-            "envs":[5, 6],
-            "epochs":[ 1, 1],
-            "train_inputs":[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+            "envs":[5],
+            "epochs":[ 1],
+            "train_inputs":[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
         }
     ]
 }

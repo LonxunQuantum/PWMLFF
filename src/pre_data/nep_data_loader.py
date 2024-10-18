@@ -278,6 +278,8 @@ def type_map(atom_types_image, atom_type):
     [0, 1, 1, 1, 1]
     """
     atom_type_map = []
+    if isinstance(atom_types_image.tolist(), int):
+        atom_types_image = [atom_types_image.tolist()]
     for elem in atom_types_image:
         if elem in atom_type:
             atom_type_map.append(np.where(atom_type == elem)[0][0])

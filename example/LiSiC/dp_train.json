@@ -1,0 +1,19 @@
+{
+    "model_type": "DP",
+    "atom_type": [3, 14, 6],
+    "max_neigh_num": 400,
+    "datasets_path": [
+        "./PWdata/C2",
+        "./PWdata/C448",
+        "./PWdata/C448Li75",
+        "./PWdata/C64Si32",
+        "./PWdata/Li1Si24",
+        "./PWdata/Li3Si8",
+        "./PWdata/Li8",
+        "./PWdata/Li88Si20",
+        "./PWdata/Si1",
+        "./PWdata/Si217"
+    ]
+}
+
+
