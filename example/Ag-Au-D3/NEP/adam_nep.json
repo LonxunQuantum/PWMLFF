@@ -33,7 +33,7 @@
         "optimizer": "ADAM",
         "epochs": 4,
         "p0_weight": 1e-2,
-        "batch_size": 1,
+        "batch_size": 8,
         "print_freq": 10,
         "block_size": 5120,
         "kalman_lambda": 0.98,

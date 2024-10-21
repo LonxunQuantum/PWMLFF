@@ -31,6 +31,7 @@
         "epochs": 4,
         "train_energy": true,
         "train_force": true,
+        "batch_size": 8,
         "train_virial": true
     },
     "datasets_path": [

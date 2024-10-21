@@ -29,6 +29,7 @@
     "optimizer": {
         "optimizer": "LKF",
         "epochs": 4,
+        "batch_size": 8,
         "train_energy": true,
         "train_force": true,
         "train_virial": true
