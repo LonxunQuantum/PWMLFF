@@ -183,8 +183,12 @@ class NepParam(object):
 
         self.c2_param = np.array([float(_) for _ in lines[start_index:start_index + self.two_c_num]]).reshape(self.n_max[0]+1, self.basis_size[0]+1, self.type_num, self.type_num).transpose(2, 3, 0, 1)
         start_index = start_index + self.two_c_num
-        self.c3_param = np.array([float(_) for _ in lines[start_index:start_index + self.three_c_num]]).reshape(self.n_max[1]+1, self.basis_size[1]+1, self.type_num, self.type_num).transpose(2, 3, 0, 1)
-        start_index = start_index + self.three_c_num
+        if self.l_max[0] > 0:
+            self.c3_param = np.array([float(_) for _ in lines[start_index:start_index + self.three_c_num]]).reshape(self.n_max[1]+1, self.basis_size[1]+1, self.type_num, self.type_num).transpose(2, 3, 0, 1)
+            start_index = start_index + self.three_c_num
+        else:
+            self.c3_param = None
+
         self.q_scaler = np.array([float(_) for _ in lines[start_index:start_index + self.feature_nums]])
         start_index += self.feature_nums
         if use_zbl:
@@ -257,7 +261,7 @@ class NepParam(object):
         # c params, the 4-body and 5-body use the same c param of 3-body, their N_base_a the same
         self.two_c_num = self.type_num*self.type_num*(self.n_max[0]+1)*(self.basis_size[0]+1)
         self.three_c_num = self.type_num*self.type_num*(self.n_max[1]+1)*(self.basis_size[1]+1)
-        self.c_num = self.two_c_num + self.three_c_num
+        self.c_num = self.two_c_num + self.three_c_num if self.l_max[0] > 0 else self.two_c_num
 
         self.c2_param = None
         self.c3_param = None

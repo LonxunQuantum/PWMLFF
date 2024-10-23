@@ -83,7 +83,8 @@ class NEP(nn.Module):
         #     nn_params.append(float(self.common_bias))
         nn_params.extend(type_bias) # for new nep.txt test
         nn_params.extend(list(self.c_param_2.permute(2, 3, 0, 1).flatten().cpu().detach().numpy()))
-        nn_params.extend(list(self.c_param_3.permute(2, 3, 0, 1).flatten().cpu().detach().numpy()))
+        if self.l_max_3b > 0:
+            nn_params.extend(list(self.c_param_3.permute(2, 3, 0, 1).flatten().cpu().detach().numpy()))
         nn_params.extend(list(self.q_scaler.flatten().cpu().detach().numpy()))
         return nn_params
         
@@ -526,24 +527,24 @@ class NEP(nn.Module):
                 # testyy = (Ri[batch_idx, :, :, 2] * dE_Rid[batch_idx, :, :, 1]).sum(dim=1)
                 Virial[batch_idx, [3, 6, 7]] = Virial[batch_idx, [1, 2, 5]]
             Force = Force[:, 1:, :]
-
-            dE_angular = torch.unsqueeze(dE_angular, dim=-1)
-            dE_Rid_angular = torch.mul(dE_angular, Ri_d_angular).sum(dim=-2)
-            Force_angular = torch.zeros((batch_size, natoms_sum + nghost + 1, 3), device=device, dtype=dtype)
-            Force_angular[:, 1:natoms_sum + 1, :] = -1 * dE_Rid_angular.sum(dim=-2)
-            Virial_angular = torch.zeros((batch_size, 9), device=device, dtype=dtype)
-            for batch_idx in range(batch_size):
-                indice = list_neigh_angular[batch_idx].flatten().unsqueeze(-1).expand(-1, 3).to(torch.int64) # list_neigh_angular's index start from 1, so the Force's dimension should be natoms_sum + 1
-                values = dE_Rid_angular[batch_idx].view(-1, 3)
-                Force_angular[batch_idx].scatter_add_(0, indice, values).view(natoms_sum + nghost + 1, 3)
-                Virial_angular[batch_idx, 0] = (Ri_angular[batch_idx, :, :, 1] * dE_Rid_angular[batch_idx, :, :, 0]).flatten().sum(dim=0) # xx
-                Virial_angular[batch_idx, 1] = (Ri_angular[batch_idx, :, :, 1] * dE_Rid_angular[batch_idx, :, :, 1]).flatten().sum(dim=0) # xy
-                Virial_angular[batch_idx, 2] = (Ri_angular[batch_idx, :, :, 1] * dE_Rid_angular[batch_idx, :, :, 2]).flatten().sum(dim=0) # xz
-                Virial_angular[batch_idx, 4] = (Ri_angular[batch_idx, :, :, 2] * dE_Rid_angular[batch_idx, :, :, 1]).flatten().sum(dim=0) # yy
-                Virial_angular[batch_idx, 5] = (Ri_angular[batch_idx, :, :, 2] * dE_Rid_angular[batch_idx, :, :, 2]).flatten().sum(dim=0) # yz
-                Virial_angular[batch_idx, 8] = (Ri_angular[batch_idx, :, :, 3] * dE_Rid_angular[batch_idx, :, :, 2]).flatten().sum(dim=0) # zz
-                Virial_angular[batch_idx, [3, 6, 7]] = Virial_angular[batch_idx, [1, 2, 5]]
-            Force_angular = Force_angular[:, 1:, :]
+            if self.l_max[0] > 0:
+                dE_angular = torch.unsqueeze(dE_angular, dim=-1)
+                dE_Rid_angular = torch.mul(dE_angular, Ri_d_angular).sum(dim=-2)
+                Force_angular = torch.zeros((batch_size, natoms_sum + nghost + 1, 3), device=device, dtype=dtype)
+                Force_angular[:, 1:natoms_sum + 1, :] = -1 * dE_Rid_angular.sum(dim=-2)
+                Virial_angular = torch.zeros((batch_size, 9), device=device, dtype=dtype)
+                for batch_idx in range(batch_size):
+                    indice = list_neigh_angular[batch_idx].flatten().unsqueeze(-1).expand(-1, 3).to(torch.int64) # list_neigh_angular's index start from 1, so the Force's dimension should be natoms_sum + 1
+                    values = dE_Rid_angular[batch_idx].view(-1, 3)
+                    Force_angular[batch_idx].scatter_add_(0, indice, values).view(natoms_sum + nghost + 1, 3)
+                    Virial_angular[batch_idx, 0] = (Ri_angular[batch_idx, :, :, 1] * dE_Rid_angular[batch_idx, :, :, 0]).flatten().sum(dim=0) # xx
+                    Virial_angular[batch_idx, 1] = (Ri_angular[batch_idx, :, :, 1] * dE_Rid_angular[batch_idx, :, :, 1]).flatten().sum(dim=0) # xy
+                    Virial_angular[batch_idx, 2] = (Ri_angular[batch_idx, :, :, 1] * dE_Rid_angular[batch_idx, :, :, 2]).flatten().sum(dim=0) # xz
+                    Virial_angular[batch_idx, 4] = (Ri_angular[batch_idx, :, :, 2] * dE_Rid_angular[batch_idx, :, :, 1]).flatten().sum(dim=0) # yy
+                    Virial_angular[batch_idx, 5] = (Ri_angular[batch_idx, :, :, 2] * dE_Rid_angular[batch_idx, :, :, 2]).flatten().sum(dim=0) # yz
+                    Virial_angular[batch_idx, 8] = (Ri_angular[batch_idx, :, :, 3] * dE_Rid_angular[batch_idx, :, :, 2]).flatten().sum(dim=0) # zz
+                    Virial_angular[batch_idx, [3, 6, 7]] = Virial_angular[batch_idx, [1, 2, 5]]
+                Force_angular = Force_angular[:, 1:, :]
 
             if Ri_zbl is not None:
                 dE_zbl = torch.unsqueeze(dE_zbl, dim=-1)

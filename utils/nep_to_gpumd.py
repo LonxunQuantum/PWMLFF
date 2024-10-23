@@ -104,7 +104,8 @@ def extract_model(nep_path:str, atom_types=None, atom_type_nums=None, togpumd:bo
         last_bias[model_atom_type[i]] = _last_bias
         last_bias_list.append(_last_bias)
     c_list.extend(list(model['state_dict']['c_param_2'].permute(2, 3, 0, 1).flatten().cpu().detach().numpy()))
-    c_list.extend(list(model['state_dict']['c_param_3'].permute(2, 3, 0, 1).flatten().cpu().detach().numpy()))
+    if l_max[0] > 0:
+        c_list.extend(list(model['state_dict']['c_param_3'].permute(2, 3, 0, 1).flatten().cpu().detach().numpy()))
     q_list.extend(list(model['q_scaler']))
 
     # check param nums
@@ -119,8 +120,10 @@ def extract_model(nep_path:str, atom_types=None, atom_type_nums=None, togpumd:bo
     ntypes_sq   = len(model_atom_type)*len(model_atom_type)
     two_c_num   = ntypes_sq * (n_max[0]+1)  * (basis_size[0]+1)
     three_c_num = ntypes_sq * (n_max[1]+1) * (basis_size[1]+1)
-    assert len(c_list) == two_c_num + three_c_num
-
+    if l_max[0] > 0:
+        assert len(c_list) == two_c_num + three_c_num
+    else:
+        assert len(c_list) == two_c_num
     nn_params = len(model_atom_type) * (feature_nums * ann + ann + ann)
     assert len(nn_list) == nn_params
 
