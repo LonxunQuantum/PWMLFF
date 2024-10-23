@@ -121,8 +121,11 @@ class NEP(nn.Module):
         self.three_feat_num = (self.n_max_angular + 1) * self.l_max_3b
         self.four_feat_num  = (self.n_max_angular + 1) if self.l_max_4b > 0 else 0
         self.five_feat_num  = (self.n_max_angular + 1) if self.l_max_5b > 0 else 0
-        self.feature_nums   = self.two_feat_num + self.three_feat_num + self.four_feat_num + self.five_feat_num
+        if self.l_max_3b > 0:
+            self.feature_nums   = self.two_feat_num + self.three_feat_num + self.four_feat_num + self.five_feat_num
         # c param nums, the 4-body and 5-body use the same c param of 3-body, their N_base_a the same
+        else:
+            self.feature_nums   = self.two_feat_num
         self.two_c_num   = self.ntypes_sq * (self.n_max_radial+1)  * (self.n_base_radial+1)
         self.three_c_num = self.ntypes_sq * (self.n_max_angular+1) * (self.n_base_angular+1)
         self.c_num       = self.two_c_num + self.three_c_num
@@ -141,7 +144,8 @@ class NEP(nn.Module):
     def set_cparam(self, energy_shift:float):
         if self.input_param.nep_param.c2_param is not None: #load from nep.txt
             self.c_param_2 = torch.nn.Parameter(torch.tensor(self.input_param.nep_param.c2_param), requires_grad=True)
-            self.c_param_3 = torch.nn.Parameter(torch.tensor(self.input_param.nep_param.c3_param), requires_grad=True)
+            
+            self.c_param_3 = torch.nn.Parameter(torch.tensor(self.input_param.nep_param.c3_param), requires_grad=True) if self.l_max_3b > 0 else None
             # add bias
             
         else: # init by randly (for first training) or checkpoint
@@ -150,7 +154,7 @@ class NEP(nn.Module):
             s = torch.full_like(m, 0.1)
             c_param = m + s*r_k
             self.c_param_2 = torch.nn.Parameter(c_param[:self.two_c_num].reshape(self.ntypes, self.ntypes, (self.n_max_radial+1), (self.n_base_radial+1)), requires_grad=True)
-            self.c_param_3 = torch.nn.Parameter(c_param[self.two_c_num : ].reshape(self.ntypes, self.ntypes, (self.n_max_angular+1), (self.n_base_angular+1)), requires_grad=True)
+            self.c_param_3 = torch.nn.Parameter(c_param[self.two_c_num : ].reshape(self.ntypes, self.ntypes, (self.n_max_angular+1), (self.n_base_angular+1)), requires_grad=True)  if self.l_max_3b > 0 else None
 
             # self.c_param_2 = torch.nn.Parameter(torch.ones([self.ntypes, self.ntypes, (self.n_max_radial+1), (self.n_base_radial+1)]), requires_grad=False)
             # self.c_param_3 = torch.nn.Parameter(torch.ones([self.ntypes, self.ntypes, (self.n_max_angular+1), (self.n_base_angular+1)]), requires_grad=False)
@@ -485,8 +489,9 @@ class NEP(nn.Module):
         # t7 = time.time()
         mask: List[Optional[torch.Tensor]] = [torch.ones_like(Etot)]
         dE = torch.autograd.grad([Etot], [Ri], grad_outputs=mask, retain_graph=True, create_graph=True)[0]
-        mask_angular: List[Optional[torch.Tensor]] = [torch.ones_like(Etot)]
-        dE_angular = torch.autograd.grad([Etot], [Ri_angular], grad_outputs=mask_angular, retain_graph=True, create_graph=True)[0]
+        if self.l_max_3b > 0:
+            mask_angular: List[Optional[torch.Tensor]] = [torch.ones_like(Etot)]
+            dE_angular = torch.autograd.grad([Etot], [Ri_angular], grad_outputs=mask_angular, retain_graph=True, create_graph=True)[0]
         if Ri_zbl is not None:
             mask_zbl: List[Optional[torch.Tensor]] = [torch.ones_like(Etot)]
             dE_zbl = torch.autograd.grad([Etot], [Ri_zbl], grad_outputs=mask_zbl, retain_graph=True, create_graph=True)[0]
@@ -569,16 +574,16 @@ class NEP(nn.Module):
             list_neigh = (list_neigh - 1).type(torch.int)
             Force = CalcOps.calculateForce(list_neigh, dE, Ri_d, Force, nghost_tensor)[0]
             Virial = CalcOps.calculateVirial(list_neigh, dE, ImageDR, Ri_d, nghost_tensor)[0]
-
-            Ri_d_angular = Ri_d_angular.view(batch_size, natoms_sum, -1, 3)
-            dE_angular = dE_angular.view(batch_size, natoms_sum, 1, -1)
-            Force_angular = -1 * torch.matmul(dE_angular, Ri_d_angular).squeeze(-2)
-            ImageDR_angular = Ri_angular[:,:,:,1:].clone()
-            nghost_tensor = torch.tensor(nghost, device=device, dtype=torch.int64)
-            list_neigh_angular = torch.unsqueeze(list_neigh_angular,2)
-            list_neigh_angular = (list_neigh_angular - 1).type(torch.int)
-            Force_angular = CalcOps.calculateForce(list_neigh_angular, dE_angular, Ri_d_angular, Force_angular, nghost_tensor)[0]
-            Virial_angular = CalcOps.calculateVirial(list_neigh_angular, dE_angular, ImageDR_angular, Ri_d_angular, nghost_tensor)[0]
+            if self.l_max_3b > 0:
+                Ri_d_angular = Ri_d_angular.view(batch_size, natoms_sum, -1, 3)
+                dE_angular = dE_angular.view(batch_size, natoms_sum, 1, -1)
+                Force_angular = -1 * torch.matmul(dE_angular, Ri_d_angular).squeeze(-2)
+                ImageDR_angular = Ri_angular[:,:,:,1:].clone()
+                nghost_tensor = torch.tensor(nghost, device=device, dtype=torch.int64)
+                list_neigh_angular = torch.unsqueeze(list_neigh_angular,2)
+                list_neigh_angular = (list_neigh_angular - 1).type(torch.int)
+                Force_angular = CalcOps.calculateForce(list_neigh_angular, dE_angular, Ri_d_angular, Force_angular, nghost_tensor)[0]
+                Virial_angular = CalcOps.calculateVirial(list_neigh_angular, dE_angular, ImageDR_angular, Ri_d_angular, nghost_tensor)[0]
 
             if Ri_zbl is not None:
                 Ri_d_zbl = Ri_d_zbl.view(batch_size, natoms_sum, -1, 3)
@@ -595,10 +600,13 @@ class NEP(nn.Module):
         # print("t8 {} t9 {}".format(t8-t7, t9-t8))
         del dE
         # print(-Force)
-        if Ri_zbl is not None:
-            return -(Force + Force_angular + Force_zbl), -(Virial + Virial_angular + Virial_zbl)
+        if self.l_max_3b > 0:
+            if Ri_zbl is not None:
+                return -(Force + Force_angular + Force_zbl), -(Virial + Virial_angular + Virial_zbl)
+            else:
+                return -(Force + Force_angular), -(Virial + Virial_angular)
         else:
-            return -(Force + Force_angular), -(Virial + Virial_angular)
+            return -Force, -Virial
 
 
     def calculate_qn(self,
@@ -615,7 +623,7 @@ class NEP(nn.Module):
         # check_cuda_memory(-1, -1, "FORWAR calculate_qn start")
         atom_nums = Imagetype_map.shape[0]
         c2 = self.get_c(self.c_param_2, self.n_max_radial,  self.n_base_radial,  Imagetype_map, j_type_map)
-        c3 = self.get_c(self.c_param_3, self.n_max_angular, self.n_base_angular, Imagetype_map, j_type_map_angular)
+        c3 = self.get_c(self.c_param_3, self.n_max_angular, self.n_base_angular, Imagetype_map, j_type_map_angular)  if self.l_max_3b > 0 else None
         
         # R = Ri[:, :, :, 0]
         # xyz = Ri[:, :, :, 1:]
@@ -625,11 +633,13 @@ class NEP(nn.Module):
         # check_cuda_memory(-1, -1, "FORWAR calculate_qn 2b end")
         # R = Ri_angular[:, :, :, 0]
         # xyz = Ri_angular[:, :, :, 1:]
-        multi_feat = self.cal_feat_multi_body(Ri_angular[:, :, :, 0], Ri_angular[:, :, :, 1:], Imagetype_map, 
-                                        c3,
-                                        self.n_max_angular, self.n_base_angular, self.cutoff_angular, self.rcinv_angular, self.l_max_3b)
-
-        return torch.concat([feat_2b, multi_feat], dim=-1)
+        if self.l_max_3b > 0:
+            multi_feat = self.cal_feat_multi_body(Ri_angular[:, :, :, 0], Ri_angular[:, :, :, 1:], Imagetype_map, 
+                                            c3,
+                                            self.n_max_angular, self.n_base_angular, self.cutoff_angular, self.rcinv_angular, self.l_max_3b)            
+            return torch.concat([feat_2b, multi_feat], dim=-1)
+        else:
+            return feat_2b
 
     def get_c(self,
             c_2b : torch.Tensor,
