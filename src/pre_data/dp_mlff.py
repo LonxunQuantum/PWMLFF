@@ -140,6 +140,10 @@ def get_stat(config, stat_add=None, datasets_path=None, work_dir=None, chunk_siz
     davg_res = []
     dstd_res = []
     energy_res=[]
+    energy_dict = {}
+    for  _atom in input_atom_type:
+        energy_dict[_atom] = []
+    energy_dict['E'] = []
     if stat_add is not None:
         # load from prescribed path
         print("davg and dstd are from model checkpoint")
@@ -157,16 +161,26 @@ def get_stat(config, stat_add=None, datasets_path=None, work_dir=None, chunk_siz
             lattice_path = os.path.join(dataset_path, "lattice.npy")
             position_path = os.path.join(dataset_path, "position.npy")
             ei_path = os.path.join(dataset_path, "ei.npy")
+            energy_path = os.path.join(dataset_path, "energies.npy")
         else:
             atom_types_image_path = os.path.join(dataset_path, train_data_path, "image_type.npy")
             atom_type_path = os.path.join(dataset_path, train_data_path, "atom_type.npy")
             lattice_path = os.path.join(dataset_path, train_data_path, "lattice.npy")
             position_path = os.path.join(dataset_path, train_data_path, "position.npy")
-            ei_path = os.path.join(dataset_path, train_data_path, "ei.npy")
+            energy_path = os.path.join(dataset_path, train_data_path, "energies.npy")
         atom_types_image = np.load(atom_types_image_path)
         max_atom_nums = max(max_atom_nums, atom_types_image.shape[1])
-        
         if calculate_davg:
+            cout_type, cout_num = np.unique(atom_types_image, return_counts=True)
+            atom_types_image_dict = dict(zip(cout_type, cout_num))
+            for element in input_atom_type:
+                if element in list(atom_types_image_dict.keys()):
+                    energy_dict[element].append(atom_types_image_dict[element])
+                else:
+                    energy_dict[element].append(0)
+            _energy = np.load(energy_path)
+            energy_dict['E'].append(np.mean(_energy[:min(_energy.shape[0], 10), :]))
+            
             if len(searched_atom) == ntypes:
                 continue
             _atom_types = np.load(atom_type_path)
@@ -181,21 +195,28 @@ def get_stat(config, stat_add=None, datasets_path=None, work_dir=None, chunk_siz
             #     continue
             chunk_size = min(img_per_mvmt, 10)
             position = np.load(position_path)
-            _Ei = np.load(ei_path)
+            # _Ei = np.load(ei_path)
             type_maps = np.array(type_map(atom_types_image[0], input_atom_type))
             _davg, _dstd, atom_types_nums = calculate_davg_dstd(config, lattice, position, chunk_size, _atom_types[0], input_atom_type, ntypes, type_maps)
-            _energy_shift = calculate_energy_shift(chunk_size, _Ei, atom_types_nums)
+            # _energy_shift = calculate_energy_shift(chunk_size, _Ei, atom_types_nums)
             for idx, _type in enumerate(_atom_types[0].tolist()):
                 if _type not in searched_atom:
                     searched_atom.append(_type)
                     davg_res.append(np.tile(_davg[idx], config["maxNeighborNum"]*ntypes).reshape(-1,4))
                     dstd_res.append(np.tile(_dstd[idx], config["maxNeighborNum"]*ntypes).reshape(-1,4))
-                    energy_res.append(_energy_shift[idx])
+                    # energy_res.append(_energy_shift[idx])
+    
     if calculate_davg:
         davg_res = np.array(davg_res).reshape(ntypes, -1)
         dstd_res = np.array(dstd_res).reshape(ntypes, -1)
-        davg_res, dstd_res, energy_res = adjust_order_same_as_user_input(davg_res, dstd_res, energy_res, searched_atom, input_atom_type)
-    
+        #calculate ei
+        _num_matrix = []
+        for key in energy_dict.keys():
+            if key != 'E':
+                _num_matrix.append(energy_dict[key])
+        x, residuals, rank, s = np.linalg.lstsq(np.array(_num_matrix).T, energy_dict['E'], rcond=None)
+        energy_res = x.tolist()
+        davg_res, dstd_res = adjust_order_same_as_user_input(davg_res, dstd_res, searched_atom, input_atom_type)
     return davg_res, dstd_res, energy_res, max_atom_nums
     # if os.path.exists(os.path.join(work_dir, "davg.npy")) is False:
     #     np.save(os.path.join(work_dir, "davg.npy"), davg)
@@ -1203,19 +1224,18 @@ description:
 adjust atom ordor of davg, dstd, energy_shift to same as user input order
 param {list} davg
 param {list} dstd
-param {list} energy_shift
 param {list} atom_type_order: the input davg, dstd atom order
 param {list} atom_type_list: the user input order 
 return {*}
 author: wuxingxing
 '''
-def adjust_order_same_as_user_input(davg:list, dstd:list, energy_shift:list, atom_type_order:list, atom_type_list:list):
-    davg_res, dstd_res, energy_shift_res = [], [], []
+def adjust_order_same_as_user_input(davg:list, dstd:list, atom_type_order:list, atom_type_list:list):
+    davg_res, dstd_res = [], []
     for i, atom in enumerate(atom_type_list):
         davg_res.append(davg[atom_type_order.index(atom)])
         dstd_res.append(dstd[atom_type_order.index(atom)])
-        energy_shift_res.append(energy_shift[atom_type_order.index(atom)])
-    return davg_res, dstd_res, energy_shift_res
+        # energy_shift_res.append(energy_shift[atom_type_order.index(atom)])
+    return davg_res, dstd_res
 """ ********************************************* disuse **********************************        
 '''
 description: 

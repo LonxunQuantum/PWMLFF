@@ -127,8 +127,8 @@
                 "cuda/11.8-share"
             ],
             "env_list": [
-                "export PYTHONPATH=/data/home/wuxingxing/codespace/PWMLFF_optnep/src:$PYTHONPATH",
-                "export PATH=/data/home/wuxingxing/codespace/PWMLFF_optnep/src/bin:$PATH",
+                "export PYTHONPATH=/data/home/wuxingxing/codespace/PWMLFF_grad/src:$PYTHONPATH",
+                "export PATH=/data/home/wuxingxing/codespace/PWMLFF_grad/src/bin:$PATH",
                 "conda activate pwmlff-2024.5"
             ]
         },
@@ -150,8 +150,8 @@
                 "cuda/11.8-share"
             ],
             "env_list": [
-                "export PYTHONPATH=/data/home/wuxingxing/codespace/PWMLFF_optnep/src:$PYTHONPATH",
-                "export PATH=/data/home/wuxingxing/codespace/PWMLFF_optnep/src/bin:$PATH",
+                "export PYTHONPATH=/data/home/wuxingxing/codespace/PWMLFF_grad/src:$PYTHONPATH",
+                "export PATH=/data/home/wuxingxing/codespace/PWMLFF_grad/src/bin:$PATH",
                 "conda activate pwmlff-2024.5"
             ]
         },
@@ -182,27 +182,28 @@
     "path_prefix": "../../example",
     "train_inputs": [
         {"_idx":0,  "json_file" : "Cu/train.json",     "model_type" :"DP",    "do_test": true, "raw_files":["Cu/0_300_MOVEMENT","Cu/1_500_MOVEMENT"], "format":"pwmat/movement"},
-        {"_idx":1,  "json_file" : "EC/train.json",     "model_type" :"NN",    "do_test": true, "raw_files":["EC/EC_MOVEMENT"], "format":"pwmat/movement"},
-        {"_idx":2,  "json_file" : "LiGePS/train.json", "model_type" :"DP",    "do_test": true, "raw_files":["LiGePS/100_1200k_movement"], "format":"pwmat/movement"},
-        {"_idx":3,  "json_file" : "LiSi/train.json",   "model_type" :"NEP",   "do_test": true, "raw_files":["LiSi/MOVEMENT"], "format":"pwmat/movement"},
-        {"_idx":4,  "json_file" : "SiC/train.json",    "model_type" :"LINEAR","do_test": true, "raw_files":["SiC/1_300_MOVEMENT"], "format":"pwmat/movement"},
-        {"_idx":5,  "json_file" : "HfO2/nep_train.json", "model_type" :"NEP", "do_test": true, "pwdata":"HfO2/pwdata"},
-        {"_idx":6,  "json_file" : "HfO2/DP_train.json",  "model_type" :"DP",  "do_test": true, "pwdata":"HfO2/pwdata"},
-        {"_idx":7,  "json_file" : "Ag-Au-D3/NEP/adam_nep.json",  "model_type" :"NEP", "do_test": true, "pwdata":"Ag-Au-D3/PWdata_cpu"},
-        {"_idx":8,  "json_file" : "Ag-Au-D3/NEP/lkf_nep.json",   "model_type" :"NEP", "do_test": true, "pwdata":"Ag-Au-D3/PWdata_cpu"},
-        {"_idx":9,  "json_file" : "Ag-Au-D3/DP/adam_train.json", "model_type" :"DP",  "do_test": true, "pwdata":"Ag-Au-D3/PWdata_cpu"},
-        {"_idx":10, "json_file" : "Ag-Au-D3/DP/lkf_train.json",  "model_type" :"DP",  "do_test": true, "pwdata":"Ag-Au-D3/PWdata_cpu"},
-        {"_idx":11, "json_file" : "LiSiC/dp_train.json",  "model_type" :"DP",  "do_test": true, "pwdata":"LiSiC/PWdata"},
-        {"_idx":12, "json_file" : "LiSiC/nep_train.json",  "model_type" :"NEP",  "do_test": true, "pwdata":"LiSiC/PWdata"}
+        {"_idx":1,  "json_file" : "Cu/nep_train.json", "model_type":"NEP",    "do_test": true, "raw_files":["Cu/0_300_MOVEMENT"], "format":"pwmat/movement"},
+        {"_idx":2,  "json_file" : "EC/train.json",     "model_type" :"NN",    "do_test": true, "raw_files":["EC/EC_MOVEMENT"], "format":"pwmat/movement"},
+        {"_idx":3,  "json_file" : "LiGePS/train.json", "model_type" :"DP",    "do_test": true, "raw_files":["LiGePS/100_1200k_movement"], "format":"pwmat/movement"},
+        {"_idx":4,  "json_file" : "LiSi/train.json",   "model_type" :"NEP",   "do_test": true, "raw_files":["LiSi/MOVEMENT"], "format":"pwmat/movement"},
+        {"_idx":5,  "json_file" : "SiC/train.json",    "model_type" :"LINEAR","do_test": true, "raw_files":["SiC/1_300_MOVEMENT"], "format":"pwmat/movement"},
+        {"_idx":6,  "json_file" : "HfO2/nep_train.json", "model_type" :"NEP", "do_test": true, "pwdata":"HfO2/pwdata"},
+        {"_idx":7,  "json_file" : "HfO2/DP_train.json",  "model_type" :"DP",  "do_test": true, "pwdata":"HfO2/pwdata"},
+        {"_idx":8,  "json_file" : "Ag-Au-D3/NEP/adam_nep.json",  "model_type" :"NEP", "do_test": true, "pwdata":"Ag-Au-D3/PWdata_cpu"},
+        {"_idx":9,  "json_file" : "Ag-Au-D3/NEP/lkf_nep.json",   "model_type" :"NEP", "do_test": true, "pwdata":"Ag-Au-D3/PWdata_cpu"},
+        {"_idx":10,  "json_file" : "Ag-Au-D3/DP/adam_train.json", "model_type" :"DP",  "do_test": true, "pwdata":"Ag-Au-D3/PWdata_cpu"},
+        {"_idx":11, "json_file" : "Ag-Au-D3/DP/lkf_train.json",  "model_type" :"DP",  "do_test": true, "pwdata":"Ag-Au-D3/PWdata_cpu"},
+        {"_idx":12, "json_file" : "LiSiC/dp_train.json",  "model_type" :"DP",  "do_test": true, "pwdata":"LiSiC/PWdata"},
+        {"_idx":13, "json_file" : "LiSiC/nep_train.json",  "model_type" :"NEP",  "do_test": true, "pwdata":"LiSiC/PWdata"}
     ],
 
     "work_dir": "./test_workdir2",
     "work_list": [
         {
             "_work_type":"mcloud envs(gpu and cpu) for DP, NEP",
-            "envs":[2,3,4,5,6],
+            "envs":[5],
             "epochs":[1,1,1,1,1],
-            "train_inputs":[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+            "train_inputs":[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,13]
         }
     ]
 }

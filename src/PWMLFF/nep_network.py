@@ -111,7 +111,7 @@ class nep_network:
         if self.input_param.inference:
             if self.input_param.nep_param.nep_txt_file is not None and os.path.exists(self.input_param.nep_param.nep_txt_file):
                 atom_map = self.input_param.atom_type
-                energy_shift = [1.0 for _ in atom_map] # just for init model, the bias will be replaced by nep.txt params
+                energy_shift = [1.0 for _ in atom_map] # just for init model, the bias will be replaced by nep.txt or params in ckpt
             elif self.input_param.file_paths.model_load_path is not None and os.path.exists(self.input_param.file_paths.model_load_path):
                 # load davg, dstd from checkpoint of model
                 atom_map, energy_shift = load_atomtype_energyshift_from_checkpoint(self.input_param.file_paths.model_load_path)
@@ -128,9 +128,10 @@ class nep_network:
         
         if self.input_param.file_paths.datasets_path is None or len(self.input_param.file_paths.datasets_path) == 0:# for togpumd model
             return energy_shift, 100, None
-
+        # get max_atom_nums from current datapath
         energy_shift, max_atom_nums, image_path = get_stat(self.input_param, stat_add, self.input_param.file_paths.datasets_path, 
                          self.input_param.file_paths.json_dir, self.input_param.chunk_size)
+
         return energy_shift, max_atom_nums, image_path
     
     def load_data(self, energy_shift, max_atom_nums):
