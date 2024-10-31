@@ -11,15 +11,15 @@
             "custom_flags": [
             ],
             "source_list": [
-                "/share/app/anaconda3/etc/profile.d/conda.sh"
             ],
             "module_list": [
-                "conda/3-2020.07",
-                "pwmlff/2024.5"
             ],
             "env_list": [
+                "source /share/app/anaconda3/etc/profile.d/conda.sh",
+                "module load conda/3-2020.07",
                 "conda deactivate",
-                "conda activate PWMLFF"
+                "conda activate PWMLFF",
+                "module load pwmlff/2024.5"
             ]
         },
         {
@@ -201,7 +201,7 @@
     "work_list": [
         {
             "_work_type":"mcloud envs(gpu and cpu) for DP, NEP",
-            "envs":[5],
+            "envs":[0],
             "epochs":[1,1,1,1,1],
             "train_inputs":[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,13]
         }
