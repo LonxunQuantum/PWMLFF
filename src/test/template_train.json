@@ -11,15 +11,11 @@
             "custom_flags": [
             ],
             "source_list": [
+                "/share/app/PWMLFF/PWMLFF2024.5/env.sh"
             ],
             "module_list": [
             ],
             "env_list": [
-                "source /share/app/anaconda3/etc/profile.d/conda.sh",
-                "module load conda/3-2020.07",
-                "conda deactivate",
-                "conda activate PWMLFF",
-                "module load pwmlff/2024.5"
             ]
         },
         {
@@ -197,7 +193,7 @@
         {"_idx":13, "json_file" : "LiSiC/nep_train.json",  "model_type" :"NEP",  "do_test": true, "pwdata":"LiSiC/PWdata"}
     ],
 
-    "work_dir": "./test_workdir2",
+    "work_dir": "./test_workdir3",
     "work_list": [
         {
             "_work_type":"mcloud envs(gpu and cpu) for DP, NEP",

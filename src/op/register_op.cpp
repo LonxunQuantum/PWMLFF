@@ -1,6 +1,14 @@
 #include "include/op_declare.h"
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
+    m.def("calculate_nepfeat", 
+          &torch_launch_calculate_nepfeat,
+          "calculate nepfeat kernel warpper");
+
+    m.def("calculate_nepfeat_grad", 
+          &torch_launch_calculate_nepfeat_grad,
+          "calculate nepfeat grad kernel warpper");
+
     m.def("calculate_compress", 
           &torch_launch_calculate_compress,
           "calculate compress kernel warpper");
@@ -27,6 +35,10 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
 }
 
 TORCH_LIBRARY(op, m) {
+    m.def("calculate_nepfeat", torch_launch_calculate_nepfeat);
+
+    m.def("calculate_nepfeat_grad", torch_launch_calculate_nepfeat_grad);
+
     m.def("calculate_compress", torch_launch_calculate_compress);
 
     m.def("calculate_compress_grad", torch_launch_calculate_compress_grad);

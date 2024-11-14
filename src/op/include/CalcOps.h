@@ -127,3 +127,44 @@ torch::autograd::variable_list calculateCompress(
 torch::autograd::variable_list calculateCompress_cpu(
     at::Tensor f2,
     at::Tensor coefficient);
+
+// the following is the code nep feature
+class CalculateNepFeatFuncs {
+    public:
+        static torch::autograd::variable_list forward(
+            at::Tensor coeff2,
+            at::Tensor d12_radial,
+            at::Tensor NL_radial,
+            at::Tensor atom_map,
+            double rcut_radial);
+
+        static torch::autograd::variable_list backward(
+            torch::autograd::variable_list grad_output,
+            at::Tensor coeff2,
+            at::Tensor d12_radial,
+            at::Tensor dfeat_c2,
+            at::Tensor dfeat_2b,
+            at::Tensor atom_map);
+};
+
+class CalculateNepFeat : public torch::autograd::Function<CalculateNepFeat> {
+    public:
+        static torch::autograd::variable_list forward(
+            torch::autograd::AutogradContext *ctx,
+            at::Tensor coeff2,
+            at::Tensor d12_radial,
+            at::Tensor NL_radial,
+            at::Tensor atom_map,
+            double rcut_radial);
+
+        static torch::autograd::variable_list backward(
+            torch::autograd::AutogradContext *ctx,
+            torch::autograd::variable_list grad_output);
+};
+
+torch::autograd::variable_list calculateNepFeat(
+    at::Tensor coeff2,
+    at::Tensor d12_radial,
+    at::Tensor NL_radial,
+    at::Tensor atom_map,
+    double rcut_radial);

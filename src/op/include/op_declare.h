@@ -59,3 +59,35 @@ void torch_launch_calculate_virial_force_grad(torch::Tensor &nblist,
                        int64_t neigh_num,
                        const torch::Tensor &grad
 );
+
+void torch_launch_calculate_nepfeat(
+                        const torch::Tensor &coeff2,
+                        const torch::Tensor &d12_radial,
+                        const torch::Tensor &NL_radial,
+                        const torch::Tensor &atom_map,
+                        const double rcut_radial,
+                        torch::Tensor &feat_2b,
+                        torch::Tensor &dfeat_c2,
+                        torch::Tensor &dfeat_2b,
+                        int64_t batch_size,
+                        int64_t natoms,
+                        int64_t neigh_num,
+                        int64_t n_max,
+                        int64_t n_base,
+                        int64_t n_types
+);
+
+void torch_launch_calculate_nepfeat_grad(
+                        const torch::Tensor &grad_output,
+                        const torch::Tensor &dfeat_c2,
+                        const torch::Tensor &dfeat_2b,
+                        const torch::Tensor atom_map,
+                        int64_t batch_size, 
+                        int64_t atom_nums, 
+                        int64_t maxneighs, 
+                        int64_t n_max_2b, 
+                        int64_t n_base_2b,
+                        int64_t n_types,
+                        const torch::Tensor &grad_coeff2,
+                        const torch::Tensor &grad_d12_radial
+);
