@@ -79,8 +79,8 @@ __device__ __host__ __forceinline__ void find_fc_and_fcp(
         T rc, T rcinv, T d12, T& fc, T& fcp) {
     if (d12 < rc) {
         T x = d12 * rcinv;
-        fc = T(0.5) * cos(T(3.1415927) * x) + T(0.5);
-        fcp = -T(1.5707963) * sin(T(3.1415927) * x) * rcinv;
+        fc = T(0.5) * cos(T(3.141592653589793) * x) + T(0.5);
+        fcp = -T(1.5707963267948966) * sin(T(3.141592653589793) * x) * rcinv;
     } else {
         fc = T(0.0);
         fcp = T(0.0);

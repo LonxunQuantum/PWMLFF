@@ -57,12 +57,12 @@ __global__ void feat_2b_calc(
                     // c2的维度为[Nmax, Nbas, I, J]对c的索引会更方便
                     c_index =  c_I_J_idx + n * n_base + k;
                     gn12 += fn12[k] * coeff2[c_index];
-                    dfeat_2b[d2b_idx + k] += fnp12[k]*coeff2[c_index];
-                    if (n == 0 and k == 0) {
-                        printf("batch %d I %d J %d n %d k %d c %f cid %d rij %f rid %d\n", batch_id, atom_id, n2, n, k, coeff2[c_index], c_index, d12, rij_idx);
-                    }
+                    dfeat_2b[d2b_idx + n] += fnp12[k]*coeff2[c_index];
+                    // if (n == 0 and k == 0) {
+                    //     printf("batch %d I %d J %d n %d k %d c %f cid %d rij %f rid %d\n", batch_id, atom_id, n2, n, k, coeff2[c_index], c_index, d12, rij_idx);
+                    // }
                     if (n == 0) {
-                        dfeat_c2[dfeat_c_start_idx + t2 * n_base + k] += fc12; //[batch, n_atom, J_Ntypes, N_base]
+                        dfeat_c2[dfeat_c_start_idx + t2 * n_base + k] += fn12[k]; //[batch, n_atom, J_Ntypes, N_base]
                     }
                 }
                 feat_2b[feat_start_idx + n] += gn12;
@@ -105,7 +105,41 @@ void launch_calculate_nepfeat(
                             batch_size, natoms, neigh_num, 
                                 n_max, n_base, num_types, num_types_sq
                             );
-    // 还是按照中心原子作为线程来处理，后期batchsize多了之后，中心原子数量会多，利用率就会上来
+                            
+    // cudaDeviceSynchronize();
+    // 打印 dfeat_c2 数据 (将 dfeat_c2 从设备内存复制到主机内存)
+    // DType * h_dfeat_c2 = new DType[batch_size * natoms * num_types * n_base];  // 主机内存中的副本
+    // cudaMemcpy(h_dfeat_c2, dfeat_c2, batch_size * natoms * num_types * n_base * sizeof(DType), cudaMemcpyDeviceToHost);
+    
+    // // 打印 dfeat_c2 的一部分 (例如前 5 个元素)
+    // printf("dfeat_c2 (first few values):\n");
+    // for (int i = 0; i < batch_size; ++i) {
+    //     for (int j = 0; j < natoms; ++j) {
+    //         for (int k = 0; k < num_types; ++k) {
+    //             for (int p = 0; p < n_base; ++p) {
+    //                 printf("dfeat_c2[%d][%d][%d][%d] = %f\n", i, j, k, p, h_dfeat_c2[i * natoms * num_types * n_base + j* num_types * n_base + k * n_base + p]);
+    //             }
+    //         }
+    //     }
+    // }
+
+    // 打印 dfeat_2b 数据 (将 dfeat_2b 从设备内存复制到主机内存)
+    // DType * h_dfeat_2b = new DType[batch_size * natoms * neigh_num * n_max];  // 主机内存中的副本
+    // cudaMemcpy(h_dfeat_2b, dfeat_2b, batch_size * natoms * neigh_num * n_max * sizeof(DType), cudaMemcpyDeviceToHost);
+    
+    // 打印 dfeat_2b 的一部分 (例如前 5 个元素)
+    // printf("dfeat_2b (first few values):\n");
+    // for (int i = 0; i < batch_size; ++i) {
+    //     for (int j = 0; j < 10; ++j) {
+    //         for (int k = 0; k < neigh_num; ++k) {
+    //             printf("dfeat_2b[%d][%d][%d] = ", i, j, k);
+    //             for (int l = 0; l < n_max; ++l) {
+    //                 printf(" %f ", h_dfeat_2b[i * natoms * neigh_num * n_max + j * neigh_num * n_max + k * n_max + l]);
+    //             }
+    //             printf("\n");
+    //         }
+    //     }
+    // }
 }
 
 template void launch_calculate_nepfeat(

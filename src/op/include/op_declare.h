@@ -88,6 +88,6 @@ void torch_launch_calculate_nepfeat_grad(
                         int64_t n_max_2b, 
                         int64_t n_base_2b,
                         int64_t n_types,
-                        const torch::Tensor &grad_coeff2,
-                        const torch::Tensor &grad_d12_radial
+                        torch::Tensor &grad_coeff2,
+                        torch::Tensor &grad_d12_radial
 );
