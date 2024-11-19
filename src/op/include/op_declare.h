@@ -91,3 +91,54 @@ void torch_launch_calculate_nepfeat_grad(
                         torch::Tensor &grad_coeff2,
                         torch::Tensor &grad_d12_radial
 );
+
+
+void torch_launch_calculate_nepfeatmb(
+                        const torch::Tensor &coeff2,
+                        const torch::Tensor &coeff3,
+                        const torch::Tensor &d12,
+                        const torch::Tensor &NL,
+                        const torch::Tensor &atom_map,
+                        const double rcut_radial,
+                        const double rcut_angular,
+                        torch::Tensor &feats,
+                        torch::Tensor &sum_fxyz,
+                        int64_t batch_size,
+                        int64_t natoms,
+                        int64_t neigh_num,
+                        int64_t n_max_2b,
+                        int64_t n_base_2b,
+                        int64_t n_max_3b,
+                        int64_t n_base_3b,
+                        int64_t lmax_3,
+                        int64_t lmax_4,
+                        int64_t lmax_5,
+                        int64_t n_types
+);
+
+void torch_launch_calculate_nepfeatmb_grad(
+                        const torch::Tensor &grad_output,
+                        const torch::Tensor &coeff2,
+                        const torch::Tensor &coeff3,
+                        const torch::Tensor &d12,
+                        const torch::Tensor &NL,                        
+                        const torch::Tensor &atom_map,
+                        const double rcut_radial,
+                        const double rcut_angular,
+                        int64_t batch_size, 
+                        int64_t atom_nums, 
+                        int64_t maxneighs, 
+                        int64_t n_max_2b, 
+                        int64_t n_base_2b,
+                        int64_t n_max_3b, 
+                        int64_t n_base_3b,
+                        int64_t lmax_3,
+                        int64_t lmax_4,
+                        int64_t lmax_5,
+                        int64_t n_types,
+                        torch::Tensor &sum_fxyz,
+                        torch::Tensor &grad_coeff2,
+                        torch::Tensor &grad_d12_radial,
+                        torch::Tensor &grad_coeff3,
+                        torch::Tensor &grad_d12_3b
+);

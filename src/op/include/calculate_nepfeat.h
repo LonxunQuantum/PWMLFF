@@ -1,13 +1,12 @@
-template<typename DType>
 void launch_calculate_nepfeat(
-    const DType * coeff2,
-    const DType * d12_radial,
+    const double * coeff2,
+    const double * d12_radial,
     const int * NL_radial,
     const int * atom_map,
     const double rcut_radial,
-    DType * feat_2b,
-    DType * dfeat_c2,
-    DType * dfeat_2b,
+    double * feat_2b,
+    double * dfeat_c2,
+    double * dfeat_2b,
     const int batch_size,
     const int natoms,
     const int neigh_num,
@@ -17,14 +16,13 @@ void launch_calculate_nepfeat(
     const int device
 );
 
-template<typename DType>
 void launch_calculate_nepfeat_grad(
-    const DType * grad_output,
-    const DType * dfeat_c2,
-    const DType * dfeat_2b,
+    const double * grad_output,
+    const double * dfeat_c2,
+    const double * dfeat_2b,
     const int * atom_map,
-    DType * grad_coeff2,
-    DType * grad_d12_radial,
+    double * grad_coeff2,
+    double * grad_d12_radial,
     const int batch_size, 
     const int natoms, 
     const int neigh_num, 

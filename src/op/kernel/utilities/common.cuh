@@ -17,7 +17,6 @@
 
 const int MAX_NUM_BEADS = 128;
 const int NUM_ELEMENTS = 103;
-#define PI 3.14159265358979
 #define HBAR 6.465412e-2                             // Planck's constant
 #define K_B 8.617343e-5                              // Boltzmann's constant
 #define K_C 14.399645                                // 1/(4*PI*epsilon_0)

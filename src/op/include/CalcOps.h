@@ -168,3 +168,74 @@ torch::autograd::variable_list calculateNepFeat(
     at::Tensor NL_radial,
     at::Tensor atom_map,
     double rcut_radial);
+
+// multi feature of nep
+class CalculateNepFeatmbFuncs {
+    public:
+        static torch::autograd::variable_list forward(
+            at::Tensor coeff2,
+            at::Tensor coeff3,
+            at::Tensor d12,
+            at::Tensor d12_3b,
+            at::Tensor NL,
+            at::Tensor atom_map,
+            double rcut_radial,
+            double rcut_angular,
+            int64_t lmax_3,
+            int64_t lmax_4,
+            int64_t lmax_5);
+
+        static torch::autograd::variable_list backward(
+            torch::autograd::variable_list grad_output,
+            at::Tensor coeff2,
+            at::Tensor coeff3,
+            at::Tensor d12,
+            at::Tensor d12_3b,
+            at::Tensor NL,
+            at::Tensor atom_map,
+            at::Tensor sum_fxyz,
+            at::Tensor dfeat_c2,
+            at::Tensor dfeat_2b,
+            at::Tensor dfeat_c3,
+            at::Tensor dfeat_3b,
+            double rcut_radial,
+            double rcut_angular,
+            int64_t lmax_3,
+            int64_t lmax_4,
+            int64_t lmax_5
+            );
+};
+
+class CalculateNepFeatmb : public torch::autograd::Function<CalculateNepFeatmb> {
+    public:
+        static torch::autograd::variable_list forward(
+            torch::autograd::AutogradContext *ctx,
+            at::Tensor coeff2,
+            at::Tensor coeff3,
+            at::Tensor d12,
+            at::Tensor d12_3b,
+            at::Tensor NL,
+            at::Tensor atom_map,
+            double rcut_radial,
+            double rcut_angular,
+            int64_t lmax_3,
+            int64_t lmax_4,
+            int64_t lmax_5);
+
+        static torch::autograd::variable_list backward(
+            torch::autograd::AutogradContext *ctx,
+            torch::autograd::variable_list grad_output);
+};
+
+torch::autograd::variable_list calculateNepFeatmb(
+            at::Tensor coeff2,
+            at::Tensor coeff3,
+            at::Tensor d12,
+            at::Tensor d12_3b,
+            at::Tensor NL,
+            at::Tensor atom_map,
+            double rcut_radial,
+            double rcut_angular,
+            int64_t lmax_3,
+            int64_t lmax_4,
+            int64_t lmax_5);

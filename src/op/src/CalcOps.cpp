@@ -291,3 +291,173 @@ torch::autograd::variable_list calculateNepFeat(
     {
         return CalculateNepFeat::apply(coeff2, d12_radial, NL_radial, atom_map, rcut_radial);
     }
+
+//multi feature of nep
+torch::autograd::variable_list CalculateNepFeatmbFuncs::forward(
+            at::Tensor coeff2,
+            at::Tensor coeff3,
+            at::Tensor d12,
+            at::Tensor d12_3b,
+            at::Tensor NL,
+            at::Tensor atom_map,
+            double rcut_radial,
+            double rcut_angular,
+            int64_t lmax_3,
+            int64_t lmax_4,
+            int64_t lmax_5
+            ) 
+    {
+        auto dims_2b = coeff2.sizes();
+        int64_t atom_types = dims_2b[0];
+        int64_t n_max_2b = dims_2b[2];
+        int64_t n_base_2b = dims_2b[3];
+
+        auto dims_3b = coeff3.sizes();
+        int64_t atom_types = dims_3b[0];
+        int64_t n_max_3b = dims_3b[2];
+        int64_t n_base_3b = dims_3b[3];
+
+        auto dims_image = d12.sizes();
+        int64_t batch_size = dims_image[0];
+        int64_t atom_nums = dims_image[1];
+        int64_t maxneighs = dims_image[2];
+
+        int64_t feat_2b_num = 0;
+        int64_t feat_3b_num = 0;
+        feat_2b_num = n_max_2b * n_base_2b;
+        if (lmax_3 > 0) feat_3b_num += n_max_3b * n_base_3b;
+        if (lmax_4 > 0) feat_3b_num += n_max_3b;
+        if (lmax_5 > 0) feat_3b_num += n_max_3b;
+
+        const int64_t NUM_OF_ABC = 24;
+        auto feats = torch::zeros({batch_size*atom_nums, feat_2b_num+feat_3b_num}, d12.options());
+        sum_fxyz = torch::zeros({batch_size*atom_nums, n_max_3b * NUM_OF_ABC}, d12.options());
+        
+        torch_launch_calculate_nepfeatmb(coeff2, coeff3, 
+                    d12.view({batch_size*atom_nums, maxneighs, 4}), 
+                        NL.view({batch_size*atom_nums, maxneighs}), 
+                            atom_map.repeat(batch_size), 
+                                rcut_radial, rcut_angular, 
+                                    feats, sum_fxyz, batch_size, atom_nums, maxneighs, n_max_2b, n_base_2b, n_max_3b, n_base_3b, 
+                                        lmax_3, lmax_4, lmax_5, atom_types);
+                     // 交换coeff2维度，方便在核函数中检索c下标
+        return {feats.reshape({batch_size, atom_nums, feat_2b_num+feat_3b_num}), sum_fxyz};
+    }
+
+torch::autograd::variable_list CalculateNepFeatmbFuncs::backward(
+            torch::autograd::variable_list grad_output,
+            at::Tensor coeff2,
+            at::Tensor coeff3,
+            at::Tensor d12,
+            at::Tensor d12_3b,
+            at::Tensor NL,
+            at::Tensor atom_map,
+            at::Tensor sum_fxyz,
+            at::Tensor dfeat_c2,
+            at::Tensor dfeat_2b,
+            at::Tensor dfeat_c3,
+            at::Tensor dfeat_3b,
+            double rcut_radial,
+            double rcut_angular,
+            int64_t lmax_3,
+            int64_t lmax_4,
+            int64_t lmax_5) 
+    {
+        auto dims_2b = coeff2.sizes();
+        int64_t atom_types = dims_2b[0];
+        int64_t n_max_2b = dims_2b[2];
+        int64_t n_base_2b = dims_2b[3];
+
+        auto dims_3b = coeff3.sizes();
+        int64_t atom_types = dims_3b[0];
+        int64_t n_max_3b = dims_3b[2];
+        int64_t n_base_3b = dims_3b[3];
+
+        auto dims_image = d12.sizes();
+        int64_t batch_size = dims_image[0];
+        int64_t atom_nums = dims_image[1];
+        int64_t maxneighs = dims_image[2];
+
+        int64_t feat_2b_num = 0;
+        int64_t feat_3b_num = 0;
+
+        feat_2b_num = n_max_2b * n_base_2b;
+        if (lmax_3 > 0) feat_3b_num += n_max_3b * n_base_3b;
+        if (lmax_4 > 0) feat_3b_num += n_max_3b;
+        if (lmax_5 > 0) feat_3b_num += n_max_3b;
+
+        auto grad_coeff2 = torch::zeros({atom_types, n_max_2b, atom_types, n_base_2b}, d12.options());
+        auto grad_d12_radial = torch::zeros({batch_size*atom_nums, maxneighs, 4}, d12.options());
+        auto grad_coeff3 = torch::zeros({atom_types, n_max_3b, atom_types, n_base_3b}, d12.options());
+        auto grad_d12_3b = torch::zeros({batch_size*atom_nums, maxneighs, 4}, d12.options());
+        
+        torch_launch_calculate_nepfeatmb_grad(grad_output[0].veiw({batch_size*atom_nums, feat_3b_num}), 
+                                            coeff2, coeff3, d12, NL, atom_map, rcut_radial, rcut_angular, 
+                                                batch_size, atom_nums, maxneighs, n_max_2b, n_base_2b, n_max_3b, n_base_3b, 
+                                                    lmax_3, lmax_4, lmax_5, atom_types,
+                                                        sum_fxyz, grad_coeff2, grad_d12_radial, grad_coeff3, grad_d12_3b);
+        grad_coeff2 = grad_coeff2.permute({0, 2, 1, 3});
+        grad_coeff3 = grad_coeff3.permute({0, 2, 1, 3});
+        return {grad_coeff2, grad_coeff3, grad_d12_radial, grad_d12_3b,
+                    torch::autograd::Variable(), torch::autograd::Variable(), 
+                        torch::autograd::Variable(), torch::autograd::Variable(), 
+                            torch::autograd::Variable(),  torch::autograd::Variable(),
+                                torch::autograd::Variable()}; // f2的梯度 coeff的梯度 因为不需要，所以不计算，只占位
+    }
+
+torch::autograd::variable_list CalculateNepFeatmb::forward(
+    torch::autograd::AutogradContext *ctx,
+            at::Tensor coeff2,
+            at::Tensor coeff3,
+            at::Tensor d12,
+            at::Tensor d12_3b,
+            at::Tensor NL,
+            at::Tensor atom_map,
+            double rcut_radial,
+            double rcut_angular,
+            int64_t lmax_3,
+            int64_t lmax_4,
+            int64_t lmax_5) 
+    {
+        auto results = CalculateNepFeatmbFuncs::forward(coeff2, coeff3, d12, d12_3b, NL, atom_map, rcut_radial, rcut_angular, lmax_3, lmax_4, lmax_5);
+        auto feats = results[0];
+        auto sum_fxyz = results[1];
+        ctx->save_for_backward({coeff2, coeff3, d12, d12_3b, NL, atom_map, sum_fxyz, rcut_radial, rcut_angular, lmax_3, lmax_4, lmax_5});
+        return {feats};
+    }
+
+torch::autograd::variable_list CalculateNepFeatmb::backward(
+    torch::autograd::AutogradContext *ctx,
+    torch::autograd::variable_list grad_output) 
+    {
+        auto saved = ctx->get_saved_variables();
+        auto coeff2 = saved[0];
+        auto coeff3 = saved[1];
+        auto d12    = saved[2];
+        auto d12_3b = saved[3];
+        auto NL     = saved[4];
+        auto atom_map = saved[5];
+        double rcut_radial  = saved[6];
+        double rcut_angular = saved[7];
+        int64_t lmax_3 = saved[8];
+        int64_t lmax_4 = saved[9];
+        int64_t lmax_5 = saved[10];
+        return CalculateNepFeatmbFuncs::backward(grad_output, coeff2, coeff3, d12, d12_3b, NL, atom_map,
+                                            rcut_radial, rcut_angular, lmax_3, lmax_4, lmax_5);
+    }
+
+torch::autograd::variable_list calculateNepFeatmb(
+            at::Tensor coeff2,
+            at::Tensor coeff3,
+            at::Tensor d12,
+            at::Tensor d12_3b,
+            at::Tensor NL,
+            at::Tensor atom_map,
+            double rcut_radial,
+            double rcut_angular,
+            int64_t lmax_3,
+            int64_t lmax_4,
+            int64_t lmax_5) 
+    {
+        return CalculateNepFeatmb::apply(coeff2, coeff3, d12, d12_3b, NL, atom_map, rcut_radial, rcut_angular, lmax_3, lmax_4, lmax_5);
+    }

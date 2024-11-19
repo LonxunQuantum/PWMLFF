@@ -2,17 +2,16 @@
 #include "./utilities/nep_utilities.cuh"
 #include <iostream>
 
-template<typename DType>
 __global__ void feat_2b_calc(
-        const DType * coeff2,
-        const DType * d12_radial,
+        const double * coeff2,
+        const double * d12_radial,
         const int * NL_radial,
         const int * atom_map,
-        const DType rcut_radial,
-        const DType rcinv_radial,
-        DType * feat_2b,
-        DType * dfeat_c2,
-        DType * dfeat_2b,
+        const double rcut_radial,
+        const double rcinv_radial,
+        double * feat_2b,
+        double * dfeat_c2,
+        double * dfeat_2b,
         const int batch_size,
         const int natoms,
         const int neigh_num,
@@ -29,7 +28,7 @@ __global__ void feat_2b_calc(
     int c_index = 0;
     if (batch_id < batch_size && atom_id < natoms) {
         int t1 = atom_map[atom_id];
-        DType q[MAX_DIM] = {static_cast<DType>(0.0)};
+        double q[MAX_DIM] = {0.0};
         int neigh_start_idx = batch_id * natoms * neigh_num + atom_id * neigh_num;
         int r12_start_idx =  batch_id * natoms * neigh_num * 4 + atom_id * neigh_num * 4;
         int feat_start_idx = batch_id * natoms * n_max + atom_id * n_max; 
@@ -44,15 +43,15 @@ __global__ void feat_2b_calc(
             int c_I_J_idx = c_start_idx + t2 * n_max * n_base;
             int rij_idx = r12_start_idx + i1*4;
             int d2b_idx = dfeat_2b_start_idx + i1 * n_max;
-            DType d12 = d12_radial[rij_idx]; // [rij, x, y, z]
-            DType fc12, fcp12;
+            double d12 = d12_radial[rij_idx]; // [rij, x, y, z]
+            double fc12, fcp12;
             find_fc_and_fcp(rcut_radial, rcinv_radial, d12, fc12, fcp12);
-            DType fn12[MAX_NUM_N];
-            DType fnp12[MAX_NUM_N];
+            double fn12[MAX_NUM_N];
+            double fnp12[MAX_NUM_N];
             find_fn_and_fnp(
                 n_base, rcinv_radial, d12, fc12, fcp12, fn12, fnp12);
             for (int n = 0; n < n_max; ++n) {
-                DType gn12 = static_cast<DType>(0.0);
+                double gn12 = 0.0;
                 for (int k = 0; k < n_base; ++k) {
                     // c2的维度为[Nmax, Nbas, I, J]对c的索引会更方便
                     c_index =  c_I_J_idx + n * n_base + k;
@@ -74,16 +73,15 @@ __global__ void feat_2b_calc(
     }
 }
 
-template<typename DType>
 void launch_calculate_nepfeat(
-        const DType * coeff2,
-        const DType * d12_radial,
+        const double * coeff2,
+        const double * d12_radial,
         const int * NL_radial,
         const int * atom_map,
         const double rcut_radial,
-        DType * feat_2b,
-        DType * dfeat_c2,
-        DType * dfeat_2b,
+        double * feat_2b,
+        double * dfeat_c2,
+        double * dfeat_2b,
         const int batch_size,
         const int natoms,
         const int neigh_num,
@@ -96,11 +94,10 @@ void launch_calculate_nepfeat(
     int num_types_sq = num_types * num_types;
     int BLOCK_SIZE = 64;
     int grid_size = (natoms * batch_size - 1) / BLOCK_SIZE + 1;
-    // float rcinv_radial = 1/rcut_radial;
-    DType rcinv_radial = static_cast<DType>(1.0 / rcut_radial);
+    double rcinv_radial = 1.0 / rcut_radial;
     feat_2b_calc<<<grid_size, BLOCK_SIZE>>>(
                 coeff2, d12_radial, NL_radial, atom_map, 
-                    static_cast<DType>(rcut_radial), rcinv_radial,
+                    static_cast<double>(rcut_radial), rcinv_radial,
                         feat_2b, dfeat_c2, dfeat_2b, 
                             batch_size, natoms, neigh_num, 
                                 n_max, n_base, num_types, num_types_sq
@@ -141,39 +138,3 @@ void launch_calculate_nepfeat(
     //     }
     // }
 }
-
-template void launch_calculate_nepfeat(
-            const float * coeff2,
-            const float * d12_radial,
-            const int * NL_radial,
-            const int * atom_map,
-            const double rcut_radial,
-            float * feat_2b,
-            float * dfeat_c2,
-            float * dfeat_2b,
-            const int batch_size,
-            const int natoms,
-            const int neigh_num,
-            const int n_max,
-            const int n_base,
-            const int num_types,
-            const int device_id
-                );
-
-template void launch_calculate_nepfeat(
-            const double * coeff2,
-            const double * d12_radial,
-            const int * NL_radial,
-            const int * atom_map,
-            const double rcut_radial,
-            double * feat_2b,
-            double * dfeat_c2,
-            double * dfeat_2b,
-            const int batch_size,
-            const int natoms,
-            const int neigh_num,
-            const int n_max,
-            const int n_base,
-            const int num_types,
-            const int device_id
-    );
