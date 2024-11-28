@@ -1,3 +1,4 @@
+#include "./utilities/error.cuh"
 #include "./utilities/common.cuh"
 #include "./utilities/nep_utilities.cuh"
 #include "./utilities/nep3_small_box.cuh"
@@ -28,17 +29,17 @@ void launch_calculate_nepfeatmb(
 ) {
     cudaSetDevice(device_id);
     const int BLOCK_SIZE = 64;
-    const int N = atom_map.size();// N = natoms * batch_size
+    const int N = batch_size * natoms;// N = natoms * batch_size
     const int grid_size = (N - 1) / BLOCK_SIZE + 1;
     const int num_types_sq = n_types * n_types;
     double rcinv_radial = 1.0 / rcut_radial;
     double rcinv_angular = 1.0 / rcut_angular;
-    const int size_x12 = atom_map.size() * neigh_num;
+    const int size_x12 = N * neigh_num;
     
     int feat_2b_num = 0;
     int feat_3b_num = 0;
-    feat_2b_num = n_max_2b * n_base_2b;
-    if (lmax_3 > 0) feat_3b_num += n_max_3b * n_base_3b;
+    feat_2b_num = n_max_2b;
+    if (lmax_3 > 0) feat_3b_num += n_max_3b * lmax_3;
     if (lmax_4 > 0) feat_3b_num += n_max_3b;
     if (lmax_5 > 0) feat_3b_num += n_max_3b;
 
@@ -50,7 +51,7 @@ void launch_calculate_nepfeatmb(
         lmax_3,
         lmax_4,
         lmax_5,
-        feat_3b_num,
+        feat_2b_num + feat_3b_num,
         rcut_radial,
         rcinv_radial,
         rcut_angular,
@@ -59,13 +60,13 @@ void launch_calculate_nepfeatmb(
         n_base_2b,
         n_max_3b,
         n_base_3b,
-        NL.data(),
-        coeff2.data(),
-        coeff3.data(),
-        feats.data(),
-        atom_map.data(),
-        r12.data(),
-        sum_fxyz.data());
+        NL,
+        coeff2,
+        coeff3,
+        feats,
+        atom_map,
+        r12,
+        sum_fxyz);
     CUDA_CHECK_KERNEL
     
     // cudaDeviceSynchronize();

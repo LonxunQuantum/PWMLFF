@@ -1,22 +1,62 @@
 #include "./utilities/common.cuh"
 #include "./utilities/nep_utilities.cuh"
+#include "./utilities/error.cuh"
+#include "./utilities/gpu_vector.cuh"
+#include "./utilities/nep3_small_box.cuh"
 #include <iostream>
 
-#if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 600
-#else
-__device__ double atomicAdd(double* address, double val) {
-    unsigned long long int* address_as_ull =
-                              (unsigned long long int*)address;
-    unsigned long long int old = *address_as_ull, assumed;
-    do {
-        assumed = old;
-        old = atomicCAS(address_as_ull, assumed,
-                        __double_as_longlong(val +
-                             __longlong_as_double(assumed)));
-    } while (assumed != old);
-    return __longlong_as_double(old);
+void print_grad_coeff3(double* d_grad_coeff3, int n_types, int n_max_3b, int n_base_3b) {
+    int total_size = n_types * n_types * n_max_3b * n_base_3b;
+    
+    // 在主机上分配内存
+    std::vector<double> h_grad_coeff3(total_size);
+    
+    // 从设备拷贝到主机
+    cudaMemcpy(h_grad_coeff3.data(), d_grad_coeff3, total_size * sizeof(double), cudaMemcpyDeviceToHost);
+    
+    // 打印内容
+    for (int t1 = 0; t1 < n_types; ++t1) {
+        for (int t2 = 0; t2 < n_types; ++t2) {
+            for (int n = 0; n < n_max_3b; ++n) {
+                for (int b = 0; b < n_base_3b; ++b) {
+                    int idx = t1 * n_types * n_max_3b * n_base_3b
+                              + t2 * n_max_3b * n_base_3b
+                              + n * n_base_3b
+                              + b;
+                    std::cout << "grad_coeff3[" << t1 << "][" << t2 << "][" << n << "][" << b << "] = "
+                              << h_grad_coeff3[idx] << std::endl;
+                }
+            }
+        }
+    }
 }
-#endif
+
+void print_dfeat_c3(double* d_dfeat_c3, int N, int n_types, int n_max_3b, int n_base_3b) {
+    int total_size = N * n_types * n_max_3b * n_base_3b;
+    
+    // 在主机上分配内存
+    std::vector<double> h_dfeat_c3(total_size);
+    
+    // 从设备拷贝到主机
+    cudaMemcpy(h_dfeat_c3.data(), d_dfeat_c3, total_size * sizeof(double), cudaMemcpyDeviceToHost);
+    cudaDeviceSynchronize(); // 确保拷贝完成
+
+    // 打印内容
+    for (int i = 0; i < N; ++i) {
+        for (int t = 0; t < n_types; ++t) {
+            for (int n = 0; n < n_max_3b; ++n) {
+                for (int b = 0; b < n_base_3b; ++b) {
+                    int idx = i * n_types * n_max_3b * n_base_3b 
+                              + t * n_max_3b * n_base_3b 
+                              + n * n_base_3b 
+                              + b;
+                    std::cout << "dfeat_c3[" << i << "][" << t << "][" << n << "][" << b << "] = "
+                              << h_dfeat_c3[idx] << std::endl;
+                }
+            }
+        }
+    }
+}
 
 void launch_calculate_nepfeatmb_grad(
             const double * grad_output,
@@ -34,7 +74,7 @@ void launch_calculate_nepfeatmb_grad(
             const int rcut_angular,
             const int batch_size, 
             const int atom_nums, 
-            const int maxneighs, 
+            const int neigh_num, 
             const int n_max_2b, 
             const int n_base_2b, 
             const int n_max_3b, 
@@ -45,24 +85,25 @@ void launch_calculate_nepfeatmb_grad(
             const int n_types, 
             const int device_id
 ) {
-    cudaSetDevice(device);
+    cudaSetDevice(device_id);
     const int BLOCK_SIZE = 64;
-    const int N = atom_map.size();// N = natoms * batch_size
+    const int N = batch_size * atom_nums; // N = natoms * batch_size
     const int grid_size = (N - 1) / BLOCK_SIZE + 1;
     const int num_types_sq = n_types * n_types;
     double rcinv_radial = 1.0 / rcut_radial;
     double rcinv_angular = 1.0 / rcut_angular;
-    const int size_x12 = atom_map.size() * neigh_num;
+    const int size_x12 = N * neigh_num;
     
     int feat_2b_num = 0;
     int feat_3b_num = 0;
-    feat_2b_num = n_max_2b * n_base_2b;
-    if (lmax_3 > 0) feat_3b_num += n_max_3b * n_base_3b;
+    feat_2b_num = n_max_2b;
+    if (lmax_3 > 0) feat_3b_num += n_max_3b * lmax_3;
     if (lmax_4 > 0) feat_3b_num += n_max_3b;
     if (lmax_5 > 0) feat_3b_num += n_max_3b;
     
-    const size_t array_size = static_cast<size_t>(N) * n_types * n_base_2b;
-    GPU_Vector<double> dfeat_c2(array_size);
+    // GPU_Vector<double> dfeat_c2(N * n_types * n_base_2b);
+
+    GPU_Vector<double> dfeat_c2(N * n_types * n_max_2b * n_base_2b);
 
     find_force_radial_small_box<<<grid_size, BLOCK_SIZE>>>(
         N,
@@ -72,55 +113,79 @@ void launch_calculate_nepfeatmb_grad(
         lmax_3,
         lmax_4,
         lmax_5,
-        feat_3b_num,
+        feat_2b_num + feat_3b_num,
         rcut_radial,
         rcinv_radial,
         n_max_2b,
         n_base_2b,
-        NL.data(),
-        r12.data(),
-        coeff2.data(),
-        atom_map.data(),
-        grad_output.data(),
+        NL,
+        d12,
+        coeff2,
+        atom_map,
+        grad_output,
         dfeat_c2.data(),
-        grad_d12_radial.data()
+        grad_d12_radial
     );
     CUDA_CHECK_KERNEL
-    // calculate dfeat_c2
-    dfeat_2c_calc<<<grid_size, BLOCK_SIZE>>>(
-            grad_output.data(),
-            dfeat_c2.data(),
-            atom_map.data(),
-            grad_coeff2.data(),
-            N,
-            n_max,
-            n_base,
-            feat_2b_num,
-            n_types
-    );
+    
+    int total_elements = N * n_max_2b * n_base_2b;
+    int threads_per_block = 256;
+    int num_blocks = (total_elements + threads_per_block - 1) / threads_per_block;
+    aggregate_features<<<num_blocks, threads_per_block>>>(
+        dfeat_c2.data(), 
+        atom_map, 
+        grad_coeff2, 
+        N, 
+        n_types, 
+        n_max_2b, 
+        n_base_2b);
     CUDA_CHECK_KERNEL
 
-    if lmax_3 > 0:
+    if (lmax_3 > 0){
+        GPU_Vector<double> dfeat_c3(N * n_types * n_max_3b * n_base_3b, 0.0);
         find_force_angular_small_box<<<grid_size, BLOCK_SIZE>>>(
-            paramb,
-            annmb,
             N,
-            N1,
-            N2,
-            NN_angular.data(),
-            NL_angular.data(),
-            type.data(),
-            r12.data() + size_x12 * 3,
-            r12.data() + size_x12 * 4,
-            r12.data() + size_x12 * 5,
-            nep_data.Fp.data(),
-            nep_data.sum_fxyz.data(),
-            is_dipole,
-
-            force_per_atom.data(),
-            force_per_atom.data() + N,
-            force_per_atom.data() + N * 2,
-            virial_per_atom.data());
+            n_types,
+            num_types_sq,
+            neigh_num,
+            lmax_3,
+            lmax_4,
+            lmax_5,
+            feat_2b_num + feat_3b_num,
+            feat_3b_num,
+            rcut_angular,
+            rcinv_angular,
+            n_max_2b, 
+            n_base_2b, 
+            n_max_3b, 
+            n_base_3b,
+            NL,
+            d12,
+            coeff3,
+            atom_map,
+            grad_output,
+            sum_fxyz,
+            dfeat_c3.data(),
+            grad_d12_3b
+        );
         CUDA_CHECK_KERNEL
+        
+        // print_dfeat_c3(dfeat_c3.data(), N, n_types, n_max_3b, n_base_3b);
+
+        total_elements = N * n_max_3b * n_base_3b;
+        threads_per_block = 256;
+        num_blocks = (total_elements + threads_per_block - 1) / threads_per_block;
+        aggregate_features<<<num_blocks, threads_per_block>>>(
+        dfeat_c3.data(), 
+        atom_map, 
+        grad_coeff3, 
+        N, 
+        n_types, 
+        n_max_3b, 
+        n_base_3b);
+        CUDA_CHECK_KERNEL
+    }
+
+    // print_grad_coeff3(grad_coeff3, n_types, n_max_3b, n_base_3b);
 
 }

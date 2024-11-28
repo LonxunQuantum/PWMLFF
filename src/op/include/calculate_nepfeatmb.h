@@ -38,7 +38,7 @@ void launch_calculate_nepfeatmb_grad(
             const int rcut_angular,
             const int batch_size, 
             const int atom_nums, 
-            const int maxneighs, 
+            const int neigh_num, 
             const int n_max_2b, 
             const int n_base_2b, 
             const int n_max_3b, 

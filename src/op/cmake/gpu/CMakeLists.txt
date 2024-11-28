@@ -8,6 +8,8 @@ target_link_libraries(CalcOps_cuda PRIVATE ${TORCH_LIBRARIES})
 # register_op
 file(GLOB CPP_FILES ${CMAKE_SOURCE_DIR}/src/*.cpp)
 file(GLOB CU_FILES ${CMAKE_SOURCE_DIR}/kernel/*.cu)
+file(GLOB CU_FILES_UTILITIES ${CMAKE_SOURCE_DIR}/kernel/utilities/*.cu)
+list(APPEND CU_FILES ${CU_FILES_UTILITIES})
 file(GLOB CALC_FILES ${CMAKE_SOURCE_DIR}/src/CalcOp*.cpp)
 list(REMOVE_ITEM CPP_FILES ${CALC_FILES})
 
