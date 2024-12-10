@@ -368,7 +368,7 @@ class NEP(nn.Module):
         # t2 = time.time()
         # check_cuda_memory(-1, -1, "FORWAR E_zbl")
         Etot = torch.sum(Ei, 1).unsqueeze(1)
-        if False:   ##is_calc_f is False
+        if is_calc_f is False:
             Force, Virial = None, None
             # print("==single time: tall {} ei {} zbl ei {}".format(t2-t0, t1-t0, t2-t1))
         else:
@@ -527,7 +527,7 @@ class NEP(nn.Module):
                 # testyy = (Ri[batch_idx, :, :, 2] * dE_Rid[batch_idx, :, :, 1]).sum(dim=1)
                 Virial[batch_idx, [3, 6, 7]] = Virial[batch_idx, [1, 2, 5]]
             Force = Force[:, 1:, :]
-            if self.l_max[0] > 0:
+            if self.l_max_3b > 0:
                 dE_angular = torch.unsqueeze(dE_angular, dim=-1)
                 dE_Rid_angular = torch.mul(dE_angular, Ri_d_angular).sum(dim=-2)
                 Force_angular = torch.zeros((batch_size, natoms_sum + nghost + 1, 3), device=device, dtype=dtype)
