@@ -12,6 +12,7 @@ void torch_launch_calculate_nepfeat(
                         torch::Tensor &feat_2b,
                         torch::Tensor &dfeat_c2,
                         torch::Tensor &dfeat_2b,
+                        torch::Tensor &dfeat_2b_noc,
                         int64_t batch_size,
                         int64_t natoms,
                         int64_t neigh_num,
@@ -30,6 +31,7 @@ void torch_launch_calculate_nepfeat(
         (double *) feat_2b.data_ptr(),
         (double *) dfeat_c2.data_ptr(),
         (double *) dfeat_2b.data_ptr(),
+        (double *) dfeat_2b_noc.data_ptr(),
         batch_size, natoms, neigh_num, n_max, n_base, n_types, 
         device_id
     );

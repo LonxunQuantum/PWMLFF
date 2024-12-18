@@ -12,6 +12,7 @@ __global__ void feat_2b_calc(
         double * feat_2b,
         double * dfeat_c2,
         double * dfeat_2b,
+        double * dfeat_2b_noc,
         const int batch_size,
         const int natoms,
         const int neigh_num,
@@ -34,6 +35,7 @@ __global__ void feat_2b_calc(
         int feat_start_idx = batch_id * natoms * n_max + atom_id * n_max; 
         int dfeat_c_start_idx = batch_id * natoms * num_types * n_base + atom_id * num_types * n_base;
         int dfeat_2b_start_idx = batch_id * natoms * neigh_num * n_max + atom_id * neigh_num * n_max;
+        int dfeat_2b_noc_start_idx=batch_id*natoms * neigh_num * n_base * 4 + atom_id * neigh_num * n_base * 4;
         int c_start_idx = t1 * num_types * n_max * n_base;
 
         for (int i1=0; i1 < neigh_num; ++i1) {
@@ -43,6 +45,7 @@ __global__ void feat_2b_calc(
             int c_I_J_idx = c_start_idx + t2 * n_max * n_base;
             int rij_idx = r12_start_idx + i1*4;
             int d2b_idx = dfeat_2b_start_idx + i1 * n_max;
+            int d2bnoc_idx=dfeat_2b_noc_start_idx + i1 * n_base * 4;
             double d12 = d12_radial[rij_idx]; // [rij, x, y, z]
             double fc12, fcp12;
             find_fc_and_fcp(rcut_radial, rcinv_radial, d12, fc12, fcp12);
@@ -57,11 +60,13 @@ __global__ void feat_2b_calc(
                     c_index =  c_I_J_idx + n * n_base + k;
                     gn12 += fn12[k] * coeff2[c_index];
                     dfeat_2b[d2b_idx + n] += fnp12[k]*coeff2[c_index];
+                    
                     // if (n == 0 and k == 0) {
                     //     printf("batch %d I %d J %d n %d k %d c %f cid %d rij %f rid %d\n", batch_id, atom_id, n2, n, k, coeff2[c_index], c_index, d12, rij_idx);
                     // }
                     if (n == 0) {
                         dfeat_c2[dfeat_c_start_idx + t2 * n_base + k] += fn12[k]; //[batch, n_atom, J_Ntypes, N_base]
+                        dfeat_2b_noc[d2bnoc_idx + k * 4] += fnp12[k];
                     }
                 }
                 feat_2b[feat_start_idx + n] += gn12;
@@ -82,6 +87,7 @@ void launch_calculate_nepfeat(
         double * feat_2b,
         double * dfeat_c2,
         double * dfeat_2b,
+        double * dfeat_2b_noc,
         const int batch_size,
         const int natoms,
         const int neigh_num,
@@ -98,7 +104,7 @@ void launch_calculate_nepfeat(
     feat_2b_calc<<<grid_size, BLOCK_SIZE>>>(
                 coeff2, d12_radial, NL_radial, atom_map, 
                     static_cast<double>(rcut_radial), rcinv_radial,
-                        feat_2b, dfeat_c2, dfeat_2b, 
+                        feat_2b, dfeat_c2, dfeat_2b, dfeat_2b_noc,
                             batch_size, natoms, neigh_num, 
                                 n_max, n_base, num_types, num_types_sq
                             );

@@ -7,6 +7,7 @@ void launch_calculate_nepfeat(
     double * feat_2b,
     double * dfeat_c2,
     double * dfeat_2b,
+    double * dfeat_2b_noc,
     const int batch_size,
     const int natoms,
     const int neigh_num,

@@ -263,7 +263,7 @@ static __device__ __forceinline__ void get_f12_1(
   double tmpz = 2.0 * fn * s[0];
   f12[2] += tmpz * Fp;
   
-  if (n1==0 and n2!=300){
+  if (n1==0 and n2==0){
     printf("\tL=1 n1=%d n2=%d s0=%f s1=%f s2=%f fnp=%f fn=%f Fp=%f b10=%f b11=%f b12=%f dqr=%f dqx=%f dqy=%f dqz=%f\n", 
             n1, n2, s[0], s[1]*2.0, s[2]*2.0, fnp, fn, Fp, r12[2], r12[0], r12[1], tmp, tmpx, tmpy, tmpz);
   }
@@ -302,28 +302,15 @@ static __device__ __forceinline__ void get_f12_2(
                              s[3] * (r12[0] * r12[0]-r12[1] * r12[1]) + 
                              s[4] * 2.0 * r12[0] * r12[1]
                              );
-  // double tmp = (fnp * (3.0 * r12[2] * r12[2]- d12 * d12) - fn * 2.0 * d12) * s[0] + same as upper
-  //               fnp * s[1] * 2.0 * r12[0] * r12[2] + 
-  //               fnp * s[2] * 2.0 * r12[1] * r12[2] +
-  //               fnp * s[3] * 2.0 * (r12[0] * r12[0] - r12[1] * r12[1]) +
-  //               fnp * s[4] * 2.0 * 2.0 * r12[0] * r12[1];
 
-  // double b0 = (fnp * (3.0 * r12[2] * r12[2]- d12 * d12) - fn * 2.0 * d12);
-  // double b1 = fnp * r12[0] * r12[2];
-  // double b2 = fnp * r12[1] * r12[2];
-  // double b3 = fnp * (r12[0] * r12[0] - r12[1] * r12[1]);
-  // double b4 = fnp * 2.0 * r12[0] * r12[1];
-
-  // double tmp = 2.0 * (s[0]*b0 + s[1]*2.0*b1 + s[2]*2.0*b2  + s[3]*2.0*b3  + s[4]*2.0*b4);
-
-  // if (n1==0 and n2!=300){
+  // if (n1==0 and n2==0){
   //   printf("\tL=2 b0=%f b1=%f b2=%f b3=%f b4=%f s0=%f s1=%f s2=%f s3=%f s4=%f x=%f y=%f z=%f r=%f fnp=%f fn=%f tmp=%f\n",
   //           b0, b1, b2, b3, b4, s[0], s[1]*2.0, s[2]*2.0, s[3]*2.0, s[4]*2.0, r12[0], r12[1], r12[2], d12,  fnp, fn, tmp);
   // }
   tmp = 2.0 * tmp;
   f12[3] += Fp * tmp;
 
-  if (n1==0 and n2!=300){
+  if (n1==0 and n2==0){
     printf("\tL=2 n1=%d n2=%d s0=%f s1=%f s2=%f s3=%f s4=%f fnp=%f fn=%f Fp=%f r12=%f x=%f y=%f z=%f dqr=%f dqx=%f dqy=%f dqz=%f\n", 
            n1, n2, s[0], s[1]*2.0, s[2]*2.0, s[3]*2.0, s[4]*2.0, fnp, fn, Fp, d12, r12[0], r12[1], r12[2], tmp, tmpx, tmpy, tmpz);
   }
@@ -402,7 +389,7 @@ static __device__ __forceinline__ void get_f12_4body(
               C4B[4] *(ds1_r * s[2] * s[4] + s[1] * ds2_r * s[4] + s[1] * s[2] * ds4_r);
   f12[2] += Fp * tmpz;
 
-  if (n1==0 and n2!=300){
+  if (n1==0 and n2==0){
     printf("\t4bL=2 n1=%d n2=%d s0=%f s1=%f s2=%f s3=%f s4=%f fnp=%f fn=%f Fp=%f r12=%f x=%f y=%f z=%f dqr=%f dqx=%f dqy=%f dqz=%f\n", 
             n1, n2, s[0], s[1], s[2], s[3], s[4], fnp, fn, Fp, d12, r12[0], r12[1], r12[2], tmp, tmpx, tmpy, tmpz);
   }
@@ -456,7 +443,7 @@ static __device__ __forceinline__ void get_f12_5body(
   double tmpz = 4.0 * C5B[0] * s02 * s[0] * ds0_r + 2.0 * C5B[1] * s[0] * ds0_r * s12ms22;
   f12[2] += Fp * tmpz;
 
-  if (n1==0 and n2!=300){
+  if (n1==0 and n2==0){
     printf("\t5bL=2 n1=%d n2=%d s0=%f s1=%f s2=%f s3=%f s4=%f fnp=%f fn=%f Fp=%f r12=%f x=%f y=%f z=%f dqr=%f dqx=%f dqy=%f dqz=%f\n", 
             n1, n2, s[0], s[1], s[2], s[3], s[4], fnp, fn, Fp, d12, r12[0], r12[1], r12[2], tmp, tmpx, tmpy, tmpz);
   }
@@ -529,7 +516,7 @@ static __device__ __forceinline__ void get_f12_3(
   tmpz = tmpz * 2.0 * fn;
   f12[2] += Fp * tmpz;
 
-  if(n1==0 and n2!=300){
+  if(n1==0 and n2==0){
     printf("\tL=3 n1=%d n2=%d s0=%f s1=%f s2=%f s3=%f s4=%f s5=%f s6=%f fnp=%f fn=%f Fp=%f r12=%f x=%f y=%f z=%f dqr=%f dqx=%f dqy=%f dqz=%f\n", 
             n1, n2, s[0], s[1]*2.0, s[2]*2.0, s[3]*2.0, s[4]*2.0, s[5]*2.0, s[6]*2.0, fnp, fn, Fp, d12, r12[0], r12[1], r12[2], tmp, tmpx, tmpy, tmpz);
   }
@@ -614,7 +601,7 @@ static __device__ __forceinline__ void get_f12_4(
   tmpz = 2.0 * fn * tmpz;
   f12[2] += Fp * tmpz;
 
-  if(n1==0 and n2!=300){
+  if(n1==0 and n2==0){
     printf("\tL=4 n1=%d n2=%d s0=%f s1=%f s2=%f s3=%f s4=%f s5=%f s6=%f s7=%f s8=%f fnp=%f fn=%f Fp=%f r12=%f x=%f y=%f z=%f dqr=%f dqx=%f dqy=%f dqz=%f\n\n\n", 
             n1, n2, s[0], s[1]*2.0, s[2]*2.0, s[3]*2.0, s[4]*2.0, s[5]*2.0, s[6]*2.0, s[7]*2.0, s[8]*2.0, fnp, fn, Fp, r, x, y, z, tmp, tmpx, tmpy, tmpz);
   }
@@ -648,16 +635,12 @@ static __device__ __forceinline__ void accumulate_f12(
   // double gn12p = fnp;
   fnp = fnp * d12inv - fn * d12inv * d12inv;
   fn = fn * d12inv;
-
   double s1[3] = {
     sum_fxyz[n * NUM_OF_ABC + 0] * C3B[0],
     sum_fxyz[n * NUM_OF_ABC + 1] * C3B[1],
     sum_fxyz[n * NUM_OF_ABC + 2] * C3B[2]};
   get_f12_1(d12inv, fn, fnp, Fp[n*lmax_3], s1, r12, f12, n1, n2);
-  if (n1==0 and n2 == 2) {
-    printf("n1=0 n2=0 nmax=%d L=1 fn %f fnp Fp %f r12 %f x %f y %f z %f f12 %f %f %f %f \n", 
-            n, fn, fnp, Fp[n*lmax_3], d12, r12[0], r12[1], r12[2], f12[0], f12[1], f12[2], f12[3]);
-  }
+  // l = 2
   fnp = fnp * d12inv - fn * d12inv * d12inv;
   fn = fn * d12inv;
   double s2[5] = {
@@ -667,10 +650,6 @@ static __device__ __forceinline__ void accumulate_f12(
     sum_fxyz[n * NUM_OF_ABC + 6] * C3B[6],
     sum_fxyz[n * NUM_OF_ABC + 7] * C3B[7]};
   get_f12_2(d12, d12inv, fn, fnp, Fp[n*lmax_3+1], s2, r12, f12, n1, n2);
-  // if (n1==0 and n2 == 2) {
-  //   printf("n1=0 n2=0 nmax=%d L=2 fn %f fnp Fp %f r12 %f x %f y %f z %f f12 %f %f %f %f \n", 
-  //           n, fn, fnp, Fp[n*lmax_3+1], d12, r12[0], r12[1], r12[2], f12[0], f12[1], f12[2], f12[3]);
-  // }
   // l = 3
   fnp = fnp * d12inv - fn * d12inv * d12inv;
   fn = fn * d12inv;
@@ -683,10 +662,6 @@ static __device__ __forceinline__ void accumulate_f12(
     sum_fxyz[n * NUM_OF_ABC + 13] * C3B[13],
     sum_fxyz[n * NUM_OF_ABC + 14] * C3B[14]};
   get_f12_3(d12, d12inv, fn, fnp, Fp[n*lmax_3+2], s3, r12, f12, n1, n2);
-  // if (n1==0 and n2 == 2) {
-  //   printf("n1=0 n2=0 nmax=%d L=3 fn %f fnp Fp %f r12 %f x %f y %f z %f f12 %f %f %f %f \n", 
-  //           n, fn, fnp, Fp[n*lmax_3+2], d12, r12[0], r12[1], r12[2], f12[0], f12[1], f12[2], f12[3]);
-  // }
   // l = 4
   fnp = fnp * d12inv - fn * d12inv * d12inv;
   fn = fn * d12inv;
@@ -702,11 +677,6 @@ static __device__ __forceinline__ void accumulate_f12(
     sum_fxyz[n * NUM_OF_ABC + 23] * C3B[23]};
   get_f12_4(
     r12[0], r12[1], r12[2], d12, d12inv, fn, fnp, Fp[n*lmax_3+3], s4, f12, n1, n2);
-  // if (n1==0 and n2 == 2) {
-  //   printf("n1=0 n2=0 nmax=%d L=4 fn %f fnp Fp %f r12 %f x %f y %f z %f f12 %f %f %f %f \n", 
-  //           n, fn, fnp, Fp[n*lmax_3+3], d12, r12[0], r12[1], r12[2], f12[0], f12[1], f12[2], f12[3]);
-  // }
-  // fp * 2Clm * Snlm * sumover(1/rij*blm*fk_rij) = dE/d_C_nk_iJ
 
   for(int kk=0; kk < n_base_angular; ++kk) {
     // l = 1
@@ -746,11 +716,6 @@ static __device__ __forceinline__ void accumulate_f12(
     tmp1 = tmp1 * 2.0 * fn12[kk];
     int dc_id = dc_start_idx + type_j * n_max_angular * n_base_angular + n*n_base_angular + kk;
     dfeat_c3[dc_id] += tmp1;
-
-    // if (n1==0) {
-    //   printf("\tn1=0 n2=%d t2 %d n %d n_base %d Fp %f %f %f %f fn12[%d]=%f dc_start_idx %d dfeat_c3[%d]=%f \n", 
-    //     n2, type_j, n, kk, Fp[n*lmax_3], Fp[n*lmax_3+1], Fp[n*lmax_3+2], Fp[n*lmax_3+3], kk, fn12[kk], dc_start_idx, dc_id, dfeat_c3[dc_id]);            
-    // }
   }
 }
 

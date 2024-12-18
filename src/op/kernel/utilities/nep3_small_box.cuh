@@ -116,9 +116,6 @@ static __global__ void find_descriptor_small_box(
         double gn12 = 0.0;
         for (int k = 0; k < basis_size_radial; ++k) {
           int c_index = c_I_J_idx + n * basis_size_radial + k;
-          // if(n1 == 0) {
-          //     printf("n1=0, i1=%d n2=%d t1=%d t2=%d 2b nmax=%d nbase=%d c_IJ_idx=%d rij=%f n=%d k=%d c_idx=%d c=%f\n", i1, n2, t1, t2, n_max_radial, basis_size_radial,c2_start_idx, d12, n, k, c_index, coeff2[c_index]);
-          // }
           gn12 += fn12[k] * coeff2[c_index];
         }
         // 2b feats
@@ -147,9 +144,6 @@ static __global__ void find_descriptor_small_box(
         int c_I_J_idx = c3_start_idx + t2 * n_max_angular * basis_size_angular;
         for (int k = 0; k < basis_size_angular; ++k) {
           int c_index = c_I_J_idx + n * basis_size_angular + k;
-          // if(n1 == 0) {
-          //     printf("n1=0, i1=%d n2=%d t1=%d t2=%d 3b nmax=%d nbase=%d c_IJ_idx=%d rij=%f %f %f n=%d k=%d c_idx=%d c=%f\n", i1, n2, t1, t2, n_max_angular, basis_size_angular,c_I_J_idx, d12, r12[0], r12[1], n, k, c_index, coeff3[c_index]);
-          // }
           gn12 += fn12[k] * coeff3[c_index];
         }
         accumulate_s(d12, r12[0], r12[1], r12[2], gn12, s);
@@ -229,10 +223,6 @@ static __global__ void find_force_radial_small_box(
           int c_index = c_I_J_idx + n * basis_size_radial + k;
           gnp12 += fnp12[k] * coeff2[c_index];
           dfeat_c2[dc_index + n * basis_size_radial + k] += grad_output[de_start_idx + n] * fn12[k]; 
-          // dfeat_rij += fnp12[k] * coeff2[c_index];
-          // if(n1 == 0) {
-          //   printf("n1=0, i1=%d n2=%d t1=%d t2=%d 2b nmax=%d nbase=%d c_IJ_idx=%d rij=%f n=%d k=%d c_idx=%d c=%f rij=%f dfeat_rij=%f autograd_q_n=%f\n", i1, n2, t1, t2, n_max_radial, basis_size_radial,c_I_J_idx, d12, n, k, c_index, coeff2[c_index], d12, dfeat_rij, grad_output[de_start_idx + n]);
-          // }
         }
         grad_d12_radial[rij_idx] += gnp12*grad_output[de_start_idx + n];
       }
@@ -335,11 +325,6 @@ static __global__ void find_force_angular_small_box(
       int c_I_J_idx = c3_start_idx + t2 * n_max_angular * basis_size_angular;
       double s[NUM_OF_ABC] = {0.0};
       accumulate_blm_rij(d12, r12[0], r12[1], r12[2], s);
-      // if (n1 == 0) {
-      //   for (int kkk = 0; kkk < 24; ++kkk){
-      //     printf("n1=0 i1=%d d12=%f r12=%f %f %f s[%d]=%f\n", i1, d12, r12[0], r12[1], r12[2], kkk, s[kkk]);
-      //   }
-      // }
       for (int n = 0; n < n_max_angular; ++n) {
         double gn12 = 0.0;
         double gnp12 = 0.0;
@@ -347,16 +332,7 @@ static __global__ void find_force_angular_small_box(
           int c_index = c_I_J_idx + n * basis_size_angular + k;
           gn12 += fn12[k] * coeff3[c_index];
           gnp12 += fnp12[k] * coeff3[c_index];
-          // if(n1 == 0) {
-          //   printf("n1=0, i1=%d n2=%d t1=%d t2=%d 3b nmax=%d nbase=%d c_IJ_idx=%d rij=%f %f %f n=%d k=%d c_idx=%d c=%f\n",
-          //     i1, n2, t1, t2, n_max_angular, basis_size_angular,c_I_J_idx, d12, r12[0], r12[1], n, k, c_index, coeff3[c_index]);
-          // }
         }
-
-        // if(n1 == 0) {
-        //   printf("n1=0 i1=%d n2=%d t1=%d t2=%d n=%d ", i1, n2, t1, t2, n);
-        // }
-
         if (L_max5 > 0) {
           accumulate_f12_with_5body(
             n, d12, r12, gn12, gnp12, Fp, sum_fxyz,
@@ -376,9 +352,6 @@ static __global__ void find_force_angular_small_box(
               t2, num_types, L_max3, 
               n_max_angular, basis_size_angular, dc_start_idx, n1, i1);
         }
-        // if(n1 == 0) {
-        //   printf("\n");
-        // }
       }
       // copy f12 to dfeat_3rij
       grad_d12_angular[rij_idx]  += f12[3];

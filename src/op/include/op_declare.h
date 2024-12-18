@@ -69,6 +69,7 @@ void torch_launch_calculate_nepfeat(
                         torch::Tensor &feat_2b,
                         torch::Tensor &dfeat_c2,
                         torch::Tensor &dfeat_2b,
+                        torch::Tensor &dfeat_2b_noc,
                         int64_t batch_size,
                         int64_t natoms,
                         int64_t neigh_num,
@@ -91,7 +92,6 @@ void torch_launch_calculate_nepfeat_grad(
                         torch::Tensor &grad_coeff2,
                         torch::Tensor &grad_d12_radial
 );
-
 
 void torch_launch_calculate_nepfeatmb(
                         const torch::Tensor &coeff2,
