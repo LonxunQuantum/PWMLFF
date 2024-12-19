@@ -171,6 +171,7 @@ class CalculateNepFeatGrad : public torch::autograd::Function<CalculateNepFeatGr
             at::Tensor grad_input,
             at::Tensor coeff2,
             at::Tensor d12_radial,
+            at::Tensor NL_radial,
             at::Tensor dfeat_c2,
             at::Tensor dfeat_2b,
             at::Tensor dfeat_2b_noc,

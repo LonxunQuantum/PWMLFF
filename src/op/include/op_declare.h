@@ -78,6 +78,7 @@ void torch_launch_calculate_nepfeat(
                         int64_t n_types
 );
 
+
 void torch_launch_calculate_nepfeat_grad(
                         const torch::Tensor &grad_output,
                         const torch::Tensor &dfeat_c2,
@@ -91,6 +92,31 @@ void torch_launch_calculate_nepfeat_grad(
                         int64_t n_types,
                         torch::Tensor &grad_coeff2,
                         torch::Tensor &grad_d12_radial
+);
+
+void torch_launch_calculate_nepfeat_secondgradout(
+                        const torch::Tensor &grad_second,
+                        const torch::Tensor &dfeat_b,
+                        const int64_t batch_size, 
+                        const int64_t atom_nums, 
+                        const int64_t maxneighs, 
+                        const int64_t n_max, 
+                        torch::Tensor &gradsecond_gradout
+);
+
+void torch_launch_calculate_nepfeat_secondgradout_c2(
+                        const torch::Tensor &grad_second,
+                        const torch::Tensor &de_feat,
+                        const torch::Tensor &dfeat_2b_noc,
+                        const torch::Tensor &atom_map,
+                        const torch::Tensor &NL_radial,
+                        const int64_t batch_size, 
+                        const int64_t atom_nums, 
+                        const int64_t maxneighs, 
+                        const int64_t n_max_2b, 
+                        const int64_t n_base_2b,
+                        const int64_t atom_types,
+                        torch::Tensor &gradsecond_c2
 );
 
 void torch_launch_calculate_nepfeatmb(

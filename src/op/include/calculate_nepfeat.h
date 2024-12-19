@@ -32,3 +32,30 @@ void launch_calculate_nepfeat_grad(
     const int n_types, 
     const int device
 );
+
+void launch_calculate_nepfeat_secondgradout(
+    const double * grad_second,
+    const double * dfeat_b,
+    double * gradsecond_out,
+    const int batch_size, 
+    const int atom_nums, 
+    const int maxneighs, 
+    const int n_max, 
+    const int device
+);
+
+void launch_calculate_nepfeat_secondgradout_c2(
+    const double * grad_second,
+    const double * de_feat,
+    const double * dfeat_2b_noc,
+    const int * atom_map,
+    const int * NL_radial,
+    double * gradsecond_c2,
+    const int batch_size, 
+    const int atom_nums, 
+    const int maxneighs, 
+    const int n_max_2b, 
+    const int n_base_2b, 
+    const int atom_types, 
+    const int device
+);

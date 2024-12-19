@@ -63,3 +63,52 @@ void torch_launch_calculate_nepfeat_grad(const torch::Tensor &grad_output,
         device_id
     );
 }
+
+
+void torch_launch_calculate_nepfeat_secondgradout(
+                        const torch::Tensor &grad_second,
+                        const torch::Tensor &dfeat_b,
+                        const int64_t batch_size, 
+                        const int64_t atom_nums, 
+                        const int64_t maxneighs, 
+                        const int64_t n_max, 
+                        torch::Tensor &gradsecond_gradout)
+{
+    auto dtype = dfeat_b.dtype();
+    int device_id = dfeat_b.device().index();
+    launch_calculate_nepfeat_secondgradout(
+        (const double *) grad_second.data_ptr(),
+        (const double *) dfeat_b.data_ptr(),
+        (double *) gradsecond_gradout.data_ptr(),
+        batch_size, atom_nums, maxneighs, n_max, device_id
+    );
+}
+
+
+void torch_launch_calculate_nepfeat_secondgradout_c2(
+                        const torch::Tensor &grad_second,
+                        const torch::Tensor &de_feat,
+                        const torch::Tensor &dfeat_2b_noc,
+                        const torch::Tensor &atom_map,
+                        const torch::Tensor &NL_radial,
+                        const int64_t batch_size, 
+                        const int64_t atom_nums, 
+                        const int64_t maxneighs, 
+                        const int64_t n_max_2b, 
+                        const int64_t n_base_2b,
+                        const int64_t atom_types, 
+                        torch::Tensor &gradsecond_c2
+)
+{
+    auto dtype = de_feat.dtype();
+    int device_id = de_feat.device().index();
+    launch_calculate_nepfeat_secondgradout_c2(
+        (const double *) grad_second.data_ptr(),
+        (const double *) de_feat.data_ptr(),
+        (const double *) dfeat_2b_noc.data_ptr(),
+        (const int *) atom_map.data_ptr(),
+        (const int *) NL_radial.data_ptr(),
+        (double *) gradsecond_c2.data_ptr(),
+        batch_size, atom_nums, maxneighs, n_max_2b, n_base_2b, atom_types, device_id
+    );
+}
