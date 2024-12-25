@@ -34,7 +34,7 @@ class InputParam(object):
         self.model_num = get_parameter("model_num", json_input, 1)
         self.recover_train = get_parameter("recover_train", json_input, True)
         self.max_neigh_num = get_parameter("max_neigh_num", json_input, 100)
-        
+        self.train_2b = get_parameter("train_2b", json_input, True)
         self.profiling = get_parameter("profiling", json_input, False)#not realized
 
         self.set_feature_params(json_input)

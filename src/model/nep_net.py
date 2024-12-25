@@ -101,7 +101,7 @@ class NEP(nn.Module):
         self.atom_type = input_param.atom_type
         self.ntypes = len(input_param.atom_type)
         self.ntypes_sq = self.ntypes * self.ntypes
-
+        self.train_2b = input_param.train_2b
         self.cutoff_radial  = float(nep_param.cutoff[0])
         self.cutoff_angular = float(nep_param.cutoff[1])
         self.rcinv_radial   = 1.0/self.cutoff_radial
@@ -118,15 +118,21 @@ class NEP(nn.Module):
         self.l_max_4b = nep_param.l_max[1]
         self.l_max_5b = nep_param.l_max[2]
         # feature nums
-        self.two_feat_num   = self.n_max_radial + 1
+        if self.train_2b:
+            self.two_feat_num   = self.n_max_radial + 1
+        else:
+            self.two_feat_num  = 0
         self.three_feat_num = (self.n_max_angular + 1) * self.l_max_3b
         self.four_feat_num  = (self.n_max_angular + 1) if self.l_max_4b > 0 else 0
         self.five_feat_num  = (self.n_max_angular + 1) if self.l_max_5b > 0 else 0
+        self.multi_feat_num = self.three_feat_num + self.four_feat_num + self.five_feat_num
         if self.l_max_3b > 0:
-            self.feature_nums   = self.two_feat_num + self.three_feat_num + self.four_feat_num + self.five_feat_num
+            self.feature_nums   = self.two_feat_num + self.multi_feat_num
         # c param nums, the 4-body and 5-body use the same c param of 3-body, their N_base_a the same
         else:
             self.feature_nums   = self.two_feat_num
+        if self.feature_nums == 0:
+            raise Exception("ERROR! The two body features and multi body features are both zero, please check the param!")
         self.two_c_num   = self.ntypes_sq * (self.n_max_radial+1)  * (self.n_base_radial+1)
         self.three_c_num = self.ntypes_sq * (self.n_max_angular+1) * (self.n_base_angular+1)
         self.c_num       = self.two_c_num + self.three_c_num
@@ -326,12 +332,51 @@ class NEP(nn.Module):
         Ri_d_angular = ImageDR_angular_d
         Ri_angular.requires_grad_()
         
-        # j_type_map = torch.tensor(list_neigh_type, dtype=list_neigh_type.dtype, device=list_neigh_type.device, requires_grad=False)
-        j_type_map = list_neigh_type.clone().detach().requires_grad_(False)#可以在调用前做复制，从forward移出去，只有训练需要
-        j_type_map_angular = list_neigh_type_angular.clone().detach().requires_grad_(False)
-        # j_type = list_neigh - 1
-        # neigh_j_types = torch.where(j_type != -1, Imagetype_map[j_type], -1).requires_grad_(False)
-        feats = self.calculate_qn(doub_natoms_sum, batch_size, max_neighbor_type, Imagetype_map, j_type_map, Ri, j_type_map_angular, Ri_angular, device, dtype)
+        # _c_param_2 = self.c_param_2.permute(2, 3, 0, 1)
+        # feats = CalcOps.calculateNepFeat(self.c_param_2, Ri, list_neigh, Imagetype_map, self.cutoff_radial)[0]
+        # c_param_2 = self.c_param_2.permute(2, 3, 0, 1)
+        # c_param_3 = self.c_param_3.permute(2, 3, 0, 1)
+        # Ri = Ri.reshape(-1, Ri.shape[2], 4)
+        # Ri_angular = Ri_angular.reshape(-1, Ri_angular.shape[2], 4)
+        # list_neigh = list_neigh.reshape(-1, list_neigh.shape[2])
+        
+        if device.type == "cpu":
+            j_type_map = list_neigh_type.clone().detach().requires_grad_(False)#可以在调用前做复制，从forward移出去，只有训练需要
+            j_type_map_angular = list_neigh_type_angular.clone().detach().requires_grad_(False)
+            feats2 = self.calculate_qn(doub_natoms_sum, batch_size, max_neighbor_type, Imagetype_map, j_type_map, Ri, j_type_map_angular, Ri_angular, device, dtype)
+        else:
+            # feats = CalcOps.calculateNepFeatmb(self.c_param_2, self.c_param_3,
+            #                             Ri, Ri_angular, list_neigh, Imagetype_map,
+            #                                 self.cutoff_radial, self.cutoff_angular,
+            #                                     self.l_max_3b, self.l_max_4b, self.l_max_5b)[0]
+            if self.train_2b:
+                feat_2b = torch.zeros(batch_size, natoms_sum, self.two_feat_num, dtype=dtype, device=device, requires_grad=True)
+                feat_2b = CalcOps.calculateNepFeat(self.c_param_2, 
+                                                Ri, 
+                                                list_neigh, 
+                                                Imagetype_map, 
+                                                feat_2b, 
+                                                self.cutoff_radial,
+                                                self.multi_feat_num)[0]
+            if self.l_max_3b > 0:
+                feat_3b = torch.zeros(batch_size, natoms_sum, self.multi_feat_num, dtype=dtype, device=device, requires_grad=True)
+                feat_3b = CalcOps.calculateNepMbFeat(self.c_param_3, 
+                                                        Ri_angular, 
+                                                        list_neigh_angular, 
+                                                        Imagetype_map, 
+                                                        feat_3b, 
+                                                        self.two_feat_num,
+                                                        self.l_max_3b, 
+                                                        self.l_max_4b, 
+                                                        self.l_max_5b, 
+                                                        self.cutoff_angular)[0]
+
+                if self.train_2b:
+                    feats = torch.concat([feat_2b, feat_3b], dim=-1)
+                else:
+                    feats = feat_3b
+            else:
+                feats = feat_2b
 
         if self.q_scaler is None:
             if batch_size * natoms_sum < 2:
@@ -368,11 +413,50 @@ class NEP(nn.Module):
         # t2 = time.time()
         # check_cuda_memory(-1, -1, "FORWAR E_zbl")
         Etot = torch.sum(Ei, 1).unsqueeze(1)
-        if False:   ##is_calc_f is False
+
+        if  is_calc_f is False: #False: # is_calc_f is False:   ##is_calc_f is False
             Force, Virial = None, None
             # print("==single time: tall {} ei {} zbl ei {}".format(t2-t0, t1-t0, t2-t1))
         else:
             # t4 = time.time()
+            if self.train_2b:
+                mask: List[Optional[torch.Tensor]] = [torch.ones_like(Etot)]
+                dE = torch.autograd.grad([Etot], [Ri], grad_outputs=mask, retain_graph=True, create_graph=True)[0]
+
+            if self.l_max_3b > 0:
+                mask_angular: List[Optional[torch.Tensor]] = [torch.ones_like(Etot)]
+                dE_angular = torch.autograd.grad([Etot], [Ri_angular], grad_outputs=mask_angular, retain_graph=True, create_graph=True)[0]
+            if self.train_2b:
+                Ri_d = Ri_d.view(batch_size, natoms_sum, -1, 3)
+                dE_tmp = dE.view(batch_size, natoms_sum, 1, -1)
+                Force = -1 * torch.matmul(dE_tmp, Ri_d).squeeze(-2)
+                ImageDR = Ri[:,:,:,1:].clone()
+                nghost_tensor = torch.tensor(nghost, device=device, dtype=torch.int64)
+                tmp_list_neigh = torch.unsqueeze(list_neigh,2)
+                tmp_list_neigh = (tmp_list_neigh - 1).type(torch.int)
+                Force = CalcOps.calculateForce(tmp_list_neigh, dE, Ri_d, Force, nghost_tensor)[0]
+                Virial = CalcOps.calculateVirial(tmp_list_neigh, dE, ImageDR, Ri_d, nghost_tensor)[0]
+            if self.l_max_3b > 0:
+                Ri_d_angular = Ri_d_angular.view(batch_size, natoms_sum, -1, 3)
+                dE_angular = dE_angular.view(batch_size, natoms_sum, 1, -1)
+                Force_angular = -1 * torch.matmul(dE_angular, Ri_d_angular).squeeze(-2)
+                ImageDR_angular = Ri_angular[:,:,:,1:].clone()
+                nghost_tensor = torch.tensor(nghost, device=device, dtype=torch.int64)
+                tmp_list_neigh_angular = torch.unsqueeze(list_neigh_angular,2)
+                tmp_list_neigh_angular = (tmp_list_neigh_angular - 1).type(torch.int)
+                Force_angular = CalcOps.calculateForce(tmp_list_neigh_angular, dE_angular, Ri_d_angular, Force_angular, nghost_tensor)[0]
+                Virial_angular = CalcOps.calculateVirial(tmp_list_neigh_angular, dE_angular, ImageDR_angular, Ri_d_angular, nghost_tensor)[0]
+
+                if self.train_2b:
+                    Force = -(Force + Force_angular)
+                    Virial = -(Virial + Virial_angular)
+                else:
+                    Force = -(Force_angular)
+                    Virial = -(Virial_angular)
+            else:
+                Force = -Force
+                Virial = -Virial
+            """
             Force, Virial = self.calculate_force_virial(Ri, Ri_d, 
                                                         Ri_angular, Ri_d_angular, 
                                                         ri_zbl, ri_d_zbl,
@@ -381,15 +465,12 @@ class NEP(nn.Module):
                                                         list_neigh_angular, 
                                                         neigh_zbl,
                                                         nghost, device, dtype)
+            """
             # t3 = time.time()
             # print("==single time: tall {} ei {} zbl ei {} force {}".format(t3-t0, t1-t0, t2-t1, t3-t2))
             # ==single time: t1 0.0015997886657714844 t2 0.0016467571258544922 t3 0.03717923164367676 t4 2.8371810913085938e-05 t5 0.0011038780212402344 t6 4.267692565917969e-05 t7 0.08994221687316895
             # print("==single time: t1 {} t2 {} t3 {} t4 {} t5 {} t6 {} t7 {}".format(t1-t0, t2-t1, t3-t2, t4-t3, t5-t4, t6-t5, t7-t6))
             # check_cuda_memory(-1, -1, "FORWAR calculate_force")
-        # del Ri, Ri_d, feats
-        # torch.cuda.empty_cache()
-        # tlast = time.time()
-        # print("====", tlast - t0, "====")
         return Etot, Ei, Force, Egroup, Virial
 
     def calculate_Ri(self,
@@ -490,9 +571,12 @@ class NEP(nn.Module):
         # t7 = time.time()
         mask: List[Optional[torch.Tensor]] = [torch.ones_like(Etot)]
         dE = torch.autograd.grad([Etot], [Ri], grad_outputs=mask, retain_graph=True, create_graph=True)[0]
+        # dE = torch.autograd.grad(Etot, Ri, grad_outputs=mask, retain_graph=True, create_graph=True, allow_unused=True)[0]
+        # dE = dE.clone().detach().requires_grad_(True)  # Ensure dE has requires_grad
+
         if self.l_max_3b > 0:
             mask_angular: List[Optional[torch.Tensor]] = [torch.ones_like(Etot)]
-            dE_angular = torch.autograd.grad([Etot], [Ri_angular], grad_outputs=mask_angular, retain_graph=True, create_graph=True)[0]
+            dE_angular = torch.autograd.grad([Etot], [Ri_angular], grad_outputs=mask_angular, retain_graph=True, create_graph=True, allow_unused=True)[0]
         if Ri_zbl is not None:
             mask_zbl: List[Optional[torch.Tensor]] = [torch.ones_like(Etot)]
             dE_zbl = torch.autograd.grad([Etot], [Ri_zbl], grad_outputs=mask_zbl, retain_graph=True, create_graph=True)[0]
@@ -527,7 +611,7 @@ class NEP(nn.Module):
                 # testyy = (Ri[batch_idx, :, :, 2] * dE_Rid[batch_idx, :, :, 1]).sum(dim=1)
                 Virial[batch_idx, [3, 6, 7]] = Virial[batch_idx, [1, 2, 5]]
             Force = Force[:, 1:, :]
-            if self.l_max[0] > 0:
+            if self.l_max_3b > 0:
                 dE_angular = torch.unsqueeze(dE_angular, dim=-1)
                 dE_Rid_angular = torch.mul(dE_angular, Ri_d_angular).sum(dim=-2)
                 Force_angular = torch.zeros((batch_size, natoms_sum + nghost + 1, 3), device=device, dtype=dtype)
@@ -567,8 +651,8 @@ class NEP(nn.Module):
 
         else:
             Ri_d = Ri_d.view(batch_size, natoms_sum, -1, 3)
-            dE = dE.view(batch_size, natoms_sum, 1, -1)
-            Force = -1 * torch.matmul(dE, Ri_d).squeeze(-2)
+            dE_tmp = dE.view(batch_size, natoms_sum, 1, -1)
+            Force = -1 * torch.matmul(dE_tmp, Ri_d).squeeze(-2)
             ImageDR = Ri[:,:,:,1:].clone()
             nghost_tensor = torch.tensor(nghost, device=device, dtype=torch.int64)
             list_neigh = torch.unsqueeze(list_neigh,2)
@@ -634,6 +718,7 @@ class NEP(nn.Module):
         # check_cuda_memory(-1, -1, "FORWAR calculate_qn 2b end")
         # R = Ri_angular[:, :, :, 0]
         # xyz = Ri_angular[:, :, :, 1:]
+
         if self.l_max_3b > 0:
             multi_feat = self.cal_feat_multi_body(Ri_angular[:, :, :, 0], Ri_angular[:, :, :, 1:], Imagetype_map, 
                                             c3,
@@ -734,6 +819,10 @@ class NEP(nn.Module):
         # check_cuda_memory(-1, -1, "FORWAR calculate_qn 2b fk_res")
         feat_2b = (c2 * fk_res).sum(-1).sum(-1) # sum n_base_r and sum j
         # check_cuda_memory(-1, -1, "FORWAR calculate_qn 2b feat_2b")
+        # type 1 [0,0,:25]  type 2 list [0,0,25:78]
+        # mask_q0000: List[Optional[torch.Tensor]] = [torch.ones_like(feat_2b[0,0,0])]
+        # dfeat_c2 = torch.autograd.grad([feat_2b[0,0,0]], [self.c_param_2], grad_outputs=mask_q0000, retain_graph=True, create_graph=True)[0]
+
         return feat_2b # 检查下dp 的feature 和dfeature 维度,本应该对每一个feature，都有对应的rij的导数
 
     '''
@@ -817,14 +906,7 @@ class NEP(nn.Module):
         else:
             feat_5b = None
         # check_cuda_memory(-1, -1, "FORWAR calculate_qn 5b end")
-        
-        # if feat_5b is not None:
-        #     return torch.concat([qnl.transpose(3,2), feat_4b.unsqueeze(-2), feat_5b.unsqueeze(-2)], dim = -2).view(qnl.shape[0], qnl.shape[1], -1)
-        # elif feat_4b is not None:
-        #     return torch.concat([qnl.transpose(3,2), feat_4b.unsqueeze(-2)], dim = -2).view(qnl.shape[0], qnl.shape[1], -1)
-        # else:
-        #     return qnl.transpose(3,2).view(qnl.shape[0], qnl.shape[1], -1) # return 3b_feature
- 
+
         if feat_5b is not None:
             feat_5b = feat_5b.unsqueeze(-2)
         if feat_4b is not None:

@@ -90,6 +90,7 @@ void torch_launch_calculate_nepfeat_grad(
                         int64_t n_max_2b, 
                         int64_t n_base_2b,
                         int64_t n_types,
+                        int64_t multi_feat_num,
                         torch::Tensor &grad_coeff2,
                         torch::Tensor &grad_d12_radial
 );
@@ -116,9 +117,90 @@ void torch_launch_calculate_nepfeat_secondgradout_c2(
                         const int64_t n_max_2b, 
                         const int64_t n_base_2b,
                         const int64_t atom_types,
+                        const int64_t multi_feat_num,
                         torch::Tensor &gradsecond_c2
 );
 
+
+void torch_launch_calculate_nepmbfeat(
+                        const torch::Tensor &coeff3,
+                        const torch::Tensor &d12,
+                        const torch::Tensor &NL,
+                        const torch::Tensor &atom_map,
+                        torch::Tensor &feat_3b,
+                        torch::Tensor &dfeat_c3,
+                        torch::Tensor &dfeat_3b,
+                        torch::Tensor &dfeat_3b_noc,
+                        torch::Tensor &sum_fxyz,
+                        const double rcut,
+                        int64_t batch_size,
+                        int64_t natoms,
+                        int64_t neigh_num,
+                        int64_t n_max_3b, 
+                        int64_t n_base_3b,
+                        int64_t lmax_3,
+                        int64_t lmax_4,
+                        int64_t lmax_5,
+                        int64_t n_types
+);
+
+void torch_launch_calculate_nepmbfeat_grad(
+                        const torch::Tensor &grad_output,
+                        const torch::Tensor &coeff3,
+                        const torch::Tensor &d12,
+                        const torch::Tensor &NL,                        
+                        const torch::Tensor &atom_map,
+                        const double rcut_angular,
+                        int64_t batch_size, 
+                        int64_t atom_nums, 
+                        int64_t maxneighs, 
+                        int64_t feat_2b_num, 
+                        int64_t n_max_3b, 
+                        int64_t n_base_3b,
+                        int64_t lmax_3,
+                        int64_t lmax_4,
+                        int64_t lmax_5,
+                        int64_t n_types,
+                        torch::Tensor &sum_fxyz,
+                        torch::Tensor &grad_coeff3,
+                        torch::Tensor &grad_d12_3b,
+                        torch::Tensor &dfeat_dc,
+                        torch::Tensor &dfeat_drij
+);
+
+void torch_launch_calculate_nepmbfeat_secondgradout(
+                        const torch::Tensor &grad_second,
+                        const torch::Tensor &dfeat_b,
+                        const int64_t batch_size, 
+                        const int64_t atom_nums, 
+                        const int64_t maxneighs, 
+                        const int64_t feat_mb_nums, 
+                        torch::Tensor &gradsecond_gradout
+);
+
+void torch_launch_calculate_nepmbfeat_secondgradout_c3(
+                        const torch::Tensor &grad_second,
+                        const torch::Tensor &d12,
+                        const torch::Tensor &NL,
+                        const torch::Tensor &de_feat,
+                        const torch::Tensor &sum_fxyz,
+                        const torch::Tensor &atom_map,
+                        const double rcut_angular,
+                        const int64_t batch_size, 
+                        const int64_t atom_nums, 
+                        const int64_t maxneighs, 
+                        const int64_t n_max_3b, 
+                        const int64_t n_base_3b,
+                        const int64_t atom_types,
+                        const int64_t lmax_3,
+                        const int64_t lmax_4,
+                        const int64_t lmax_5,
+                        const int64_t feat_2b_num,
+                        const int64_t multi_feat_num,
+                        torch::Tensor &gradsecond_c3
+);
+
+//abandon
 void torch_launch_calculate_nepfeatmb(
                         const torch::Tensor &coeff2,
                         const torch::Tensor &coeff3,

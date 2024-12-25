@@ -56,7 +56,8 @@ __global__ void compute_gradsecond_c2(
     int atom_nums,
     int maxneighs,
     int n_max_2b,
-    int n_base_2b)
+    int n_base_2b,
+    int multi_feat_num)
 {
     // 计算总元素数目
     int total_elements = batch_size * atom_nums * maxneighs;
@@ -69,7 +70,7 @@ __global__ void compute_gradsecond_c2(
         int atom_idx = remaining / maxneighs;
         int maxneigh_idx = remaining % maxneighs;
         
-        int dfeat_start = batch_idx * atom_nums * n_max_2b + atom_idx * n_max_2b;
+        int dfeat_start = batch_idx * atom_nums * (n_max_2b + multi_feat_num) + atom_idx * (n_max_2b + multi_feat_num);
         int dnoc_start = (batch_idx * atom_nums + atom_idx) * maxneighs * n_base_2b * 4 + maxneigh_idx * n_base_2b * 4;
         int grad2_start = (batch_idx * atom_nums + atom_idx) * maxneighs * 4 + maxneigh_idx * 4;
         int tmp_grad_start = (batch_idx * atom_nums + atom_idx) * maxneighs * n_max_2b * n_base_2b + maxneigh_idx * n_max_2b * n_base_2b;
@@ -196,7 +197,8 @@ void launch_calculate_nepfeat_secondgradout_c2(
     const int maxneighs, 
     const int n_max_2b, 
     const int n_base_2b, 
-    const int atom_types, 
+    const int atom_types,
+    const int multi_feat_num, 
     const int device
 ) {
     cudaSetDevice(device);
@@ -214,7 +216,8 @@ void launch_calculate_nepfeat_secondgradout_c2(
         atom_nums, 
         maxneighs, 
         n_max_2b,
-        n_base_2b
+        n_base_2b,
+        multi_feat_num
         );
     cudaDeviceSynchronize();
 

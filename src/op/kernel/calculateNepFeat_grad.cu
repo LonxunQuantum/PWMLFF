@@ -28,7 +28,8 @@ __global__ void dfeat_2c_calc(
             int64_t n_max,
             int64_t n_base,
             int64_t n_types,
-            int64_t n_types_sq)
+            int64_t n_types_sq,
+            int64_t multi_feat_num)
 {  
     const uint batch_idx = blockIdx.x;
     const uint atom_idx = blockIdx.y;
@@ -39,7 +40,7 @@ __global__ void dfeat_2c_calc(
     n_type_idx >= n_types || n_base_idx >= n_base) return;
     const uint atom_type = atom_map[atom_idx];  // 获取原子类型
     // if (n_type_idx != atom_type) return; // 只累加对应的类型
-    const uint A_idx = batch_idx * atoms * n_max + atom_idx * n_max + n_max_idx;
+    const uint A_idx = batch_idx * atoms * (n_max + multi_feat_num) + atom_idx * (n_max + multi_feat_num) + n_max_idx;
     const uint B_idx = batch_idx * atoms * n_types * n_base + atom_idx * n_types * n_base + n_type_idx * n_base + n_base_idx;
     const uint C_idx = atom_type * n_max * n_types * n_base + n_max_idx * n_types * n_base + n_type_idx * n_base + n_base_idx;
     // 将 A 和 B 的元素相乘并累加到 C 中
@@ -65,7 +66,8 @@ __global__ void dfeat_2b_calc(
             int64_t batch_size,
             int64_t natoms,
             int64_t neigh_num,
-            int64_t n_max
+            int64_t n_max,
+            int64_t multi_feat_num
             )
 {  
     int index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -73,11 +75,17 @@ __global__ void dfeat_2b_calc(
         int batch_idx = index / (natoms * neigh_num);
         int atom_idx = (index % (natoms * neigh_num)) / neigh_num;
         int neigh_idx = index % neigh_num;
-
+        int grad_out_idx = batch_idx * natoms * (n_max + multi_feat_num) + atom_idx * (n_max + multi_feat_num);
         double sum = 0.0;
         // 对 n_max 维度加和，逐元素乘法并加和
         for (int i = 0; i < n_max; ++i) {
-            sum += grad_output[batch_idx * natoms * n_max + atom_idx * n_max + i] * 
+            // if ((atom_idx == 0 or atom_idx == 1) and (neigh_idx < 10)) {
+            //     printf("atom %d j %d grad_out[0][%d][%d] = %f dfeat_%d_drij = %f\n", atom_idx, neigh_idx, atom_idx, i,
+            //             grad_output[grad_out_idx + i],
+            //             i, dfeat_2b[batch_idx * natoms * neigh_num * n_max + atom_idx * neigh_num * n_max + neigh_idx * n_max + i]
+            //             );
+            // }
+            sum += grad_output[grad_out_idx + i] * 
                    dfeat_2b[batch_idx * natoms * neigh_num * n_max + atom_idx * neigh_num * n_max + neigh_idx * n_max + i];
         }
 
@@ -104,6 +112,7 @@ void launch_calculate_nepfeat_grad(
             const int n_max_2b, 
             const int n_base_2b,
             const int n_types, 
+            const int multi_feat_num,
             const int device
 ) {
     cudaSetDevice(device);
@@ -113,7 +122,7 @@ void launch_calculate_nepfeat_grad(
     // printf("dfeat_2c_calc\n");
     dfeat_2c_calc<<<blocks, threads>>>(
                 grad_output, dfeat_c2, atom_map, grad_coeff2, 
-                            batch_size, natoms, n_max_2b, n_base_2b, n_types, n_types_sq);
+                            batch_size, natoms, n_max_2b, n_base_2b, n_types, n_types_sq, multi_feat_num);
 
     // threads = dim3(neigh_num);
     // blocks = dim3(batch_size, natoms);
@@ -126,5 +135,5 @@ void launch_calculate_nepfeat_grad(
     int grid_size = (batch_size * natoms * neigh_num - 1) / BLOCK_SIZE + 1;
     dfeat_2b_calc<<<grid_size, BLOCK_SIZE>>>(
             grad_output, dfeat_2b, grad_d12_radial, 
-                        batch_size, natoms, neigh_num, n_max_2b);
+                        batch_size, natoms, neigh_num, n_max_2b, multi_feat_num);
 }

@@ -129,25 +129,6 @@ torch::autograd::variable_list calculateCompress_cpu(
     at::Tensor coefficient);
 
 // the following is the code nep feature
-// class CalculateNepFeatFuncs {
-//     public:
-//         static torch::autograd::variable_list forward(
-//             at::Tensor coeff2,
-//             at::Tensor d12_radial,
-//             at::Tensor NL_radial,
-//             at::Tensor atom_map,
-//             at::Tensor feats,
-//             double rcut_radial);
-
-//         static torch::autograd::variable_list backward(
-//             torch::autograd::variable_list grad_output,
-//             at::Tensor coeff2,
-//             at::Tensor d12_radial,
-//             at::Tensor dfeat_c2,
-//             at::Tensor dfeat_2b,
-//             at::Tensor atom_map);
-// };
-
 class CalculateNepFeat : public torch::autograd::Function<CalculateNepFeat> {
     public:
         static torch::autograd::variable_list forward(
@@ -157,7 +138,8 @@ class CalculateNepFeat : public torch::autograd::Function<CalculateNepFeat> {
             at::Tensor NL_radial,
             at::Tensor atom_map,
             at::Tensor feats,
-            double rcut_radial);
+            double rcut_radial,
+            int64_t multi_feat_num);
 
         static torch::autograd::variable_list backward(
             torch::autograd::AutogradContext *ctx,
@@ -175,7 +157,8 @@ class CalculateNepFeatGrad : public torch::autograd::Function<CalculateNepFeatGr
             at::Tensor dfeat_c2,
             at::Tensor dfeat_2b,
             at::Tensor dfeat_2b_noc,
-            at::Tensor atom_map);
+            at::Tensor atom_map,
+            int64_t multi_feat_num);
 
         static torch::autograd::variable_list backward(
             torch::autograd::AutogradContext *ctx,
@@ -188,7 +171,68 @@ torch::autograd::variable_list calculateNepFeat(
     at::Tensor NL_radial,
     at::Tensor atom_map,
     at::Tensor feats,
-    double rcut_radial);
+    double rcut_radial,
+    int64_t feat_multi_nums);
+
+
+// the following is the code nep multi feature
+class CalculateNepMbFeat : public torch::autograd::Function<CalculateNepMbFeat> {
+    public:
+        static torch::autograd::variable_list forward(
+            torch::autograd::AutogradContext *ctx,
+            at::Tensor coeff3,
+            at::Tensor d12,
+            at::Tensor NL,
+            at::Tensor atom_map,
+            at::Tensor feats,
+            int64_t feat_2b_num,
+            int64_t lmax_3,
+            int64_t lmax_4,
+            int64_t lmax_5,
+            double rcut_angluar);
+
+        static torch::autograd::variable_list backward(
+            torch::autograd::AutogradContext *ctx,
+            torch::autograd::variable_list grad_output);
+};
+
+class CalculateNepMbFeatGrad : public torch::autograd::Function<CalculateNepMbFeatGrad> {
+    public:
+        static torch::autograd::variable_list forward(
+            torch::autograd::AutogradContext *ctx,
+            at::Tensor grad_input,
+            at::Tensor coeff3,
+            at::Tensor d12,
+            at::Tensor NL,
+            at::Tensor dfeat_c3,
+            at::Tensor dfeat_3b,
+            at::Tensor dfeat_3b_noc,
+            at::Tensor sum_fxyz,
+            at::Tensor atom_map,
+            int64_t feat_2b_num,
+            int64_t lmax_3,
+            int64_t lmax_4,
+            int64_t lmax_5,
+            double rcut_angluar
+            );
+
+        static torch::autograd::variable_list backward(
+            torch::autograd::AutogradContext *ctx,
+            torch::autograd::variable_list grad_output);
+};
+
+torch::autograd::variable_list calculateNepMbFeat(
+    at::Tensor coeff3,
+    at::Tensor d12_angluar,
+    at::Tensor NL_angluar,
+    at::Tensor atom_map,
+    at::Tensor feats,
+    int64_t feat_2b_num,
+    int64_t lmax_3,
+    int64_t lmax_4,
+    int64_t lmax_5,
+    double rcut_angluar);
+
 
 // multi feature of nep
 class CalculateNepFeatmbFuncs {
