@@ -633,8 +633,10 @@ torch::autograd::variable_list CalculateNepMbFeat::forward(
         auto dfeat_3b = torch::zeros({batch_size, atom_nums, maxneighs, n_max}, d12.options()); // [i, j, n] dfeature/drij
         auto dfeat_3b_noc = torch::zeros({batch_size, atom_nums, maxneighs, n_base, 4}, d12.options()); // [i, j, n] dfeature/drij without c
         auto sum_fxyz = torch::zeros({batch_size, atom_nums, n_max * NUM_OF_ABC}, d12.options());
-
-        torch_launch_calculate_nepmbfeat(coeff3, d12, NL, atom_map, 
+        std::cout << "CalculateNepMbFeat:forward atom_map shape: " << atom_map.sizes() << std::endl;
+        std::cout << "CalculateNepMbFeat:forward NL shape: " << NL.sizes() << std::endl;
+        std::cout << "CalculateNepMbFeat:forward d12 shape: " << d12.sizes() << std::endl;
+        torch_launch_calculate_nepmbfeat(coeff3, d12, NL, atom_map,
                                 feats, dfeat_c3, dfeat_3b, dfeat_3b_noc, sum_fxyz,
                                     rcut_angular, batch_size, atom_nums, maxneighs, n_max, n_base, lmax_3, lmax_4, lmax_5, atom_types);
                      // 交换coeff2维度，方便在核函数中检索c下标
@@ -867,8 +869,6 @@ torch::autograd::variable_list calculateNepMbFeat(
     {
         return CalculateNepMbFeat::apply(coeff, d12, NL, atom_map, feats, feat_2b_num, lmax_3, lmax_4, lmax_5, rcut);
     }
-
-
 
 
 //abandon

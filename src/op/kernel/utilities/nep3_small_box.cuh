@@ -31,6 +31,7 @@ static __device__ __inline__ double atomicAdd(double* address, double val)
 }
 #endif
 
+//后面删除了nepmb的代码之后，将这部分移动到mbnepgrad下面
 static __global__ void aggregate_features(
     double* dfeat_c2,     // 输入张量，维度 [N, n_types, n_max_2b, n_base_2b]
     const int* atom_map,       // 原子类型映射，维度 [N]
