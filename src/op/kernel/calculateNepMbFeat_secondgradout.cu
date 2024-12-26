@@ -221,23 +221,23 @@ void launch_calculate_nepmbfeat_secondgradout_c3(
     int threads_per_block = 256;
     int num_blocks = (total_elements + threads_per_block - 1) / threads_per_block;
     // GPU_Vector<double> tmp_grad(batch_size * atom_nums * maxneighs * n_max_2b * n_base_2b, 0.0);
-    find_angular_gardc_small_box<<<num_blocks, threads_per_block>>>(
-        d12, 
-        NL,
-        atom_map,
-        batch_size, 
-        atom_nums, 
-        maxneighs, 
-        n_max_3b,
-        n_base_3b,
-        atom_types,
-        lmax_3,
-        lmax_4,
-        lmax_5,
-        feat_2b_num,
-        multi_feat_num
-        );
-    cudaDeviceSynchronize();
+    // find_angular_gardc_small_box<<<num_blocks, threads_per_block>>>(
+    //     d12, 
+    //     NL,
+    //     atom_map,
+    //     batch_size, 
+    //     atom_nums, 
+    //     maxneighs, 
+    //     n_max_3b,
+    //     n_base_3b,
+    //     atom_types,
+    //     lmax_3,
+    //     lmax_4,
+    //     lmax_5,
+    //     feat_2b_num,
+    //     multi_feat_num
+    //     );
+    // cudaDeviceSynchronize();
 
     // 检查下对 atom_type 的处理，是否复制了多分份？
     // 先搞定三体，再累加四体和五体

@@ -1,8 +1,8 @@
 #include "./utilities/common.cuh"
 #include "./utilities/error.cuh"
 #include "./utilities/gpu_vector.cuh"
-#include "./utilities/nep_utilities_mbgrad.cuh"
-#include "./utilities/nep3_small_box_mbgrad.cuh"
+#include "./utilities/nep_utilities.cuh"
+#include "./utilities/nep3_small_box.cuh"
 #include <iostream>
 
 void launch_calculate_nepmbfeat_grad(

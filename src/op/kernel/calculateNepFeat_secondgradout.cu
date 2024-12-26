@@ -156,6 +156,10 @@ __global__ void reduce_kernel(
     }
 }
 
+// grad_second dim is [batch, atoms, neighs, 4]
+// dfeat_b dim is [batch, atoms, neighs, n_max_2b], dfeat/drij  the x, y, z is 0.
+// do grad_second * dfeat_b
+// the out tensor gradsecond_gradout is [batch, atoms, n_max_2b]
 void launch_calculate_nepfeat_secondgradout(
     const double * grad_second,
     const double * dfeat_b,

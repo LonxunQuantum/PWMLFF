@@ -345,12 +345,12 @@ torch::autograd::variable_list CalculateNepFeatGrad::forward(
         int64_t atom_nums = dims_image[1];
         int64_t maxneighs = dims_image[2];
         // options() 集成dtype和device
-        auto grad_coeff2 = torch::zeros({atom_types, n_max_2b, atom_types, n_base_2b}, d12_radial.options());
+        auto grad_coeff2 = torch::zeros({atom_types, atom_types, n_max_2b, n_base_2b}, d12_radial.options());
         auto grad_d12_radial = torch::zeros({batch_size, atom_nums, maxneighs, 4}, d12_radial.options());
 
         torch_launch_calculate_nepfeat_grad(grad_input, dfeat_c2, dfeat_2b, atom_map, 
                      batch_size, atom_nums, maxneighs, n_max_2b, n_base_2b, atom_types, multi_feat_num, grad_coeff2, grad_d12_radial);
-        grad_coeff2 = grad_coeff2.permute({0, 2, 1, 3});
+        // grad_coeff2 = grad_coeff2.permute({0, 2, 1, 3});
         ctx->save_for_backward({coeff2, d12_radial, NL_radial, dfeat_c2, dfeat_2b, dfeat_2b_noc, grad_input, atom_map});
         ctx->saved_data["multi_feat_num"] = multi_feat_num;
         return {grad_coeff2, grad_d12_radial};
@@ -815,25 +815,25 @@ torch::autograd::variable_list CalculateNepMbFeatGrad::backward(
                                                         gradsecond_gradout);
 
         auto gradsecond_c3 = torch::zeros({atom_types, atom_types, n_max, n_base}, coeff3.options());
-        torch_launch_calculate_nepmbfeat_secondgradout_c3(grad_second[1],
-                                                            d12,
-                                                            NL,
-                                                            de_feat,
-                                                            sum_fxyz,
-                                                            atom_map,
-                                                            rcut_angular,
-                                                            batch_size, 
-                                                            atom_nums, 
-                                                            maxneighs, 
-                                                            n_max,
-                                                            n_base, 
-                                                            atom_types, 
-                                                            lmax_3, 
-                                                            lmax_4, 
-                                                            lmax_5, 
-                                                            feat_2b_num,
-                                                            multi_feat_num, 
-                                                            gradsecond_c3);
+        // torch_launch_calculate_nepmbfeat_secondgradout_c3(grad_second[1],
+        //                                                     d12,
+        //                                                     NL,
+        //                                                     de_feat,
+        //                                                     sum_fxyz,
+        //                                                     atom_map,
+        //                                                     rcut_angular,
+        //                                                     batch_size, 
+        //                                                     atom_nums, 
+        //                                                     maxneighs, 
+        //                                                     n_max,
+        //                                                     n_base, 
+        //                                                     atom_types, 
+        //                                                     lmax_3, 
+        //                                                     lmax_4, 
+        //                                                     lmax_5, 
+        //                                                     feat_2b_num,
+        //                                                     multi_feat_num, 
+        //                                                     gradsecond_c3);
 
         return {
             gradsecond_gradout,

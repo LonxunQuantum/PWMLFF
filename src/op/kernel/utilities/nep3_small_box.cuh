@@ -201,11 +201,11 @@ static __global__ void find_mb_descriptor_small_box(
       double s[NUM_OF_ABC] = {0.0};
       for (int i1 = 0; i1 < neigh_num; ++i1) {
         int n2 = g_NL[neigh_start_idx + i1]-1;
-        if (n2 < 0) break;
+        if (n2 < 0) continue;
         int t2 = g_type[n2];
         int rij_idx = r12_start_idx + i1*4;
         double d12 = g_d12_radial[rij_idx];
-        if (d12 > rc_angular) break;
+        if (d12 > rc_angular) continue;
         double r12[3] = {g_d12_radial[rij_idx+1], g_d12_radial[rij_idx+2], g_d12_radial[rij_idx+3]};
         double fc12;
         find_fc(rc_angular, rcinv_angular, d12, fc12);
@@ -218,7 +218,16 @@ static __global__ void find_mb_descriptor_small_box(
           gn12 += fn12[k] * coeff3[c_index];
         }
         accumulate_s(d12, r12[0], r12[1], r12[2], gn12, s);
+        // if (n1 == 0 and n == 0) {
+        //   printf("n1=0 t1=%d n2=%d t2=%d n=0 d12=%f rc=%f rcin=%f gn12=%f\n", 
+        //     t1, i1, t2, d12, rc_angular, rcinv_angular, gn12);
+        // }
       }
+      // if (n1 == 0 and n == 0) {
+      //   for (int si = 0; si < 24; si++) {
+      //     printf("n1=0 s[%d] = %f\n", si, s[si]);
+      //   }
+      // }
       if (L_max5 == 1) {
           find_q_with_5body(n_max_angular, n, s, q);
       } else if (L_max4 ==2) {
@@ -523,11 +532,11 @@ static __global__ void find_angular_gard_small_box(
     int c3_start_idx = t1 * num_types * n_max_angular * basis_size_angular;
     for (int i1 = 0; i1 < neigh_num; ++i1) {
       int n2 = g_NL_radial[neigh_start_idx + i1]-1;
-      if (n2 < 0) break;
+      if (n2 < 0) continue;
       int t2 = g_type[n2];
       int rij_idx = r12_start_idx + i1*4;
       double d12 = g_d12_radial[rij_idx];
-      if (d12 > rc_angular) break;
+      if (d12 > rc_angular) continue;
       int drij_idx = dfeat_dr_start + i1 * feat_3b_nums * 4;
       double r12[3] = {g_d12_radial[rij_idx+1], g_d12_radial[rij_idx+2], g_d12_radial[rij_idx+3]};
       double f12[4] = {0.0};
