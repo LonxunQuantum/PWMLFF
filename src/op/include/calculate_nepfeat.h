@@ -124,10 +124,11 @@ void launch_calculate_nepmbfeat_secondgradout(
 void launch_calculate_nepmbfeat_secondgradout_c3(
     const double * grad_second,
     const double * d12,
-    const double * NL,
+    const int * NL,
     const double * de_dfeat,
     const double * sum_fxyz,
     const int * atom_map,
+    const double * coeff3,
     double * gradsecond_c3,
     const double rcut_angular,
     const int batch_size, 

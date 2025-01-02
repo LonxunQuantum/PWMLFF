@@ -185,6 +185,7 @@ void torch_launch_calculate_nepmbfeat_secondgradout_c3(
                         const torch::Tensor &de_feat,
                         const torch::Tensor &sum_fxyz,
                         const torch::Tensor &atom_map,
+                        const torch::Tensor &coeff3,
                         const double rcut_angular,
                         const int64_t batch_size, 
                         const int64_t atom_nums, 

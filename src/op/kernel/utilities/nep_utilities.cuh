@@ -573,7 +573,8 @@ static __device__ __forceinline__ void get_f12_4(
   const double z3 = z * z2;
   const double r3 = r * r2;
   // rij
-  double tmp = s[0] * (fnp * ((35.0 * z2 - 30.0 * r2) * z2 + 3.0 * r2 * r2) + fn * ((-60.0) * z2 * r + 12.0 * r3)) + 
+  double tmp = s[0] * (fnp * ((35.0 * z2 - 30.0 * r2) * z2 + 3.0 * r2 * r2) + 
+                        fn * ((-60.0) * z2 * r + 12.0 * r3)) + 
               2.0 * (
                 s[1] * (fnp * (7.0 * z2 - 3.0 * r2) * xz - fn * 6.0 * xz * r) + 
                 s[2] * (fnp * (7.0 * z2 - 3.0 * r2) * yz - fn * 6.0 * yz * r) + 

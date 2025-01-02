@@ -552,7 +552,7 @@ static __global__ void find_angular_gard_small_box(
       
       int c_I_J_idx = c3_start_idx + t2 * n_max_angular * basis_size_angular;
       double s[NUM_OF_ABC] = {0.0};
-      accumulate_blm_rij(d12, r12[0], r12[1], r12[2], s);
+      accumulate_blm_rij(d12, r12[0], r12[1], r12[2], s);// blm * 1/(r_ij^L) for dfeat/dC_NK^IJ = fk * blm * 1/(r_ij^L)
       for (int n = 0; n < n_max_angular; ++n) {
         double gn12 = 0.0;
         double gnp12 = 0.0;

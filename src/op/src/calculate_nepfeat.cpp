@@ -231,6 +231,7 @@ void torch_launch_calculate_nepmbfeat_secondgradout_c3(
                         const torch::Tensor &de_feat,
                         const torch::Tensor &sum_fxyz,
                         const torch::Tensor &atom_map,
+                        const torch::Tensor &coeff3,
                         const double rcut_angular,
                         const int64_t batch_size, 
                         const int64_t atom_nums, 
@@ -250,10 +251,11 @@ void torch_launch_calculate_nepmbfeat_secondgradout_c3(
     launch_calculate_nepmbfeat_secondgradout_c3(
         (const double *) grad_second.data_ptr(),
         (const double *) d12.data_ptr(),
-        (const double *) NL.data_ptr(),
+        (const int *) NL.data_ptr(),
         (const double *) de_feat.data_ptr(),
         (const double *) sum_fxyz.data_ptr(),
         (const int *) atom_map.data_ptr(),
+        (const double *) coeff3.data_ptr(),
         (double *) gradsecond_c3.data_ptr(),
         rcut_angular,
         batch_size, atom_nums, maxneighs, n_max_3b, n_base_3b, atom_types, lmax_3, lmax_4, lmax_5, feat_2b_num, multi_feat_num, device_id

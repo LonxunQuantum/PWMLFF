@@ -204,6 +204,7 @@ torch::autograd::variable_list CalculateNepFeat::forward(
     double rcut_radial,
     int64_t multi_feat_num) 
     {
+        printf("============ 2b forward ===========\n");
         auto dims_2b = coeff2.sizes();
         int64_t atom_types = dims_2b[0];
         int64_t n_max_2b = dims_2b[2];
@@ -233,7 +234,7 @@ torch::autograd::variable_list CalculateNepFeat::backward(
     torch::autograd::AutogradContext *ctx,
     torch::autograd::variable_list grad_output) 
     {
-        std::cout << "CalculateNepFeat::backward grad_output 2b shape: " << grad_output[0].sizes() << std::endl;
+        // std::cout << "CalculateNepFeat::backward grad_output 2b shape: " << grad_output[0].sizes() << std::endl;
         // auto gradin = grad_output[0].to(torch::kCPU);  // 确保它在 CPU 上
         // auto gradin_data = gradin.data<double>();         // 获取数据，假设数据是 float 类型
         // auto gradin_shape = gradin.sizes();
@@ -335,6 +336,7 @@ torch::autograd::variable_list CalculateNepFeatGrad::forward(
             at::Tensor atom_map,
             int64_t multi_feat_num) 
     {
+        printf("============ 2b firstgrad forward ===========\n");
         auto dims_2b = coeff2.sizes();
         int64_t atom_types = dims_2b[0];
         int64_t n_max_2b = dims_2b[2];
@@ -361,7 +363,7 @@ torch::autograd::variable_list CalculateNepFeatGrad::backward(
     torch::autograd::AutogradContext *ctx,
     torch::autograd::variable_list grad_second) 
     {
-        printf("\n\n=========== second grad ===========\n");
+        printf("============ 2b secondgrad backward ===========\n");
         auto saved = ctx->get_saved_variables();
         auto coeff2 = saved[0];
         auto d12_radial = saved[1];
@@ -383,8 +385,8 @@ torch::autograd::variable_list CalculateNepFeatGrad::backward(
         int64_t maxneighs = dims_image[2];
 
         int64_t multi_feat_num = ctx->saved_data["multi_feat_num"].toInt();
-        std::cout << "CalculateNepFeatGrad::backward grad_second[0] shape: " << grad_second[0].sizes() << std::endl;
-        std::cout << "CalculateNepFeatGrad::backward grad_second[1] shape: " << grad_second[1].sizes() << std::endl;
+        // std::cout << "CalculateNepFeatGrad::backward grad_second[0] shape: " << grad_second[0].sizes() << std::endl;
+        // std::cout << "CalculateNepFeatGrad::backward grad_second[1] shape: " << grad_second[1].sizes() << std::endl;
         // auto gradin = grad_second[1].to(torch::kCPU);  // 确保它在 CPU 上
         // auto gradin_data = gradin.data<double>();
         // auto gradin_shape = gradin.sizes();
@@ -619,6 +621,7 @@ torch::autograd::variable_list CalculateNepMbFeat::forward(
     int64_t lmax_5,
     double rcut_angular) 
     {
+        printf("============ 3b forward ===========\n");
         auto dims = coeff3.sizes();
         int64_t atom_types = dims[0];
         int64_t n_max = dims[2];
@@ -633,9 +636,6 @@ torch::autograd::variable_list CalculateNepMbFeat::forward(
         auto dfeat_3b = torch::zeros({batch_size, atom_nums, maxneighs, n_max}, d12.options()); // [i, j, n] dfeature/drij
         auto dfeat_3b_noc = torch::zeros({batch_size, atom_nums, maxneighs, n_base, 4}, d12.options()); // [i, j, n] dfeature/drij without c
         auto sum_fxyz = torch::zeros({batch_size, atom_nums, n_max * NUM_OF_ABC}, d12.options());
-        std::cout << "CalculateNepMbFeat:forward atom_map shape: " << atom_map.sizes() << std::endl;
-        std::cout << "CalculateNepMbFeat:forward NL shape: " << NL.sizes() << std::endl;
-        std::cout << "CalculateNepMbFeat:forward d12 shape: " << d12.sizes() << std::endl;
         torch_launch_calculate_nepmbfeat(coeff3, d12, NL, atom_map,
                                 feats, dfeat_c3, dfeat_3b, dfeat_3b_noc, sum_fxyz,
                                     rcut_angular, batch_size, atom_nums, maxneighs, n_max, n_base, lmax_3, lmax_4, lmax_5, atom_types);
@@ -700,7 +700,7 @@ torch::autograd::variable_list CalculateNepMbFeatGrad::forward(
             int64_t lmax_5,
             double rcut_angular) 
     {
-        printf("\n\n=========== first grad mb ===========\n\n");
+        printf("============ 3b firstgrad forward ===========\n");
         auto dims = coeff3.sizes();
         int64_t atom_types = dims[0];
         int64_t n_max = dims[2];
@@ -773,9 +773,9 @@ torch::autograd::variable_list CalculateNepMbFeatGrad::backward(
     torch::autograd::AutogradContext *ctx,
     torch::autograd::variable_list grad_second) 
     {
-        printf("\n\n=========== second grad mb ===========\n");
-        std::cout << "CalculateNepMbFeatGrad::backward grad_second[0] shape: " << grad_second[0].sizes() << std::endl;
-        std::cout << "CalculateNepMbFeatGrad::backward grad_second[1] shape: " << grad_second[1].sizes() << std::endl;
+        printf("============ 3b secondgrad backward ===========\n");
+        // std::cout << "CalculateNepMbFeatGrad::backward grad_second[0] shape: " << grad_second[0].sizes() << std::endl;
+        // std::cout << "CalculateNepMbFeatGrad::backward grad_second[1] shape: " << grad_second[1].sizes() << std::endl;
 
         auto saved = ctx->get_saved_variables();
         auto coeff3 = saved[0];
@@ -817,25 +817,26 @@ torch::autograd::variable_list CalculateNepMbFeatGrad::backward(
                                                         gradsecond_gradout);
 
         auto gradsecond_c3 = torch::zeros({atom_types, atom_types, n_max, n_base}, coeff3.options());
-        // torch_launch_calculate_nepmbfeat_secondgradout_c3(grad_second[1],
-        //                                                     d12,
-        //                                                     NL,
-        //                                                     de_feat,
-        //                                                     sum_fxyz,
-        //                                                     atom_map,
-        //                                                     rcut_angular,
-        //                                                     batch_size, 
-        //                                                     atom_nums, 
-        //                                                     maxneighs, 
-        //                                                     n_max,
-        //                                                     n_base, 
-        //                                                     atom_types, 
-        //                                                     lmax_3, 
-        //                                                     lmax_4, 
-        //                                                     lmax_5, 
-        //                                                     feat_2b_num,
-        //                                                     multi_feat_num, 
-        //                                                     gradsecond_c3);
+        torch_launch_calculate_nepmbfeat_secondgradout_c3(grad_second[1],
+                                                            d12,
+                                                            NL,
+                                                            de_feat,
+                                                            sum_fxyz,
+                                                            atom_map,
+                                                            coeff3,
+                                                            rcut_angular,
+                                                            batch_size, 
+                                                            atom_nums, 
+                                                            maxneighs, 
+                                                            n_max,
+                                                            n_base, 
+                                                            atom_types, 
+                                                            lmax_3, 
+                                                            lmax_4, 
+                                                            lmax_5, 
+                                                            feat_2b_num,
+                                                            feat_3b_num, 
+                                                            gradsecond_c3);
 
         return {
             gradsecond_gradout,
