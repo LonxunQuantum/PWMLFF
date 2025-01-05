@@ -135,7 +135,7 @@ static __global__ void find_angular_gardc_small_box(
       if (n2 < 0) continue;
       int t2 = g_type[n2];
       int rij_idx = r12_start_idx + i1*4;
-      int dsnlm_idx = dsnlm_start_idx + t2 * base_3b * NUM_OF_ABC;
+      // int dsnlm_idx = dsnlm_start_idx + t2 * base_3b * NUM_OF_ABC;
       double d12 = g_d12[rij_idx];
       if (d12 > rc_angular) continue;
       double r12[3] = {g_d12[rij_idx+1], g_d12[rij_idx+2], g_d12[rij_idx+3]};
@@ -174,37 +174,39 @@ static __global__ void find_angular_gardc_small_box(
           gnp12 += fnp12[k] * coeff3[c_index];
         }
         // double f12d[MAX_LMAX * 4] = {0.0}; // dfeat/drij [nl+n+n, 4]
-        double f12k[num_types * MAX_NUM_N * 4] = {0.0};
+        double f12k[TYPES * MAX_NUM_N * 4] = {0.0};// max type is 20
         if (L_max5 > 0) {
           scd_accumulate_f12_with_5body(
             n, d12, r12, gn12, gnp12, Fp, dsnlm_dc, sum_fxyz,
               blm, rij_blm, dblm_x, dblm_y, dblm_z, dblm_r,
               f12, f12k, scd_r12, fn12, fnp12, 
               t2, num_types, L_max3, 
-              max_3b, base_3b, dc_start_idx, dsnlm_idx, n1, i1);
+              max_3b, base_3b, dc_start_idx, dsnlm_start_idx, n1, i1);
         } else if (L_max4 > 0) {
           scd_accumulate_f12_with_4body(
             n, d12, r12, gn12, gnp12, Fp, dsnlm_dc, sum_fxyz,
               blm, rij_blm, dblm_x, dblm_y, dblm_z, dblm_r,
               f12, f12k, scd_r12, fn12, fnp12, 
               t2, num_types, L_max3, 
-              max_3b, base_3b, dc_start_idx, dsnlm_idx, n1, i1);
+              max_3b, base_3b, dc_start_idx, dsnlm_start_idx, n1, i1);
         } else {
           scd_accumulate_f12(
             n, d12, r12, gn12, gnp12, Fp, dsnlm_dc, sum_fxyz,
               blm, rij_blm, dblm_x, dblm_y, dblm_z, dblm_r,
               f12, f12k, scd_r12, fn12, fnp12, 
               t2, num_types, L_max3, 
-              max_3b, base_3b, dc_start_idx, dsnlm_idx, n1, i1);
+              max_3b, base_3b, dc_start_idx, dsnlm_start_idx, n1, i1);
         }
-        for (int k = 0; k < base_3b; ++k) {
-          int dc_id = dc_start_idx + t2 * max_3b * base_3b + n*base_3b + k;
-          int k_id = k*4;
-          dfeat_c3[dc_id] += (f12k[k_id] + f12k[k_id+1] + f12k[k_id+2] + f12k[k_id+3]);
-          if (n1 == 0){
-            printf("n1=%d t1=%d n2=%d t2=%d n=%d k=%d dc=%f frxyz = %f %f %f %f\n",n1, t1, i1, t2, n, k, 
-              (f12k[k_id] + f12k[k_id+1] + f12k[k_id+2] + f12k[k_id+3]), f12k[k_id], f12k[k_id+1], f12k[k_id+2], f12k[k_id+3]);
-            }
+        for (int j = 0; j < num_types; ++j){
+          for (int k = 0; k < base_3b; ++k){
+            int dc_id = dc_start_idx + j * max_3b * base_3b + n*base_3b + k;
+            int k_id = j * base_3b * 4 + k * 4;
+            dfeat_c3[dc_id] += (f12k[k_id] + f12k[k_id+1] + f12k[k_id+2] + f12k[k_id+3]);
+            // if (n1 == 0){
+            //   printf("n1=%d t1=%d n2=%d t2=%d n=%d k=%d dc=%f frxyz = %f %f %f %f\n",n1, t1, i1, t2, n, k, 
+            //     (f12k[k_id] + f12k[k_id+1] + f12k[k_id+2] + f12k[k_id+3]), f12k[k_id], f12k[k_id+1], f12k[k_id+2], f12k[k_id+3]);
+            //   }
+          }
         }
         //add f12k [k, 4] -> c[atomI, J_type, nmax, k, 4] -> c[atomI, J_type, nmax, k]
         // 是否把4 在scd时候直接给累加起来？ 还是单独加？

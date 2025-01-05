@@ -35,7 +35,6 @@ void launch_calculate_nepmbfeat_grad(
     const int grid_size = (N - 1) / BLOCK_SIZE + 1;
     const int num_types_sq = n_types * n_types;
     double rcinv_angular = 1.0 / rcut_angular;
-    const int size_x12 = N * neigh_num;
     
     int feat_3b_num = 0;
     if (lmax_3 > 0) feat_3b_num += n_max_3b * lmax_3;

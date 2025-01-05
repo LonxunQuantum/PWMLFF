@@ -34,6 +34,7 @@ __constant__ double C5B[3] = {0.026596810706114, 0.053193621412227, 0.0265968107
 
 const int SIZE_BOX_AND_INVERSE_BOX = 18; // (3 * 3) * 2
 const int MAX_NUM_N = 20;                // n_max+1 = 19+1
+const int TYPES = 20;
 const int MAX_LMAX = 6; // 4 + 1 + 1
 const int MAX_DIM = MAX_NUM_N * 7;
 const int MAX_DIM_ANGULAR = MAX_NUM_N * 6;
@@ -268,10 +269,10 @@ static __device__ __forceinline__ void get_f12_1(
   double tmpz = 2.0 * fn * s[0];
   f12[2] += tmpz * Fp;
   f12d[2] += tmpz;
-  if (n1==0 and n2==0){
-    printf("\tL=1 n1=%d n2=%d s0=%f s1=%f s2=%f fnp=%f fn=%f Fp=%f b10=%f b11=%f b12=%f dqr=%f dqx=%f dqy=%f dqz=%f\n", 
-            n1, n2, s[0], s[1]*2.0, s[2]*2.0, fnp, fn, Fp, r12[2], r12[0], r12[1], tmp, tmpx, tmpy, tmpz);
-  }
+  // if (n1==0 and n2==0){
+  //   printf("\tL=1 n1=%d n2=%d s0=%f s1=%f s2=%f fnp=%f fn=%f Fp=%f b10=%f b11=%f b12=%f dqr=%f dqx=%f dqy=%f dqz=%f\n", 
+  //           n1, n2, s[0], s[1]*2.0, s[2]*2.0, fnp, fn, Fp, r12[2], r12[0], r12[1], tmp, tmpx, tmpy, tmpz);
+  // }
 }
 
 static __device__ __forceinline__ void get_f12_2(
@@ -320,10 +321,10 @@ static __device__ __forceinline__ void get_f12_2(
   f12[3] += Fp * tmp;
   f12d[3] += tmp;
 
-  if (n1==0 and n2==0){
-    printf("\tL=2 n1=%d n2=%d s0=%f s1=%f s2=%f s3=%f s4=%f fnp=%f fn=%f Fp=%f r12=%f x=%f y=%f z=%f dqr=%f dqx=%f dqy=%f dqz=%f\n", 
-           n1, n2, s[0], s[1]*2.0, s[2]*2.0, s[3]*2.0, s[4]*2.0, fnp, fn, Fp, d12, r12[0], r12[1], r12[2], tmp, tmpx, tmpy, tmpz);
-  }
+  // if (n1==0 and n2==0){
+  //   printf("\tL=2 n1=%d n2=%d s0=%f s1=%f s2=%f s3=%f s4=%f fnp=%f fn=%f Fp=%f r12=%f x=%f y=%f z=%f dqr=%f dqx=%f dqy=%f dqz=%f\n", 
+  //          n1, n2, s[0], s[1]*2.0, s[2]*2.0, s[3]*2.0, s[4]*2.0, fnp, fn, Fp, d12, r12[0], r12[1], r12[2], tmp, tmpx, tmpy, tmpz);
+  // }
 }
 
 static __device__ __forceinline__ void get_f12_4body(
@@ -402,10 +403,10 @@ static __device__ __forceinline__ void get_f12_4body(
   f12[2] += Fp * tmpz;
   f12d[2] += tmpz;
 
-  if (n1==0 and n2==0){
-    printf("\t4bL=2 n1=%d n2=%d s0=%f s1=%f s2=%f s3=%f s4=%f fnp=%f fn=%f Fp=%f r12=%f x=%f y=%f z=%f dqr=%f dqx=%f dqy=%f dqz=%f\n", 
-            n1, n2, s[0], s[1], s[2], s[3], s[4], fnp, fn, Fp, d12, r12[0], r12[1], r12[2], tmp, tmpx, tmpy, tmpz);
-  }
+  // if (n1==0 and n2==0){
+  //   printf("\t4bL=2 n1=%d n2=%d s0=%f s1=%f s2=%f s3=%f s4=%f fnp=%f fn=%f Fp=%f r12=%f x=%f y=%f z=%f dqr=%f dqx=%f dqy=%f dqz=%f\n", 
+  //           n1, n2, s[0], s[1], s[2], s[3], s[4], fnp, fn, Fp, d12, r12[0], r12[1], r12[2], tmp, tmpx, tmpy, tmpz);
+  // }
 }
 
 static __device__ __forceinline__ void get_f12_5body(
@@ -460,10 +461,10 @@ static __device__ __forceinline__ void get_f12_5body(
   f12[2] += Fp * tmpz;
   f12d[2] += tmpz;
 
-  if (n1==0 and n2==0){
-    printf("\t5bL=2 n1=%d n2=%d s0=%f s1=%f s2=%f s3=%f s4=%f fnp=%f fn=%f Fp=%f r12=%f x=%f y=%f z=%f dqr=%f dqx=%f dqy=%f dqz=%f\n", 
-            n1, n2, s[0], s[1], s[2], s[3], s[4], fnp, fn, Fp, d12, r12[0], r12[1], r12[2], tmp, tmpx, tmpy, tmpz);
-  }
+  // if (n1==0 and n2==0){
+  //   printf("\t5bL=2 n1=%d n2=%d s0=%f s1=%f s2=%f s3=%f s4=%f fnp=%f fn=%f Fp=%f r12=%f x=%f y=%f z=%f dqr=%f dqx=%f dqy=%f dqz=%f\n", 
+  //           n1, n2, s[0], s[1], s[2], s[3], s[4], fnp, fn, Fp, d12, r12[0], r12[1], r12[2], tmp, tmpx, tmpy, tmpz);
+  // }
 }
 
 static __device__ __forceinline__ void get_f12_3(
@@ -537,10 +538,10 @@ static __device__ __forceinline__ void get_f12_3(
   f12[2] += Fp * tmpz;
   f12d[2] += tmpz;
 
-  if(n1==0 and n2==0){
-    printf("\tL=3 n1=%d n2=%d s0=%f s1=%f s2=%f s3=%f s4=%f s5=%f s6=%f fnp=%f fn=%f Fp=%f r12=%f x=%f y=%f z=%f dqr=%f dqx=%f dqy=%f dqz=%f\n", 
-            n1, n2, s[0], s[1]*2.0, s[2]*2.0, s[3]*2.0, s[4]*2.0, s[5]*2.0, s[6]*2.0, fnp, fn, Fp, d12, r12[0], r12[1], r12[2], tmp, tmpx, tmpy, tmpz);
-  }
+  // if(n1==0 and n2==0){
+  //   printf("\tL=3 n1=%d n2=%d s0=%f s1=%f s2=%f s3=%f s4=%f s5=%f s6=%f fnp=%f fn=%f Fp=%f r12=%f x=%f y=%f z=%f dqr=%f dqx=%f dqy=%f dqz=%f\n", 
+  //           n1, n2, s[0], s[1]*2.0, s[2]*2.0, s[3]*2.0, s[4]*2.0, s[5]*2.0, s[6]*2.0, fnp, fn, Fp, d12, r12[0], r12[1], r12[2], tmp, tmpx, tmpy, tmpz);
+  // }
 
 }
 
@@ -628,10 +629,10 @@ static __device__ __forceinline__ void get_f12_4(
   f12[2] += Fp * tmpz;
   f12d[2] += tmpz;
 
-  if(n1==0 and n2==0){
-    printf("\tL=4 n1=%d n2=%d s0=%f s1=%f s2=%f s3=%f s4=%f s5=%f s6=%f s7=%f s8=%f fnp=%f fn=%f Fp=%f r12=%f x=%f y=%f z=%f dqr=%f dqx=%f dqy=%f dqz=%f\n\n\n", 
-            n1, n2, s[0], s[1]*2.0, s[2]*2.0, s[3]*2.0, s[4]*2.0, s[5]*2.0, s[6]*2.0, s[7]*2.0, s[8]*2.0, fnp, fn, Fp, r, x, y, z, tmp, tmpx, tmpy, tmpz);
-  }
+  // if(n1==0 and n2==0){
+  //   printf("\tL=4 n1=%d n2=%d s0=%f s1=%f s2=%f s3=%f s4=%f s5=%f s6=%f s7=%f s8=%f fnp=%f fn=%f Fp=%f r12=%f x=%f y=%f z=%f dqr=%f dqx=%f dqy=%f dqz=%f\n\n\n", 
+  //           n1, n2, s[0], s[1]*2.0, s[2]*2.0, s[3]*2.0, s[4]*2.0, s[5]*2.0, s[6]*2.0, s[7]*2.0, s[8]*2.0, fnp, fn, Fp, r, x, y, z, tmp, tmpx, tmpy, tmpz);
+  // }
 }
 
 static __device__ __forceinline__ void accumulate_f12(

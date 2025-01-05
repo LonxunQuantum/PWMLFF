@@ -204,7 +204,7 @@ torch::autograd::variable_list CalculateNepFeat::forward(
     double rcut_radial,
     int64_t multi_feat_num) 
     {
-        printf("============ 2b forward ===========\n");
+        // printf("============ 2b forward ===========\n");
         auto dims_2b = coeff2.sizes();
         int64_t atom_types = dims_2b[0];
         int64_t n_max_2b = dims_2b[2];
@@ -336,7 +336,7 @@ torch::autograd::variable_list CalculateNepFeatGrad::forward(
             at::Tensor atom_map,
             int64_t multi_feat_num) 
     {
-        printf("============ 2b firstgrad forward ===========\n");
+        // printf("============ 2b firstgrad forward ===========\n");
         auto dims_2b = coeff2.sizes();
         int64_t atom_types = dims_2b[0];
         int64_t n_max_2b = dims_2b[2];
@@ -363,7 +363,7 @@ torch::autograd::variable_list CalculateNepFeatGrad::backward(
     torch::autograd::AutogradContext *ctx,
     torch::autograd::variable_list grad_second) 
     {
-        printf("============ 2b secondgrad backward ===========\n");
+        // printf("============ 2b secondgrad backward ===========\n");
         auto saved = ctx->get_saved_variables();
         auto coeff2 = saved[0];
         auto d12_radial = saved[1];
@@ -621,7 +621,7 @@ torch::autograd::variable_list CalculateNepMbFeat::forward(
     int64_t lmax_5,
     double rcut_angular) 
     {
-        printf("============ 3b forward ===========\n");
+        // printf("============ 3b forward ===========\n");
         auto dims = coeff3.sizes();
         int64_t atom_types = dims[0];
         int64_t n_max = dims[2];
@@ -700,7 +700,7 @@ torch::autograd::variable_list CalculateNepMbFeatGrad::forward(
             int64_t lmax_5,
             double rcut_angular) 
     {
-        printf("============ 3b firstgrad forward ===========\n");
+        // printf("============ 3b firstgrad forward ===========\n");
         auto dims = coeff3.sizes();
         int64_t atom_types = dims[0];
         int64_t n_max = dims[2];
@@ -767,31 +767,31 @@ torch::autograd::variable_list CalculateNepMbFeatGrad::forward(
         ctx->saved_data["lmax_4"] = lmax_4;
         ctx->saved_data["lmax_5"] = lmax_5;
 
-        std::cout << "dsnlm_dc shape: " << dsnlm_dc.sizes() << std::endl;
-        auto gradin = dsnlm_dc.to(torch::kCPU);  // 确保它在 CPU 上
-        auto gradin_data = gradin.data<double>();         // 获取数据，假设数据是 float 类型
-        auto gradin_shape = gradin.sizes();
-        int64_t gradin_dim0 = gradin_shape[0];
-        int64_t gradin_dim1 = gradin_shape[1];
-        int64_t gradin_dim2 = gradin_shape[2];
-        int64_t gradin_dim3 = gradin_shape[3];
-        for (int64_t i = 0; i < gradin_dim0; ++i) {
-            for (int64_t j = 0; j < gradin_dim1; ++j) {
-                if (i ==0 or i == 30 or i == 95){
-                for (int64_t l = 0; l < gradin_dim2; ++l) {
-                    printf("3b dsnlm_dc [i %ld][J %ld][K %ld][lm:] = ", i, j, l);
-                    for (int64_t k = 0; k < gradin_dim3; ++k) {
-                        printf("%f ", gradin_data[i * gradin_dim1 * gradin_dim2 * gradin_dim3
-                                                    + j * gradin_dim2 * gradin_dim3
-                                                    + l * gradin_dim3
-                                                    + k]);
-                        }
-                    printf("\n");
-                }
-                }
-            }
-        }
-        printf("\n==================\n");
+        // std::cout << "dsnlm_dc shape: " << dsnlm_dc.sizes() << std::endl;
+        // auto gradin = dsnlm_dc.to(torch::kCPU);  // 确保它在 CPU 上
+        // auto gradin_data = gradin.data<double>();         // 获取数据，假设数据是 float 类型
+        // auto gradin_shape = gradin.sizes();
+        // int64_t gradin_dim0 = gradin_shape[0];
+        // int64_t gradin_dim1 = gradin_shape[1];
+        // int64_t gradin_dim2 = gradin_shape[2];
+        // int64_t gradin_dim3 = gradin_shape[3];
+        // for (int64_t i = 0; i < gradin_dim0; ++i) {
+        //     for (int64_t j = 0; j < gradin_dim1; ++j) {
+        //         if (i ==0 or i == 30 or i == 95){
+        //         for (int64_t l = 0; l < gradin_dim2; ++l) {
+        //             printf("3b dsnlm_dc [i %ld][J %ld][K %ld][lm:] = ", i, j, l);
+        //             for (int64_t k = 0; k < gradin_dim3; ++k) {
+        //                 printf("%f ", gradin_data[i * gradin_dim1 * gradin_dim2 * gradin_dim3
+        //                                             + j * gradin_dim2 * gradin_dim3
+        //                                             + l * gradin_dim3
+        //                                             + k]);
+        //                 }
+        //             printf("\n");
+        //         }
+        //         }
+        //     }
+        // }
+        // printf("\n==================\n");
 
         return {grad_coeff3, grad_d12_angular.view({batch_size, atom_nums, maxneighs, 4})};
     }
@@ -800,31 +800,31 @@ torch::autograd::variable_list CalculateNepMbFeatGrad::backward(
     torch::autograd::AutogradContext *ctx,
     torch::autograd::variable_list grad_second) 
     {
-        printf("============ 3b secondgrad backward ===========\n");
+        // printf("============ 3b secondgrad backward ===========\n");
         // std::cout << "CalculateNepMbFeatGrad::backward grad_second[0] shape: " << grad_second[0].sizes() << std::endl;
-        std::cout << "CalculateNepMbFeatGrad::backward grad_second[1] shape: " << grad_second[1].sizes() << std::endl;
-        auto gradin = grad_second[1].to(torch::kCPU);  // 确保它在 CPU 上
-        auto gradin_data = gradin.data<double>();
-        auto gradin_shape = gradin.sizes();
-        int64_t gradin_dim0 = gradin_shape[0];
-        int64_t gradin_dim1 = gradin_shape[1];
-        int64_t gradin_dim2 = gradin_shape[2];
-        int64_t gradin_dim3 = gradin_shape[3];
-        // 遍历前面三维
-        for (int64_t i = 0; i < gradin_dim0; ++i) {
-            for (int64_t j = 0; j < gradin_dim1; ++j) {
-                for (int64_t k = 0; k < gradin_dim2; ++k) {
-                if (i == 0 and j == 0 and k == 0) {
-                    printf("3b grad_second[1][%d][%d][%d][:] = %f %f %f %f\n", i, j, k, 
-                    gradin_data[i * gradin_dim1 * gradin_dim2 * gradin_dim3 + j * gradin_dim2 * gradin_dim3 + k * gradin_dim3],
-                    gradin_data[i * gradin_dim1 * gradin_dim2 * gradin_dim3 + j * gradin_dim2 * gradin_dim3 + k * gradin_dim3+1],
-                    gradin_data[i * gradin_dim1 * gradin_dim2 * gradin_dim3 + j * gradin_dim2 * gradin_dim3 + k * gradin_dim3+2],
-                    gradin_data[i * gradin_dim1 * gradin_dim2 * gradin_dim3 + j * gradin_dim2 * gradin_dim3 + k * gradin_dim3+3]);
-                }
-                }
-            }
-        }
-        printf("\n==================\n");
+        // std::cout << "CalculateNepMbFeatGrad::backward grad_second[1] shape: " << grad_second[1].sizes() << std::endl;
+        // auto gradin = grad_second[1].to(torch::kCPU);  // 确保它在 CPU 上
+        // auto gradin_data = gradin.data<double>();
+        // auto gradin_shape = gradin.sizes();
+        // int64_t gradin_dim0 = gradin_shape[0];
+        // int64_t gradin_dim1 = gradin_shape[1];
+        // int64_t gradin_dim2 = gradin_shape[2];
+        // int64_t gradin_dim3 = gradin_shape[3];
+        // // 遍历前面三维
+        // for (int64_t i = 0; i < gradin_dim0; ++i) {
+        //     for (int64_t j = 0; j < gradin_dim1; ++j) {
+        //         for (int64_t k = 0; k < gradin_dim2; ++k) {
+        //         if (i == 0 and j == 0 and k == 0) {
+        //             printf("3b grad_second[1][%d][%d][%d][:] = %f %f %f %f\n", i, j, k, 
+        //             gradin_data[i * gradin_dim1 * gradin_dim2 * gradin_dim3 + j * gradin_dim2 * gradin_dim3 + k * gradin_dim3],
+        //             gradin_data[i * gradin_dim1 * gradin_dim2 * gradin_dim3 + j * gradin_dim2 * gradin_dim3 + k * gradin_dim3+1],
+        //             gradin_data[i * gradin_dim1 * gradin_dim2 * gradin_dim3 + j * gradin_dim2 * gradin_dim3 + k * gradin_dim3+2],
+        //             gradin_data[i * gradin_dim1 * gradin_dim2 * gradin_dim3 + j * gradin_dim2 * gradin_dim3 + k * gradin_dim3+3]);
+        //         }
+        //         }
+        //     }
+        // }
+        // printf("\n==================\n");
 
         auto saved = ctx->get_saved_variables();
         auto coeff3 = saved[0];
@@ -889,20 +889,20 @@ torch::autograd::variable_list CalculateNepMbFeatGrad::backward(
                                                             feat_3b_num, 
                                                             gradsecond_c3);
 
-        std::cout << "CalculateNepMbFeatGrad::backward gradsecond_c3 shape: " << grad_second[1].sizes() << std::endl;
-        gradin = gradsecond_c3.to(torch::kCPU);  // 确保它在 CPU 上
-        gradin_data = gradin.data<double>();
-        for(int i = 0; i < atom_types; i++) {
-            for(int j = 0; j < atom_types; j++) {
-                for (int n = 0; n < n_max; n++) {
-                    printf("gradsecond_c3[i %d][J %d][n %d][k:] = ", i, j, n);
-                    for(int k = 0; k < n_base; k++) {
-                        printf("%f ", gradin_data[i * atom_types * n_max * n_base + j * n_max * n_base + n * n_base + k]);
-                    }
-                    printf("\n");
-                }
-            }
-        }
+        // std::cout << "CalculateNepMbFeatGrad::backward gradsecond_c3 shape: " << grad_second[1].sizes() << std::endl;
+        // gradin = gradsecond_c3.to(torch::kCPU);  // 确保它在 CPU 上
+        // gradin_data = gradin.data<double>();
+        // for(int i = 0; i < atom_types; i++) {
+        //     for(int j = 0; j < atom_types; j++) {
+        //         for (int n = 0; n < n_max; n++) {
+        //             printf("gradsecond_c3[i %d][J %d][n %d][k:] = ", i, j, n);
+        //             for(int k = 0; k < n_base; k++) {
+        //                 printf("%f ", gradin_data[i * atom_types * n_max * n_base + j * n_max * n_base + n * n_base + k]);
+        //             }
+        //             printf("\n");
+        //         }
+        //     }
+        // }
 
         return {
             gradsecond_gradout,

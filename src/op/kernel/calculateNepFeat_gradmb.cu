@@ -92,7 +92,6 @@ void launch_calculate_nepfeatmb_grad(
     const int num_types_sq = n_types * n_types;
     double rcinv_radial = 1.0 / rcut_radial;
     double rcinv_angular = 1.0 / rcut_angular;
-    const int size_x12 = N * neigh_num;
     
     int feat_2b_num = 0;
     int feat_3b_num = 0;

@@ -244,19 +244,23 @@ static __device__ __forceinline__ void scd_get_f12_1(
   const double fnp,
   const double Fp,
   const int n_base_angular, 
-  const int dsnlm_idx,
+  const int dsnlm_start_idx,
+  const int type_j,
+  const int ntypes,
   const int n1, 
   const int n2,
   double *f12k)
 { //l = 1
+  int k_start_id = type_j * n_base_angular * 4;
   int k_idx = 0;
   double dfk = 0.0; // dgn(rij)/dc
+  int dsnlm_idx = dsnlm_start_idx + type_j * n_base_angular * NUM_OF_ABC;
   for(int k=0; k < n_base_angular; k++) {
     int dsnlm_i = dsnlm_idx + k * NUM_OF_ABC;
     double tmpr = 0.0, tmpx = 0.0, tmpy = 0.0, tmpz = 0.0;
     double rr0 = 0.0, rr1 = 0.0, rr2 = 0.0;
     double rrr0 = 0.0, rrr1 = 0.0, rrr2=0.0;
-    k_idx = k * 4;
+    k_idx = k_start_id + k * 4;
     // 左边项 rij
     rr0 =       C3B[0] * dsnlm_dc[dsnlm_i]   * fnp * blm[0]; 
     rr1 = 2.0 * C3B[1] * dsnlm_dc[dsnlm_i+1] * fnp * blm[1];
@@ -284,10 +288,10 @@ static __device__ __forceinline__ void scd_get_f12_1(
     tmpz += s[0] * fn12[k] * rij_Lsq;
     f12k[k_idx + 3] += 2.0 * Fp * scd_r12[3] * tmpz;
 
-    if (n1==95 and n2==33 and k == 12){
-      printf("\tscd L=1 n1=%d n2=%d k=%d s0=%lf s1=%lf s2=%lf fnp=%lf fn=%lf Fp=%lf fn12[%d]=%lf fnp12[%d]=%lf rij_Lsq=%lf rij_L2sq=%lf b10=%lf b11=%lf b12=%lf dqr=%lf dqx=%lf dqy=%lf dqz=%lf r0=%f r1=%f r2=%f rr1=%f rr2=%f rr3=%f\n", 
-              n1, n2, k, s[0], s[1]*2.0, s[2]*2.0, fnp, fn, Fp, k, fn12[k], k, fnp12[k], rij_Lsq, rij_L2sq, blm[0], blm[1], blm[2], tmpr, tmpx, tmpy, tmpz, rr0, rr1, rr2, rrr0, rrr1, rrr2);
-    }
+    // if (n1==0 and n2==0 and k == 0){
+    //   printf("\tscd L=1 n1=%d n2=%d k=%d s0=%lf s1=%lf s2=%lf fnp=%lf fn=%lf Fp=%lf fn12[%d]=%lf fnp12[%d]=%lf rij_Lsq=%lf rij_L2sq=%lf b10=%lf b11=%lf b12=%lf dqr=%lf dqx=%lf dqy=%lf dqz=%lf r0=%f r1=%f r2=%f rr1=%f rr2=%f rr3=%f\n", 
+    //           n1, n2, k, s[0], s[1]*2.0, s[2]*2.0, fnp, fn, Fp, k, fn12[k], k, fnp12[k], rij_Lsq, rij_L2sq, blm[0], blm[1], blm[2], tmpr, tmpx, tmpy, tmpz, rr0, rr1, rr2, rrr0, rrr1, rrr2);
+    // }
   }
 }
 
@@ -311,18 +315,22 @@ static __device__ __forceinline__ void scd_get_f12_2(
   const double fnp,
   const double Fp,
   const int n_base_angular, 
-  const int dsnlm_idx,
+  const int dsnlm_start_idx,
+  const int type_j,
+  const int ntypes,
   const int n1, 
   const int n2,
   double *f12k
   )
 {
   // L = 2 c3b 3 4 5 6 7
+  int k_start_id = type_j * n_base_angular * 4;
   int k_idx = 0;
+  int dsnlm_idx = dsnlm_start_idx + type_j * n_base_angular * NUM_OF_ABC;
   for(int k=0; k < n_base_angular; k++) {
     int dsnlm_i = dsnlm_idx + k * NUM_OF_ABC;
     double tmpr = 0.0, tmpx = 0.0, tmpy = 0.0, tmpz = 0.0;
-    k_idx = k * 4;
+    k_idx = k_start_id + k * 4;
     // 左边项 rij
     tmpr +=  C3B[3] * dsnlm_dc[dsnlm_i+3] * (fnp * blm[3] + fn * dblm_r[3]) + 
                   2.0 * C3B[4] * dsnlm_dc[dsnlm_i+4] * fnp * blm[4] + 
@@ -371,10 +379,10 @@ static __device__ __forceinline__ void scd_get_f12_2(
                   2.0 * s[2] * fn12[k] * rij_Lsq * dblm_z[5];
     f12k[k_idx + 3] += 2.0 * Fp * scd_r12[3] * tmpz;
 
-    if (n1==95 and n2==33 and k == 12){
-      printf("\tscd L=2 n1=%d n2=%d s0=%lf s1=%lf s2=%lf s3=%lf s4=%lf fnp=%lf fn=%lf Fp=%lf b20=%lf b21=%lf b22=%lf b23=%lf b24=%lf dqr=%lf dqx=%lf dqy=%lf dqz=%lf\n", 
-              n1, n2, s[0], s[1]*2.0, s[2]*2.0, s[3]*2.0, s[4]*2.0, fnp, fn, Fp, blm[3], blm[4], blm[5], blm[6], blm[7], tmpr, tmpx, tmpy, tmpz);
-    }
+    // if (n1==0 and n2==0 and k == 0){
+    //   printf("\tscd L=2 n1=%d n2=%d s0=%lf s1=%lf s2=%lf s3=%lf s4=%lf fnp=%lf fn=%lf Fp=%lf b20=%lf b21=%lf b22=%lf b23=%lf b24=%lf dqr=%lf dqx=%lf dqy=%lf dqz=%lf\n", 
+    //           n1, n2, s[0], s[1]*2.0, s[2]*2.0, s[3]*2.0, s[4]*2.0, fnp, fn, Fp, blm[3], blm[4], blm[5], blm[6], blm[7], tmpr, tmpx, tmpy, tmpz);
+    // }
   }
 }
 
@@ -398,28 +406,34 @@ static __device__ __forceinline__ void scd_get_f12_4body(
   const double fnp,
   const double Fp,
   const int n_base_angular,
-  const int dsnlm_idx, 
+  const int dsnlm_start_idx, 
+  const int type_j,
+  const int ntypes,
   const int n1, 
   const int n2,
   double *f12k)
 {
   // L = 2 c3b 3 4 5 6 7
+
+  int k_start_id = type_j * n_base_angular * 4;
+  int dsnlm_idx = dsnlm_start_idx + type_j * n_base_angular * NUM_OF_ABC;
   int k_idx = 0;
+
   double dnlm_drij[5] = {0.0};
   dnlm_drij[0] = fnp * blm[3] + fn * dblm_r[3];
-  dnlm_drij[1] = fnp * blm[4] + fn * dblm_r[4];
-  dnlm_drij[2] = fnp * blm[5] + fn * dblm_r[5];
-  dnlm_drij[3] = fnp * blm[6] + fn * dblm_r[6];
-  dnlm_drij[4] = fnp * blm[7] + fn * dblm_r[7];
+  dnlm_drij[1] = fnp * blm[4];
+  dnlm_drij[2] = fnp * blm[5];
+  dnlm_drij[3] = fnp * blm[6];
+  dnlm_drij[4] = fnp * blm[7];
   double dnlm_dxij[5] = {0.0};
-  dnlm_dxij[0] = fn * dblm_x[3];
+  dnlm_dxij[0] = 0.0;
   dnlm_dxij[1] = fn * dblm_x[4];
-  dnlm_dxij[2] = fn * dblm_x[5];
+  dnlm_dxij[2] = 0.0;
   dnlm_dxij[3] = fn * dblm_x[6];
   dnlm_dxij[4] = fn * dblm_x[7];
   double dnlm_dyij[5] = {0.0};
-  dnlm_dyij[0] = fn * dblm_y[3];
-  dnlm_dyij[1] = fn * dblm_y[4];
+  dnlm_dyij[0] = 0.0;
+  dnlm_dyij[1] = 0.0;
   dnlm_dyij[2] = fn * dblm_y[5];
   dnlm_dyij[3] = fn * dblm_y[6];
   dnlm_dyij[4] = fn * dblm_y[7];
@@ -427,8 +441,8 @@ static __device__ __forceinline__ void scd_get_f12_4body(
   dnlm_dzij[0] = fn * dblm_z[3];
   dnlm_dzij[1] = fn * dblm_z[4];
   dnlm_dzij[2] = fn * dblm_z[5];
-  dnlm_dzij[3] = fn * dblm_z[6];
-  dnlm_dzij[4] = fn * dblm_z[7];
+  dnlm_dzij[3] = 0.0;
+  dnlm_dzij[4] = 0.0;
   double dnlm_dc[5] = {0.0};
   double dnlm_drij_dc[5] = {0.0};
   double dnlm_dxij_dc[5] = {0.0};
@@ -443,13 +457,14 @@ static __device__ __forceinline__ void scd_get_f12_4body(
   s2[4] = s[4] * s[4];
   
   for(int k=0; k < n_base_angular; k++) {
+    int dsnlm_i = dsnlm_idx + k * NUM_OF_ABC;
     double tmpr = 0.0, tmpx = 0.0, tmpy = 0.0, tmpz = 0.0;
-    k_idx = k * 4;
-    dnlm_dc[0] = fn12[k] * rij_Lsq * blm[3];
-    dnlm_dc[1] = fn12[k] * rij_Lsq * blm[4];
-    dnlm_dc[2] = fn12[k] * rij_Lsq * blm[5];
-    dnlm_dc[3] = fn12[k] * rij_Lsq * blm[6];
-    dnlm_dc[4] = fn12[k] * rij_Lsq * blm[7];
+    k_idx = k_start_id + k * 4;
+    dnlm_dc[0] = dsnlm_dc[dsnlm_i + 3];
+    dnlm_dc[1] = dsnlm_dc[dsnlm_i + 4];
+    dnlm_dc[2] = dsnlm_dc[dsnlm_i + 5];
+    dnlm_dc[3] = dsnlm_dc[dsnlm_i + 6];
+    dnlm_dc[4] = dsnlm_dc[dsnlm_i + 7];
     
     dnlm_drij_dc[0] = (fnp12[k] * rij_Lsq - 2.0 * fn12[k] * rij_L2sq) * blm[3] + fn12[k] * rij_Lsq * dblm_r[3]; 
     dnlm_drij_dc[1] = (fnp12[k] * rij_Lsq - 2.0 * fn12[k] * rij_L2sq) * blm[4];
@@ -458,20 +473,20 @@ static __device__ __forceinline__ void scd_get_f12_4body(
     dnlm_drij_dc[4] = (fnp12[k] * rij_Lsq - 2.0 * fn12[k] * rij_L2sq) * blm[7];
     
     dnlm_dxij_dc[0] = 0.0;
-    dnlm_dxij_dc[1] = fn12[k] * rij_Lsq * dblm_x[1];
+    dnlm_dxij_dc[1] = fn12[k] * rij_Lsq * dblm_x[4];
     dnlm_dxij_dc[2] = 0.0;
-    dnlm_dxij_dc[3] = fn12[k] * rij_Lsq * dblm_x[3];
-    dnlm_dxij_dc[4] = fn12[k] * rij_Lsq * dblm_x[4];
+    dnlm_dxij_dc[3] = fn12[k] * rij_Lsq * dblm_x[6];
+    dnlm_dxij_dc[4] = fn12[k] * rij_Lsq * dblm_x[7];
 
     dnlm_dyij_dc[0] = 0.0;
     dnlm_dyij_dc[1] = 0.0;
-    dnlm_dyij_dc[2] = fn12[k] * rij_Lsq * dblm_y[2];
-    dnlm_dyij_dc[3] = fn12[k] * rij_Lsq * dblm_y[3];
-    dnlm_dyij_dc[4] = fn12[k] * rij_Lsq * dblm_y[4];
+    dnlm_dyij_dc[2] = fn12[k] * rij_Lsq * dblm_y[5];
+    dnlm_dyij_dc[3] = fn12[k] * rij_Lsq * dblm_y[6];
+    dnlm_dyij_dc[4] = fn12[k] * rij_Lsq * dblm_y[7];
 
-    dnlm_dzij_dc[0] = fn12[k] * rij_Lsq * dblm_z[0];
-    dnlm_dzij_dc[1] = fn12[k] * rij_Lsq * dblm_z[1];
-    dnlm_dzij_dc[2] = fn12[k] * rij_Lsq * dblm_z[2];
+    dnlm_dzij_dc[0] = fn12[k] * rij_Lsq * dblm_z[3];
+    dnlm_dzij_dc[1] = fn12[k] * rij_Lsq * dblm_z[4];
+    dnlm_dzij_dc[2] = fn12[k] * rij_Lsq * dblm_z[5];
     dnlm_dzij_dc[3] = 0.0;
     dnlm_dzij_dc[4] = 0.0;
     // drij
@@ -509,7 +524,7 @@ static __device__ __forceinline__ void scd_get_f12_4body(
       dnlm_dc[1] * dnlm_drij[2] * s[4] + s[1] * dnlm_drij_dc[2] * s[4] + s[1] * dnlm_drij[2] * dnlm_dc[4] +
       dnlm_dc[1] * s[2] * dnlm_drij[4] + s[1] * dnlm_dc[2] * dnlm_drij[4] + s[1] * s[2] * dnlm_drij_dc[4]
     );
-    f12k[k_idx + 0] += 2.0 * Fp * scd_r12[0] * tmpr;
+    f12k[k_idx + 0] += Fp * scd_r12[0] * tmpr;
     // dxij
     // d0
     tmpx += 3.0 * C4B[0] * (
@@ -545,7 +560,7 @@ static __device__ __forceinline__ void scd_get_f12_4body(
       dnlm_dc[1] * dnlm_dxij[2] * s[4] + s[1] * dnlm_dxij_dc[2] * s[4] + s[1] * dnlm_dxij[2] * dnlm_dc[4] +
       dnlm_dc[1] * s[2] * dnlm_dxij[4] + s[1] * dnlm_dc[2] * dnlm_dxij[4] + s[1] * s[2] * dnlm_dxij_dc[4]
     );    
-    f12k[k_idx + 1] += 2.0 * Fp * scd_r12[1] * tmpx;
+    f12k[k_idx + 1] += Fp * scd_r12[1] * tmpx;
 
     // dyij
     // d0
@@ -582,7 +597,7 @@ static __device__ __forceinline__ void scd_get_f12_4body(
       dnlm_dc[1] * dnlm_dyij[2] * s[4] + s[1] * dnlm_dyij_dc[2] * s[4] + s[1] * dnlm_dyij[2] * dnlm_dc[4] +
       dnlm_dc[1] * s[2] * dnlm_dyij[4] + s[1] * dnlm_dc[2] * dnlm_dyij[4] + s[1] * s[2] * dnlm_dyij_dc[4]
     );    
-    f12k[k_idx + 2] += 2.0 * Fp * scd_r12[2] * tmpy;
+    f12k[k_idx + 2] += Fp * scd_r12[2] * tmpy;
 
     // dzij
     // d0
@@ -619,8 +634,7 @@ static __device__ __forceinline__ void scd_get_f12_4body(
       dnlm_dc[1] * dnlm_dzij[2] * s[4] + s[1] * dnlm_dzij_dc[2] * s[4] + s[1] * dnlm_dzij[2] * dnlm_dc[4] +
       dnlm_dc[1] * s[2] * dnlm_dzij[4] + s[1] * dnlm_dc[2] * dnlm_dzij[4] + s[1] * s[2] * dnlm_dzij_dc[4]
     );    
-    f12k[k_idx + 3] += 2.0 * Fp * scd_r12[3] * tmpz;
-
+    f12k[k_idx + 3] += Fp * scd_r12[3] * tmpz;
   }
 }
 
@@ -644,13 +658,17 @@ static __device__ __forceinline__ void scd_get_f12_5body(
   const double fnp,
   const double Fp,
   const int n_base_angular,
-  const int dsnlm_idx,
+  const int dsnlm_start_idx,
+  const int type_j,
+  const int ntypes,
   const int n1, 
   const int n2,
   double *f12k
 )
 {
   // L = 1
+  int k_start_id = type_j * n_base_angular * 4;
+  int dsnlm_idx = dsnlm_start_idx + type_j * n_base_angular * NUM_OF_ABC;
   int k_idx = 0;
   double dnlm_drij[3] = {0.0};
   dnlm_drij[0] = fnp * blm[0]; // fn * dblm/drij = 0
@@ -683,11 +701,12 @@ static __device__ __forceinline__ void scd_get_f12_5body(
   double ds1s2_c = 0.0;
   double d_tmp = 0.0;
   for(int k=0; k < n_base_angular; k++) {
+    int dsnlm_i = dsnlm_idx + k * NUM_OF_ABC;
     double tmpr = 0.0, tmpx = 0.0, tmpy = 0.0, tmpz = 0.0;
-    k_idx = k * 4;
-    dnlm_dc[0] = fn12[k] * rij_Lsq * blm[0];
-    dnlm_dc[1] = fn12[k] * rij_Lsq * blm[1];
-    dnlm_dc[2] = fn12[k] * rij_Lsq * blm[2];
+    k_idx = k_start_id + k * 4;
+    dnlm_dc[0] = dsnlm_dc[dsnlm_i + 0];
+    dnlm_dc[1] = dsnlm_dc[dsnlm_i + 1];
+    dnlm_dc[2] = dsnlm_dc[dsnlm_i + 2];
     
     dnlm_drij_dc[0] = (fnp12[k] * rij_Lsq - fn12[k] * rij_L2sq) * blm[0]; 
     dnlm_drij_dc[1] = (fnp12[k] * rij_Lsq - fn12[k] * rij_L2sq) * blm[1];
@@ -717,7 +736,7 @@ static __device__ __forceinline__ void scd_get_f12_5body(
       s[0] * dnlm_drij[0] * ds1s2_c + 2.0 * s[0] * dnlm_dc[0] * ds1s2 + s2[0] * d_tmp);
     // d2
     tmpr += 4.0 * C5B[2] * (ds1s2_c * ds1s2 + (s2[1] + s2[2]) * d_tmp);
-    f12k[k_idx + 0] += 2.0 * Fp * scd_r12[0] * tmpr;
+    f12k[k_idx + 0] += Fp * scd_r12[0] * tmpr;
 
     // dxij
     // d0
@@ -731,7 +750,7 @@ static __device__ __forceinline__ void scd_get_f12_5body(
       s[0] * dnlm_dxij[0] * ds1s2_c + 2.0 * s[0] * dnlm_dc[0] * ds1s2 + s2[0] * d_tmp);
     // d2
     tmpx += 4.0 * C5B[2] * (ds1s2_c * ds1s2 + (s2[1] + s2[2]) * d_tmp);
-    f12k[k_idx + 1] += 2.0 * Fp * scd_r12[1] * tmpx;
+    f12k[k_idx + 1] += Fp * scd_r12[1] * tmpx;
 
     // dyij
     // d0
@@ -745,7 +764,7 @@ static __device__ __forceinline__ void scd_get_f12_5body(
       s[0] * dnlm_dyij[0] * ds1s2_c + 2.0 * s[0] * dnlm_dc[0] * ds1s2 + s2[0] * d_tmp);
     // d2
     tmpy += 4.0 * C5B[2] * (ds1s2_c * ds1s2 + (s2[1] + s2[2]) * d_tmp);
-    f12k[k_idx + 2] += 2.0 * Fp * scd_r12[2] * tmpy;
+    f12k[k_idx + 2] += Fp * scd_r12[2] * tmpy;
 
     // dzij
     // d0
@@ -759,7 +778,7 @@ static __device__ __forceinline__ void scd_get_f12_5body(
       s[0] * dnlm_dzij[0] * ds1s2_c + 2.0 * s[0] * dnlm_dc[0] * ds1s2 + s2[0] * d_tmp);
     // d2
     tmpz += 4.0 * C5B[2] * (ds1s2_c * ds1s2 + (s2[1] + s2[2]) * d_tmp);
-    f12k[k_idx + 3] += 2.0 * Fp * scd_r12[3] * tmpz;
+    f12k[k_idx + 3] += Fp * scd_r12[3] * tmpz;
   }
 
   // if (n1==0 and n2==0){
@@ -788,17 +807,21 @@ static __device__ __forceinline__ void scd_get_f12_3(
   const double fnp,
   const double Fp,
   const int n_base_angular, 
-  const int dsnlm_idx,
+  const int dsnlm_start_idx,
+  const int type_j,
+  const int ntypes,
   const int n1, 
   const int n2,
   double *f12k)
 {
   // L = 3 c3b 8 9 10 11 12 13 14  s 0 1 2 3 4 5 6
+  int k_start_id = type_j * n_base_angular * 4;
   int k_idx = 0;
+  int dsnlm_idx = dsnlm_start_idx + type_j * n_base_angular * NUM_OF_ABC;
   for(int k=0; k < n_base_angular; k++) {
     int dsnlm_i = dsnlm_idx + k * NUM_OF_ABC;
     double tmpr = 0.0, tmpx = 0.0, tmpy = 0.0, tmpz = 0.0;
-    k_idx = k * 4;
+    k_idx = k_start_id + k * 4;
     // 左边项 rij
     tmpr +=         C3B[8]  * dsnlm_dc[dsnlm_i+8] * (fnp * blm[8]  + fn * dblm_r[8]) + 
               2.0 * C3B[9]  * dsnlm_dc[dsnlm_i+9] * (fnp * blm[9]  + fn * dblm_r[9]) + 
@@ -870,10 +893,10 @@ static __device__ __forceinline__ void scd_get_f12_3(
             // 2.0 * s[5] * fn12[k] * rij_Lsq * dblm_z[13] +  0.0 +
             // 2.0 * s[6] * fn12[k] * rij_Lsq * dblm_z[14] +  0.0;
     f12k[k_idx + 3] += 2.0 * Fp * scd_r12[3] * tmpz;
-    if (n1==95 and n2==33 and k == 12){
-      printf("\tscd L=3 n1=%d n2=%d s0=%lf s1=%lf s2=%lf s3=%lf s4=%lf s5=%lf s6=%lf fnp=%lf fn=%lf Fp=%lf b30=%lf b31=%lf b32=%lf b33=%lf b34=%lf b35=%lf b36=%lf dqr=%lf dqx=%lf dqy=%lf dqz=%lf\n", 
-              n1, n2, s[0], s[1]*2.0, s[2]*2.0, s[3]*2.0, s[4]*2.0, s[5]*2.0, s[6]*2.0, fnp, fn, Fp, blm[8], blm[9], blm[10], blm[11], blm[12], blm[13], blm[14], tmpr, tmpx, tmpy, tmpz);
-    }
+    // if (n1==0 and n2==0 and k == 0){
+    //   printf("\tscd L=3 n1=%d n2=%d s0=%lf s1=%lf s2=%lf s3=%lf s4=%lf s5=%lf s6=%lf fnp=%lf fn=%lf Fp=%lf b30=%lf b31=%lf b32=%lf b33=%lf b34=%lf b35=%lf b36=%lf dqr=%lf dqx=%lf dqy=%lf dqz=%lf\n", 
+    //           n1, n2, s[0], s[1]*2.0, s[2]*2.0, s[3]*2.0, s[4]*2.0, s[5]*2.0, s[6]*2.0, fnp, fn, Fp, blm[8], blm[9], blm[10], blm[11], blm[12], blm[13], blm[14], tmpr, tmpx, tmpy, tmpz);
+    // }
   }
 }
 
@@ -897,16 +920,20 @@ static __device__ __forceinline__ void scd_get_f12_4(
   const double fnp,
   const double Fp,
   const int n_base_angular, 
-  const int dsnlm_idx,
+  const int dsnlm_start_idx,
+  const int type_j,
+  const int ntypes,
   const int n1, 
   const int n2,
   double *f12k)
 {
+  int k_start_id = type_j * n_base_angular * 4;
   int k_idx = 0;
+  int dsnlm_idx = dsnlm_start_idx + type_j * n_base_angular * NUM_OF_ABC;
   for(int k=0; k < n_base_angular; k++) {
     int dsnlm_i = dsnlm_idx + k * NUM_OF_ABC;
     double tmpr = 0.0, tmpx = 0.0, tmpy = 0.0, tmpz = 0.0;
-    k_idx = k * 4;
+    k_idx = k_start_id + k * 4;
     // 左边项 rij
     tmpr +=       C3B[15] * dsnlm_dc[dsnlm_i+15] * (fnp * blm[15] + fn * dblm_r[15]) + 
             2.0 * C3B[16] * dsnlm_dc[dsnlm_i+16] * (fnp * blm[16] + fn * dblm_r[16]) + 
@@ -998,9 +1025,672 @@ static __device__ __forceinline__ void scd_get_f12_4(
             2.0 * s[8] * fn12[k] * rij_Lsq * dblm_z[23];
     f12k[k_idx + 3] += 2.0 * Fp * scd_r12[3] * tmpz;
 
-    if (n1==95 and n2==33 and k == 12){
-      printf("\tscd L=4 n1=%d n2=%d s0=%lf s1=%lf s2=%lf s3=%lf s4=%lf s5=%lf s6=%lf s7=%lf s8=%lf fnp=%lf fn=%lf Fp=%lf b40=%lf b41=%lf b42=%lf b43=%lf b44=%lf b45=%lf b46=%lf b47=%lf b48=%lf dqr=%lf dqx=%lf dqy=%lf dqz=%lf\n", 
-              n1, n2, s[0], s[1]*2.0, s[2]*2.0, s[3]*2.0, s[4]*2.0, s[5]*2.0, s[6]*2.0,  s[7]*2.0, s[8]*2.0, fnp, fn, Fp, blm[15], blm[16], blm[17], blm[18], blm[19], blm[20], blm[21], blm[23], blm[23], tmpr, tmpx, tmpy, tmpz);
+    // if (n1==0 and n2==0 and k == 0){
+    //   printf("\tscd L=4 n1=%d n2=%d s0=%lf s1=%lf s2=%lf s3=%lf s4=%lf s5=%lf s6=%lf s7=%lf s8=%lf fnp=%lf fn=%lf Fp=%lf b40=%lf b41=%lf b42=%lf b43=%lf b44=%lf b45=%lf b46=%lf b47=%lf b48=%lf dqr=%lf dqx=%lf dqy=%lf dqz=%lf\n", 
+    //           n1, n2, s[0], s[1]*2.0, s[2]*2.0, s[3]*2.0, s[4]*2.0, s[5]*2.0, s[6]*2.0,  s[7]*2.0, s[8]*2.0, fnp, fn, Fp, blm[15], blm[16], blm[17], blm[18], blm[19], blm[20], blm[21], blm[23], blm[23], tmpr, tmpx, tmpy, tmpz);
+    // }
+  }
+}
+
+
+// others J of C_nk_iJ
+static __device__ __forceinline__ void scd_get_f12_1_J(
+  const double *fn12,
+  const double *fnp12,
+  const double *blm,
+  const double *rij_blm,
+  const double *dblm_x,
+  const double *dblm_y,
+  const double *dblm_z,
+  const double *dblm_r,
+  const double *scd_r12,
+  const double *dsnlm_dc,
+  const double *s,
+  const double *r12,
+  const double d12inv,
+  const double rij_Lsq, 
+  const double rij_L2sq, 
+  const double fn,
+  const double fnp,
+  const double Fp,
+  const int n_base_angular, 
+  const int dsnlm_start_idx,
+  const int type_j,
+  const int ntypes,
+  const int n1, 
+  const int n2,
+  double *f12k)
+{ //l = 1
+  int k_idx = 0;
+  for (int j = 0; j < ntypes; j++){
+    if (type_j == j) continue;
+    int dsnlm_idx = dsnlm_start_idx + j * n_base_angular * NUM_OF_ABC;
+    int k_start_idx = j * n_base_angular * 4;
+    for(int k=0; k < n_base_angular; k++) {
+      int dsnlm_i = dsnlm_idx + k * NUM_OF_ABC;
+      double tmpr = 0.0, tmpx = 0.0, tmpy = 0.0, tmpz = 0.0;
+      k_idx = k_start_idx + k * 4;
+      // 左边项 rij
+      tmpr +=       C3B[0] * dsnlm_dc[dsnlm_i]   * fnp * blm[0]; 
+      tmpr += 2.0 * C3B[1] * dsnlm_dc[dsnlm_i+1] * fnp * blm[1];
+      tmpr += 2.0 * C3B[2] * dsnlm_dc[dsnlm_i+2] * fnp * blm[2];
+      f12k[k_idx + 0] += 2.0 * Fp * scd_r12[0] * tmpr;// 可以考虑移出去
+
+      // xij
+      tmpx += 2.0 * C3B[1] * dsnlm_dc[dsnlm_i+1] * fn; // dblm/dxij b10 b12 为0
+      f12k[k_idx + 1] += 2.0 * Fp * scd_r12[1] * tmpx;
+
+      // yij
+      tmpy += 2.0 * C3B[2] * dsnlm_dc[dsnlm_i+2] * fn;
+      f12k[k_idx + 2] += 2.0 * Fp * scd_r12[2] * tmpy;
+
+      // zij
+      tmpz += C3B[0] * dsnlm_dc[dsnlm_i] * fn;
+      f12k[k_idx + 3] += 2.0 * Fp * scd_r12[3] * tmpz;
+
+      // if (n1==0 and n2==0 and k == 0){
+      //   printf("\tscd_J L=1 n1=%d n2=%d k=%d s0=%lf s1=%lf s2=%lf fnp=%lf fn=%lf Fp=%lf fn12[%d]=%lf fnp12[%d]=%lf rij_Lsq=%lf rij_L2sq=%lf b10=%lf b11=%lf b12=%lf dqr=%lf dqx=%lf dqy=%lf dqz=%lf\n", 
+      //           n1, n2, k, s[0], s[1]*2.0, s[2]*2.0, fnp, fn, Fp, k, fn12[k], k, fnp12[k], rij_Lsq, rij_L2sq, blm[0], blm[1], blm[2], tmpr, tmpx, tmpy, tmpz);
+      // }
+    }
+  }
+}
+
+static __device__ __forceinline__ void scd_get_f12_4body_J(
+  const double *fn12,
+  const double *fnp12,
+  const double *blm,
+  const double *rij_blm,
+  const double *dblm_x,
+  const double *dblm_y,
+  const double *dblm_z,
+  const double *dblm_r,
+  const double *scd_r12,
+  const double *dsnlm_dc,
+  const double* s,
+  const double* r12,
+  const double d12inv,
+  const double rij_Lsq, 
+  const double rij_L2sq, 
+  const double fn,
+  const double fnp,
+  const double Fp,
+  const int n_base_angular,
+  const int dsnlm_start_idx, 
+  const int type_j,
+  const int ntypes,
+  const int n1, 
+  const int n2,
+  double *f12k)
+{
+  // L = 2 c3b 3 4 5 6 7
+  double dnlm_drij[5] = {0.0};
+  dnlm_drij[0] = fnp * blm[3] + fn * dblm_r[3];
+  dnlm_drij[1] = fnp * blm[4];
+  dnlm_drij[2] = fnp * blm[5];
+  dnlm_drij[3] = fnp * blm[6];
+  dnlm_drij[4] = fnp * blm[7];
+  double dnlm_dxij[5] = {0.0};
+  dnlm_dxij[0] = 0.0;
+  dnlm_dxij[1] = fn * dblm_x[4];
+  dnlm_dxij[2] = 0.0;
+  dnlm_dxij[3] = fn * dblm_x[6];
+  dnlm_dxij[4] = fn * dblm_x[7];
+  double dnlm_dyij[5] = {0.0};
+  dnlm_dyij[0] = 0.0;
+  dnlm_dyij[1] = 0.0;
+  dnlm_dyij[2] = fn * dblm_y[5];
+  dnlm_dyij[3] = fn * dblm_y[6];
+  dnlm_dyij[4] = fn * dblm_y[7];
+  double dnlm_dzij[5] = {0.0};
+  dnlm_dzij[0] = fn * dblm_z[3];
+  dnlm_dzij[1] = fn * dblm_z[4];
+  dnlm_dzij[2] = fn * dblm_z[5];
+  dnlm_dzij[3] = 0.0;
+  dnlm_dzij[4] = 0.0;
+  double dnlm_dc[5] = {0.0};
+  int k_idx = 0;
+  for (int j = 0; j < ntypes; j++){  
+    if (type_j == j) continue;
+    int dsnlm_idx = dsnlm_start_idx + j * n_base_angular * NUM_OF_ABC;
+    int k_start_id = j * n_base_angular * 4;
+    for(int k=0; k < n_base_angular; k++) {
+      int dsnlm_i = dsnlm_idx + k * NUM_OF_ABC;
+      double tmpr = 0.0, tmpx = 0.0, tmpy = 0.0, tmpz = 0.0;
+      k_idx = k_start_id + k * 4;
+      dnlm_dc[0] = dsnlm_dc[dsnlm_i + 3];
+      dnlm_dc[1] = dsnlm_dc[dsnlm_i + 4];
+      dnlm_dc[2] = dsnlm_dc[dsnlm_i + 5];
+      dnlm_dc[3] = dsnlm_dc[dsnlm_i + 6];
+      dnlm_dc[4] = dsnlm_dc[dsnlm_i + 7];
+
+      // drij
+      // d0
+      tmpr += 3.0 * C4B[0] * (
+        2.0 * s[0] * dnlm_dc[0] * dnlm_drij[0]);
+      // d1
+      tmpr += C4B[1] * (
+        dnlm_drij[0] * 2.0 * (s[1] * dnlm_dc[1] + s[2] * dnlm_dc[2])
+      );
+      tmpr += 2.0 * C4B[1] * (
+        dnlm_dc[0] * (s[1] * dnlm_drij[1] + s[2] * dnlm_drij[2]) + 
+        s[0] * (dnlm_dc[1] * dnlm_drij[1] + 
+                  dnlm_dc[2] * dnlm_drij[2])
+      );
+      // d2
+      tmpr += C4B[2] * (
+        dnlm_drij[0] * 2.0 * (s[3] * dnlm_dc[3] + s[4] * dnlm_dc[4]));
+      tmpr += 2.0 * C4B[2] * (
+        dnlm_dc[0] * (s[3] * dnlm_drij[3] + s[4] * dnlm_drij[4]) + 
+        s[0] * (dnlm_dc[3] * dnlm_drij[3] +  
+                  dnlm_dc[4] * dnlm_drij[4])  
+      );
+      // d3
+      tmpr += C4B[3] * (
+        dnlm_drij[3] * 2.0 * (s[2] * dnlm_dc[2] - s[1] * dnlm_dc[1]));
+      tmpr += 2.0 * C4B[3] * (
+        dnlm_dc[3] * (s[2] * dnlm_drij[2] - s[1] * dnlm_drij[1]) +
+          s[3] * (dnlm_dc[2] * dnlm_drij[2] -
+                  dnlm_dc[1] * dnlm_drij[1])
+      );
+      // d4
+      tmpr += C4B[4] * (
+        dnlm_drij[1] * dnlm_dc[2] * s[4] + dnlm_drij[1] * s[2] * dnlm_dc[4] +
+        dnlm_dc[1] * dnlm_drij[2] * s[4] + s[1] * dnlm_drij[2] * dnlm_dc[4] +
+        dnlm_dc[1] * s[2] * dnlm_drij[4] + s[1] * dnlm_dc[2] * dnlm_drij[4]
+      );
+      f12k[k_idx + 0] += Fp * scd_r12[0] * tmpr;
+      // dxij
+      // d0
+      tmpx += 3.0 * C4B[0] * (
+        2.0 * s[0] * dnlm_dc[0] * dnlm_dxij[0]);
+      // d1
+      tmpx += C4B[1] * (
+        dnlm_dxij[0] * 2.0 * (s[1] * dnlm_dc[1] + s[2] * dnlm_dc[2])
+      );
+      tmpx += 2.0 * C4B[1] * (
+        dnlm_dc[0] * (s[1] * dnlm_dxij[1] + s[2] * dnlm_dxij[2]) + 
+        s[0] * (dnlm_dc[1] * dnlm_dxij[1] + 
+                  dnlm_dc[2] * dnlm_dxij[2])
+      );
+      // d2
+      tmpx += C4B[2] * (
+        dnlm_dxij[0] * 2.0 * (s[3] * dnlm_dc[3] + s[4] * dnlm_dc[4]));
+      tmpx += 2.0 * C4B[2] * (
+        dnlm_dc[0] * (s[3] * dnlm_dxij[3] + s[4] * dnlm_dxij[4]) + 
+        s[0] * (dnlm_dc[3] * dnlm_dxij[3] + 
+                  dnlm_dc[4] * dnlm_dxij[4])  
+      );
+      // d3
+      tmpx += C4B[3] * (
+        dnlm_dxij[3] * 2.0 * (s[2] * dnlm_dc[2] - s[1] * dnlm_dc[1]));
+      tmpx += 2.0 * C4B[3] * (
+        dnlm_dc[3] * (s[2] * dnlm_dxij[2] - s[1] * dnlm_dxij[1]) +
+          s[3] * (dnlm_dc[2] * dnlm_dxij[2] -
+                  dnlm_dc[1] * dnlm_dxij[1])
+      );
+      // d4
+      tmpx += C4B[4] * (
+        dnlm_dxij[1] * dnlm_dc[2] * s[4] + dnlm_dxij[1] * s[2] * dnlm_dc[4] +
+        dnlm_dc[1] * dnlm_dxij[2] * s[4] + s[1] * dnlm_dxij[2] * dnlm_dc[4] +
+        dnlm_dc[1] * s[2] * dnlm_dxij[4] + s[1] * dnlm_dc[2] * dnlm_dxij[4]
+      );    
+      f12k[k_idx + 1] += Fp * scd_r12[1] * tmpx;
+
+      // dyij
+      // d0
+      tmpy += 3.0 * C4B[0] * (
+        2.0 * s[0] * dnlm_dc[0] * dnlm_dyij[0]);
+      // d1
+      tmpy += C4B[1] * (
+        dnlm_dyij[0] * 2.0 * (s[1] * dnlm_dc[1] + s[2] * dnlm_dc[2])
+      );
+      tmpy += 2.0 * C4B[1] * (
+        dnlm_dc[0] * (s[1] * dnlm_dyij[1] + s[2] * dnlm_dyij[2]) + 
+        s[0] * (dnlm_dc[1] * dnlm_dyij[1] + 
+                  dnlm_dc[2] * dnlm_dyij[2])
+      );
+      // d2
+      tmpy += C4B[2] * (
+        dnlm_dyij[0] * 2.0 * (s[3] * dnlm_dc[3] + s[4] * dnlm_dc[4]));
+      tmpy += 2.0 * C4B[2] * (
+        dnlm_dc[0] * (s[3] * dnlm_dyij[3] + s[4] * dnlm_dyij[4]) + 
+        s[0] * (dnlm_dc[3] * dnlm_dyij[3] + 
+                  dnlm_dc[4] * dnlm_dyij[4])  
+      );
+      // d3
+      tmpy += C4B[3] * (
+        dnlm_dyij[3] * 2.0 * (s[2] * dnlm_dc[2] - s[1] * dnlm_dc[1]));
+      tmpy += 2.0 * C4B[3] * (
+        dnlm_dc[3] * (s[2] * dnlm_dyij[2] - s[1] * dnlm_dyij[1]) +
+          s[3] * (dnlm_dc[2] * dnlm_dyij[2] -
+                  dnlm_dc[1] * dnlm_dyij[1])
+      );
+      // d4
+      tmpy += C4B[4] * (
+        dnlm_dyij[1] * dnlm_dc[2] * s[4] + dnlm_dyij[1] * s[2] * dnlm_dc[4] +
+        dnlm_dc[1] * dnlm_dyij[2] * s[4] + s[1] * dnlm_dyij[2] * dnlm_dc[4] +
+        dnlm_dc[1] * s[2] * dnlm_dyij[4] + s[1] * dnlm_dc[2] * dnlm_dyij[4]
+      );    
+      f12k[k_idx + 2] += Fp * scd_r12[2] * tmpy;
+
+      // dzij
+      // d0
+      tmpz += 3.0 * C4B[0] * (
+        2.0 * s[0] * dnlm_dc[0] * dnlm_dzij[0]);
+      // d1
+      tmpz += C4B[1] * (
+        dnlm_dzij[0] * 2.0 * (s[1] * dnlm_dc[1] + s[2] * dnlm_dc[2])
+      );
+      tmpz += 2.0 * C4B[1] * (
+        dnlm_dc[0] * (s[1] * dnlm_dzij[1] + s[2] * dnlm_dzij[2]) + 
+        s[0] * (dnlm_dc[1] * dnlm_dzij[1] + 
+                  dnlm_dc[2] * dnlm_dzij[2])
+      );
+      // d2
+      tmpz += C4B[2] * (
+        dnlm_dzij[0] * 2.0 * (s[3] * dnlm_dc[3] + s[4] * dnlm_dc[4]));
+      tmpz += 2.0 * C4B[2] * (
+        dnlm_dc[0] * (s[3] * dnlm_dzij[3] + s[4] * dnlm_dzij[4]) + 
+        s[0] * (dnlm_dc[3] * dnlm_dzij[3] + 
+                  dnlm_dc[4] * dnlm_dzij[4])  
+      );
+      // d3
+      tmpz += C4B[3] * (
+        dnlm_dzij[3] * 2.0 * (s[2] * dnlm_dc[2] - s[1] * dnlm_dc[1]));
+      tmpz += 2.0 * C4B[3] * (
+        dnlm_dc[3] * (s[2] * dnlm_dzij[2] - s[1] * dnlm_dzij[1]) +
+          s[3] * (dnlm_dc[2] * dnlm_dzij[2] -
+                  dnlm_dc[1] * dnlm_dzij[1])
+      );
+      // d4
+      tmpz += C4B[4] * (
+        dnlm_dzij[1] * dnlm_dc[2] * s[4] + dnlm_dzij[1] * s[2] * dnlm_dc[4] +
+        dnlm_dc[1] * dnlm_dzij[2] * s[4] + s[1] * dnlm_dzij[2] * dnlm_dc[4] +
+        dnlm_dc[1] * s[2] * dnlm_dzij[4] + s[1] * dnlm_dc[2] * dnlm_dzij[4]
+      );    
+      f12k[k_idx + 3] += Fp * scd_r12[3] * tmpz;
+    }
+  }
+}
+
+static __device__ __forceinline__ void scd_get_f12_5body_J(
+  const double *fn12,
+  const double *fnp12,
+  const double *blm,
+  const double *rij_blm,
+  const double *dblm_x,
+  const double *dblm_y,
+  const double *dblm_z,
+  const double *dblm_r,
+  const double *scd_r12,
+  const double *dsnlm_dc,
+  const double* s,
+  const double* r12,
+  const double d12inv,
+  const double rij_Lsq, 
+  const double rij_L2sq, 
+  const double fn,
+  const double fnp,
+  const double Fp,
+  const int n_base_angular,
+  const int dsnlm_start_idx,
+  const int type_j,
+  const int ntypes,
+  const int n1, 
+  const int n2,
+  double *f12k
+)
+{
+  // L = 1
+  double dnlm_drij[3] = {0.0};
+  dnlm_drij[0] = fnp * blm[0]; // fn * dblm/drij = 0
+  dnlm_drij[1] = fnp * blm[1];
+  dnlm_drij[2] = fnp * blm[2];
+  double dnlm_dxij[3] = {0.0};
+  dnlm_dxij[0] = 0.0;
+  dnlm_dxij[1] = fn; //  dblm_x[1] = 1.0
+  dnlm_dxij[2] = 0.0;
+  double dnlm_dyij[3] = {0.0};
+  dnlm_dyij[0] = 0.0;
+  dnlm_dyij[1] = 0.0;
+  dnlm_dyij[2] = fn; //  dblm_y[2] = 1.0
+  double dnlm_dzij[3] = {0.0};
+  dnlm_dzij[0] = fn; // dblm_z[0] = 1.0
+  dnlm_dzij[1] = 0.0;
+  dnlm_dzij[2] = 0.0;
+  double dnlm_dc[3] = {0.0};
+
+  double s2[3] = {0.0};
+  s2[0] = s[0] * s[0];
+  s2[1] = s[1] * s[1];
+  s2[2] = s[2] * s[2];
+  
+  double ds1s2 = 0.0;
+  double ds1s2_c = 0.0;
+  double d_tmp = 0.0;
+  int k_idx = 0;
+  for (int j = 0; j < ntypes; j++){  
+    if (type_j == j) continue;
+    int dsnlm_idx = dsnlm_start_idx + j * n_base_angular * NUM_OF_ABC;
+    int k_start_id = j * n_base_angular * 4;
+    for(int k=0; k < n_base_angular; k++) {
+      int dsnlm_i = dsnlm_idx + k * NUM_OF_ABC;
+      double tmpr = 0.0, tmpx = 0.0, tmpy = 0.0, tmpz = 0.0;
+      k_idx = k_start_id + k * 4;
+      dnlm_dc[0] = dsnlm_dc[dsnlm_i + 0];
+      dnlm_dc[1] = dsnlm_dc[dsnlm_i + 1];
+      dnlm_dc[2] = dsnlm_dc[dsnlm_i + 2];
+      // drij
+      // d0
+      tmpr += 4.0 * C5B[0] * (3.0 * s2[0] * dnlm_dc[0] * dnlm_drij[0]);
+      // d1
+      ds1s2 = s[1] * dnlm_drij[1] + s[2] * dnlm_drij[2];
+      ds1s2_c = 2.0 * s[1] * dnlm_dc[1] + 2.0 * s[2] * dnlm_dc[2];
+      d_tmp = dnlm_dc[1] * dnlm_drij[1] + dnlm_dc[2] * dnlm_drij[2];
+      tmpr += 2.0 * C5B[1] * (
+        dnlm_dc[0] * dnlm_drij[0] * (s2[1] + s2[2]) +  
+        s[0] * dnlm_drij[0] * ds1s2_c + 2.0 * s[0] * dnlm_dc[0] * ds1s2 + s2[0] * d_tmp);
+      // d2
+      tmpr += 4.0 * C5B[2] * (ds1s2_c * ds1s2 + (s2[1] + s2[2]) * d_tmp);
+      f12k[k_idx + 0] += Fp * scd_r12[0] * tmpr;
+
+      // dxij
+      // d0
+      tmpx += 4.0 * C5B[0] * (3.0 * s2[0] * dnlm_dc[0] * dnlm_dxij[0]);
+      // d1
+      ds1s2 = s[1] * dnlm_dxij[1] + s[2] * dnlm_dxij[2];
+      ds1s2_c = 2.0 * s[1] * dnlm_dc[1] + 2.0 * s[2] * dnlm_dc[2];
+      d_tmp = dnlm_dc[1] * dnlm_dxij[1] + dnlm_dc[2] * dnlm_dxij[2];
+      tmpx += 2.0 * C5B[1] * (
+        dnlm_dc[0] * dnlm_dxij[0] * (s2[1] + s2[2]) +  
+        s[0] * dnlm_dxij[0] * ds1s2_c + 2.0 * s[0] * dnlm_dc[0] * ds1s2 + s2[0] * d_tmp);
+      // d2
+      tmpx += 4.0 * C5B[2] * (ds1s2_c * ds1s2 + (s2[1] + s2[2]) * d_tmp);
+      f12k[k_idx + 1] += Fp * scd_r12[1] * tmpx;
+
+      // dyij
+      // d0
+      tmpy += 4.0 * C5B[0] * (3.0 * s2[0] * dnlm_dc[0] * dnlm_dyij[0]);
+      // d1
+      ds1s2 = s[1] * dnlm_dyij[1] + s[2] * dnlm_dyij[2];
+      ds1s2_c = 2.0 * s[1] * dnlm_dc[1] + 2.0 * s[2] * dnlm_dc[2];
+      d_tmp = dnlm_dc[1] * dnlm_dyij[1] + dnlm_dc[2] * dnlm_dyij[2];
+      tmpy += 2.0 * C5B[1] * (
+        dnlm_dc[0] * dnlm_dyij[0] * (s2[1] + s2[2]) +  
+        s[0] * dnlm_dyij[0] * ds1s2_c + 2.0 * s[0] * dnlm_dc[0] * ds1s2 + s2[0] * d_tmp);
+      // d2
+      tmpy += 4.0 * C5B[2] * (ds1s2_c * ds1s2 + (s2[1] + s2[2]) * d_tmp);
+      f12k[k_idx + 2] += Fp * scd_r12[2] * tmpy;
+
+      // dzij
+      // d0
+      tmpz += 4.0 * C5B[0] * (3.0 * s2[0] * dnlm_dc[0] * dnlm_dzij[0]);
+      // d1
+      ds1s2 = s[1] * dnlm_dzij[1] + s[2] * dnlm_dzij[2];
+      ds1s2_c = 2.0 * s[1] * dnlm_dc[1] + 2.0 * s[2] * dnlm_dc[2];
+      d_tmp = dnlm_dc[1] * dnlm_dzij[1] + dnlm_dc[2] * dnlm_dzij[2];
+      tmpz += 2.0 * C5B[1] * (
+        dnlm_dc[0] * dnlm_dzij[0] * (s2[1] + s2[2]) +  
+        s[0] * dnlm_dzij[0] * ds1s2_c + 2.0 * s[0] * dnlm_dc[0] * ds1s2 + s2[0] * d_tmp);
+      // d2
+      tmpz += 4.0 * C5B[2] * (ds1s2_c * ds1s2 + (s2[1] + s2[2]) * d_tmp);
+      f12k[k_idx + 3] += Fp * scd_r12[3] * tmpz;
+    }
+  }
+  // if (n1==0 and n2==0){
+  //   printf("\t5bL=2 n1=%d n2=%d s0=%lf s1=%lf s2=%lf s3=%lf s4=%lf fnp=%lf fn=%lf Fp=%lf r12=%lf x=%lf y=%lf z=%lf dqr=%lf dqx=%lf dqy=%lf dqz=%lf\n", 
+  //           n1, n2, s[0], s[1], s[2], s[3], s[4], fnp, fn, Fp, d12, r12[0], r12[1], r12[2], tmp, tmpx, tmpy, tmpz);
+  // }
+}
+
+static __device__ __forceinline__ void scd_get_f12_2_J(
+  const double *fn12,
+  const double *fnp12,
+  const double *blm,
+  const double *rij_blm,
+  const double *dblm_x,
+  const double *dblm_y,
+  const double *dblm_z,
+  const double *dblm_r,
+  const double *scd_r12,
+  const double *dsnlm_dc,
+  const double* s,
+  const double* r12,
+  const double d12inv,
+  const double rij_Lsq, 
+  const double rij_L2sq, 
+  const double fn,
+  const double fnp,
+  const double Fp,
+  const int n_base_angular, 
+  const int dsnlm_start_idx,
+  const int type_j,
+  const int ntypes,
+  const int n1, 
+  const int n2,
+  double *f12k
+  )
+{
+  // L = 2 c3b 3 4 5 6 7
+  int k_idx = 0;
+  for (int j = 0; j < ntypes; j++){  
+    if (type_j == j) continue;
+    int dsnlm_idx = dsnlm_start_idx + j * n_base_angular * NUM_OF_ABC;
+    int k_start_idx = j * n_base_angular * 4;    
+    for(int k=0; k < n_base_angular; k++) {
+      int dsnlm_i = dsnlm_idx + k * NUM_OF_ABC;
+      double tmpr = 0.0, tmpx = 0.0, tmpy = 0.0, tmpz = 0.0;
+      k_idx = k_start_idx + k * 4;
+      // 左边项 rij
+      tmpr +=  C3B[3] * dsnlm_dc[dsnlm_i+3] * (fnp * blm[3] + fn * dblm_r[3]) + 
+                    2.0 * C3B[4] * dsnlm_dc[dsnlm_i+4] * fnp * blm[4] + 
+                    2.0 * C3B[5] * dsnlm_dc[dsnlm_i+5] * fnp * blm[5] + 
+                    2.0 * C3B[6] * dsnlm_dc[dsnlm_i+6] * fnp * blm[6] +
+                    2.0 * C3B[7] * dsnlm_dc[dsnlm_i+7] * fnp * blm[7]; 
+      f12k[k_idx + 0] += 2.0 * Fp * scd_r12[0] * tmpr;// 可以考虑移出去
+
+      // 左边项 xij
+      tmpx += 
+                    2.0 * C3B[4] * dsnlm_dc[dsnlm_i+4] * fn * dblm_x[4] + 
+                    2.0 * C3B[6] * dsnlm_dc[dsnlm_i+6] * fn * dblm_x[6] +
+                    2.0 * C3B[7] * dsnlm_dc[dsnlm_i+7] * fn * dblm_x[7];     
+      f12k[k_idx + 1] += 2.0 * Fp * scd_r12[1] * tmpx;
+
+      // 左边项 yij
+      tmpy += 
+                    2.0 * C3B[5] * dsnlm_dc[dsnlm_i+5] * fn * dblm_y[5] + 
+                    2.0 * C3B[6] * dsnlm_dc[dsnlm_i+6] * fn * dblm_y[6] +
+                    2.0 * C3B[7] * dsnlm_dc[dsnlm_i+7] * fn * dblm_y[7];     
+      f12k[k_idx + 2] += 2.0 * Fp * scd_r12[2] * tmpy;
+      
+      // 左边项 zij
+      tmpz +=  C3B[3] * dsnlm_dc[dsnlm_i+3] * fn * dblm_z[3] + 
+                    2.0 * C3B[4] * dsnlm_dc[dsnlm_i+4] * fn * dblm_z[4] + 
+                    2.0 * C3B[5] * dsnlm_dc[dsnlm_i+5] * fn * dblm_z[5];     
+      f12k[k_idx + 3] += 2.0 * Fp * scd_r12[3] * tmpz;
+
+      // if (n1==0 and n2==0 and k == 0){
+      //   printf("\tscd_J L=2 n1=%d n2=%d s0=%lf s1=%lf s2=%lf s3=%lf s4=%lf fnp=%lf fn=%lf Fp=%lf b20=%lf b21=%lf b22=%lf b23=%lf b24=%lf dqr=%lf dqx=%lf dqy=%lf dqz=%lf\n", 
+      //           n1, n2, s[0], s[1]*2.0, s[2]*2.0, s[3]*2.0, s[4]*2.0, fnp, fn, Fp, blm[3], blm[4], blm[5], blm[6], blm[7], tmpr, tmpx, tmpy, tmpz);
+      // }
+    }
+  }
+}
+
+
+static __device__ __forceinline__ void scd_get_f12_3_J(
+  const double *fn12,
+  const double *fnp12,
+  const double *blm,
+  const double *rij_blm,
+  const double *dblm_x,
+  const double *dblm_y,
+  const double *dblm_z,
+  const double *dblm_r,
+  const double *scd_r12,
+  const double *dsnlm_dc,
+  const double* s,
+  const double* r12,
+  const double d12inv,
+  const double rij_Lsq, 
+  const double rij_L2sq, 
+  const double fn,
+  const double fnp,
+  const double Fp,
+  const int n_base_angular, 
+  const int dsnlm_start_idx,
+  const int type_j,
+  const int ntypes,
+  const int n1, 
+  const int n2,
+  double *f12k)
+{
+  // L = 3 c3b 8 9 10 11 12 13 14  s 0 1 2 3 4 5 6
+  int k_idx = 0;
+  for (int j = 0; j < ntypes; j++){  
+    if (type_j == j) continue;
+    int dsnlm_idx = dsnlm_start_idx + j * n_base_angular * NUM_OF_ABC;
+    int k_start_idx = j * n_base_angular * 4;   
+    for(int k=0; k < n_base_angular; k++) {
+      int dsnlm_i = dsnlm_idx + k * NUM_OF_ABC;
+      double tmpr = 0.0, tmpx = 0.0, tmpy = 0.0, tmpz = 0.0;
+      k_idx = k_start_idx + k * 4;
+      // 左边项 rij
+      tmpr +=         C3B[8]  * dsnlm_dc[dsnlm_i+8] * (fnp * blm[8]  + fn * dblm_r[8]) + 
+                2.0 * C3B[9]  * dsnlm_dc[dsnlm_i+9] * (fnp * blm[9]  + fn * dblm_r[9]) + 
+                2.0 * C3B[10] * dsnlm_dc[dsnlm_i+10] * (fnp * blm[10] + fn * dblm_r[10])+ 
+                2.0 * C3B[11] * dsnlm_dc[dsnlm_i+11] *  fnp * blm[11] + // dblm/drij = 0
+                2.0 * C3B[12] * dsnlm_dc[dsnlm_i+12] *  fnp * blm[12] + // dblm/drij = 0
+                2.0 * C3B[13] * dsnlm_dc[dsnlm_i+13] *  fnp * blm[13] + // dblm/drij = 0
+                2.0 * C3B[14] * dsnlm_dc[dsnlm_i+14] *  fnp * blm[14];  // dblm/drij = 0
+      f12k[k_idx + 0] += 2.0 * Fp * scd_r12[0] * tmpr;// 可以考虑移出去
+
+      // 左边项 xij
+      tmpx +=       //C3B[8]  * dsnlm_dc[dsnlm_i+8]  * fn * dblm_x[8] +  
+                2.0 * C3B[9]  * dsnlm_dc[dsnlm_i+9]  * fn * dblm_x[9] + 
+                // 2.0 * C3B[10] * dsnlm_dc[dsnlm_i+10] * fn * dblm_x[10] + 
+                2.0 * C3B[11] * dsnlm_dc[dsnlm_i+11] * fn * dblm_x[11] + 
+                2.0 * C3B[12] * dsnlm_dc[dsnlm_i+12] * fn * dblm_x[12] + 
+                2.0 * C3B[13] * dsnlm_dc[dsnlm_i+13] * fn * dblm_x[13] +
+                2.0 * C3B[14] * dsnlm_dc[dsnlm_i+14] * fn * dblm_x[14];     
+      f12k[k_idx + 1] += 2.0 * Fp * scd_r12[1] * tmpx;
+
+      // 左边项 yij
+      tmpy +=   //       C3B[8] * dsnlm_dc[dsnlm_i+8]  * fn * dblm_y[8] +  
+                // 2.0 * C3B[9] * dsnlm_dc[dsnlm_i+9]  * fn * dblm_y[9] + 
+                2.0 * C3B[10] * dsnlm_dc[dsnlm_i+10] * fn * dblm_y[10] +
+                2.0 * C3B[11] * dsnlm_dc[dsnlm_i+11] * fn * dblm_y[11] +
+                2.0 * C3B[12] * dsnlm_dc[dsnlm_i+12] * fn * dblm_y[12] +
+                2.0 * C3B[13] * dsnlm_dc[dsnlm_i+13] * fn * dblm_y[13] +
+                2.0 * C3B[14] * dsnlm_dc[dsnlm_i+14] * fn * dblm_y[14];     
+      f12k[k_idx + 2] += 2.0 * Fp * scd_r12[2] * tmpy;
+
+      // 左边项 zij
+      tmpz +=         C3B[8]  * dsnlm_dc[dsnlm_i+8]  * fn * dblm_z[8] +  
+                2.0 * C3B[9]  * dsnlm_dc[dsnlm_i+9]  * fn * dblm_z[9] +  
+                2.0 * C3B[10] * dsnlm_dc[dsnlm_i+10] * fn * dblm_z[10] +
+                2.0 * C3B[11] * dsnlm_dc[dsnlm_i+11] * fn * dblm_z[11] +
+                2.0 * C3B[12] * dsnlm_dc[dsnlm_i+12] * fn * dblm_z[12];
+                // 2.0 * C3B[13] * dsnlm_dc[dsnlm_i+13] * fn  * dblm_z[13] + * 0.0 +
+                // 2.0 * C3B[14] * dsnlm_dc[dsnlm_i+14] * fn  * dblm_z[14] + * 0.0;     
+      f12k[k_idx + 3] += 2.0 * Fp * scd_r12[3] * tmpz;
+      // if (n1==0 and n2==0 and k == 0){
+      //   printf("\tscd_J L=3 n1=%d n2=%d s0=%lf s1=%lf s2=%lf s3=%lf s4=%lf s5=%lf s6=%lf fnp=%lf fn=%lf Fp=%lf b30=%lf b31=%lf b32=%lf b33=%lf b34=%lf b35=%lf b36=%lf dqr=%lf dqx=%lf dqy=%lf dqz=%lf\n", 
+      //           n1, n2, s[0], s[1]*2.0, s[2]*2.0, s[3]*2.0, s[4]*2.0, s[5]*2.0, s[6]*2.0, fnp, fn, Fp, blm[8], blm[9], blm[10], blm[11], blm[12], blm[13], blm[14], tmpr, tmpx, tmpy, tmpz);
+      // }
+    }
+  }
+}
+
+
+static __device__ __forceinline__ void scd_get_f12_4_J(
+  const double *fn12,
+  const double *fnp12,
+  const double *blm,
+  const double *rij_blm,
+  const double *dblm_x,
+  const double *dblm_y,
+  const double *dblm_z,
+  const double *dblm_r,
+  const double *scd_r12,
+  const double *dsnlm_dc,
+  const double* s,
+  const double* r12,
+  const double d12inv,
+  const double rij_Lsq, 
+  const double rij_L2sq, 
+  const double fn,
+  const double fnp,
+  const double Fp,
+  const int n_base_angular, 
+  const int dsnlm_start_idx,
+  const int type_j,
+  const int ntypes,
+  const int n1, 
+  const int n2,
+  double *f12k)
+{
+  int k_idx = 0;
+  for (int j = 0; j < ntypes; j++){  
+    if (type_j == j) continue;
+    int dsnlm_idx = dsnlm_start_idx + j * n_base_angular * NUM_OF_ABC;
+    int k_start_idx = j * n_base_angular * 4;   
+    for(int k=0; k < n_base_angular; k++) {
+      int dsnlm_i = dsnlm_idx + k * NUM_OF_ABC;
+      double tmpr = 0.0, tmpx = 0.0, tmpy = 0.0, tmpz = 0.0;
+      k_idx = k_start_idx + k * 4;
+      // 左边项 rij
+      tmpr +=       C3B[15] * dsnlm_dc[dsnlm_i+15] * (fnp * blm[15] + fn * dblm_r[15]) + 
+              2.0 * C3B[16] * dsnlm_dc[dsnlm_i+16] * (fnp * blm[16] + fn * dblm_r[16]) + 
+              2.0 * C3B[17] * dsnlm_dc[dsnlm_i+17] * (fnp * blm[17] + fn * dblm_r[17]) + 
+              2.0 * C3B[18] * dsnlm_dc[dsnlm_i+18] * (fnp * blm[18] + fn * dblm_r[18]) + 
+              2.0 * C3B[19] * dsnlm_dc[dsnlm_i+19] * (fnp * blm[19] + fn * dblm_r[19]) + 
+              2.0 * C3B[20] * dsnlm_dc[dsnlm_i+20] *  fnp * blm[20] +
+              2.0 * C3B[21] * dsnlm_dc[dsnlm_i+21] *  fnp * blm[21] +
+              2.0 * C3B[22] * dsnlm_dc[dsnlm_i+22] *  fnp * blm[22] +
+              2.0 * C3B[23] * dsnlm_dc[dsnlm_i+23] *  fnp * blm[23];
+      f12k[k_idx + 0] += 2.0 * Fp * scd_r12[0] * tmpr;// 可以考虑移出去
+      // 左边项 xij
+      tmpx +=       C3B[15] * dsnlm_dc[dsnlm_i+15] * fn * dblm_x[15] + 
+              2.0 * C3B[16] * dsnlm_dc[dsnlm_i+16] * fn * dblm_x[16] + 
+              2.0 * C3B[17] * dsnlm_dc[dsnlm_i+17] * fn * dblm_x[17] + 
+              2.0 * C3B[18] * dsnlm_dc[dsnlm_i+18] * fn * dblm_x[18] + 
+              2.0 * C3B[19] * dsnlm_dc[dsnlm_i+19] * fn * dblm_x[19] + 
+              2.0 * C3B[20] * dsnlm_dc[dsnlm_i+20] * fn * dblm_x[20] + 
+              2.0 * C3B[21] * dsnlm_dc[dsnlm_i+21] * fn * dblm_x[21] + 
+              2.0 * C3B[22] * dsnlm_dc[dsnlm_i+22] * fn * dblm_x[22] + 
+              2.0 * C3B[23] * dsnlm_dc[dsnlm_i+23] * fn * dblm_x[23];
+
+      f12k[k_idx + 1] += 2.0 * Fp * scd_r12[1] * tmpx;
+      // 左边项 yij
+      tmpy +=       C3B[15] * dsnlm_dc[dsnlm_i+15] * fn * dblm_y[15] + 
+              2.0 * C3B[16] * dsnlm_dc[dsnlm_i+16] * fn * dblm_y[16] + 
+              2.0 * C3B[17] * dsnlm_dc[dsnlm_i+17] * fn * dblm_y[17] + 
+              2.0 * C3B[18] * dsnlm_dc[dsnlm_i+18] * fn * dblm_y[18] + 
+              2.0 * C3B[19] * dsnlm_dc[dsnlm_i+19] * fn * dblm_y[19] + 
+              2.0 * C3B[20] * dsnlm_dc[dsnlm_i+20] * fn * dblm_y[20] + 
+              2.0 * C3B[21] * dsnlm_dc[dsnlm_i+21] * fn * dblm_y[21] + 
+              2.0 * C3B[22] * dsnlm_dc[dsnlm_i+22] * fn * dblm_y[22] + 
+              2.0 * C3B[23] * dsnlm_dc[dsnlm_i+23] * fn * dblm_y[23];
+
+      f12k[k_idx + 2] += 2.0 * Fp * scd_r12[2] * tmpy;
+      // 左边项 zij
+      tmpz +=       C3B[15] * dsnlm_dc[dsnlm_i+15] * fn * dblm_z[15] + 
+              2.0 * C3B[16] * dsnlm_dc[dsnlm_i+16] * fn * dblm_z[16] + 
+              2.0 * C3B[17] * dsnlm_dc[dsnlm_i+17] * fn * dblm_z[17] + 
+              2.0 * C3B[18] * dsnlm_dc[dsnlm_i+18] * fn * dblm_z[18] + 
+              2.0 * C3B[19] * dsnlm_dc[dsnlm_i+19] * fn * dblm_z[19] + 
+              2.0 * C3B[20] * dsnlm_dc[dsnlm_i+20] * fn * dblm_z[20] + 
+              2.0 * C3B[21] * dsnlm_dc[dsnlm_i+21] * fn * dblm_z[21] + 
+              2.0 * C3B[22] * dsnlm_dc[dsnlm_i+22] * fn * dblm_z[22] + 
+              2.0 * C3B[23] * dsnlm_dc[dsnlm_i+23] * fn * dblm_z[23];
+      f12k[k_idx + 3] += 2.0 * Fp * scd_r12[3] * tmpz;
+
+      // if (n1==0 and n2==0 and k == 0){
+      //   printf("\tscd_J L=4 n1=%d n2=%d s0=%lf s1=%lf s2=%lf s3=%lf s4=%lf s5=%lf s6=%lf s7=%lf s8=%lf fnp=%lf fn=%lf Fp=%lf b40=%lf b41=%lf b42=%lf b43=%lf b44=%lf b45=%lf b46=%lf b47=%lf b48=%lf dqr=%lf dqx=%lf dqy=%lf dqz=%lf\n", 
+      //           n1, n2, s[0], s[1]*2.0, s[2]*2.0, s[3]*2.0, s[4]*2.0, s[5]*2.0, s[6]*2.0,  s[7]*2.0, s[8]*2.0, fnp, fn, Fp, blm[15], blm[16], blm[17], blm[18], blm[19], blm[20], blm[21], blm[23], blm[23], tmpr, tmpx, tmpy, tmpz);
+      // }
     }
   }
 }
@@ -1031,14 +1721,12 @@ static __device__ __forceinline__ void scd_accumulate_f12(
   const int n_max_angular,
   const int n_base_angular,
   const int dc_start_idx,
-  const int dsnlm_idx,
+  const int dsnlm_start_idx,
   const int n1,
   const int n2) // i-> [ntype, nmax, nbase]-> [ntyp, ]
 {
   const double d12inv = 1.0 / d12;
   // l = 1
-  // double gn12 = fn; //for dc
-  // double gn12p = fnp;
   fnp = fnp * d12inv - fn * d12inv * d12inv;
   fn = fn * d12inv;
   double rij_Lsq = d12inv;
@@ -1051,7 +1739,14 @@ static __device__ __forceinline__ void scd_accumulate_f12(
                 blm, rij_blm, dblm_x, dblm_y, dblm_z, dblm_r,
                 scd_r12, dsnlm_dc, s1, r12, 
                 d12inv, rij_Lsq, rij_L2sq, fn, fnp, Fp[n*lmax_3],
-                n_base_angular, dsnlm_idx, n1, n2, f12k);
+                n_base_angular, dsnlm_start_idx, type_j, ntypes, n1, n2, f12k);
+
+  scd_get_f12_1_J(fn12, fnp12, 
+                blm, rij_blm, dblm_x, dblm_y, dblm_z, dblm_r,
+                scd_r12, dsnlm_dc, s1, r12, 
+                d12inv, rij_Lsq, rij_L2sq, fn, fnp, Fp[n*lmax_3],
+                n_base_angular, dsnlm_start_idx, type_j, ntypes, n1, n2, f12k);
+
   // l = 2
   fnp = fnp * d12inv - fn * d12inv * d12inv;
   fn = fn * d12inv;
@@ -1068,7 +1763,13 @@ static __device__ __forceinline__ void scd_accumulate_f12(
                 blm, rij_blm, dblm_x, dblm_y, dblm_z, dblm_r,
                 scd_r12, dsnlm_dc, s2, r12, 
                 d12inv, rij_Lsq, rij_L2sq, fn, fnp, Fp[n*lmax_3+1],
-                n_base_angular, dsnlm_idx, n1, n2, f12k);
+                n_base_angular, dsnlm_start_idx, type_j, ntypes, n1, n2, f12k);
+
+  scd_get_f12_2_J(fn12, fnp12, 
+                blm, rij_blm, dblm_x, dblm_y, dblm_z, dblm_r,
+                scd_r12, dsnlm_dc, s2, r12, 
+                d12inv, rij_Lsq, rij_L2sq, fn, fnp, Fp[n*lmax_3+1],
+                n_base_angular, dsnlm_start_idx, type_j, ntypes, n1, n2, f12k);
 
   // l = 3
   fnp = fnp * d12inv - fn * d12inv * d12inv;
@@ -1087,7 +1788,13 @@ static __device__ __forceinline__ void scd_accumulate_f12(
                 blm, rij_blm, dblm_x, dblm_y, dblm_z, dblm_r,
                 scd_r12, dsnlm_dc, s3, r12, 
                 d12inv, rij_Lsq, rij_L2sq, fn, fnp, Fp[n*lmax_3+2],
-                n_base_angular, dsnlm_idx, n1, n2, f12k);
+                n_base_angular, dsnlm_start_idx, type_j, ntypes, n1, n2, f12k);
+
+  scd_get_f12_3_J(fn12, fnp12, 
+                blm, rij_blm, dblm_x, dblm_y, dblm_z, dblm_r,
+                scd_r12, dsnlm_dc, s3, r12, 
+                d12inv, rij_Lsq, rij_L2sq, fn, fnp, Fp[n*lmax_3+2],
+                n_base_angular, dsnlm_start_idx, type_j, ntypes, n1, n2, f12k);
 
   // l = 4
   fnp = fnp * d12inv - fn * d12inv * d12inv;
@@ -1108,7 +1815,14 @@ static __device__ __forceinline__ void scd_accumulate_f12(
                 blm, rij_blm, dblm_x, dblm_y, dblm_z, dblm_r,
                 scd_r12, dsnlm_dc, s4, r12, 
                 d12inv, rij_Lsq, rij_L2sq, fn, fnp, Fp[n*lmax_3+3], 
-                n_base_angular, dsnlm_idx, n1, n2, f12k);
+                n_base_angular, dsnlm_start_idx, type_j, ntypes, n1, n2, f12k);
+
+  scd_get_f12_4_J(fn12, fnp12, 
+                blm, rij_blm, dblm_x, dblm_y, dblm_z, dblm_r,
+                scd_r12, dsnlm_dc, s4, r12, 
+                d12inv, rij_Lsq, rij_L2sq, fn, fnp, Fp[n*lmax_3+3], 
+                n_base_angular, dsnlm_start_idx, type_j, ntypes, n1, n2, f12k);
+
 }
 
 static __device__ __forceinline__ void scd_accumulate_f12_with_4body(
@@ -1137,7 +1851,7 @@ static __device__ __forceinline__ void scd_accumulate_f12_with_4body(
   const int n_max_angular,
   const int n_base_angular,
   const int dc_start_idx,
-  const int dsnlm_idx,
+  const int dsnlm_start_idx,
   const int n1,
   const int n2)
 {
@@ -1155,7 +1869,14 @@ static __device__ __forceinline__ void scd_accumulate_f12_with_4body(
               blm, rij_blm, dblm_x, dblm_y, dblm_z, dblm_r,
               scd_r12, dsnlm_dc, s1, r12, 
               d12inv, rij_Lsq, rij_L2sq, fn, fnp, Fp[n*lmax_3],
-              n_base_angular, dsnlm_idx, n1, n2, f12k);
+              n_base_angular, dsnlm_start_idx, type_j, ntypes, n1, n2, f12k);
+
+  scd_get_f12_1_J(fn12, fnp12, 
+                blm, rij_blm, dblm_x, dblm_y, dblm_z, dblm_r,
+                scd_r12, dsnlm_dc, s1, r12, 
+                d12inv, rij_Lsq, rij_L2sq, fn, fnp, Fp[n*lmax_3],
+                n_base_angular, dsnlm_start_idx, type_j, ntypes, n1, n2, f12k);
+
   // l = 2
   fnp = fnp * d12inv - fn * d12inv * d12inv;
   fn = fn * d12inv;
@@ -1172,7 +1893,13 @@ static __device__ __forceinline__ void scd_accumulate_f12_with_4body(
                 blm, rij_blm, dblm_x, dblm_y, dblm_z, dblm_r,
                 scd_r12, dsnlm_dc, s2, r12, 
                 d12inv, rij_Lsq, rij_L2sq, fn, fnp, Fp[n_max_angular * lmax_3 + n],
-                n_base_angular, dsnlm_idx, n1, n2, f12k);
+                n_base_angular, dsnlm_start_idx, type_j, ntypes, n1, n2, f12k);
+
+  scd_get_f12_4body_J(fn12, fnp12, 
+                blm, rij_blm, dblm_x, dblm_y, dblm_z, dblm_r,
+                scd_r12, dsnlm_dc, s2, r12, 
+                d12inv, rij_Lsq, rij_L2sq, fn, fnp, Fp[n_max_angular * lmax_3 + n],
+                n_base_angular, dsnlm_start_idx, type_j, ntypes, n1, n2, f12k);
 
   s2[0] *= C3B[3];
   s2[1] *= C3B[4];
@@ -1183,7 +1910,14 @@ static __device__ __forceinline__ void scd_accumulate_f12_with_4body(
                 blm, rij_blm, dblm_x, dblm_y, dblm_z, dblm_r,
                 scd_r12, dsnlm_dc, s2, r12, 
                 d12inv, rij_Lsq, rij_L2sq, fn, fnp, Fp[n*lmax_3+1],
-                n_base_angular, dsnlm_idx, n1, n2, f12k); 
+                n_base_angular, dsnlm_start_idx, type_j, ntypes, n1, n2, f12k); 
+
+  scd_get_f12_2_J(fn12, fnp12, 
+                blm, rij_blm, dblm_x, dblm_y, dblm_z, dblm_r,
+                scd_r12, dsnlm_dc, s2, r12, 
+                d12inv, rij_Lsq, rij_L2sq, fn, fnp, Fp[n*lmax_3+1],
+                n_base_angular, dsnlm_start_idx, type_j, ntypes, n1, n2, f12k);
+  // l = 3
   fnp = fnp * d12inv - fn * d12inv * d12inv;
   fn = fn * d12inv;
   rij_Lsq = rij_L2sq;
@@ -1200,7 +1934,14 @@ static __device__ __forceinline__ void scd_accumulate_f12_with_4body(
                 blm, rij_blm, dblm_x, dblm_y, dblm_z, dblm_r,
                 scd_r12, dsnlm_dc, s3, r12, 
                 d12inv, rij_Lsq, rij_L2sq, fn, fnp, Fp[n*lmax_3+2],
-                n_base_angular, dsnlm_idx, n1, n2, f12k);
+                n_base_angular, dsnlm_start_idx, type_j, ntypes, n1, n2, f12k);
+
+  scd_get_f12_3_J(fn12, fnp12, 
+                blm, rij_blm, dblm_x, dblm_y, dblm_z, dblm_r,
+                scd_r12, dsnlm_dc, s3, r12, 
+                d12inv, rij_Lsq, rij_L2sq, fn, fnp, Fp[n*lmax_3+2],
+                n_base_angular, dsnlm_start_idx, type_j, ntypes, n1, n2, f12k);
+
   // l = 4
   fnp = fnp * d12inv - fn * d12inv * d12inv;
   fn = fn * d12inv;
@@ -1220,7 +1961,13 @@ static __device__ __forceinline__ void scd_accumulate_f12_with_4body(
                 blm, rij_blm, dblm_x, dblm_y, dblm_z, dblm_r,
                 scd_r12, dsnlm_dc, s4, r12, 
                 d12inv, rij_Lsq, rij_L2sq, fn, fnp, Fp[n*lmax_3+3], 
-                n_base_angular, dsnlm_idx, n1, n2, f12k);
+                n_base_angular, dsnlm_start_idx, type_j, ntypes, n1, n2, f12k);
+
+  scd_get_f12_4_J(fn12, fnp12, 
+                blm, rij_blm, dblm_x, dblm_y, dblm_z, dblm_r,
+                scd_r12, dsnlm_dc, s4, r12, 
+                d12inv, rij_Lsq, rij_L2sq, fn, fnp, Fp[n*lmax_3+3], 
+                n_base_angular, dsnlm_start_idx, type_j, ntypes, n1, n2, f12k);
 }
 
 static __device__ __forceinline__ void scd_accumulate_f12_with_5body(
@@ -1249,7 +1996,7 @@ static __device__ __forceinline__ void scd_accumulate_f12_with_5body(
   const int n_max_angular,
   const int n_base_angular,
   const int dc_start_idx,
-  const int dsnlm_idx,
+  const int dsnlm_start_idx,
   const int n1,
   const int n2)
 {
@@ -1265,7 +2012,14 @@ static __device__ __forceinline__ void scd_accumulate_f12_with_5body(
               blm, rij_blm, dblm_x, dblm_y, dblm_z, dblm_r,
               scd_r12, dsnlm_dc, s1, r12, 
               d12inv, rij_Lsq, rij_L2sq, fn, fnp, Fp[n_max_angular * lmax_3 + n_max_angular + n], 
-              n_base_angular, dsnlm_idx, n1, n2, f12k);
+              n_base_angular, dsnlm_start_idx, type_j, ntypes, n1, n2, f12k);
+
+  scd_get_f12_5body_J(fn12, fnp12, 
+              blm, rij_blm, dblm_x, dblm_y, dblm_z, dblm_r,
+              scd_r12, dsnlm_dc, s1, r12, 
+              d12inv, rij_Lsq, rij_L2sq, fn, fnp, Fp[n_max_angular * lmax_3 + n_max_angular + n], 
+              n_base_angular, dsnlm_start_idx, type_j, ntypes, n1, n2, f12k);
+  
   s1[0] *= C3B[0];
   s1[1] *= C3B[1];
   s1[2] *= C3B[2];
@@ -1273,7 +2027,13 @@ static __device__ __forceinline__ void scd_accumulate_f12_with_5body(
               blm, rij_blm, dblm_x, dblm_y, dblm_z, dblm_r,
               scd_r12, dsnlm_dc, s1, r12, 
               d12inv, rij_Lsq, rij_L2sq, fn, fnp, Fp[n*lmax_3],
-              n_base_angular, dsnlm_idx, n1, n2, f12k);
+              n_base_angular, dsnlm_start_idx, type_j, ntypes, n1, n2, f12k);
+
+  scd_get_f12_1_J(fn12, fnp12, 
+                blm, rij_blm, dblm_x, dblm_y, dblm_z, dblm_r,
+                scd_r12, dsnlm_dc, s1, r12, 
+                d12inv, rij_Lsq, rij_L2sq, fn, fnp, Fp[n*lmax_3],
+                n_base_angular, dsnlm_start_idx, type_j, ntypes, n1, n2, f12k);
 
   // l = 2
   fnp = fnp * d12inv - fn * d12inv * d12inv;
@@ -1290,7 +2050,13 @@ static __device__ __forceinline__ void scd_accumulate_f12_with_5body(
                 blm, rij_blm, dblm_x, dblm_y, dblm_z, dblm_r,
                 scd_r12, dsnlm_dc, s2, r12, 
                 d12inv, rij_Lsq, rij_L2sq, fn, fnp, Fp[n_max_angular * lmax_3 + n],
-                n_base_angular, dsnlm_idx, n1, n2, f12k);
+                n_base_angular, dsnlm_start_idx, type_j, ntypes, n1, n2, f12k);
+
+  scd_get_f12_4body_J(fn12, fnp12, 
+                blm, rij_blm, dblm_x, dblm_y, dblm_z, dblm_r,
+                scd_r12, dsnlm_dc, s2, r12, 
+                d12inv, rij_Lsq, rij_L2sq, fn, fnp, Fp[n_max_angular * lmax_3 + n],
+                n_base_angular, dsnlm_start_idx, type_j, ntypes, n1, n2, f12k);
 
   s2[0] *= C3B[3];
   s2[1] *= C3B[4];
@@ -1301,7 +2067,14 @@ static __device__ __forceinline__ void scd_accumulate_f12_with_5body(
                 blm, rij_blm, dblm_x, dblm_y, dblm_z, dblm_r,
                 scd_r12, dsnlm_dc, s2, r12, 
                 d12inv, rij_Lsq, rij_L2sq, fn, fnp, Fp[n*lmax_3+1],
-                n_base_angular, dsnlm_idx, n1, n2, f12k); 
+                n_base_angular, dsnlm_start_idx, type_j, ntypes, n1, n2, f12k); 
+
+  scd_get_f12_2_J(fn12, fnp12, 
+                blm, rij_blm, dblm_x, dblm_y, dblm_z, dblm_r,
+                scd_r12, dsnlm_dc, s2, r12, 
+                d12inv, rij_Lsq, rij_L2sq, fn, fnp, Fp[n*lmax_3+1],
+                n_base_angular, dsnlm_start_idx, type_j, ntypes, n1, n2, f12k);
+
   // l = 3
   fnp = fnp * d12inv - fn * d12inv * d12inv;
   fn = fn * d12inv;
@@ -1319,7 +2092,13 @@ static __device__ __forceinline__ void scd_accumulate_f12_with_5body(
                 blm, rij_blm, dblm_x, dblm_y, dblm_z, dblm_r,
                 scd_r12, dsnlm_dc, s3, r12, 
                 d12inv, rij_Lsq, rij_L2sq, fn, fnp, Fp[n*lmax_3+2],
-                n_base_angular, dsnlm_idx, n1, n2, f12k);
+                n_base_angular, dsnlm_start_idx, type_j, ntypes, n1, n2, f12k);
+
+  scd_get_f12_3_J(fn12, fnp12, 
+                blm, rij_blm, dblm_x, dblm_y, dblm_z, dblm_r,
+                scd_r12, dsnlm_dc, s3, r12, 
+                d12inv, rij_Lsq, rij_L2sq, fn, fnp, Fp[n*lmax_3+2],
+                n_base_angular, dsnlm_start_idx, type_j, ntypes, n1, n2, f12k);
 
   // l = 4
   fnp = fnp * d12inv - fn * d12inv * d12inv;
@@ -1340,6 +2119,12 @@ static __device__ __forceinline__ void scd_accumulate_f12_with_5body(
                 blm, rij_blm, dblm_x, dblm_y, dblm_z, dblm_r,
                 scd_r12, dsnlm_dc, s4, r12, 
                 d12inv, rij_Lsq, rij_L2sq, fn, fnp, Fp[n*lmax_3+3], 
-                n_base_angular, dsnlm_idx, n1, n2, f12k);
+                n_base_angular, dsnlm_start_idx, type_j, ntypes, n1, n2, f12k);
+  
+  scd_get_f12_4_J(fn12, fnp12, 
+                blm, rij_blm, dblm_x, dblm_y, dblm_z, dblm_r,
+                scd_r12, dsnlm_dc, s4, r12, 
+                d12inv, rij_Lsq, rij_L2sq, fn, fnp, Fp[n*lmax_3+3], 
+                n_base_angular, dsnlm_start_idx, type_j, ntypes, n1, n2, f12k);
 
 }

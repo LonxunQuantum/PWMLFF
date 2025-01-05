@@ -29,7 +29,6 @@ __global__ void feat_2b_calc(
     int c_index = 0;
     if (batch_id < batch_size && atom_id < natoms) {
         int t1 = atom_map[atom_id];
-        double q[MAX_DIM] = {0.0};
         int neigh_start_idx = batch_id * natoms * neigh_num + atom_id * neigh_num;
         int r12_start_idx =  batch_id * natoms * neigh_num * 4 + atom_id * neigh_num * 4;
         int feat_start_idx = batch_id * natoms * n_max + atom_id * n_max; 

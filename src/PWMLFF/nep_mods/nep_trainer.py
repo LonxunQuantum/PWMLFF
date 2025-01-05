@@ -466,9 +466,9 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
 
             if args.optimizer_param.train_virial is True:
                 Virial_predict = KFOptWrapper.update_virial(kalman_inputs, Virial_label, args.optimizer_param.pre_fac_virial, train_type = "NEP")
-            # if args.optimizer_param.train_energy is True: 
+            if args.optimizer_param.train_energy is True: 
                 # check_cuda_memory(-1, -1, "update_energy start")
-                # Etot_predict = KFOptWrapper.update_energy(kalman_inputs, Etot_label, args.optimizer_param.pre_fac_etot, train_type = "NEP")
+                Etot_predict = KFOptWrapper.update_energy(kalman_inputs, Etot_label, args.optimizer_param.pre_fac_etot, train_type = "NEP")
                 # check_cuda_memory(-1, -1, "update_energy end")
             if args.optimizer_param.train_ei is True:
                 Ei_predict = KFOptWrapper.update_ei(kalman_inputs, Ei_label, args.optimizer_param.pre_fac_ei, train_type = "NEP")

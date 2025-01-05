@@ -273,7 +273,6 @@ static __global__ void find_force_radial_small_box(
     
     int neigh_start_idx = n1 * neigh_num;
     int r12_start_idx =  n1 * neigh_num * 4;
-    int feat_start_idx = n1 * feat_nums; 
     int c2_start_idx = t1 * num_types * n_max_radial * basis_size_radial;
     int dc_start_idx = n1 * n_max_radial * num_types * basis_size_radial;
     int de_start_idx = n1 * feat_nums;
@@ -285,8 +284,6 @@ static __global__ void find_force_radial_small_box(
       int c_I_J_idx = c2_start_idx + t2 * n_max_radial * basis_size_radial;
       int rij_idx = r12_start_idx + i1*4;
       double d12 = g_d12_radial[rij_idx];
-      double d12inv = 1.0 / d12;
-      double f12[4] = {0.0};
 
       double fc12, fcp12;
       find_fc_and_fcp(rc_radial, rcinv_radial, d12, fc12, fcp12);
@@ -295,7 +292,6 @@ static __global__ void find_force_radial_small_box(
 
       find_fn_and_fnp(
         basis_size_radial, rcinv_radial, d12, fc12, fcp12, fn12, fnp12);
-      double dfeat_rij = 0.0;
 
       int dc_index =  dc_start_idx + t2 * n_max_radial * basis_size_radial;
       for (int n = 0; n < n_max_radial; ++n) {
