@@ -91,6 +91,7 @@ void launch_calculate_nepmbfeat_secondgradout_c3(
     const double * d12,
     const int * NL,
     const double * de_dfeat,
+    const double * dsnlm_dc,
     const double * sum_fxyz,
     const int * atom_map,
     const double * coeff3,
@@ -123,12 +124,14 @@ void launch_calculate_nepmbfeat_secondgradout_c3(
     const int grid_size = (N - 1) / BLOCK_SIZE + 1;
 
     GPU_Vector<double> dfeat_c3(N * atom_types * n_max_3b * n_base_3b, 0.0);
+    printf("==start launch_calculate_nepmbfeat_secondgradout_c3 === N=%d\n", N);
     find_angular_gardc_small_box<<<grid_size, BLOCK_SIZE>>>(
         N,
         grad_second,
         d12, 
         NL,
         de_dfeat-feat_2b_num, 
+        dsnlm_dc,
         sum_fxyz,
         atom_map,
         coeff3,
@@ -149,10 +152,25 @@ void launch_calculate_nepmbfeat_secondgradout_c3(
         multi_feat_num
         );
     cudaDeviceSynchronize();
-
+    printf("==end launch_calculate_nepmbfeat_secondgradout_c3 ===\n");
     int total_elements = N * n_max_3b * n_base_3b;
     int threads_per_block = 256;
     int num_blocks = (total_elements + threads_per_block - 1) / threads_per_block;
+    printf("==== tmp_c3 =====\n");
+    std::vector<double> tmp_c3(N * atom_types * n_max_3b * n_base_3b);
+    dfeat_c3.copy_to_host(tmp_c3.data());
+    for(int i = 0; i < N; i++) {
+        for(int j = 0; j < atom_types; j++) {
+            for (int n = 0; n < n_max_3b; n++) {
+                printf("tmp_c3[i %d][J %d][n %d][k:] = ", i, j, n);
+                for(int k = 0; k < n_base_3b; k++) {
+                    printf("%f ", tmp_c3[i * atom_types * n_max_3b * n_base_3b + j * n_max_3b * n_base_3b + n * n_base_3b + k]);
+                }
+                printf("\n");
+            }
+        }
+    }
+
     aggregate_features<<<num_blocks, threads_per_block>>>(
     dfeat_c3.data(), 
     atom_map, 
@@ -162,7 +180,6 @@ void launch_calculate_nepmbfeat_secondgradout_c3(
     n_max_3b, 
     n_base_3b);
     CUDA_CHECK_KERNEL
-
     // 检查下对 atom_type 的处理，是否复制了多分份？
     // 先搞定三体，再累加四体和五体
     // 先计算gradsecond * de/dfeat 后面的

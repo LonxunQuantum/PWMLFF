@@ -164,7 +164,7 @@ void torch_launch_calculate_nepmbfeat_grad(
                         torch::Tensor &sum_fxyz,
                         torch::Tensor &grad_coeff3,
                         torch::Tensor &grad_d12_3b,
-                        torch::Tensor &dfeat_dc,
+                        torch::Tensor &dsnlm_dc,
                         torch::Tensor &dfeat_drij
 );
 
@@ -183,6 +183,7 @@ void torch_launch_calculate_nepmbfeat_secondgradout_c3(
                         const torch::Tensor &d12,
                         const torch::Tensor &NL,
                         const torch::Tensor &de_feat,
+                        const torch::Tensor &dsnlm_dc,
                         const torch::Tensor &sum_fxyz,
                         const torch::Tensor &atom_map,
                         const torch::Tensor &coeff3,

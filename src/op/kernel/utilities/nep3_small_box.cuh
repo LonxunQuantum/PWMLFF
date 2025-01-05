@@ -311,138 +311,139 @@ static __global__ void find_force_radial_small_box(
   }
 }
 
-static __global__ void find_force_angular_small_box(
-  const int N,
-  const int num_types,
-  const int num_types_sq,
-  const int neigh_num,
-  const int L_max3,
-  const int L_max4,
-  const int L_max5,
-  const int feat_nums,
-  const int feat_3b_nums, // 3b + 4b + 5b
-  const double rc_angular,
-  const double rcinv_angular,
-  const int n_max_radial,
-  const int basis_size_radial,
-  const int n_max_angular,
-  const int basis_size_angular,
-  const int* g_NL_radial,
-  const double* g_d12_radial,
-  const double * coeff3,
-  const int* g_type,
-  const double * grad_output,
-  const double* g_sum_fxyz,
-  double* dfeat_c3,
-  double* grad_d12_angular
-  )
-{
-  int n1 = blockIdx.x * blockDim.x + threadIdx.x;
-  if (n1 < N) {
-    int g_sum_start = n1 * n_max_angular * NUM_OF_ABC;
-    int r12_start_idx =  n1 * neigh_num * 4;
-    int dc_start_idx = n1 * num_types * n_max_angular * basis_size_angular;
-    int de_start = n1 * feat_nums;// dE/dq
-    int neigh_start_idx = n1 * neigh_num;
-    double Fp[MAX_DIM_ANGULAR] = {0.0};
-    double sum_fxyz[NUM_OF_ABC * MAX_NUM_N];
-    int b3_nums = n_max_angular * L_max3;
-    int dd = 0;
-    if (n1 == 0) {
-      for (int nn=0; nn < feat_3b_nums; nn++) {//all
-        printf("grad[%d + %d]=%f\n", de_start + n_max_radial, nn, grad_output[de_start + n_max_radial + nn]);
-      }
-    }
-    for (int nn=0; nn < n_max_angular; ++nn) {
-      for (int ll = 0; ll < L_max3; ++ll) {
-        Fp[dd] = grad_output[de_start + n_max_radial + ll * n_max_angular + nn];// i -> nmax_3b*l_max+2?
-        if (n1==0){
-          printf("3b Fp[%d] = %f from grad_output[%d + %d] = %f\n", dd, Fp[dd], de_start, n_max_radial + ll * n_max_angular + nn, grad_output[de_start + n_max_radial + ll * n_max_angular + nn]);
-        }
-        dd++;
-      }
-    }
-    if (L_max4 > 0) {
-      for (int ll = 0; ll < n_max_angular; ++ll) {
-        Fp[b3_nums + ll] = grad_output[de_start + n_max_radial + b3_nums + ll];
-        if (n1==0){
-          printf("4b Fp[%d + %d] = %f from grad_output[%d + %d] = %f\n", b3_nums, ll, Fp[b3_nums + ll], de_start + n_max_radial, b3_nums + ll, grad_output[de_start + n_max_radial + b3_nums + ll]);
-        }
-      }
-    }
-    if (L_max5 > 0) {
-      for (int ll = 0; ll < n_max_angular; ++ll) {
-        Fp[b3_nums + n_max_angular + ll] = grad_output[de_start + n_max_radial + b3_nums + n_max_angular + ll];
-        if (n1==0){
-          printf("5b Fp[%d + %d] = %f from grad_output[%d + %d] = %f\n", b3_nums, n_max_angular + ll, Fp[b3_nums + n_max_angular + ll], de_start+n_max_radial, b3_nums + n_max_angular + ll, grad_output[de_start + n_max_radial + b3_nums + n_max_angular + ll]);
-        }
-      }
-    }
+// static __global__ void find_force_angular_small_box(
+//   const int N,
+//   const int num_types,
+//   const int num_types_sq,
+//   const int neigh_num,
+//   const int L_max3,
+//   const int L_max4,
+//   const int L_max5,
+//   const int feat_nums,
+//   const int feat_3b_nums, // 3b + 4b + 5b
+//   const double rc_angular,
+//   const double rcinv_angular,
+//   const int n_max_radial,
+//   const int basis_size_radial,
+//   const int n_max_angular,
+//   const int basis_size_angular,
+//   const int* g_NL_radial,
+//   const double* g_d12_radial,
+//   const double * coeff3,
+//   const int* g_type,
+//   const double * grad_output,
+//   const double* g_sum_fxyz,
+//   double* dfeat_c3,
+//   double* dsnlm_dc,
+//   double* grad_d12_angular
+//   )
+// {
+//   int n1 = blockIdx.x * blockDim.x + threadIdx.x;
+//   if (n1 < N) {
+//     int g_sum_start = n1 * n_max_angular * NUM_OF_ABC;
+//     int r12_start_idx =  n1 * neigh_num * 4;
+//     int dc_start_idx = n1 * num_types * n_max_angular * basis_size_angular;
+//     int de_start = n1 * feat_nums;// dE/dq
+//     int neigh_start_idx = n1 * neigh_num;
+//     double Fp[MAX_DIM_ANGULAR] = {0.0};
+//     double sum_fxyz[NUM_OF_ABC * MAX_NUM_N];
+//     int b3_nums = n_max_angular * L_max3;
+//     int dd = 0;
+//     if (n1 == 0) {
+//       for (int nn=0; nn < feat_3b_nums; nn++) {//all
+//         printf("grad[%d + %d]=%f\n", de_start + n_max_radial, nn, grad_output[de_start + n_max_radial + nn]);
+//       }
+//     }
+//     for (int nn=0; nn < n_max_angular; ++nn) {
+//       for (int ll = 0; ll < L_max3; ++ll) {
+//         Fp[dd] = grad_output[de_start + n_max_radial + ll * n_max_angular + nn];// i -> nmax_3b*l_max+2?
+//         if (n1==0){
+//           printf("3b Fp[%d] = %f from grad_output[%d + %d] = %f\n", dd, Fp[dd], de_start, n_max_radial + ll * n_max_angular + nn, grad_output[de_start + n_max_radial + ll * n_max_angular + nn]);
+//         }
+//         dd++;
+//       }
+//     }
+//     if (L_max4 > 0) {
+//       for (int ll = 0; ll < n_max_angular; ++ll) {
+//         Fp[b3_nums + ll] = grad_output[de_start + n_max_radial + b3_nums + ll];
+//         if (n1==0){
+//           printf("4b Fp[%d + %d] = %f from grad_output[%d + %d] = %f\n", b3_nums, ll, Fp[b3_nums + ll], de_start + n_max_radial, b3_nums + ll, grad_output[de_start + n_max_radial + b3_nums + ll]);
+//         }
+//       }
+//     }
+//     if (L_max5 > 0) {
+//       for (int ll = 0; ll < n_max_angular; ++ll) {
+//         Fp[b3_nums + n_max_angular + ll] = grad_output[de_start + n_max_radial + b3_nums + n_max_angular + ll];
+//         if (n1==0){
+//           printf("5b Fp[%d + %d] = %f from grad_output[%d + %d] = %f\n", b3_nums, n_max_angular + ll, Fp[b3_nums + n_max_angular + ll], de_start+n_max_radial, b3_nums + n_max_angular + ll, grad_output[de_start + n_max_radial + b3_nums + n_max_angular + ll]);
+//         }
+//       }
+//     }
 
-    for (int d = 0; d < n_max_angular * NUM_OF_ABC; ++d) {
-      sum_fxyz[d] = g_sum_fxyz[g_sum_start + d]; // g_sum is [N, n_max, 24]
-    }
+//     for (int d = 0; d < n_max_angular * NUM_OF_ABC; ++d) {
+//       sum_fxyz[d] = g_sum_fxyz[g_sum_start + d]; // g_sum is [N, n_max, 24]
+//     }
 
-    int t1 = g_type[n1];
-    int c3_start_idx = t1 * num_types * n_max_angular * basis_size_angular;
-    for (int i1 = 0; i1 < neigh_num; ++i1) {
-      int n2 = g_NL_radial[neigh_start_idx + i1]-1;
-      if (n2 < 0) break;
-      int t2 = g_type[n2];
-      int rij_idx = r12_start_idx + i1*4;
-      double d12 = g_d12_radial[rij_idx];
-      if (d12 > rc_angular) break;
-      double r12[3] = {g_d12_radial[rij_idx+1], g_d12_radial[rij_idx+2], g_d12_radial[rij_idx+3]};
-      double f12[4] = {0.0};
+//     int t1 = g_type[n1];
+//     int c3_start_idx = t1 * num_types * n_max_angular * basis_size_angular;
+//     for (int i1 = 0; i1 < neigh_num; ++i1) {
+//       int n2 = g_NL_radial[neigh_start_idx + i1]-1;
+//       if (n2 < 0) break;
+//       int t2 = g_type[n2];
+//       int rij_idx = r12_start_idx + i1*4;
+//       double d12 = g_d12_radial[rij_idx];
+//       if (d12 > rc_angular) break;
+//       double r12[3] = {g_d12_radial[rij_idx+1], g_d12_radial[rij_idx+2], g_d12_radial[rij_idx+3]};
+//       double f12[4] = {0.0};
 
-      double fc12, fcp12;
-      find_fc_and_fcp(rc_angular, rcinv_angular, d12, fc12, fcp12);
+//       double fc12, fcp12;
+//       find_fc_and_fcp(rc_angular, rcinv_angular, d12, fc12, fcp12);
 
-      double fn12[MAX_NUM_N];
-      double fnp12[MAX_NUM_N];
-      find_fn_and_fnp(
-        basis_size_angular, rcinv_angular, d12, fc12, fcp12, fn12, fnp12);
+//       double fn12[MAX_NUM_N];
+//       double fnp12[MAX_NUM_N];
+//       find_fn_and_fnp(
+//         basis_size_angular, rcinv_angular, d12, fc12, fcp12, fn12, fnp12);
       
-      int c_I_J_idx = c3_start_idx + t2 * n_max_angular * basis_size_angular;
-      double s[NUM_OF_ABC] = {0.0};
-      accumulate_blm_rij(d12, r12[0], r12[1], r12[2], s);
-      for (int n = 0; n < n_max_angular; ++n) {
-        double gn12 = 0.0;
-        double gnp12 = 0.0;
-        double f12d[MAX_LMAX * 4] = {0.0};
-        for (int k = 0; k < basis_size_angular; ++k) {
-          int c_index = c_I_J_idx + n * basis_size_angular + k;
-          gn12 += fn12[k] * coeff3[c_index];
-          gnp12 += fnp12[k] * coeff3[c_index];
-        }
-        if (L_max5 > 0) {
-          accumulate_f12_with_5body(
-            n, d12, r12, gn12, gnp12, Fp, sum_fxyz,
-              s, f12, f12d, dfeat_c3, fn12, fnp12, 
-              t2, num_types, L_max3, 
-              n_max_angular, basis_size_angular, dc_start_idx, n1, i1);
-        } else if (L_max4 > 0) {
-          accumulate_f12_with_4body(
-            n, d12, r12, gn12, gnp12, Fp, sum_fxyz,
-              s, f12, f12d, dfeat_c3, fn12, fnp12, 
-              t2, num_types, L_max3, 
-              n_max_angular, basis_size_angular, dc_start_idx, n1, i1);
-        } else {
-          accumulate_f12(
-            n, d12, r12, gn12, gnp12, Fp, sum_fxyz,
-              s, f12, f12d, dfeat_c3, fn12, fnp12, 
-              t2, num_types, L_max3, 
-              n_max_angular, basis_size_angular, dc_start_idx, n1, i1);
-        }
-      }
-      // copy f12 to dfeat_3rij
-      grad_d12_angular[rij_idx]  += f12[3];
-      grad_d12_angular[rij_idx+1]+= f12[0];
-      grad_d12_angular[rij_idx+2]+= f12[1];
-      grad_d12_angular[rij_idx+3]+= f12[2];
-    }
-  }
-}
+//       int c_I_J_idx = c3_start_idx + t2 * n_max_angular * basis_size_angular;
+//       double s[NUM_OF_ABC] = {0.0};
+//       accumulate_blm_rij(d12, r12[0], r12[1], r12[2], s);
+//       for (int n = 0; n < n_max_angular; ++n) {
+//         double gn12 = 0.0;
+//         double gnp12 = 0.0;
+//         double f12d[MAX_LMAX * 4] = {0.0};
+//         for (int k = 0; k < basis_size_angular; ++k) {
+//           int c_index = c_I_J_idx + n * basis_size_angular + k;
+//           gn12 += fn12[k] * coeff3[c_index];
+//           gnp12 += fnp12[k] * coeff3[c_index];
+//         }
+//         if (L_max5 > 0) {
+//           accumulate_f12_with_5body(
+//             n, d12, r12, gn12, gnp12, Fp, sum_fxyz,
+//               s, f12, f12d, dfeat_c3, dsnlm_dc, fn12, fnp12, 
+//               t2, num_types, L_max3, 
+//               n_max_angular, basis_size_angular, dc_start_idx, n1, i1);
+//         } else if (L_max4 > 0) {
+//           accumulate_f12_with_4body(
+//             n, d12, r12, gn12, gnp12, Fp, sum_fxyz,
+//               s, f12, f12d, dfeat_c3, dsnlm_dc,  fn12, fnp12, 
+//               t2, num_types, L_max3, 
+//               n_max_angular, basis_size_angular, dc_start_idx, n1, i1);
+//         } else {
+//           accumulate_f12(
+//             n, d12, r12, gn12, gnp12, Fp, sum_fxyz,
+//               s, f12, f12d, dfeat_c3, dsnlm_dc, fn12, fnp12, 
+//               t2, num_types, L_max3, 
+//               n_max_angular, basis_size_angular, dc_start_idx, n1, i1);
+//         }
+//       }
+//       // copy f12 to dfeat_3rij
+//       grad_d12_angular[rij_idx]  += f12[3];
+//       grad_d12_angular[rij_idx+1]+= f12[0];
+//       grad_d12_angular[rij_idx+2]+= f12[1];
+//       grad_d12_angular[rij_idx+3]+= f12[2];
+//     }
+//   }
+// }
 
 
 static __global__ void find_angular_gard_small_box(
@@ -465,6 +466,7 @@ static __global__ void find_angular_gard_small_box(
   const int* g_type,
   const double * grad_output,
   const double* g_sum_fxyz,
+  double* dsnlm_dc,
   double* dfeat_c3,
   double* dfeat_drij,//[batch*atom, neighbornum, 3b_feat_num, 4]
   double* grad_d12_angular
@@ -475,6 +477,7 @@ static __global__ void find_angular_gard_small_box(
     int g_sum_start = n1 * n_max_angular * NUM_OF_ABC;
     int r12_start_idx =  n1 * neigh_num * 4;
     int dc_start_idx = n1 * num_types * n_max_angular * basis_size_angular;
+    int dsnlm_dc_start_idx = n1 * num_types * basis_size_angular * NUM_OF_ABC;
     int de_start = n1 * (feat_3b_nums + feat_2b_nums);// dE/dq
     int neigh_start_idx = n1 * neigh_num;
     int dfeat_dr_start = n1 * neigh_num * feat_3b_nums * 4;
@@ -536,6 +539,7 @@ static __global__ void find_angular_gard_small_box(
       if (n2 < 0) continue;
       int t2 = g_type[n2];
       int rij_idx = r12_start_idx + i1*4;
+      int dsnlm_dc_idx = dsnlm_dc_start_idx + t2 * basis_size_angular * NUM_OF_ABC;
       double d12 = g_d12_radial[rij_idx];
       if (d12 > rc_angular) continue;
       int drij_idx = dfeat_dr_start + i1 * feat_3b_nums * 4;
@@ -617,6 +621,39 @@ static __global__ void find_angular_gard_small_box(
             dfeat_drij[drij_idx + l_idx *n_max_angular * 4 + n * 4 + 3] = f12d[l_idx * 4 + 2];
            }
         }
+        if (n == 0) {
+          for(int kk = 0; kk < basis_size_angular;kk++){
+            int dsnlm_id = dsnlm_dc_idx + kk * NUM_OF_ABC;
+            dsnlm_dc[dsnlm_id + 0] += s[0] * fn12[kk];
+            dsnlm_dc[dsnlm_id + 1] += s[1] * fn12[kk];
+            dsnlm_dc[dsnlm_id + 2] += s[2] * fn12[kk];
+
+            dsnlm_dc[dsnlm_id + 3] += s[3] * fn12[kk];
+            dsnlm_dc[dsnlm_id + 4] += s[4] * fn12[kk];
+            dsnlm_dc[dsnlm_id + 5] += s[5] * fn12[kk];
+            dsnlm_dc[dsnlm_id + 6] += s[6] * fn12[kk];
+            dsnlm_dc[dsnlm_id + 7] += s[7] * fn12[kk];
+
+            dsnlm_dc[dsnlm_id + 8] += s[8] * fn12[kk];
+            dsnlm_dc[dsnlm_id + 9] += s[9] * fn12[kk];
+            dsnlm_dc[dsnlm_id + 10] += s[10] * fn12[kk];
+            dsnlm_dc[dsnlm_id + 11] += s[11] * fn12[kk];
+            dsnlm_dc[dsnlm_id + 12] += s[12] * fn12[kk];
+            dsnlm_dc[dsnlm_id + 13] += s[13] * fn12[kk];
+            dsnlm_dc[dsnlm_id + 14] += s[14] * fn12[kk];
+
+            dsnlm_dc[dsnlm_id + 15] += s[15] * fn12[kk];
+            dsnlm_dc[dsnlm_id + 16] += s[16] * fn12[kk];
+            dsnlm_dc[dsnlm_id + 17] += s[17] * fn12[kk];
+            dsnlm_dc[dsnlm_id + 18] += s[18] * fn12[kk];
+            dsnlm_dc[dsnlm_id + 19] += s[19] * fn12[kk];
+            dsnlm_dc[dsnlm_id + 20] += s[20] * fn12[kk];
+            dsnlm_dc[dsnlm_id + 21] += s[21] * fn12[kk];
+            dsnlm_dc[dsnlm_id + 22] += s[22] * fn12[kk];
+            dsnlm_dc[dsnlm_id + 23] += s[23] * fn12[kk];    
+          }
+        }
+        
       }
 
       // copy f12 to dfeat_3rij

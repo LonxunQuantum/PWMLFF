@@ -14,7 +14,7 @@ void launch_calculate_nepmbfeat_grad(
             double * sum_fxyz,
             double * grad_coeff3, 
             double * grad_d12_3b,
-            double * dfeat_dc,
+            double * dsnlm_dc, // dsnlm/dc_NK_IJ used in second grad mb c
             double * dfeat_drij,
             const int rcut_angular,
             const int batch_size, 
@@ -63,6 +63,7 @@ void launch_calculate_nepmbfeat_grad(
         atom_map,
         grad_output - feat_2b_num,
         sum_fxyz,
+        dsnlm_dc,
         dfeat_c3.data(),
         dfeat_drij,//[batch*atom, neighbornum, 3b_feat_num, 4]
         grad_d12_3b

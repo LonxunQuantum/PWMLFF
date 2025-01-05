@@ -706,13 +706,11 @@ static __device__ __forceinline__ void accumulate_f12(
     sum_fxyz[n * NUM_OF_ABC + 23] * C3B[23]};
   get_f12_4(
     r12[0], r12[1], r12[2], d12, d12inv, fn, fnp, Fp[n*lmax_3+3], s4, f12, f12d+12, n1, n2);
-
   for(int kk=0; kk < n_base_angular; ++kk) {
     // l = 1
     double tmp1 = s1[0] * s_rij_blm[0] + 
                   s1[1] * s_rij_blm[1] * 2.0 + 
                   s1[2] * s_rij_blm[2] * 2.0;
-                 
     // l = 2
     double tmp2 = 
                   s2[0] * s_rij_blm[3] + 
@@ -720,7 +718,6 @@ static __device__ __forceinline__ void accumulate_f12(
                   s2[2] * s_rij_blm[5] + 
                   s2[3] * s_rij_blm[6] + 
                   s2[4] * s_rij_blm[7] ); 
-                  
     // l = 3
     double tmp3 = 
                   s3[0] * s_rij_blm[8] + 
@@ -1146,7 +1143,7 @@ accumulate_blm_rij(const double d12,
   s[20] += (x12sq - 3.0 * y12sq) * x12 * z12;                             // Y43_real
   s[21] += (3.0 * x12sq - y12sq) * y12 * z12;                             // Y43_imag
   s[22] += (x12sq_minus_y12sq * x12sq_minus_y12sq - 4.0 * x12sq * y12sq); // Y44_real
-  s[23] += (4.0 * x12 * y12 * x12sq_minus_y12sq);                         // Y44_imag
+  s[23] += (4.0 * x12 * y12 * x12sq_minus_y12sq);                    // Y44_imag
 }
 
 static __device__ __forceinline__ void

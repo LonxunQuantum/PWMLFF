@@ -143,31 +143,34 @@ void launch_calculate_nepfeatmb_grad(
 
     if (lmax_3 > 0){
         GPU_Vector<double> dfeat_c3(N * n_types * n_max_3b * n_base_3b, 0.0);
-        find_force_angular_small_box<<<grid_size, BLOCK_SIZE>>>(
-            N,
-            n_types,
-            num_types_sq,
-            neigh_num,
-            lmax_3,
-            lmax_4,
-            lmax_5,
-            feat_2b_num + feat_3b_num,
-            feat_3b_num,
-            rcut_angular,
-            rcinv_angular,
-            n_max_2b, 
-            n_base_2b, 
-            n_max_3b, 
-            n_base_3b,
-            NL,
-            d12,
-            coeff3,
-            atom_map,
-            grad_output,
-            sum_fxyz,
-            dfeat_c3.data(),
-            grad_d12_3b
-        );
+        GPU_Vector<double> dsnlm_dc(N * n_types * n_max_3b * n_base_3b, 0.0);
+        
+        // find_force_angular_small_box<<<grid_size, BLOCK_SIZE>>>(
+        //     N,
+        //     n_types,
+        //     num_types_sq,
+        //     neigh_num,
+        //     lmax_3,
+        //     lmax_4,
+        //     lmax_5,
+        //     feat_2b_num + feat_3b_num,
+        //     feat_3b_num,
+        //     rcut_angular,
+        //     rcinv_angular,
+        //     n_max_2b, 
+        //     n_base_2b, 
+        //     n_max_3b, 
+        //     n_base_3b,
+        //     NL,
+        //     d12,
+        //     coeff3,
+        //     atom_map,
+        //     grad_output,
+        //     sum_fxyz,
+        //     dfeat_c3.data(),
+        //     dsnlm_dc.data(),
+        //     grad_d12_3b
+        // );
         CUDA_CHECK_KERNEL
         
         // print_dfeat_c3(dfeat_c3.data(), N, n_types, n_max_3b, n_base_3b);

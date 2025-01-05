@@ -175,7 +175,7 @@ void torch_launch_calculate_nepmbfeat_grad(
                         torch::Tensor &sum_fxyz,
                         torch::Tensor &grad_coeff3,
                         torch::Tensor &grad_d12_3b,
-                        torch::Tensor &dfeat_dc,
+                        torch::Tensor &dsnlm_dc,
                         torch::Tensor &dfeat_drij
 ){
     int device_id = d12.device().index();
@@ -188,7 +188,7 @@ void torch_launch_calculate_nepmbfeat_grad(
         sum_fxyz.data_ptr<double>(),
         grad_coeff3.data_ptr<double>(),
         grad_d12_3b.data_ptr<double>(),
-        dfeat_dc.data_ptr<double>(),
+        dsnlm_dc.data_ptr<double>(),
         dfeat_drij.data_ptr<double>(),
         rcut_angular,
         batch_size, 
@@ -229,6 +229,7 @@ void torch_launch_calculate_nepmbfeat_secondgradout_c3(
                         const torch::Tensor &d12,
                         const torch::Tensor &NL,
                         const torch::Tensor &de_feat,
+                        const torch::Tensor &dsnlm_dc,
                         const torch::Tensor &sum_fxyz,
                         const torch::Tensor &atom_map,
                         const torch::Tensor &coeff3,
@@ -253,6 +254,7 @@ void torch_launch_calculate_nepmbfeat_secondgradout_c3(
         (const double *) d12.data_ptr(),
         (const int *) NL.data_ptr(),
         (const double *) de_feat.data_ptr(),
+        (const double *) dsnlm_dc.data_ptr(),
         (const double *) sum_fxyz.data_ptr(),
         (const int *) atom_map.data_ptr(),
         (const double *) coeff3.data_ptr(),

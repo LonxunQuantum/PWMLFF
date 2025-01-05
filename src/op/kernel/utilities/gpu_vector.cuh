@@ -41,7 +41,6 @@ public:
     void copy_to_host(T* h_data, const size_t size);
     void copy_to_device(T* d_data);
     void copy_to_device(T* d_data, const size_t size);
-
     void fill(const T value);
 
     T& operator[](int index);
