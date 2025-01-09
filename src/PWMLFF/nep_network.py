@@ -362,8 +362,9 @@ class nep_network:
         # if not self.dp_params.hvd or (self.dp_params.hvd and hvd.rank() == 0):
         train_log = os.path.join(self.input_param.file_paths.model_store_dir, "epoch_train.dat")
         f_train_log = open(train_log, "w")
-        valid_log = os.path.join(self.input_param.file_paths.model_store_dir, "epoch_valid.dat")
-        f_valid_log = open(valid_log, "w")
+        if len(val_loader) > 0:
+            valid_log = os.path.join(self.input_param.file_paths.model_store_dir, "epoch_valid.dat")
+            f_valid_log = open(valid_log, "w")
         # Define the lists based on the training type
         train_lists = ["epoch", "loss"]
         valid_lists = ["epoch", "loss"]
@@ -420,19 +421,23 @@ class nep_network:
         valid_format = "".join(["%{}s".format(train_print_width[i]) for i in valid_lists])
 
         f_train_log.write("%s\n" % (train_format % tuple(train_lists)))
-        f_valid_log.write("%s\n" % (valid_format % tuple(valid_lists)))
+        if len(val_loader) > 0:
+            f_valid_log.write("%s\n" % (valid_format % tuple(valid_lists)))
         # Sij_max = 0 # this is for dp model do type embedding
         # self.convert_to_gpumd(model)
         for epoch in range(self.input_param.optimizer_param.start_epoch, self.input_param.optimizer_param.epochs + 1):
-            # if self.dp_params.hvd: # this code maybe error, check when add multi GPU training. wu
-            #     self.train_sampler.set_epoch(epoch)
             time_start = time.time()
-            # if epoch == 1:
-            #     calculate_scaler(
-            #             train_loader, model, self.criterion, self.device, self.input_param
-            #         )
-            # print("calculate q_scaler time is {}".format(time.time()-time_start))
-            # train for one epoch
+            if epoch == 1:
+                model.update_scaler = True
+                calculate_scaler(
+                        train_loader, model, self.criterion, self.device, self.input_param
+                    )
+                model.update_scaler = False
+                model.q_scaler = (1/(model.q_max-model.q_min)).detach()
+                print("calculate q_scaler time is {}".format(time.time()-time_start))
+                print("model.q_scaler:\n")
+                print(model.q_scaler)
+            
             time_start = time.time()
             if self.input_param.optimizer_param.opt_name == "LKF" or self.input_param.optimizer_param.opt_name == "GKF":
                 loss, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_egroup, loss_virial, loss_virial_per_atom, loss_l1, loss_l2 = train_KF(
@@ -452,49 +457,58 @@ class nep_network:
             # self.convert_to_gpumd(model)
 
             # evaluate on validation set
-
-            vld_loss, vld_loss_Etot, vld_loss_Etot_per_atom, vld_loss_Force, vld_loss_Ei, val_loss_egroup, val_loss_virial, val_loss_virial_per_atom = valid(
-                    val_loader, model, self.criterion, self.device, self.input_param
-                )
+            if len(val_loader) > 0:
+                vld_loss, vld_loss_Etot, vld_loss_Etot_per_atom, vld_loss_Force, vld_loss_Ei, val_loss_egroup, val_loss_virial, val_loss_virial_per_atom = valid(
+                        val_loader, model, self.criterion, self.device, self.input_param
+                    )
 
             # if not self.dp_params.hvd or (self.dp_params.hvd and hvd.rank() == 0):
 
             f_train_log = open(train_log, "a")
-            f_valid_log = open(valid_log, "a")
 
             # Write the log line to the file based on the training mode
             train_log_line = "%5d%18.10e" % (
                 epoch,
                 loss,
             )
-            valid_log_line = "%5d%18.10e" % (
-                epoch,
-                vld_loss,
-            )
+            if len(val_loader) > 0: #valid log
+                f_valid_log = open(valid_log, "a")
+                valid_log_line = "%5d%18.10e" % (
+                    epoch,
+                    vld_loss,
+                )
+                if self.input_param.optimizer_param.train_energy:
+                    # valid_log_line += "%18.10e" % (vld_loss_Etot)
+                    valid_log_line += "%21.10e" % (vld_loss_Etot_per_atom)
+                if self.input_param.optimizer_param.train_ei:
+                    valid_log_line += "%18.10e" % (vld_loss_Ei)
+                if self.input_param.optimizer_param.train_egroup:
+                    valid_log_line += "%18.10e" % (val_loss_egroup)
+                if self.input_param.optimizer_param.train_force:
+                    valid_log_line += "%18.10e" % (vld_loss_Force)
+                if self.input_param.optimizer_param.train_virial:
+                    # valid_log_line += "%18.10e" % (val_loss_virial)
+                    valid_log_line += "%23.10e" % (val_loss_virial_per_atom)
+                f_valid_log.write("%s\n" % (valid_log_line))
+                f_valid_log.close()
+
+            # train log
             if self.input_param.optimizer_param.lambda_1 is not None:
                 train_log_line += "%18.10e" % (loss_l1)
             if self.input_param.optimizer_param.lambda_2 is not None:
                 train_log_line += "%18.10e" % (loss_l2)
-
             if self.input_param.optimizer_param.train_energy:
                 # train_log_line += "%18.10e" % (loss_Etot)
-                # valid_log_line += "%18.10e" % (vld_loss_Etot)
                 train_log_line += "%21.10e" % (loss_Etot_per_atom)
-                valid_log_line += "%21.10e" % (vld_loss_Etot_per_atom)
             if self.input_param.optimizer_param.train_ei:
                 train_log_line += "%18.10e" % (loss_Ei)
-                valid_log_line += "%18.10e" % (vld_loss_Ei)
             if self.input_param.optimizer_param.train_egroup:
                 train_log_line += "%18.10e" % (loss_egroup)
-                valid_log_line += "%18.10e" % (val_loss_egroup)
             if self.input_param.optimizer_param.train_force:
                 train_log_line += "%18.10e" % (loss_Force)
-                valid_log_line += "%18.10e" % (vld_loss_Force)
             if self.input_param.optimizer_param.train_virial:
                 # train_log_line += "%18.10e" % (loss_virial)
-                # valid_log_line += "%18.10e" % (val_loss_virial)
                 train_log_line += "%23.10e" % (loss_virial_per_atom)
-                valid_log_line += "%23.10e" % (val_loss_virial_per_atom)
             if self.input_param.optimizer_param.opt_name == "SNES": 
                 train_log_line += "%18.10e" % (loss_l1)
                 train_log_line += "%18.10e" % (loss_l2)
@@ -504,10 +518,7 @@ class nep_network:
                 train_log_line += "%18.10e%18.4f" % (real_lr , time_end - time_start)
 
             f_train_log.write("%s\n" % (train_log_line))
-            f_valid_log.write("%s\n" % (valid_log_line))
-        
             f_train_log.close()
-            f_valid_log.close()
             
             # if not self.dp_params.hvd or (self.dp_params.hvd and hvd.rank() == 0):
             if self.input_param.optimizer_param.opt_name == "SNES":
@@ -710,8 +721,8 @@ class nep_network:
                 virial_predict)
             ei_predict   = np.array(ei_predict).reshape(atom_nums)
             etot_predict = np.sum(ei_predict)
-            etot_rmse.append(np.abs(etot_predict-image.Ep[0]))
-            etot_label_list.append(image.Ep[0])
+            etot_rmse.append(np.abs(etot_predict-image.Ep))
+            etot_label_list.append(image.Ep)
             etot_predict_list.append(etot_predict)
 
             etot_atom_rmse.append(etot_rmse[-1]/atom_nums)
@@ -828,7 +839,7 @@ class nep_network:
 
         ei_predict = np.array(ei_predict).reshape(atom_nums)
         etot_predict = np.sum(ei_predict)
-        etot_rmse = np.abs(etot_predict - image.Ep[0])
+        etot_rmse = np.abs(etot_predict - image.Ep)
         etot_atom_rmse = etot_rmse / atom_nums
         ei_rmse = np.sqrt(np.mean((ei_predict - image.atomic_energy) ** 2))
         force_predict = np.array(force_predict).reshape(3, atom_nums).transpose(1, 0)
@@ -1193,7 +1204,7 @@ class nep_network:
             # Calculate errors
             ei_predict = np.array(ei_predict).reshape(atom_nums)
             etot_predict = np.sum(ei_predict)
-            etot_rmse_val = np.abs(etot_predict - image.Ep[0])
+            etot_rmse_val = np.abs(etot_predict - image.Ep)
             etot_atom_rmse_val = etot_rmse_val / atom_nums
             ei_rmse_val = np.sqrt(np.mean((ei_predict - image.atomic_energy) ** 2))
             force_predict = np.array(force_predict).reshape(3, atom_nums).transpose(1, 0)

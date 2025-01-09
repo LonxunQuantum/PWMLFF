@@ -29,6 +29,7 @@ class NepParam(object):
     def __init__(self) -> None:
         self.nep_in_file = None
         self.nep_txt_file = None
+        self.train_2b = True
 
     '''
     description: 
@@ -221,6 +222,7 @@ class NepParam(object):
         self.model_type = 0 # select to train potential 0, dipole 1, or polarizability 2
         self.prediction = 0 # select between training and prediction (inference)
         self.zbl = get_parameter("zbl", descriptor_dict, None)
+        self.train_2b = get_parameter("train_2b", descriptor_dict, True)
         if self.zbl is not None:
             if self.zbl > 2.5 or self.zbl < 1.0:
                 raise Exception("ERROR! the 'zbl' in json file should be between 1.0 and 2.5")

@@ -52,11 +52,9 @@ class KFOptimizerWrapper:
                 inputs[5],
                 inputs[6],
                 inputs[7],
+                0,
                 inputs[8],
                 inputs[9],
-                0,
-                inputs[10],
-                inputs[11],
                 is_calc_f=False,
             )
         elif train_type == "NN": # nn training
@@ -139,11 +137,9 @@ class KFOptimizerWrapper:
                 inputs[5],
                 inputs[6],
                 inputs[7],
+                0,
                 inputs[8],
                 inputs[9],
-                0,
-                inputs[10],
-                inputs[11],
                 is_calc_f=False,
             )
         elif train_type == "NN": # nn training
@@ -229,11 +225,9 @@ class KFOptimizerWrapper:
                 inputs[5],
                 inputs[6],
                 inputs[7],
-                inputs[8],
-                inputs[9],
                 0,
-                inputs[10],
-                inputs[11],
+                inputs[8],
+                inputs[9]
             )
         elif train_type == "NN":
             Etot_predict, _, _, Virial_predict = self.model(
@@ -354,7 +348,7 @@ class KFOptimizerWrapper:
                 )
             elif train_type == "NEP":
                 Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = self.model(
-                    inputs[0], inputs[1], inputs[2], inputs[3], inputs[4], inputs[5], inputs[6], inputs[7], inputs[8], inputs[9], 0, inputs[10], inputs[11]
+                    inputs[0], inputs[1], inputs[2], inputs[3], inputs[4], inputs[5], inputs[6], inputs[7], 0, inputs[8], inputs[9]
                 )
             elif train_type == "NN":  # nn training
                 Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = self.model(
@@ -427,11 +421,9 @@ class KFOptimizerWrapper:
                 inputs[5],
                 inputs[6],
                 inputs[7],
+                0,
                 inputs[8],
                 inputs[9],
-                0,
-                inputs[10],
-                inputs[11],
                 is_calc_f=False,
             )
         elif train_type == "NN": # nn training

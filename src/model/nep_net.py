@@ -101,7 +101,7 @@ class NEP(nn.Module):
         self.atom_type = input_param.atom_type
         self.ntypes = len(input_param.atom_type)
         self.ntypes_sq = self.ntypes * self.ntypes
-        self.train_2b = input_param.train_2b
+        self.train_2b = input_param.nep_param.train_2b
         self.cutoff_radial  = float(nep_param.cutoff[0])
         self.cutoff_angular = float(nep_param.cutoff[1])
         self.rcinv_radial   = 1.0/self.cutoff_radial
@@ -191,8 +191,8 @@ class NEP(nn.Module):
         dtype  = next(self.parameters()).dtype
         device = next(self.parameters()).device
         # load from nep.txt
-        self.q_min = None
-        self.q_max = None
+        self.q_max = torch.full([self.feature_nums], -float('inf'), requires_grad=False, dtype=dtype, device=device)  # 初始为无穷大
+        self.q_min = torch.full([self.feature_nums], float('inf'), requires_grad=False, dtype=dtype, device=device)  # 初始为负无穷大
         if self.input_param.nep_param.q_scaler is not None:
             self.q_scaler = torch.tensor(self.input_param.nep_param.q_scaler, dtype=dtype, device=device) #load from nep.txt
         else:
@@ -287,11 +287,9 @@ class NEP(nn.Module):
                 list_neigh: torch.Tensor,   # int32
                 ImageDR: torch.Tensor,      # float64
                 list_neigh_type: torch.Tensor,
-                ImageDR_d: torch.Tensor,      # float64
                 list_neigh_angular: torch.Tensor,   # int32
                 ImageDR_angular: torch.Tensor,      # float64
                 list_neigh_type_angular: torch.Tensor,
-                ImageDR_angular_d: torch.Tensor,      # float64
                 Imagetype_map: torch.Tensor,    # int32
                 atom_type: torch.Tensor,    # int32
                 nghost: int, 
@@ -323,32 +321,18 @@ class NEP(nn.Module):
         doub_natoms_sum = list_neigh.shape[1]
         max_neighbor_type = list_neigh.shape[2]  # ntype * max_neighbor_num
         fitnet_index = self.get_fitnet_index(atom_type)
-        # Ri, Ri_d, Ri_angular, Ri_d_angular = self.calculate_Ri(doub_natoms_sum, batch_size, max_neighbor_type, Imagetype_map, ImageDR, ImageDR_angular, device, dtype)
+        Ri, Ri_d, Ri_angular, Ri_d_angular = self.calculate_Ri(doub_natoms_sum, batch_size, max_neighbor_type, Imagetype_map, ImageDR, ImageDR_angular, device, dtype)
         Ri = ImageDR
-        Ri_d = ImageDR_d
         Ri.requires_grad_()
 
         Ri_angular = ImageDR_angular
-        Ri_d_angular = ImageDR_angular_d
         Ri_angular.requires_grad_()
-        
-        # _c_param_2 = self.c_param_2.permute(2, 3, 0, 1)
-        # feats = CalcOps.calculateNepFeat(self.c_param_2, Ri, list_neigh, Imagetype_map, self.cutoff_radial)[0]
-        # c_param_2 = self.c_param_2.permute(2, 3, 0, 1)
-        # c_param_3 = self.c_param_3.permute(2, 3, 0, 1)
-        # Ri = Ri.reshape(-1, Ri.shape[2], 4)
-        # Ri_angular = Ri_angular.reshape(-1, Ri_angular.shape[2], 4)
-        # list_neigh = list_neigh.reshape(-1, list_neigh.shape[2])
         
         if device.type == "cpu":
             j_type_map = list_neigh_type.clone().detach().requires_grad_(False)#可以在调用前做复制，从forward移出去，只有训练需要
             j_type_map_angular = list_neigh_type_angular.clone().detach().requires_grad_(False)
-            feats2 = self.calculate_qn(doub_natoms_sum, batch_size, max_neighbor_type, Imagetype_map, j_type_map, Ri, j_type_map_angular, Ri_angular, device, dtype)
-        else:
-            # feats = CalcOps.calculateNepFeatmb(self.c_param_2, self.c_param_3,
-            #                             Ri, Ri_angular, list_neigh, Imagetype_map,
-            #                                 self.cutoff_radial, self.cutoff_angular,
-            #                                     self.l_max_3b, self.l_max_4b, self.l_max_5b)[0]
+            feats = self.calculate_qn(doub_natoms_sum, batch_size, max_neighbor_type, Imagetype_map, j_type_map, Ri, j_type_map_angular, Ri_angular, device, dtype)
+        else:# cuda ops
             if self.train_2b:
                 feat_2b = torch.zeros(batch_size, natoms_sum, self.two_feat_num, dtype=dtype, device=device, requires_grad=True)
                 feat_2b = CalcOps.calculateNepFeat(self.c_param_2, 
@@ -377,19 +361,13 @@ class NEP(nn.Module):
                     feats = feat_3b
             else:
                 feats = feat_2b
-
+        print(torch.sum(feats))
         if self.q_scaler is None:
-            if batch_size * natoms_sum < 2:
-                self.q_scaler = torch.ones(feats.shape[-1], device=device, dtype=dtype).detach()
-            else:
-                q_max = torch.max(feats.reshape([-1, feats.shape[-1]]), dim=-2)[0]
-                q_min = torch.min(feats.reshape([-1, feats.shape[-1]]), dim=-2)[0]
-                self.q_scaler = (1/(q_max-q_min)).detach()
+            self.q_max, self.q_min = self.update_scaler_values(feats, self.two_feat_num, self.three_feat_num, self.n_max_angular, self.q_max, self.q_min, self.l_max_3b, self.l_max_4b, self.l_max_5b)
+            self.q_scaler = (1/(self.q_max-self.q_min)).detach()
         elif is_calc_f is False and self.update_scaler:
-            q_max = torch.max(feats.reshape([-1, feats.shape[-1]]), dim=-2)[0]
-            q_min = torch.min(feats.reshape([-1, feats.shape[-1]]), dim=-2)[0]
-            self.q_scaler = torch.min(self.q_scaler, 1/(q_max-q_min)).detach()
-
+            self.q_max, self.q_min = self.update_scaler_values(feats, self.two_feat_num, self.three_feat_num, self.n_max_angular, self.q_max, self.q_min, self.l_max_3b, self.l_max_4b, self.l_max_5b)
+            self.q_scaler = (1/(self.q_max-self.q_min)).detach()
         feats_in = self.q_scaler * feats
         # feats_in = (feats-self.q_min)/(self.q_max-self.q_min)
         Ei = self.calculate_Ei(Imagetype_map, batch_size, feats_in, fitnet_index, device)
@@ -419,44 +397,6 @@ class NEP(nn.Module):
             # print("==single time: tall {} ei {} zbl ei {}".format(t2-t0, t1-t0, t2-t1))
         else:
             # t4 = time.time()
-            if self.train_2b:
-                mask: List[Optional[torch.Tensor]] = [torch.ones_like(Etot)]
-                dE = torch.autograd.grad([Etot], [Ri], grad_outputs=mask, retain_graph=True, create_graph=True)[0]
-
-            if self.l_max_3b > 0:
-                mask_angular: List[Optional[torch.Tensor]] = [torch.ones_like(Etot)]
-                dE_angular = torch.autograd.grad([Etot], [Ri_angular], grad_outputs=mask_angular, retain_graph=True, create_graph=True)[0]
-            if self.train_2b:
-                Ri_d = Ri_d.view(batch_size, natoms_sum, -1, 3)
-                dE_tmp = dE.view(batch_size, natoms_sum, 1, -1)
-                Force = -1 * torch.matmul(dE_tmp, Ri_d).squeeze(-2)
-                ImageDR = Ri[:,:,:,1:].clone()
-                nghost_tensor = torch.tensor(nghost, device=device, dtype=torch.int64)
-                tmp_list_neigh = torch.unsqueeze(list_neigh,2)
-                tmp_list_neigh = (tmp_list_neigh - 1).type(torch.int)
-                Force = CalcOps.calculateForce(tmp_list_neigh, dE, Ri_d, Force, nghost_tensor)[0]
-                Virial = CalcOps.calculateVirial(tmp_list_neigh, dE, ImageDR, Ri_d, nghost_tensor)[0]
-            if self.l_max_3b > 0:
-                Ri_d_angular = Ri_d_angular.view(batch_size, natoms_sum, -1, 3)
-                dE_angular = dE_angular.view(batch_size, natoms_sum, 1, -1)
-                Force_angular = -1 * torch.matmul(dE_angular, Ri_d_angular).squeeze(-2)
-                ImageDR_angular = Ri_angular[:,:,:,1:].clone()
-                nghost_tensor = torch.tensor(nghost, device=device, dtype=torch.int64)
-                tmp_list_neigh_angular = torch.unsqueeze(list_neigh_angular,2)
-                tmp_list_neigh_angular = (tmp_list_neigh_angular - 1).type(torch.int)
-                Force_angular = CalcOps.calculateForce(tmp_list_neigh_angular, dE_angular, Ri_d_angular, Force_angular, nghost_tensor)[0]
-                Virial_angular = CalcOps.calculateVirial(tmp_list_neigh_angular, dE_angular, ImageDR_angular, Ri_d_angular, nghost_tensor)[0]
-
-                if self.train_2b:
-                    Force = -(Force + Force_angular)
-                    Virial = -(Virial + Virial_angular)
-                else:
-                    Force = -(Force_angular)
-                    Virial = -(Virial_angular)
-            else:
-                Force = -Force
-                Virial = -Virial
-            """
             Force, Virial = self.calculate_force_virial(Ri, Ri_d, 
                                                         Ri_angular, Ri_d_angular, 
                                                         ri_zbl, ri_d_zbl,
@@ -465,7 +405,7 @@ class NEP(nn.Module):
                                                         list_neigh_angular, 
                                                         neigh_zbl,
                                                         nghost, device, dtype)
-            """
+            
             # t3 = time.time()
             # print("==single time: tall {} ei {} zbl ei {} force {}".format(t3-t0, t1-t0, t2-t1, t3-t2))
             # ==single time: t1 0.0015997886657714844 t2 0.0016467571258544922 t3 0.03717923164367676 t4 2.8371810913085938e-05 t5 0.0011038780212402344 t6 4.267692565917969e-05 t7 0.08994221687316895
@@ -538,14 +478,8 @@ class NEP(nn.Module):
                 continue
             indices = torch.arange(len(Imagetype_map.flatten()),device=device)[mask]  
             feat = feats[:, indices, :]
-            # _Ei_ntype = fit_net.forward(feat)
-            # Ei_ntype = _Ei_ntype + self.common_bias
             Ei_ntype = fit_net.forward(feat)
             Ei = Ei_ntype if Ei is None else torch.concat((Ei, Ei_ntype), dim=1)
-            # print()
-        # Etot = torch.sum(Ei, 1)
-        # mask2: List[Optional[torch.Tensor]] = [torch.ones_like(Etot)]
-        # dE = torch.autograd.grad([Etot], [feats], grad_outputs=mask2, retain_graph=True, create_graph=True)[0]
 
         return Ei
      
@@ -569,14 +503,14 @@ class NEP(nn.Module):
                                 device: torch.device,
                                 dtype: torch.dtype) -> Tuple[torch.Tensor, torch.Tensor]:
         # t7 = time.time()
-        mask: List[Optional[torch.Tensor]] = [torch.ones_like(Etot)]
-        dE = torch.autograd.grad([Etot], [Ri], grad_outputs=mask, retain_graph=True, create_graph=True)[0]
-        # dE = torch.autograd.grad(Etot, Ri, grad_outputs=mask, retain_graph=True, create_graph=True, allow_unused=True)[0]
-        # dE = dE.clone().detach().requires_grad_(True)  # Ensure dE has requires_grad
+        if self.train_2b:
+            mask: List[Optional[torch.Tensor]] = [torch.ones_like(Etot)]
+            dE = torch.autograd.grad([Etot], [Ri], grad_outputs=mask, retain_graph=True, create_graph=True)[0]
 
         if self.l_max_3b > 0:
             mask_angular: List[Optional[torch.Tensor]] = [torch.ones_like(Etot)]
             dE_angular = torch.autograd.grad([Etot], [Ri_angular], grad_outputs=mask_angular, retain_graph=True, create_graph=True, allow_unused=True)[0]
+        
         if Ri_zbl is not None:
             mask_zbl: List[Optional[torch.Tensor]] = [torch.ones_like(Etot)]
             dE_zbl = torch.autograd.grad([Etot], [Ri_zbl], grad_outputs=mask_zbl, retain_graph=True, create_graph=True)[0]
@@ -586,31 +520,31 @@ class NEP(nn.Module):
         mask: List[Optional[torch.Tensor]] = [torch.ones_like(Ei)]
         dE = torch.autograd.grad([Ei], [Ri], grad_outputs=mask, retain_graph=True, create_graph=True)[0]
         '''
-        assert dE is not None
         if device.type == "cpu": #True: 
-            dE = torch.unsqueeze(dE, dim=-1)
-            # dE * Ri_d [batch, natom, max_neighbor * len(atom_type),4,1] * [batch, natom, max_neighbor * len(atom_type), 4, 3]
-            # dE_Rid [batch, natom, max_neighbor * len(atom_type), 3]
-            dE_Rid = torch.mul(dE, Ri_d).sum(dim=-2)
-            Force = torch.zeros((batch_size, natoms_sum + nghost + 1, 3), device=device, dtype=dtype)
-            Force[:, 1:natoms_sum + 1, :] = -1 * dE_Rid.sum(dim=-2)
-            Virial = torch.zeros((batch_size, 9), device=device, dtype=dtype)
-            for batch_idx in range(batch_size):
-                indice = list_neigh[batch_idx].flatten().unsqueeze(-1).expand(-1, 3).to(torch.int64) # list_neigh's index start from 1, so the Force's dimension should be natoms_sum + 1
-                values = dE_Rid[batch_idx].view(-1, 3)
-                Force[batch_idx].scatter_add_(0, indice, values).view(natoms_sum + nghost + 1, 3)
-                Virial[batch_idx, 0] = (Ri[batch_idx, :, :, 1] * dE_Rid[batch_idx, :, :, 0]).flatten().sum(dim=0) # xx
-                Virial[batch_idx, 1] = (Ri[batch_idx, :, :, 1] * dE_Rid[batch_idx, :, :, 1]).flatten().sum(dim=0) # xy
-                Virial[batch_idx, 2] = (Ri[batch_idx, :, :, 1] * dE_Rid[batch_idx, :, :, 2]).flatten().sum(dim=0) # xz
-                Virial[batch_idx, 4] = (Ri[batch_idx, :, :, 2] * dE_Rid[batch_idx, :, :, 1]).flatten().sum(dim=0) # yy
-                Virial[batch_idx, 5] = (Ri[batch_idx, :, :, 2] * dE_Rid[batch_idx, :, :, 2]).flatten().sum(dim=0) # yz
-                Virial[batch_idx, 8] = (Ri[batch_idx, :, :, 3] * dE_Rid[batch_idx, :, :, 2]).flatten().sum(dim=0) # zz
-                # testxx = (Ri[batch_idx, :, :, 1] * dE_Rid[batch_idx, :, :, 0]).sum(dim=1)
-                # testxy = (Ri[batch_idx, :, :, 1] * dE_Rid[batch_idx, :, :, 1]).sum(dim=1)
-                # testxz = (Ri[batch_idx, :, :, 1] * dE_Rid[batch_idx, :, :, 2]).sum(dim=1)
-                # testyy = (Ri[batch_idx, :, :, 2] * dE_Rid[batch_idx, :, :, 1]).sum(dim=1)
-                Virial[batch_idx, [3, 6, 7]] = Virial[batch_idx, [1, 2, 5]]
-            Force = Force[:, 1:, :]
+            if self.train_2b:
+                dE = torch.unsqueeze(dE, dim=-1)
+                # dE * Ri_d [batch, natom, max_neighbor * len(atom_type),4,1] * [batch, natom, max_neighbor * len(atom_type), 4, 3]
+                # dE_Rid [batch, natom, max_neighbor * len(atom_type), 3]
+                dE_Rid = torch.mul(dE, Ri_d).sum(dim=-2)
+                Force = torch.zeros((batch_size, natoms_sum + nghost + 1, 3), device=device, dtype=dtype)
+                Force[:, 1:natoms_sum + 1, :] = -1 * dE_Rid.sum(dim=-2)
+                Virial = torch.zeros((batch_size, 9), device=device, dtype=dtype)
+                for batch_idx in range(batch_size):
+                    indice = list_neigh[batch_idx].flatten().unsqueeze(-1).expand(-1, 3).to(torch.int64) # list_neigh's index start from 1, so the Force's dimension should be natoms_sum + 1
+                    values = dE_Rid[batch_idx].view(-1, 3)
+                    Force[batch_idx].scatter_add_(0, indice, values).view(natoms_sum + nghost + 1, 3)
+                    Virial[batch_idx, 0] = (Ri[batch_idx, :, :, 1] * dE_Rid[batch_idx, :, :, 0]).flatten().sum(dim=0) # xx
+                    Virial[batch_idx, 1] = (Ri[batch_idx, :, :, 1] * dE_Rid[batch_idx, :, :, 1]).flatten().sum(dim=0) # xy
+                    Virial[batch_idx, 2] = (Ri[batch_idx, :, :, 1] * dE_Rid[batch_idx, :, :, 2]).flatten().sum(dim=0) # xz
+                    Virial[batch_idx, 4] = (Ri[batch_idx, :, :, 2] * dE_Rid[batch_idx, :, :, 1]).flatten().sum(dim=0) # yy
+                    Virial[batch_idx, 5] = (Ri[batch_idx, :, :, 2] * dE_Rid[batch_idx, :, :, 2]).flatten().sum(dim=0) # yz
+                    Virial[batch_idx, 8] = (Ri[batch_idx, :, :, 3] * dE_Rid[batch_idx, :, :, 2]).flatten().sum(dim=0) # zz
+                    # testxx = (Ri[batch_idx, :, :, 1] * dE_Rid[batch_idx, :, :, 0]).sum(dim=1)
+                    # testxy = (Ri[batch_idx, :, :, 1] * dE_Rid[batch_idx, :, :, 1]).sum(dim=1)
+                    # testxz = (Ri[batch_idx, :, :, 1] * dE_Rid[batch_idx, :, :, 2]).sum(dim=1)
+                    # testyy = (Ri[batch_idx, :, :, 2] * dE_Rid[batch_idx, :, :, 1]).sum(dim=1)
+                    Virial[batch_idx, [3, 6, 7]] = Virial[batch_idx, [1, 2, 5]]
+                Force = Force[:, 1:, :]
             if self.l_max_3b > 0:
                 dE_angular = torch.unsqueeze(dE_angular, dim=-1)
                 dE_Rid_angular = torch.mul(dE_angular, Ri_d_angular).sum(dim=-2)
@@ -629,7 +563,6 @@ class NEP(nn.Module):
                     Virial_angular[batch_idx, 8] = (Ri_angular[batch_idx, :, :, 3] * dE_Rid_angular[batch_idx, :, :, 2]).flatten().sum(dim=0) # zz
                     Virial_angular[batch_idx, [3, 6, 7]] = Virial_angular[batch_idx, [1, 2, 5]]
                 Force_angular = Force_angular[:, 1:, :]
-
             if Ri_zbl is not None:
                 dE_zbl = torch.unsqueeze(dE_zbl, dim=-1)
                 dE_Rid_zbl = torch.mul(dE_zbl, Ri_d_zbl).sum(dim=-2)
@@ -648,28 +581,27 @@ class NEP(nn.Module):
                     Virial_zbl[batch_idx, 8] = (Ri_zbl[batch_idx, :, :, 3] * dE_Rid_zbl[batch_idx, :, :, 2]).flatten().sum(dim=0) # zz
                     Virial_zbl[batch_idx, [3, 6, 7]] = Virial_zbl[batch_idx, [1, 2, 5]]
                 Force_zbl = Force_zbl[:, 1:, :]
-
-        else:
-            Ri_d = Ri_d.view(batch_size, natoms_sum, -1, 3)
-            dE_tmp = dE.view(batch_size, natoms_sum, 1, -1)
-            Force = -1 * torch.matmul(dE_tmp, Ri_d).squeeze(-2)
-            ImageDR = Ri[:,:,:,1:].clone()
-            nghost_tensor = torch.tensor(nghost, device=device, dtype=torch.int64)
-            list_neigh = torch.unsqueeze(list_neigh,2)
-            list_neigh = (list_neigh - 1).type(torch.int)
-            Force = CalcOps.calculateForce(list_neigh, dE, Ri_d, Force, nghost_tensor)[0]
-            Virial = CalcOps.calculateVirial(list_neigh, dE, ImageDR, Ri_d, nghost_tensor)[0]
+        else: # gpu code
+            if self.train_2b:
+                Ri_d = Ri_d.view(batch_size, natoms_sum, -1, 3)
+                dE_tmp = dE.view(batch_size, natoms_sum, 1, -1)
+                Force = -1 * torch.matmul(dE_tmp, Ri_d).squeeze(-2)
+                ImageDR = Ri[:,:,:,1:].clone()
+                nghost_tensor = torch.tensor(nghost, device=device, dtype=torch.int64)
+                tmp_list_neigh = torch.unsqueeze(list_neigh,2)
+                tmp_list_neigh = (tmp_list_neigh - 1).type(torch.int)
+                Force = CalcOps.calculateForce(tmp_list_neigh, dE, Ri_d, Force, nghost_tensor)[0]
+                Virial = CalcOps.calculateVirial(tmp_list_neigh, dE, ImageDR, Ri_d, nghost_tensor)[0]
             if self.l_max_3b > 0:
                 Ri_d_angular = Ri_d_angular.view(batch_size, natoms_sum, -1, 3)
                 dE_angular = dE_angular.view(batch_size, natoms_sum, 1, -1)
                 Force_angular = -1 * torch.matmul(dE_angular, Ri_d_angular).squeeze(-2)
                 ImageDR_angular = Ri_angular[:,:,:,1:].clone()
                 nghost_tensor = torch.tensor(nghost, device=device, dtype=torch.int64)
-                list_neigh_angular = torch.unsqueeze(list_neigh_angular,2)
-                list_neigh_angular = (list_neigh_angular - 1).type(torch.int)
-                Force_angular = CalcOps.calculateForce(list_neigh_angular, dE_angular, Ri_d_angular, Force_angular, nghost_tensor)[0]
-                Virial_angular = CalcOps.calculateVirial(list_neigh_angular, dE_angular, ImageDR_angular, Ri_d_angular, nghost_tensor)[0]
-
+                tmp_list_neigh_angular = torch.unsqueeze(list_neigh_angular,2)
+                tmp_list_neigh_angular = (tmp_list_neigh_angular - 1).type(torch.int)
+                Force_angular = CalcOps.calculateForce(tmp_list_neigh_angular, dE_angular, Ri_d_angular, Force_angular, nghost_tensor)[0]
+                Virial_angular = CalcOps.calculateVirial(tmp_list_neigh_angular, dE_angular, ImageDR_angular, Ri_d_angular, nghost_tensor)[0]
             if Ri_zbl is not None:
                 Ri_d_zbl = Ri_d_zbl.view(batch_size, natoms_sum, -1, 3)
                 dE_zbl = dE_zbl.view(batch_size, natoms_sum, 1, -1)
@@ -680,17 +612,22 @@ class NEP(nn.Module):
                 list_neigh_zbl = (list_neigh_zbl - 1).type(torch.int)
                 Force_zbl = CalcOps.calculateForce(list_neigh_zbl, dE_zbl, Ri_d_zbl, Force_zbl, nghost_tensor)[0]
                 Virial_zbl = CalcOps.calculateVirial(list_neigh_zbl, dE_zbl, ImageDR_zbl, Ri_d_zbl, nghost_tensor)[0]                
-
         # t9 = time.time()
         # print("t8 {} t9 {}".format(t8-t7, t9-t8))
-        del dE
+        # del dE ???
         # print(-Force)
-        if self.l_max_3b > 0:
-            if Ri_zbl is not None:
+        if Ri_zbl is not None:
+            if self.train_2b and self.l_max_3b > 0:
                 return -(Force + Force_angular + Force_zbl), -(Virial + Virial_angular + Virial_zbl)
+            elif self.l_max_3b > 0:
+                return -(Force_angular + Force_zbl), -(Virial_angular + Virial_zbl)
             else:
-                return -(Force + Force_angular), -(Virial + Virial_angular)
+                return -(Force + Force_zbl), -(Virial + Virial_zbl)
         else:
+            if self.train_2b and self.l_max_3b > 0:
+                return -(Force + Force_angular), -(Virial + Virial_angular)
+            elif self.l_max_3b > 0:
+                return -Force_angular, -Virial_angular
             return -Force, -Virial
 
 
@@ -706,13 +643,9 @@ class NEP(nn.Module):
                      device: torch.device,
                      dtype: torch.dtype) -> torch.Tensor:
         # check_cuda_memory(-1, -1, "FORWAR calculate_qn start")
-        atom_nums = Imagetype_map.shape[0]
-        c2 = self.get_c(self.c_param_2, self.n_max_radial,  self.n_base_radial,  Imagetype_map, j_type_map)
-        c3 = self.get_c(self.c_param_3, self.n_max_angular, self.n_base_angular, Imagetype_map, j_type_map_angular)  if self.l_max_3b > 0 else None
-        
-        # R = Ri[:, :, :, 0]
-        # xyz = Ri[:, :, :, 1:]
-        feat_2b = self.cal_feat_2body(Ri[:, :, :, 0], Imagetype_map, 
+        if self.train_2b:
+            c2 = self.get_c(self.c_param_2, self.n_max_radial,  self.n_base_radial,  Imagetype_map, j_type_map)
+            feat_2b = self.cal_feat_2body(Ri[:, :, :, 0], Imagetype_map, 
                                         c2,
                                         self.n_max_radial, self.n_base_radial, self.cutoff_radial, self.rcinv_radial)
         # check_cuda_memory(-1, -1, "FORWAR calculate_qn 2b end")
@@ -720,6 +653,7 @@ class NEP(nn.Module):
         # xyz = Ri_angular[:, :, :, 1:]
 
         if self.l_max_3b > 0:
+            c3 = self.get_c(self.c_param_3, self.n_max_angular, self.n_base_angular, Imagetype_map, j_type_map_angular)  if self.l_max_3b > 0 else None
             multi_feat = self.cal_feat_multi_body(Ri_angular[:, :, :, 0], Ri_angular[:, :, :, 1:], Imagetype_map, 
                                             c3,
                                             self.n_max_angular, self.n_base_angular, self.cutoff_angular, self.rcinv_angular, self.l_max_3b)            
@@ -1067,3 +1001,38 @@ class NEP(nn.Module):
 
     #     Ei_zbl = self.K_C_SP * ZiZj * phi / rij
         
+    def update_scaler_values(self, feats, two_feat_num, three_feat_num, n_max_angular, q_max, q_min, l_max_3b, l_max_4b, l_max_5b):
+        """
+        Update q_max and q_min for 2b, 3b, 4b, and 5b components.
+        """
+        feats_reshaped = feats.reshape([-1, feats.shape[-1]])
+        q_max_temp = torch.max(feats_reshaped, dim=-2)[0]
+        q_min_temp = torch.min(feats_reshaped, dim=-2)[0]
+
+        # Define slice ranges
+        slices = [(0, two_feat_num)]
+        if l_max_3b > 0:
+            slices.extend([
+                (two_feat_num, two_feat_num + (n_max_angular + 1)),
+                (two_feat_num + (n_max_angular + 1)    , two_feat_num + (n_max_angular + 1) * 2),
+                (two_feat_num + (n_max_angular + 1) * 2, two_feat_num + (n_max_angular + 1) * 3),
+                (two_feat_num + (n_max_angular + 1) * 3, two_feat_num + (n_max_angular + 1) * 4)
+                ]
+            )
+        if l_max_4b > 0:
+            slices.append(
+                (two_feat_num + three_feat_num, two_feat_num + three_feat_num + (n_max_angular + 1)))
+        if l_max_5b > 0:
+            slices.append(
+                (two_feat_num + three_feat_num + (n_max_angular + 1), two_feat_num + three_feat_num + (n_max_angular + 1) * 2))
+
+        # Update q_max and q_min for each slice
+        for start, end in slices:
+            q_max_temp[start:end] = torch.max(q_max_temp[start:end]).detach()
+            q_min_temp[start:end] = torch.min(q_min_temp[start:end]).detach()
+
+        # Update global q_max and q_min
+        q_max = torch.max(q_max, q_max_temp).detach()
+        q_min = torch.min(q_min, q_min_temp).detach()
+
+        return q_max, q_min

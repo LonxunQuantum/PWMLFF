@@ -11,6 +11,8 @@ from src.optimizer.KFWrapper import KFOptimizerWrapper
 # import horovod.torch as hvd
 from torch.profiler import profile, record_function, ProfilerActivity
 from src.user.input_param import InputParam
+from collections import defaultdict
+
 def print_l1_l2(model):
     params = model.parameters()
     dtype = next(params).dtype
@@ -108,7 +110,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
         atom_type_cpu = sample_batches["AtomType"].int()
         atom_type_map_cpu = sample_batches["AtomTypeMap"].int()
         # classify batchs according to their atom type and atom nums
-        batch_clusters = _classify_batchs(np.array(atom_type_cpu), np.array(natoms_img_cpu))
+        batch_clusters = _classify_batchs(atom_type_map_cpu, len(args.atom_type))
 
         for batch_indexs in batch_clusters:
             # transport data to GPU
@@ -398,7 +400,7 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
         atom_type_cpu = sample_batches["AtomType"].int()
         atom_type_map_cpu = sample_batches["AtomTypeMap"].int()
         # classify batchs according to their atom type and atom nums
-        batch_clusters = _classify_batchs(np.array(atom_type_cpu), np.array(natoms_img_cpu))
+        batch_clusters = _classify_batchs(atom_type_map_cpu, len(args.atom_type))
 
         for batch_indexs in batch_clusters:
             # transport data to GPU
@@ -539,41 +541,18 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
     progress.display_summary(["Training Set:"])
     return losses.avg, loss_Etot.root, loss_Etot_per_atom.root, loss_Force.root, loss_Ei.root, loss_Egroup.root, loss_Virial.root, loss_Virial_per_atom.root, Sij_max, loss_L1.root, loss_L2.root
 
-'''
-description: 
-classify according to atom type and the atom num of the image. 
-
-example, for this two array, after lassified, will return:
-    [[0, 6, 8], [1, 2, 3, 4, 5, 7, 9]]
-natoms_img                                  atoms:
-array([[76, 60, 16],                 array([[ 3, 14],
-       [64,  0, 64],                        [14,  0],          
-       [64,  0, 64],                        [14,  0],          
-       [64,  0, 64],                        [14,  0],          
-       [64,  0, 64],                        [14,  0],          
-       [64,  0, 64],                        [14,  0],          
-       [76, 60, 16],                        [ 3, 14],          
-       [64,  0, 64],                        [14,  0],          
-       [76, 60, 16],                        [ 3, 14],          
-       [64,  0, 64]], dtype=int32)          [14,  0]], dtype=int32)
-
-param {np} atoms 
-param {np} img_natoms
-return {*}
-author: wuxingxing
-'''
-def _classify_batchs(atom_types: np.ndarray, img_natoms: np.ndarray):
-    dicts = {}
-    for i in range(atom_types.shape[0]):
-        key = ""
-        for k1 in atom_types[i]:
-            key += "{}_".format(k1)
-        key += "{}".format(img_natoms[i])
-        if key in dicts.keys():
-            dicts[key].append(i)
-        else:
-            dicts[key] = [i]
-    return [dicts[_] for _ in dicts.keys()]
+def _classify_batchs(atom_type_map, atom_types:int):
+    mask = atom_type_map != -1
+    all_atom_types = torch.arange(atom_types)
+    atom_counts = []
+    for idx, row in enumerate(atom_type_map):
+        count = torch.bincount(row[mask[idx]], minlength=len(all_atom_types))
+        atom_counts.append(count)
+    atom_counts_tuples = [tuple(count.tolist()) for count in atom_counts]
+    class_dict = defaultdict(list)
+    for idx, count_tuple in enumerate(atom_counts_tuples):
+        class_dict[count_tuple].append(idx)
+    return list(class_dict.values())
 
 def valid(val_loader, model, criterion, device, args:InputParam):
     def run_validate(loader, base_progress=0):
@@ -622,7 +601,7 @@ def valid(val_loader, model, criterion, device, args:InputParam):
             atom_type_cpu = sample_batches["AtomType"].int()
             atom_type_map_cpu = sample_batches["AtomTypeMap"].int()
             # classify batchs according to their atom type and atom nums
-            batch_clusters = _classify_batchs(np.array(atom_type_cpu), np.array(natoms_img_cpu))
+            batch_clusters = _classify_batchs(atom_type_map_cpu, len(args.atom_type))
             for batch_indexs in batch_clusters:
                 # transport data to GPU
                 natoms_img = Variable(natoms_img_cpu[batch_indexs].int().to(device))
@@ -827,7 +806,7 @@ def predict(val_loader, model, criterion, device, args:InputParam, isprofile=Fal
         atom_type_cpu = sample_batches["AtomType"].int()
         atom_type_map_cpu = sample_batches["AtomTypeMap"].int()
         # classify batchs according to their atom type and atom nums
-        batch_clusters = _classify_batchs(np.array(atom_type_cpu), np.array(natoms_img_cpu))
+        batch_clusters = _classify_batchs(atom_type_map_cpu, len(args.atom_type))
 
         for batch_indexs in batch_clusters:
             # transport data to GPU

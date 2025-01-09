@@ -59,9 +59,8 @@ __global__ void feat_2b_calc(
                     c_index =  c_I_J_idx + n * n_base + k;
                     gn12 += fn12[k] * coeff2[c_index];
                     dfeat_2b[d2b_idx + n] += fnp12[k]*coeff2[c_index];
-                    
-                    // if (n == 0 and k == 0) {
-                    //     printf("batch %d I %d J %d n %d k %d c %f cid %d rij %f rid %d\n", batch_id, atom_id, n2, n, k, coeff2[c_index], c_index, d12, rij_idx);
+                    // if (batch_id==1 and atom_id==23 and n==9){
+                    //     printf("batch %d i %d t %d j %d t %d n %d k %d c %f cid %d rij %f rid %d fn12[%d]=%f\n", batch_id, atom_id, t1, i1, t2, n, k, coeff2[c_index], c_index, d12, rij_idx, k, fn12[k]);
                     // }
                     if (n == 0) {
                         dfeat_c2[dfeat_c_start_idx + t2 * n_base + k] += fn12[k]; //[batch, n_atom, J_Ntypes, N_base]
@@ -69,6 +68,9 @@ __global__ void feat_2b_calc(
                     }
                 }
                 feat_2b[feat_start_idx + n] += gn12;
+                // if (batch_id == 1 and atom_id == 23 and n == 9){
+                //     printf("gn batch %d i %d t %d j %d t %d n %d gn12=%f feat_2b[%d+%d=%d]=%f\n", batch_id, atom_id, t1, i1, t2, n, gn12, feat_start_idx, n, feat_start_idx + n, feat_2b[feat_start_idx + n]);
+                // }
             }
         }//neighs
         // printf("batch %d atom %d feat [%f %f %f %f %f] dfc [%f %f]\n", batch_id, atom_id, 
@@ -102,7 +104,7 @@ void launch_calculate_nepfeat(
     double rcinv_radial = 1.0 / rcut_radial;
     feat_2b_calc<<<grid_size, BLOCK_SIZE>>>(
                 coeff2, d12_radial, NL_radial, atom_map, 
-                    static_cast<double>(rcut_radial), rcinv_radial,
+                    rcut_radial, rcinv_radial,
                         feat_2b, dfeat_c2, dfeat_2b, dfeat_2b_noc,
                             batch_size, natoms, neigh_num, 
                                 n_max, n_base, num_types, num_types_sq

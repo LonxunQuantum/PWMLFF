@@ -145,7 +145,10 @@ class MovementDataset(Dataset):
                     data[vars_file] = file_data
                 else:
                     data[vars_file] = np.concatenate((data[vars_file], file_data), axis=0)
-        total_images = data["energies.npy"].shape[0]    
+        if len(data.keys()) > 0:
+            total_images = data["energies.npy"].shape[0]
+        else:
+            total_images = 0
         return data, total_images, images_per_dir, atoms_per_dir
     
 def type_map(atom_types_image, atom_type):

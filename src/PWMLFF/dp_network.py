@@ -361,8 +361,9 @@ class dp_network:
         # if not self.dp_params.hvd or (self.dp_params.hvd and hvd.rank() == 0):
         train_log = os.path.join(self.dp_params.file_paths.model_store_dir, "epoch_train.dat")
         f_train_log = open(train_log, "w")
-        valid_log = os.path.join(self.dp_params.file_paths.model_store_dir, "epoch_valid.dat")
-        f_valid_log = open(valid_log, "w")
+        if len(val_loader) > 0:
+            valid_log = os.path.join(self.dp_params.file_paths.model_store_dir, "epoch_valid.dat")
+            f_valid_log = open(valid_log, "w")
         # Define the lists based on the training type
         train_lists = ["epoch", "loss"]
         valid_lists = ["epoch", "loss"]
@@ -416,7 +417,8 @@ class dp_network:
         valid_format = "".join(["%{}s".format(train_print_width[i]) for i in valid_lists])
 
         f_train_log.write("%s\n" % (train_format % tuple(train_lists)))
-        f_valid_log.write("%s\n" % (valid_format % tuple(valid_lists)))
+        if len(val_loader) > 0:
+            f_valid_log.write("%s\n" % (valid_format % tuple(valid_lists)))
 
         for epoch in range(self.dp_params.optimizer_param.start_epoch, self.dp_params.optimizer_param.epochs + 1):
             # if self.dp_params.hvd: # this code maybe error, check when add multi GPU training. wu
@@ -436,48 +438,52 @@ class dp_network:
             time_end = time.time()
 
             # evaluate on validation set
-            vld_loss, vld_loss_Etot, vld_loss_Etot_per_atom, vld_loss_Force, vld_loss_Ei, val_loss_egroup, val_loss_virial, val_loss_virial_per_atom = valid(
-                val_loader, model, self.criterion, self.device, self.dp_params
-            )
+            if len(val_loader) > 0:
+                vld_loss, vld_loss_Etot, vld_loss_Etot_per_atom, vld_loss_Force, vld_loss_Ei, val_loss_egroup, val_loss_virial, val_loss_virial_per_atom = valid(
+                    val_loader, model, self.criterion, self.device, self.dp_params
+                    )
+                f_valid_log = open(valid_log, "a")
+                valid_log_line = "%5d%18.10e" % (
+                    epoch,
+                    vld_loss,
+                    )
+                if self.dp_params.optimizer_param.train_energy:
+                    valid_log_line += "%21.10e" % (vld_loss_Etot_per_atom)
+                if self.dp_params.optimizer_param.train_ei:
+                    valid_log_line += "%18.10e" % (vld_loss_Ei)
+                if self.dp_params.optimizer_param.train_egroup:
+                    valid_log_line += "%18.10e" % (val_loss_egroup)
+                if self.dp_params.optimizer_param.train_force:
+                    valid_log_line += "%18.10e" % (vld_loss_Force)
+                if self.dp_params.optimizer_param.train_virial:
+                    valid_log_line += "%23.10e" % (val_loss_virial_per_atom)
+                f_valid_log.write("%s\n" % (valid_log_line))
+                f_valid_log.close()
 
+                
             # if not self.dp_params.hvd or (self.dp_params.hvd and hvd.rank() == 0):
-
             f_train_log = open(train_log, "a")
-            f_valid_log = open(valid_log, "a")
-
             # Write the log line to the file based on the training mode
             train_log_line = "%5d%18.10e" % (
                 epoch,
                 loss,
             )
-            valid_log_line = "%5d%18.10e" % (
-                epoch,
-                vld_loss,
-            )
             if self.dp_params.optimizer_param.lambda_1 is not None:
                 train_log_line += "%18.10e" % (loss_l1)
             if self.dp_params.optimizer_param.lambda_2 is not None:
                 train_log_line += "%18.10e" % (loss_l2)
-
             if self.dp_params.optimizer_param.train_energy:
-                # train_log_line += "%18.10e" % (loss_Etot)
-                # valid_log_line += "%18.10e" % (vld_loss_Etot)
                 train_log_line += "%21.10e" % (loss_Etot_per_atom)
-                valid_log_line += "%21.10e" % (vld_loss_Etot_per_atom)
             if self.dp_params.optimizer_param.train_ei:
                 train_log_line += "%18.10e" % (loss_Ei)
-                valid_log_line += "%18.10e" % (vld_loss_Ei)
             if self.dp_params.optimizer_param.train_egroup:
                 train_log_line += "%18.10e" % (loss_egroup)
-                valid_log_line += "%18.10e" % (val_loss_egroup)
             if self.dp_params.optimizer_param.train_force:
                 train_log_line += "%18.10e" % (loss_Force)
-                valid_log_line += "%18.10e" % (vld_loss_Force)
             if self.dp_params.optimizer_param.train_virial:
                 # train_log_line += "%18.10e" % (loss_virial)
                 # valid_log_line += "%18.10e" % (val_loss_virial)
                 train_log_line += "%23.10e" % (loss_virial_per_atom)
-                valid_log_line += "%23.10e" % (val_loss_virial_per_atom)
 
             if self.dp_params.optimizer_param.opt_name == "LKF" or self.dp_params.optimizer_param.opt_name == "GKF":
                 train_log_line += "%18.4f" % (time_end - time_start)
@@ -485,10 +491,7 @@ class dp_network:
                 train_log_line += "%18.10e%18.4f" % (real_lr, time_end - time_start)
 
             f_train_log.write("%s\n" % (train_log_line))
-            f_valid_log.write("%s\n" % (valid_log_line))
-        
             f_train_log.close()
-            f_valid_log.close()
             
             # should include dstd.npy and davg.npy 
             
