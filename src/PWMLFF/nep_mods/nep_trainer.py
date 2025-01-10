@@ -923,10 +923,9 @@ def predict(val_loader, model, criterion, device, args:InputParam, isprofile=Fal
 
 def calculate_scaler(val_loader, model, criterion, device, args:InputParam):
     def run_validate(loader, base_progress=0):
-        jjj = 0
         for i, sample_batches in enumerate(loader):
-            # if i % 5 != 0:
-            #     continue
+            if i % 5 != 0:
+                continue
             i = base_progress + i
             if args.precision == "float64":
                 Ei_label_cpu = sample_batches["Ei"].double()
@@ -975,14 +974,7 @@ def calculate_scaler(val_loader, model, criterion, device, args:InputParam):
             atom_type_map_cpu = sample_batches["AtomTypeMap"].int()
             # classify batchs according to their atom type and atom nums
             batch_clusters = _classify_batchs(atom_type_map_cpu, len(args.atom_type))
-            print(atom_type_cpu)
-            print(natoms_img_cpu)
             for batch_indexs in batch_clusters:
-                jjj += 1
-                print(jjj, batch_indexs)
-                print(batch_clusters)
-                # if (jjj != 5):
-                #     continue
                 # transport data to GPU
                 natoms_img = Variable(natoms_img_cpu[batch_indexs].int().to(device))
                 natoms = natoms_img[0]

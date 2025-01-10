@@ -361,7 +361,6 @@ class NEP(nn.Module):
                     feats = feat_3b
             else:
                 feats = feat_2b
-        print(torch.sum(feats))
         if self.q_scaler is None:
             self.q_max, self.q_min = self.update_scaler_values(feats, self.two_feat_num, self.three_feat_num, self.n_max_angular, self.q_max, self.q_min, self.l_max_3b, self.l_max_4b, self.l_max_5b)
             self.q_scaler = (1/(self.q_max-self.q_min)).detach()

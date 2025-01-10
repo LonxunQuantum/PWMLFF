@@ -8,8 +8,11 @@ def write_line_to_file(file_path, line, write_patthen="w"):
         wf.write(line)
         wf.write('\n')
     
-def write_arrays_to_file(file_path, arrays, write_patthen="w"):
+def write_arrays_to_file(file_path, arrays, write_patthen="w", head_line=None):
     with open(file_path, write_patthen) as wf:
+        if head_line is not None:
+            wf.write(head_line)
+            wf.write('\n')
         for data in arrays:
             if isinstance(data, np.ndarray):
                 if data.ndim == 1:

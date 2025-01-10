@@ -133,8 +133,11 @@ class dp_network:
             train_dataset = MovementDataset(data_paths, config, davg, dstd, energy_shift, max_atom_nums)
             valid_dataset = None
         else:            
-            train_dataset = MovementDataset([os.path.join(_, config['trainDataPath']) for _ in self.dp_params.file_paths.datasets_path], 
+            train_dataset = MovementDataset([os.path.join(_, config['trainDataPath']) 
+                                            for _ in self.dp_params.file_paths.datasets_path 
+                                            if os.path.exists(os.path.join(_, config['trainDataPath']))],
                                             config, davg, dstd, energy_shift, max_atom_nums)
+                                            
             valid_dataset = MovementDataset([os.path.join(_, config['validDataPath']) 
                                              for _ in self.dp_params.file_paths.datasets_path
                                              if os.path.exists(os.path.join(_, config['validDataPath']))],
@@ -307,23 +310,21 @@ class dp_network:
         davg, dstd, energy_shift, atom_map, train_loader, val_loader = self.load_data(davg, dstd, energy_shift, max_atom_nums)
         model, optimizer = self.load_model_optimizer(davg, dstd, energy_shift)
         start = time.time()
-        atom_num_list, res_pd, etot_label_list, etot_predict_list, ei_label_list, ei_predict_list, force_label_list, force_predict_list\
+        atom_num_list, res_pd, etot_label_list, etot_predict_list, ei_label_list, ei_predict_list, force_label_list, force_predict_list, virial_label_list, virial_predict_list\
         = predict(train_loader, model, self.criterion, self.device, self.dp_params)
         end = time.time()
         print("fitting time:", end - start, 's')
 
         # print infos
+        data_mask = res_pd['RMSE_Virial'] > -1e6
         inference_cout = ""
         inference_cout += "For {} images: \n".format(len(train_loader))
         inference_cout += "Avarage REMSE of Etot: {} \n".format(res_pd['RMSE_Etot'].mean())
         inference_cout += "Avarage REMSE of Etot per atom: {} \n".format(res_pd['RMSE_Etot_per_atom'].mean())
         inference_cout += "Avarage REMSE of Ei: {} \n".format(res_pd['RMSE_Ei'].mean())
         inference_cout += "Avarage REMSE of RMSE_F: {} \n".format(res_pd['RMSE_F'].mean())
-        if self.dp_params.optimizer_param.train_egroup:
-            inference_cout += "Avarage REMSE of RMSE_Egroup: {} \n".format(res_pd['RMSE_Egroup'].mean())
-        if self.dp_params.optimizer_param.train_virial:
-            inference_cout += "Avarage REMSE of RMSE_virial: {} \n".format(res_pd['RMSE_virial'].mean())
-            inference_cout += "Avarage REMSE of RMSE_virial_per_atom: {} \n".format(res_pd['RMSE_virial_per_atom'].mean())
+        inference_cout += "Avarage REMSE of RMSE_virial: {} \n".format(res_pd['RMSE_Virial'][data_mask].mean())
+        inference_cout += "Avarage REMSE of RMSE_virial_per_atom: {} \n".format(res_pd['RMSE_Virial_per_atom'][data_mask].mean())
         
         inference_cout += "\nMore details can be found under the file directory:\n{}\n".format(os.path.realpath(self.dp_params.file_paths.test_dir))
         print(inference_cout)
@@ -342,6 +343,9 @@ class dp_network:
         write_arrays_to_file(os.path.join(inference_path, "dft_force.txt"), force_label_list)
         write_arrays_to_file(os.path.join(inference_path, "inference_force.txt"), force_predict_list)
 
+        write_arrays_to_file(os.path.join(inference_path, "dft_virial.txt"), virial_label_list, head_line="#\txx\txy\txz\tyy\tyz\tzz")
+        write_arrays_to_file(os.path.join(inference_path, "inference_virial.txt"), virial_predict_list, head_line="#\txx\txy\txz\tyy\tyz\tzz")
+
         res_pd.to_csv(os.path.join(inference_path, "inference_loss.csv"))
 
         with open(os.path.join(inference_path, "inference_summary.txt"), 'w') as wf:
@@ -359,11 +363,6 @@ class dp_network:
             smlink_file(self.dp_params.file_paths.model_store_dir, os.path.join(self.dp_params.file_paths.json_dir, os.path.basename(self.dp_params.file_paths.model_store_dir)))
         
         # if not self.dp_params.hvd or (self.dp_params.hvd and hvd.rank() == 0):
-        train_log = os.path.join(self.dp_params.file_paths.model_store_dir, "epoch_train.dat")
-        f_train_log = open(train_log, "w")
-        if len(val_loader) > 0:
-            valid_log = os.path.join(self.dp_params.file_paths.model_store_dir, "epoch_valid.dat")
-            f_valid_log = open(valid_log, "w")
         # Define the lists based on the training type
         train_lists = ["epoch", "loss"]
         valid_lists = ["epoch", "loss"]
@@ -415,10 +414,15 @@ class dp_network:
 
         train_format = "".join(["%{}s".format(train_print_width[i]) for i in train_lists])
         valid_format = "".join(["%{}s".format(train_print_width[i]) for i in valid_lists])
-
-        f_train_log.write("%s\n" % (train_format % tuple(train_lists)))
-        if len(val_loader) > 0:
-            f_valid_log.write("%s\n" % (valid_format % tuple(valid_lists)))
+        train_log = os.path.join(self.dp_params.file_paths.model_store_dir, "epoch_train.dat")
+        valid_log = os.path.join(self.dp_params.file_paths.model_store_dir, "epoch_valid.dat")
+        write_mode = "a" if os.path.exists(train_log) else "w"
+        if write_mode == "w":
+            f_train_log = open(train_log, "w")
+            f_train_log.write("# %s\n" % (train_format % tuple(train_lists)))
+            if len(val_loader) > 0:
+                f_valid_log = open(valid_log, "w")
+                f_valid_log.write("# %s\n" % (valid_format % tuple(valid_lists)))
 
         for epoch in range(self.dp_params.optimizer_param.start_epoch, self.dp_params.optimizer_param.epochs + 1):
             # if self.dp_params.hvd: # this code maybe error, check when add multi GPU training. wu

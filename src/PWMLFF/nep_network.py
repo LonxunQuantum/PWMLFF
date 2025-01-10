@@ -34,11 +34,9 @@ from src.model.nep_net import NEP
 # from src.model.dp_dp_typ_emb_Gk5 import TypeDP as Gk5TypeDP # this is Gk5 type embedding of dp
 from src.optimizer.GKF import GKFOptimizer
 from src.optimizer.LKF import LKFOptimizer
-from src.optimizer.SNES import SNESOptimizer
 
 from src.pre_data.nep_data_loader import MovementDataset, get_stat, gen_train_data, type_map, NepTestData
 from src.PWMLFF.nep_mods.nep_trainer import train_KF, train, valid, save_checkpoint, predict, calculate_scaler
-from src.PWMLFF.nep_mods.nep_snes_trainer import train_snes
 from src.PWMLFF.dp_param_extract import load_atomtype_energyshift_from_checkpoint
 from src.user.input_param import InputParam
 from utils.file_operation import write_arrays_to_file, write_force_ei
@@ -150,9 +148,12 @@ class nep_network:
             train_dataset = MovementDataset(data_paths, 
                                             config, self.input_param, energy_shift, max_atom_nums)
             valid_dataset = None
-        else:           
-            train_dataset = MovementDataset([os.path.join(_, config['trainDataPath']) for _ in self.input_param.file_paths.datasets_path], 
+        else:   
+            train_dataset = MovementDataset([os.path.join(_, config['trainDataPath']) 
+                                            for _ in self.input_param.file_paths.datasets_path
+                                            if os.path.exists(os.path.join(_, config['trainDataPath']))],
                                             config, self.input_param, energy_shift, max_atom_nums)
+
             valid_dataset = MovementDataset([os.path.join(_, config['validDataPath']) 
                                              for _ in self.input_param.file_paths.datasets_path
                                              if os.path.exists(os.path.join(_, config['validDataPath']))],
@@ -301,8 +302,6 @@ class nep_network:
                 momentum=self.input_param.optimizer_param.momentum,
                 weight_decay=self.input_param.optimizer_param.weight_decay
             )
-        elif self.input_param.optimizer_param.opt_name == "SNES":
-                optimizer = SNESOptimizer(model, self.input_param)
         else:
             raise Exception("Error: Unsupported optimizer!")
         
@@ -316,14 +315,6 @@ class nep_network:
             if checkpoint is not None and self.input_param.optimizer_param.opt_name in ["LKF"] and "optimizer" in checkpoint.keys() and 'P' in checkpoint["optimizer"]['state'][0].keys():
                 load_p = checkpoint["optimizer"]['state'][0]['P']
                 optimizer.set_kalman_P(load_p, checkpoint["optimizer"]['state'][0]['kalman_lambda'])
-        elif self.input_param.optimizer_param.opt_name in ["SNES"]:
-            # model.set_nep_cparam(c2_param = checkpoint["c1_param"] , c3_param = checkpoint["c1_param"], q_scaler=checkpoint["q_scaler"])
-            # elif self.input_param.nep_param.c2_param is not None: # from nep.txt NEP.txt没有训练的细节，不能直接训练，考虑后期从nep.restart取
-            #     model.set_nep_cparam(c2_param = self.input_param.nep_param.c2_param, 
-            #                         c3_param = self.input_param.nep_param.c3_param, 
-            #                         q_scaler = self.input_param.nep_param.q_scaler)
-            if checkpoint is not None and 'm' in checkpoint.keys():
-                optimizer.load_m_s(checkpoint['m'], checkpoint['s'])
         
         model.set_nep_param_device(q_scaler)
         '''
@@ -348,23 +339,9 @@ class nep_network:
         model, optimizer = self.load_model_optimizer(energy_shift)
         energy_shift, atom_map, train_loader, val_loader = self.load_data(energy_shift, max_atom_nums)
 
-        # self.convert_to_gpumd(model) 
-        if self.input_param.optimizer_param.opt_name == "SNES":
-            self.input_param.optimizer_param.epochs = int(self.input_param.optimizer_param.generation/len(train_loader))
-            print("Automatically adjust 'epochs' to {} based on population size (image nums {} generation {})"\
-                .format(self.input_param.optimizer_param.epochs, len(train_loader), self.input_param.optimizer_param.generation))
-
         if not os.path.exists(self.input_param.file_paths.model_store_dir):
             os.makedirs(self.input_param.file_paths.model_store_dir)
-        # if self.nep_params.model_num == 1:
-        #     smlink_file(self.nep_params.file_paths.model_store_dir, os.path.join(self.nep_params.file_paths.json_dir, os.path.basename(self.nep_params.file_paths.model_store_dir)))
-        
-        # if not self.dp_params.hvd or (self.dp_params.hvd and hvd.rank() == 0):
-        train_log = os.path.join(self.input_param.file_paths.model_store_dir, "epoch_train.dat")
-        f_train_log = open(train_log, "w")
-        if len(val_loader) > 0:
-            valid_log = os.path.join(self.input_param.file_paths.model_store_dir, "epoch_valid.dat")
-            f_valid_log = open(valid_log, "w")
+
         # Define the lists based on the training type
         train_lists = ["epoch", "loss"]
         valid_lists = ["epoch", "loss"]
@@ -391,11 +368,6 @@ class nep_network:
         if self.input_param.optimizer_param.train_virial:
             train_lists.append("RMSE_virial_per_atom")
             valid_lists.append("RMSE_virial_per_atom")
-        if self.input_param.optimizer_param.opt_name == "SNES":
-            train_lists.append("Loss_l1")
-            train_lists.append("Loss_l2")
-            # valid_lists.append("Loss_l1")
-            # valid_lists.append("Loss_l2")
         if self.input_param.optimizer_param.opt_name == "LKF" or self.input_param.optimizer_param.opt_name == "GKF":
             train_lists.extend(["time"])
         else:
@@ -419,12 +391,16 @@ class nep_network:
 
         train_format = "".join(["%{}s".format(train_print_width[i]) for i in train_lists])
         valid_format = "".join(["%{}s".format(train_print_width[i]) for i in valid_lists])
+        train_log = os.path.join(self.input_param.file_paths.model_store_dir, "epoch_train.dat")
+        valid_log = os.path.join(self.input_param.file_paths.model_store_dir, "epoch_valid.dat")
+        write_mode = "a" if os.path.exists(train_log) else "w"
+        if write_mode == "w":
+            f_train_log = open(train_log, "w")
+            f_train_log.write("# %s\n" % (train_format % tuple(train_lists)))
+            if len(val_loader) > 0:
+                f_valid_log = open(valid_log, "w")
+                f_valid_log.write("# %s\n" % (valid_format % tuple(valid_lists)))
 
-        f_train_log.write("%s\n" % (train_format % tuple(train_lists)))
-        if len(val_loader) > 0:
-            f_valid_log.write("%s\n" % (valid_format % tuple(valid_lists)))
-        # Sij_max = 0 # this is for dp model do type embedding
-        # self.convert_to_gpumd(model)
         for epoch in range(self.input_param.optimizer_param.start_epoch, self.input_param.optimizer_param.epochs + 1):
             time_start = time.time()
             if epoch == 1:
@@ -441,11 +417,6 @@ class nep_network:
             time_start = time.time()
             if self.input_param.optimizer_param.opt_name == "LKF" or self.input_param.optimizer_param.opt_name == "GKF":
                 loss, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_egroup, loss_virial, loss_virial_per_atom, loss_l1, loss_l2 = train_KF(
-                    train_loader, model, self.criterion, optimizer, epoch, self.device, self.input_param
-                )
-
-            elif self.input_param.optimizer_param.opt_name == "SNES":
-                loss, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_egroup, loss_virial, loss_virial_per_atom, loss_l1, loss_l2 = train_snes(
                     train_loader, model, self.criterion, optimizer, epoch, self.device, self.input_param
                 )
             else:
@@ -509,9 +480,6 @@ class nep_network:
             if self.input_param.optimizer_param.train_virial:
                 # train_log_line += "%18.10e" % (loss_virial)
                 train_log_line += "%23.10e" % (loss_virial_per_atom)
-            if self.input_param.optimizer_param.opt_name == "SNES": 
-                train_log_line += "%18.10e" % (loss_l1)
-                train_log_line += "%18.10e" % (loss_l2)
             if self.input_param.optimizer_param.opt_name == "LKF" or self.input_param.optimizer_param.opt_name == "GKF":
                 train_log_line += "%18.4f" % (time_end - time_start)
             else:
@@ -521,24 +489,7 @@ class nep_network:
             f_train_log.close()
             
             # if not self.dp_params.hvd or (self.dp_params.hvd and hvd.rank() == 0):
-            if self.input_param.optimizer_param.opt_name == "SNES":
-                save_checkpoint(
-                    {
-                    "json_file":self.input_param.to_dict(),
-                    "epoch": epoch,
-                    "state_dict": model.state_dict(),
-                    "energy_shift":energy_shift,
-                    "atom_type_order": atom_map,    #atom type order of davg/dstd/energy_shift, the user input order
-                    "m":optimizer.get_m(),
-                    "s": optimizer.get_s(),
-                    "q_scaler": model.get_q_scaler()
-                    # "optimizer":optimizer.state_dict()                        
-                    },
-                    self.input_param.file_paths.model_name,
-                    self.input_param.file_paths.model_store_dir,                    
-                )
-
-            elif self.input_param.optimizer_param.opt_name in ["LKF", "GKF"] and \
+            if self.input_param.optimizer_param.opt_name in ["LKF", "GKF"] and \
                 self.input_param.file_paths.save_p_matrix:
                 save_checkpoint(
                     {
@@ -582,7 +533,6 @@ class nep_network:
     '''
     def convert_to_gpumd(self, model:NEP, save_dir:str = None):
         # model_content = self.input_param.nep_param.to_nep_in_txt()
-        # train_content = self.input_param.optimizer_param.snes_to_nep_txt()
         # model_content += train_content
         if save_dir is None:
             # save_nep_in_path = os.path.join(self.input_param.file_paths.model_store_dir, self.input_param.file_paths.nep_in_file)
@@ -840,11 +790,10 @@ class nep_network:
         ei_predict = np.array(ei_predict).reshape(atom_nums)
         etot_predict = np.sum(ei_predict)
         etot_rmse = np.abs(etot_predict - image.Ep)
-        etot_atom_rmse = etot_rmse / atom_nums
+        etot_atom_rmse = etot_rmse / atom_nums / atom_nums
         ei_rmse = np.sqrt(np.mean((ei_predict - image.atomic_energy) ** 2))
         force_predict = np.array(force_predict).reshape(3, atom_nums).transpose(1, 0)
         force_rmse = np.sqrt(np.mean((force_predict - image.force) ** 2))
-
         result = {
             "idx": idx,
             "etot_rmse": etot_rmse,
@@ -856,16 +805,21 @@ class nep_network:
             "ei_label": image.atomic_energy,
             "ei_predict": ei_predict,
             "force_label": image.force,
-            "force_predict": force_predict,
+            "force_predict": force_predict
         }
-
-        if self.input_param.optimizer_param.train_virial and len(image.virial) > 0:
-            virial_rmse = np.mean((virial_predict - image.virial) ** 2)
+        virial_predict = np.array(virial_predict)
+        if len(image.virial) > 0:
+            virial_label = image.virial.flatten()
+            virial_rmse = np.sqrt(np.mean((virial_predict - virial_label) ** 2))
             virial_atom_rmse = virial_rmse / atom_nums / atom_nums
-            result["virial_rmse"] = virial_rmse
-            result["virial_atom_rmse"] = virial_atom_rmse
-            result["virial_label"] = image.virial
-            result["virial_predict"] = virial_predict
+        else:
+            virial_rmse = -1e6
+            virial_atom_rmse = -1e6
+            virial_label = np.ones_like(virial_predict) * (-1e6)
+        result["virial_rmse"] = virial_rmse
+        result["virial_atom_rmse"] = virial_atom_rmse
+        result["virial_label"] = virial_label
+        result["virial_predict"] = virial_predict
 
         return result
 
@@ -874,10 +828,7 @@ class nep_network:
         print("The CPUs: {}".format(cpu_count))
         # cpu_count = 10 if cpu_count > 10 else cpu_count
         time0 = time.time()
-        train_lists = ["img_idx", "RMSE_Etot", "RMSE_Etot_per_atom", "RMSE_Ei", "RMSE_F"]
-        if self.input_param.optimizer_param.train_virial:
-            train_lists.append("RMSE_virial")
-            train_lists.append("RMSE_virial_per_atom")
+        train_lists = ["img_idx", "RMSE_Etot", "RMSE_Etot_per_atom", "RMSE_Ei", "RMSE_F", "RMSE_Virial", "RMSE_Virial_per_atom"]
         images = NepTestData(self.input_param).image_list
         # img_max_types = len(self.input_param.atom_type)
         res_pd = pd.DataFrame(columns=train_lists)
@@ -885,14 +836,18 @@ class nep_network:
         global calc
         calc = FindNeigh()
         calc.init_model(nep_txt_path)
-
+        # t1 = time.time()
+        # for idx, image in enumerate(images):
+        #      self.process_image(idx, image)
+        # t2 = time.time()
         with concurrent.futures.ProcessPoolExecutor(max_workers=cpu_count) as executor:
             futures = [
                 executor.submit(self.process_image, idx, image)
                 for idx, image in enumerate(images)
             ]
             results = [future.result() for future in concurrent.futures.as_completed(futures)]
-
+        # t3 = time.time()
+        # print("{} {}".format(t3-t2, t2-t1))
         time1 = time.time()
 
         # Collecting results
@@ -903,7 +858,7 @@ class nep_network:
         virial_rmse, virial_atom_rmse = [], []
         virial_label_list, virial_predict_list = [], []
         atom_num_list = []
-
+        virial_index = [0, 1, 2, 4, 5, 8]
         for result in results:
             etot_rmse.append(result["etot_rmse"])
             etot_atom_rmse.append(result["etot_atom_rmse"])
@@ -916,22 +871,16 @@ class nep_network:
             force_label_list.append(result["force_label"])
             force_predict_list.append(result["force_predict"])
             atom_num_list.append(images[result["idx"]].atom_nums)
-
-            if "virial_rmse" in result:
+            
+            if result["virial_atom_rmse"] > -1e6:
                 virial_rmse.append(result["virial_rmse"])
                 virial_atom_rmse.append(result["virial_atom_rmse"])
-                virial_label_list.append(result["virial_label"])
-                virial_predict_list.append(result["virial_predict"])
-
-            if self.input_param.optimizer_param.train_virial is False:
-                res_pd.loc[res_pd.shape[0]] = [
-                    result["idx"], result["etot_rmse"], result["etot_atom_rmse"],
-                    result["ei_rmse"], result["force_rmse"]]
-            else:
-                res_pd.loc[res_pd.shape[0]] = [
-                    result["idx"], result["etot_rmse"], result["etot_atom_rmse"],
-                    result["ei_rmse"], result["force_rmse"],
-                    result.get("virial_rmse", np.nan), result.get("virial_atom_rmse", np.nan)]
+            virial_label_list.append(result["virial_label"][virial_index])
+            virial_predict_list.append(result["virial_predict"][virial_index])
+            res_pd.loc[res_pd.shape[0]] = [
+                result["idx"], result["etot_rmse"], result["etot_atom_rmse"],
+                result["ei_rmse"], result["force_rmse"],
+                result["virial_rmse"], result["virial_atom_rmse"]]
 
         inference_cout = ""
         inference_cout += "For {} images: \n".format(len(images))
@@ -939,9 +888,8 @@ class nep_network:
         inference_cout += "Average RMSE of Etot per atom: {} \n".format(np.mean(etot_atom_rmse))
         inference_cout += "Average RMSE of Ei: {} \n".format(np.mean(ei_rmse))
         inference_cout += "Average RMSE of RMSE_F: {} \n".format(np.mean(force_rmse))
-        if self.input_param.optimizer_param.train_virial:
-            inference_cout += "Average RMSE of RMSE_virial: {} \n".format(np.mean(virial_rmse))
-            inference_cout += "Average RMSE of RMSE_virial_per_atom: {} \n".format(np.mean(virial_atom_rmse))
+        inference_cout += "Average RMSE of RMSE_virial: {} \n".format(np.mean(virial_rmse))
+        inference_cout += "Average RMSE of RMSE_virial_per_atom: {} \n".format(np.mean(virial_atom_rmse))
         inference_cout += "\nMore details can be found under the file directory:\n{}\n".format(os.path.realpath(self.input_param.file_paths.test_dir))
         print(inference_cout)
 
@@ -957,16 +905,16 @@ class nep_network:
         write_arrays_to_file(os.path.join(inference_path, "inference_force.txt"), force_predict_list)
         write_arrays_to_file(os.path.join(inference_path, "dft_atomic_energy.txt"), ei_label_list)
         write_arrays_to_file(os.path.join(inference_path, "inference_atomic_energy.txt"), ei_predict_list)
-        if self.input_param.optimizer_param.train_virial:
-            write_arrays_to_file(os.path.join(inference_path, "dft_virial.txt"), virial_label_list)
-            write_arrays_to_file(os.path.join(inference_path, "inference_virial.txt"), virial_predict_list)
+
+        write_arrays_to_file(os.path.join(inference_path, "dft_virial.txt"), virial_label_list, head_line="#\txx\txy\txz\tyy\tyz\tzz")
+        write_arrays_to_file(os.path.join(inference_path, "inference_virial.txt"), virial_predict_list, head_line="#\txx\txy\txz\tyy\tyz\tzz")
 
         res_pd.to_csv(os.path.join(inference_path, "inference_loss.csv"))
         with open(os.path.join(inference_path, "inference_summary.txt"), 'w') as wf:
             wf.writelines(inference_cout)
         time2 = time.time()
         inference_plot(inference_path)
-        print("The test work finished, the calculate time {} write time {} all time {}".format(time1 - time0, time2 - time1, time2 - time0))
+        print("The test work finished, cost time {} s".format(time2 - time0))
 
 
 
@@ -1153,131 +1101,3 @@ class nep_network:
         inference_plot(inference_path)
         time1 = time.time()
         print("The test work finished, the time {}".format(time1-time0))
-
-    def single_cpu_nep_inference(self, nep_txt_path):
-        time0 = time.time()
-        train_lists = ["img_idx", "RMSE_Etot", "RMSE_Etot_per_atom", "RMSE_Ei", "RMSE_F"]
-        if self.input_param.optimizer_param.train_virial:
-            train_lists.append("RMSE_virial")
-            train_lists.append("RMSE_virial_per_atom")
-
-        images = NepTestData(self.input_param).image_list
-        res_pd = pd.DataFrame(columns=train_lists)
-
-        # Initialize the model
-        calc = FindNeigh()
-        calc.init_model(nep_txt_path)
-
-        # Initialize lists to store results
-        etot_rmse, etot_atom_rmse, ei_rmse, force_rmse = [], [], [], []
-        etot_label_list, etot_predict_list = [], []
-        ei_label_list, ei_predict_list = [], []
-        force_label_list, force_predict_list = [], []
-        virial_rmse, virial_atom_rmse = [], []
-        virial_label_list, virial_predict_list = [], []
-        atom_num_list = []
-
-        # Single core processing and inference calculation
-        for idx, image in enumerate(images):
-            atom_nums = image.atom_nums
-            atom_types_struc = image.atom_types_image
-            input_atom_types = np.array(self.input_param.atom_type)
-            atom_types = image.atom_type
-
-            if isinstance(atom_types.tolist(), list):
-                ntypes = atom_types.shape[0]
-            else:
-                ntypes = 1
-            img_max_types = len(self.input_param.atom_type)
-            if ntypes > img_max_types:
-                raise Exception(f"Error! The atom types in structure file ({ntypes}) exceed the max atom types in model ({img_max_types})!")
-
-            type_maps = np.array(type_map(atom_types_struc, input_atom_types)).reshape(1, -1)
-
-            # Run inference
-            ei_predict, force_predict, virial_predict = calc.inference(
-                list(type_maps[0]),
-                list(np.array(image.lattice).transpose(1, 0).reshape(-1)),
-                np.array(image.position).transpose(1, 0).reshape(-1)
-            )
-
-            # Calculate errors
-            ei_predict = np.array(ei_predict).reshape(atom_nums)
-            etot_predict = np.sum(ei_predict)
-            etot_rmse_val = np.abs(etot_predict - image.Ep)
-            etot_atom_rmse_val = etot_rmse_val / atom_nums
-            ei_rmse_val = np.sqrt(np.mean((ei_predict - image.atomic_energy) ** 2))
-            force_predict = np.array(force_predict).reshape(3, atom_nums).transpose(1, 0)
-            force_rmse_val = np.sqrt(np.mean((force_predict - image.force) ** 2))
-
-            # Append results directly to lists
-            etot_rmse.append(etot_rmse_val)
-            etot_atom_rmse.append(etot_atom_rmse_val)
-            ei_rmse.append(ei_rmse_val)
-            force_rmse.append(force_rmse_val)
-            etot_label_list.append(image.Ep)
-            etot_predict_list.append(etot_predict)
-            ei_label_list.append(image.atomic_energy)
-            ei_predict_list.append(ei_predict)
-            force_label_list.append(image.force)
-            force_predict_list.append(force_predict)
-            atom_num_list.append(atom_nums)
-
-            # Handle virial if applicable
-            if self.input_param.optimizer_param.train_virial and len(image.virial) > 0:
-                virial_rmse_val = np.mean((virial_predict - image.virial) ** 2)
-                virial_atom_rmse_val = virial_rmse_val / atom_nums / atom_nums
-                virial_rmse.append(virial_rmse_val)
-                virial_atom_rmse.append(virial_atom_rmse_val)
-                virial_label_list.append(image.virial)
-                virial_predict_list.append(virial_predict)
-
-            # Store result in DataFrame
-            if not self.input_param.optimizer_param.train_virial:
-                res_pd.loc[res_pd.shape[0]] = [
-                    idx, etot_rmse_val, etot_atom_rmse_val, ei_rmse_val, force_rmse_val]
-            else:
-                res_pd.loc[res_pd.shape[0]] = [
-                    idx, etot_rmse_val, etot_atom_rmse_val, ei_rmse_val, force_rmse_val,
-                    virial_rmse_val if virial_rmse_val else np.nan,
-                    virial_atom_rmse_val if virial_atom_rmse_val else np.nan]
-
-            # print(f"{idx} image done!")
-
-        time1 = time.time()
-
-        # Output summary
-        inference_cout = f"For {len(images)} images:\n"
-        inference_cout += f"Average RMSE of Etot: {np.mean(etot_rmse)}\n"
-        inference_cout += f"Average RMSE of Etot per atom: {np.mean(etot_atom_rmse)}\n"
-        inference_cout += f"Average RMSE of Ei: {np.mean(ei_rmse)}\n"
-        inference_cout += f"Average RMSE of RMSE_F: {np.mean(force_rmse)}\n"
-        if self.input_param.optimizer_param.train_virial:
-            inference_cout += f"Average RMSE of RMSE_virial: {np.mean(virial_rmse)}\n"
-            inference_cout += f"Average RMSE of RMSE_virial_per_atom: {np.mean(virial_atom_rmse)}\n"
-        inference_cout += f"\nMore details can be found under the file directory:\n{os.path.realpath(self.input_param.file_paths.test_dir)}\n"
-        print(inference_cout)
-
-        # Save results to files
-        inference_path = self.input_param.file_paths.test_dir
-        if not os.path.exists(inference_path):
-            os.makedirs(inference_path)
-
-        write_arrays_to_file(os.path.join(inference_path, "image_atom_nums.txt"), atom_num_list)
-        write_arrays_to_file(os.path.join(inference_path, "dft_total_energy.txt"), etot_label_list)
-        write_arrays_to_file(os.path.join(inference_path, "inference_total_energy.txt"), etot_predict_list)
-        write_arrays_to_file(os.path.join(inference_path, "dft_force.txt"), force_label_list)
-        write_arrays_to_file(os.path.join(inference_path, "inference_force.txt"), force_predict_list)
-        write_arrays_to_file(os.path.join(inference_path, "dft_atomic_energy.txt"), ei_label_list)
-        write_arrays_to_file(os.path.join(inference_path, "inference_atomic_energy.txt"), ei_predict_list)
-        if self.input_param.optimizer_param.train_virial:
-            write_arrays_to_file(os.path.join(inference_path, "dft_virial.txt"), virial_label_list)
-            write_arrays_to_file(os.path.join(inference_path, "inference_virial.txt"), virial_predict_list)
-
-        res_pd.to_csv(os.path.join(inference_path, "inference_loss.csv"))
-        with open(os.path.join(inference_path, "inference_summary.txt"), 'w') as wf:
-            wf.writelines(inference_cout)
-        inference_plot(inference_path)
-        time2 = time.time()
-        print(f"The test work finished, the calculate time {time1 - time0} write time {time2 - time1} all time {time2 - time0}")
-          

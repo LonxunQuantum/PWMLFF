@@ -1,0 +1,68 @@
+{
+    "model_type": "NEP",
+    "atom_type": [
+        "Ag","Au"
+    ],
+    "model": {
+        "descriptor": {
+            "cutoff": [
+                6.0,
+                4.0
+            ],
+            "n_max": [
+                16,
+                12
+            ],
+            "basis_size": [
+                12,
+                8
+            ],
+            "l_max": [
+                4,
+                2,
+                1
+            ]
+        },
+        "fitting_net": {
+            "network_size": [
+                60,
+                1
+            ]
+        }
+    },
+
+    "optimizer": {
+        "optimizer": "LKF",
+        "epochs": 1,
+        "batch_size": 8,
+        "print_freq": 10,
+        "block_size": 5120,
+        "kalman_lambda": 0.98,
+        "kalman_nue": 0.9987,
+        "train_energy": true,
+        "train_force": true,
+        "train_ei": false,
+        "train_virial": true,
+        "train_egroup": false,
+        "pre_fac_force": 2.0,
+        "pre_fac_etot": 1.0,
+        "pre_fac_ei": 1.0,
+        "pre_fac_virial": 1.0,
+        "pre_fac_egroup": 0.1
+    },
+    "chunk_size":10,
+    "max_neigh_num": 100,
+    "seed": 2023,
+    "train_valid_ratio": 0.8,
+    "datasets_path": [
+    "PWdata/Ag10Au14",
+	"PWdata/Ag10Au22",
+	"PWdata/Ag10Au38",
+	"PWdata/Ag10Au6",
+	"PWdata/Ag11Au21",
+	"PWdata/Ag11Au37",
+	"PWdata/Ag11Au5",
+	"PWdata/Ag12"
+    ]
+}
+

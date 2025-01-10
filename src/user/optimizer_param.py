@@ -9,6 +9,8 @@ class OptimizerParam(object):
         optimizer_dict = get_parameter("optimizer", json_source, {})
         self.opt_name = get_parameter("optimizer", optimizer_dict, "LKF")
         self.batch_size = get_parameter("batch_size", optimizer_dict, 1)
+        # self.batch_size = 1
+        print("Currently does not support multi batch training, automatically adjust batch_size=1!")
         self.epochs = get_parameter("epochs", optimizer_dict, 30)
         self.print_freq = get_parameter("print_freq", optimizer_dict, 10)
         # the start epoch could be reset at the resume model code block
@@ -87,40 +89,6 @@ class OptimizerParam(object):
             self.end_pre_fac_virial = get_parameter("end_pre_fac_virial", optimizer_dict, 1.0) 
             self.end_pre_fac_egroup = get_parameter("end_pre_fac_egroup", optimizer_dict, 1.0) 
 
-        elif "SNES" in self.opt_name.upper():# natural evolution strategies
-            # if get_parameter("nep_in_file", json_source, None) is not None \
-            #     or get_parameter("nep_txt_file", json_source, None) is not None:
-            try: # read from nep.in file
-                self.pre_fac_etot = nep_param.lambda_e
-                self.pre_fac_force = nep_param.lambda_f
-                self.pre_fac_virial = nep_param.lambda_v
-                self.pre_fac_egroup = nep_param.lambda_eg
-                self.pre_fac_ei = nep_param.lambda_ei
-                self.lambda_1 = nep_param.lambda_1
-                self.lambda_2 = nep_param.lambda_2
-                self.force_delta = nep_param.force_delta
-                self.population = nep_param.population
-                self.generation = nep_param.generation
-                self.batch_size = nep_param.batch
-                self.eta_m = None
-                self.eta_s = None
-                return
-
-            except Exception:
-                print('Read snes optimizer param from json file')
-            # from 'optimizer' dict
-            self.pre_fac_ei = get_parameter("lambda_ei", optimizer_dict, 1.0) # weight of energy loss term
-            self.pre_fac_egroup = get_parameter("lambda_eg", optimizer_dict, 0.1) # weight of energy loss term
-            self.pre_fac_etot = get_parameter("lambda_e", optimizer_dict, 1.0) # weight of energy loss term
-            self.pre_fac_force = get_parameter("lambda_f", optimizer_dict, 1.0) # weight of force loss term
-            self.pre_fac_virial = get_parameter("lambda_v", optimizer_dict, 0.1) # weight of virial loss term
-            self.force_delta = get_parameter("force_delta", optimizer_dict, None) # bias term that can be used to make smaller forces more accurate
-            self.batch_size = get_parameter("batch_size", optimizer_dict, 1000) # batch size for training
-            self.population = get_parameter("population", optimizer_dict, 50) # population size used in the SNES algorithm [Schaul2011]
-            self.generation = get_parameter("generation", optimizer_dict, 100000) # number of generations used by the SNES algorithm [Schaul2011]
-            self.eta_m = get_parameter("eta_m", optimizer_dict, None) # population size used in the SNES algorithm [Schaul2011]
-            self.eta_s = get_parameter("eta_s", optimizer_dict, None) # number of generations used by the SNES algorithm [Schaul2011]
-        
     def to_linear_dict(self):
         opt_dict = {}
         opt_dict["train_energy"] = self.train_energy
@@ -190,52 +158,4 @@ class OptimizerParam(object):
             opt_dict["end_pre_fac_ei"] = self.end_pre_fac_ei
             opt_dict["end_pre_fac_virial"] = self.end_pre_fac_virial
             opt_dict["end_pre_fac_egroup"] = self.end_pre_fac_egroup
-        elif "SNES" in self.opt_name:
-            opt_dict["train_energy"] = self.train_energy
-            opt_dict["train_force"] = self.train_force
-            opt_dict["train_ei"] = self.train_ei
-            opt_dict["train_virial"] = self.train_virial
-            opt_dict["train_egroup"] = self.train_egroup
-    
-            opt_dict["pre_fac_force"] = self.pre_fac_force
-            opt_dict["pre_fac_etot"] = self.pre_fac_etot
-            opt_dict["pre_fac_ei"] = self.pre_fac_ei
-            opt_dict["pre_fac_virial"] = self.pre_fac_virial
-            opt_dict["pre_fac_egroup"] = self.pre_fac_egroup
-
-            opt_dict["lambda_1"] =  self.lambda_1
-            opt_dict["lambda_2"] =  self.lambda_2
-            opt_dict["force_delta"] =  self.force_delta
-            opt_dict["population"] =  self.population
-            opt_dict["generation"] =  self.generation
         return opt_dict
-
-    def snes_to_nep_txt(self):
-        content = ""
-        content += "lambda_e    {}\n".format(self.pre_fac_etot)
-        content += "lambda_f    {}\n".format(self.pre_fac_force)
-        content += "lambda_v    {}\n".format(self.pre_fac_virial)
-        content += "batch       {}\n".format(self.batch_size)        
-        # content += "lambda_eg   {}\n".format(self.pre_fac_egroup)
-        # content += "lambda_ei   {}\n".format(self.pre_fac_ei)
-        if self.lambda_1 is not None:
-            content += "lambda_1    {}\n".format(self.lambda_1)
-        else:
-            content += "lambda_1    {}\n".format(-1)
-        if self.lambda_2 is not None:
-            content += "lambda_2    {}\n".format(self.lambda_2)
-        else:
-            content += "lambda_2    {}\n".format(-1)
-        if self.force_delta is not None:
-            content += "force_delta {}\n".format(self.force_delta)
-        else:
-            content += "force_delta {}\n".format(0)
-        if self.population is not None:
-            content += "population  {}\n".format(self.population)
-        else:
-            content += "population  {}\n".format(100)
-        if self.generation is not None:
-            content += "generation  {}\n".format(self.generation)
-        else:
-            content += "generation  {}\n".format(10000)
-        return content

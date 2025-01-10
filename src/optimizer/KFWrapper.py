@@ -207,22 +207,22 @@ class KFOptimizerWrapper:
             return None
         if train_type == "DP":
             Etot_predict, _, _, _, Virial_predict = self.model(
-                inputs[0],
+                inputs[0][data_mask],
                 inputs[1],
                 inputs[2],
-                inputs[3],
+                inputs[3][data_mask],
                 0,
                 inputs[4],
                 inputs[5]
             )
         elif train_type == "NEP":
             Etot_predict, _, _, _, Virial_predict = self.model(
-                inputs[0],
-                inputs[1],
-                inputs[2],
-                inputs[3],
-                inputs[4],
-                inputs[5],
+                inputs[0][data_mask],
+                inputs[1][data_mask],
+                inputs[2][data_mask],
+                inputs[3][data_mask],
+                inputs[4][data_mask],
+                inputs[5][data_mask],
                 inputs[6],
                 inputs[7],
                 0,
@@ -259,7 +259,7 @@ class KFOptimizerWrapper:
         self.optimizer.zero_grad()
         bs = _Virial_label.shape[0]  
         
-        error = _Virial_label.squeeze(1) - Virial_predict[data_mask]
+        error = _Virial_label.squeeze(1) - Virial_predict
         error = error / natoms_sum
         mask = error < 0
 
@@ -269,16 +269,7 @@ class KFOptimizerWrapper:
         
         error = error.mean()
 
-        # if self.is_distributed:
-        #     if self.distributed_backend == "horovod":
-        #         import horovod as hvd
-
-        #         error = hvd.torch.allreduce(error)
-        #     elif self.distributed_backend == "torch":
-        #         dist.all_reduce(error)
-        #         error /= dist.get_world_size()
-
-        _Virial_predict = update_prefactor * Virial_predict[data_mask]
+        _Virial_predict = update_prefactor * Virial_predict
         _Virial_predict[mask] = -1.0 * _Virial_predict[mask]
         
         _Virial_predict.sum().backward()

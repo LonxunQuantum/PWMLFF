@@ -118,7 +118,9 @@ class MovementDataset(Dataset):
                     has_virial = True
                 file_data_dict[npy_file] = file_data
             if has_virial is False:
-                file_data_dict["virials.npy"] = np.zeros((images, 10)) # cur-dir has no virial, use 0 to occupy space to 10
+                ones_column = np.zeros((file_data.shape[0], 1))
+                none_virial = -1e6 * np.ones((images, 9))
+                file_data_dict["virials.npy"] = np.hstack((none_virial, ones_column)) # cur-dir has no virial, use 0 to occupy space to 10
 
             type_maps = type_map(file_data_dict["image_type.npy"][0], self.atom_types)
             file_data_dict["type_maps"] = np.array(type_maps).reshape(1, -1)

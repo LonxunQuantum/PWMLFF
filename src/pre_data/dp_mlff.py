@@ -163,6 +163,8 @@ def get_stat(config, stat_add=None, datasets_path=None, work_dir=None, chunk_siz
             ei_path = os.path.join(dataset_path, "ei.npy")
             energy_path = os.path.join(dataset_path, "energies.npy")
         else:
+            if not os.path.exists(os.path.join(dataset_path, train_data_path, "image_type.npy")):
+                continue
             atom_types_image_path = os.path.join(dataset_path, train_data_path, "image_type.npy")
             atom_type_path = os.path.join(dataset_path, train_data_path, "atom_type.npy")
             lattice_path = os.path.join(dataset_path, train_data_path, "lattice.npy")

@@ -123,8 +123,8 @@
                 "cuda/11.8-share"
             ],
             "env_list": [
-                "export PYTHONPATH=/data/home/wuxingxing/codespace/PWMLFF_grad/src:$PYTHONPATH",
-                "export PATH=/data/home/wuxingxing/codespace/PWMLFF_grad/src/bin:$PATH",
+                "export PYTHONPATH=/data/home/wuxingxing/codespace/PWMLFF_grad_opt/src:$PYTHONPATH",
+                "export PATH=/data/home/wuxingxing/codespace/PWMLFF_grad_opt/src/bin:$PATH",
                 "conda activate pwmlff-2024.5"
             ]
         },
@@ -146,8 +146,8 @@
                 "cuda/11.8-share"
             ],
             "env_list": [
-                "export PYTHONPATH=/data/home/wuxingxing/codespace/PWMLFF_grad/src:$PYTHONPATH",
-                "export PATH=/data/home/wuxingxing/codespace/PWMLFF_grad/src/bin:$PATH",
+                "export PYTHONPATH=/data/home/wuxingxing/codespace/PWMLFF_grad_opt/src:$PYTHONPATH",
+                "export PATH=/data/home/wuxingxing/codespace/PWMLFF_grad_opt/src/bin:$PATH",
                 "conda activate pwmlff-2024.5"
             ]
         },
@@ -190,16 +190,20 @@
         {"_idx":10,  "json_file" : "Ag-Au-D3/DP/adam_train.json", "model_type" :"DP",  "do_test": true, "pwdata":"Ag-Au-D3/PWdata_cpu"},
         {"_idx":11, "json_file" : "Ag-Au-D3/DP/lkf_train.json",  "model_type" :"DP",  "do_test": true, "pwdata":"Ag-Au-D3/PWdata_cpu"},
         {"_idx":12, "json_file" : "LiSiC/dp_train.json",  "model_type" :"DP",  "do_test": true, "pwdata":"LiSiC/PWdata"},
-        {"_idx":13, "json_file" : "LiSiC/nep_train.json",  "model_type" :"NEP",  "do_test": true, "pwdata":"LiSiC/PWdata"}
+        {"_idx":13, "json_file" : "LiSiC/nep_train.json",  "model_type" :"NEP",  "do_test": true, "pwdata":"LiSiC/PWdata"},
+        {"_idx":14, "json_file" : "AuAg/nep_lkf.json",  "model_type" :"NEP",  "do_test": true, "pwdata":"AuAg/PWdata"},
+        {"_idx":15, "json_file" : "AuAg/nep_adam.json",  "model_type" :"NEP",  "do_test": true, "pwdata":"AuAg/PWdata"},
+        {"_idx":16, "json_file" : "AuAg/dp_lkf.json",  "model_type" :"DP",  "do_test": true, "pwdata":"AuAg/PWdata"},
+        {"_idx":17, "json_file" : "AuAg/dp_adam.json",  "model_type" :"DP",  "do_test": true, "pwdata":"AuAg/PWdata"}
     ],
 
-    "work_dir": "./test_workdir3",
+    "work_dir": "./test_workdir",
     "work_list": [
         {
             "_work_type":"mcloud envs(gpu and cpu) for DP, NEP",
-            "envs":[0],
+            "envs":[5, 6],
             "epochs":[1,1,1,1,1],
-            "train_inputs":[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,13]
+            "train_inputs":[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,13,14,15,16,17]
         }
     ]
 }

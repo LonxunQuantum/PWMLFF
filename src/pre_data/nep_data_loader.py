@@ -13,19 +13,17 @@ class NepTestData():
     def __init__(self, input_param:InputParam):
         self.image_list = []
         self.input_param = input_param
-        # if self.input_param.file_paths.raw_path is not None and len(self.input_param.raw_files) > 0:
-        #     for config in self.input_param.file_paths.raw_path:
-        #         # for lammps traj
-        #         _config_list = glob.glob(config)
-        #         if len(_config_list) > 0:
-        #             for _config in _config_list:
-        #                 image_read = Config(data_path=_config, format=self.input_param.file_paths.format, atom_names=self.input_param.file_paths.atom_names).images
-        #                 if isinstance(image_read, list):
-        #                     image_list.append(image_read)
-        #                 else:
-        #                     image_list.extend(image_read)
-        if self.input_param.file_paths.datasets_path is not None and len(self.input_param.file_paths.datasets_path) > 0:
-            for config in self.input_param.file_paths.datasets_path:
+        data_paths = []
+        for data_path in self.input_param.file_paths.datasets_path:
+            if os.path.exists(os.path.join(os.path.join(data_path, "train", "position.npy"))):
+                data_paths.append(os.path.join(os.path.join(data_path, "train"))) #train dir
+            if os.path.exists(os.path.join(os.path.join(data_path, "valid", "position.npy"))):
+                data_paths.append(os.path.join(os.path.join(data_path, "valid"))) #valid dir
+            if os.path.exists(os.path.join(data_path, "position.npy")) > 0: # add train or valid data
+                data_paths.append(data_path)
+
+        if len(data_paths) > 0:
+            for config in data_paths:
                 image_read = Config(data_path=config, format="pwmlff/npy").images
                 if isinstance(image_read, list):
                     self.image_list.extend(image_read)
