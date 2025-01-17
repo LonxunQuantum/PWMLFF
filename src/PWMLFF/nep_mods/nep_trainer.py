@@ -2,7 +2,6 @@ import os
 import pandas as pd
 import numpy as np
 import time
-from enum import Enum
 import torch
 from torch.utils.data import Subset
 from torch.autograd import Variable
@@ -13,6 +12,7 @@ from torch.profiler import profile, record_function, ProfilerActivity
 from src.user.input_param import InputParam
 from utils.debug_operation import check_cuda_memory
 from collections import defaultdict
+from utils.train_log import AverageMeter, Summary, ProgressMeter
 
 # abandon this function
 def get_ri_rid_by_cutoff(
@@ -206,34 +206,20 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
             loss_Etot_val = criterion(Etot_predict, Etot_label)
             loss_Etot_per_atom_val = loss_Etot_val/natoms/natoms
             loss_Ei_val = criterion(Ei_predict, Ei_label)
-            # loss_Ei_val = 0
+            loss_val = torch.zeros_like(loss_F_val)
 
-            #print ("Etot_predict") 
-            #print (Etot_predict)
-            
-            #print ("Force_predict")
-            #print (Force_predict)
-            
-            #print ("Virial_predict")
-            #print (Virial_predict)
-            #Ei_predict, Force_predict, Egroup_predict, Virial_predict)
-            #print("Egroup_predict",Egroup_predict)
-
-            #print("Egroup_label",Egroup_label)
             if args.optimizer_param.train_egroup is True:
                 loss_Egroup_val = criterion(Egroup_predict, Egroup_label)
             if args.optimizer_param.train_virial is True:
                 # loss_Virial_val = criterion(Virial_predict, Virial_label.squeeze(1))  #115.415137283393
                 data_mask = Virial_label[:, 9] > 0  # 判断最后一列是否大于 0
-                _Virial_label = Virial_label[:, :9][data_mask]
+                _Virial_label = Virial_label[:, :9][data_mask][:,[0,1,2,4,5,8]]
                 if data_mask.any().item():
-                    loss_Virial_val = criterion(Virial_predict[data_mask], _Virial_label)
-                else:
-                    loss_Virial_val = torch.tensor(0.0)
-                loss_Virial_per_atom_val = loss_Virial_val/natoms/natoms
+                    loss_Virial_val = criterion(Virial_predict[data_mask][:,[0,1,2,4,5,8]], _Virial_label)
+                    loss_Virial_per_atom_val = loss_Virial_val/natoms/natoms
+                    loss_Virial.update(loss_Virial_val.item(), _Virial_label.shape[0])
+                    loss_Virial_per_atom.update(loss_Virial_per_atom_val.item(), _Virial_label.shape[0])
 
-            loss_val = torch.zeros_like(loss_F_val)
-            
             w_f, w_e, w_v, w_eg, w_ei = 0, 0, 0, 0, 0
 
             if args.optimizer_param.train_force is True:
@@ -244,7 +230,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
                 w_e = 1.0
                 loss_val += loss_Etot_val
             
-            if args.optimizer_param.train_virial is True:
+            if args.optimizer_param.train_virial is True and data_mask.any().item():
                 w_v = 1.0 
                 loss_val += loss_Virial_val
             
@@ -286,7 +272,8 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
                     loss_Ei_val,
                     natoms_img[0].item(),
                 )
-            elif args.optimizer_param.train_egroup is False and args.optimizer_param.train_virial is True:
+            elif args.optimizer_param.train_egroup is False and \
+                    args.optimizer_param.train_virial is True and data_mask.any().item():
                 loss, _, _ = dp_loss(
                     args,
                     0.001,
@@ -320,6 +307,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
             loss.backward()
             optimizer.step()
 
+            loss_val = loss
             L1, L2 = print_l1_l2(model)
             if args.optimizer_param.lambda_2 is not None:
                 loss_val += L2
@@ -335,10 +323,8 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
 
             if args.optimizer_param.train_egroup is True:
                 loss_Egroup.update(loss_Egroup_val.item(), batch_size)
-            if args.optimizer_param.train_virial is True:
-                loss_Virial.update(loss_Virial_val.item(), _Virial_label.shape[0])
-                loss_Virial_per_atom.update(loss_Virial_per_atom_val.item(), _Virial_label.shape[0])
-            loss_Force.update(loss_F_val.item(), batch_size)
+
+            loss_Force.update(loss_F_val.item(), batch_size * natoms)
 
         # measure elapsed time
         batch_time.update(time.time() - end)
@@ -505,17 +491,19 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
             if args.optimizer_param.train_egroup is True:
                 loss_Egroup_val = criterion(Egroup_predict, Egroup_label)
 
+            loss_val = args.optimizer_param.pre_fac_force * loss_F_val + \
+                        args.optimizer_param.pre_fac_etot * loss_Etot_val
+
             if args.optimizer_param.train_virial is True:
                 data_mask = Virial_label[:, 9] > 0
-                _Virial_label = Virial_label[:, :9][data_mask]
+                _Virial_label = Virial_label[:, :9][data_mask][:,[0,1,2,4,5,8]]
                 if data_mask.any().item():
-                    loss_Virial_val = criterion(Virial_predict[data_mask], _Virial_label)
-                else:
-                    loss_Virial_val = torch.tensor(0.0)
-                loss_Virial_per_atom_val = loss_Virial_val/natoms/natoms
-
-            loss_val = loss_F_val + loss_Etot_val*natoms
-
+                    loss_Virial_val = criterion(Virial_predict[data_mask][:,[0,1,2,4,5,8]], _Virial_label)
+                    loss_Virial_per_atom_val = loss_Virial_val/natoms/natoms
+                    loss_Virial.update(loss_Virial_val.item(), _Virial_label.shape[0])
+                    loss_Virial_per_atom.update(loss_Virial_per_atom_val.item(), _Virial_label.shape[0])
+                    loss_val += args.optimizer_param.pre_fac_virial * loss_Virial_val
+                    
             if args.optimizer_param.lambda_2 is not None:
                 loss_val += L2
             if args.optimizer_param.lambda_1 is not None:
@@ -523,19 +511,15 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
             
             # measure accuracy and record loss
             losses.update(loss_val.item(), batch_size)
-
             loss_L1.update(L1.item(), batch_size)
             loss_L2.update(L2.item(), batch_size)
 
             loss_Etot.update(loss_Etot_val.item(), batch_size)
             loss_Etot_per_atom.update(loss_Etot_per_atom_val.item(), batch_size)
-            loss_Ei.update(loss_Ei_val.item(), batch_size)
+            loss_Ei.update(loss_Ei_val.item(), batch_size * natoms)
             if args.optimizer_param.train_egroup is True:
                 loss_Egroup.update(loss_Egroup_val.item(), batch_size)
-            if args.optimizer_param.train_virial is True:
-                loss_Virial.update(loss_Virial_val.item(), _Virial_label.shape[0])
-                loss_Virial_per_atom.update(loss_Virial_per_atom_val.item(), _Virial_label.shape[0])
-            loss_Force.update(loss_F_val.item(), batch_size)
+            loss_Force.update(loss_F_val.item(), batch_size * natoms)
 
         # measure elapsed time
         batch_time.update(time.time() - end)
@@ -577,6 +561,7 @@ def _classify_batchs(atom_type_map, atom_types:int):
 def valid(val_loader, model, criterion, device, args:InputParam):
     def run_validate(loader, base_progress=0):
         end = time.time()
+        L1, L2 = print_l1_l2(model)
         for i, sample_batches in enumerate(loader):
             i = base_progress + i
             if args.precision == "float64":
@@ -679,18 +664,24 @@ def valid(val_loader, model, criterion, device, args:InputParam):
                 loss_Ei_val = criterion(Ei_predict, Ei_label)
                 if args.optimizer_param.train_egroup is True:
                     loss_Egroup_val = criterion(Egroup_predict, Egroup_label)
+
+                loss_val = args.optimizer_param.pre_fac_force * loss_F_val + \
+                        args.optimizer_param.pre_fac_etot * loss_Etot_val
+
                 if args.optimizer_param.train_virial is True:
                     # loss_Virial_val = criterion(Virial_predict, Virial_label.squeeze(1))  #115.415137283393
                     data_mask = Virial_label[:, 9] > 0  # 判断最后一列是否大于 0
-                    _Virial_label = Virial_label[:, :9][data_mask]
+                    _Virial_label = Virial_label[:, :9][data_mask][:,[0,1,2,4,5,8]]
                     if data_mask.any().item():
-                        loss_Virial_val = criterion(Virial_predict[data_mask], _Virial_label)
-                    else:
-                        loss_Virial_val = torch.tensor(0.0)
-                    loss_Virial_per_atom_val = loss_Virial_val/natoms/natoms
-                
-                loss_val = loss_F_val + loss_Etot_val*natoms
-
+                        loss_Virial_val = criterion(Virial_predict[data_mask][:,[0,1,2,4,5,8]], _Virial_label)
+                        loss_Virial_per_atom_val = loss_Virial_val/natoms/natoms
+                        loss_Virial.update(loss_Virial_val.item(), _Virial_label.shape[0])
+                        loss_Virial_per_atom.update(loss_Virial_per_atom_val.item(), _Virial_label.shape[0])
+                        loss_val += args.optimizer_param.pre_fac_virial * loss_Virial_val
+                if args.optimizer_param.lambda_2 is not None:
+                    loss_val += L2
+                if args.optimizer_param.lambda_1 is not None:
+                    loss_val += L1
                 # measure accuracy and record loss
                 losses.update(loss_val.item(), batch_size)
                 loss_Etot.update(loss_Etot_val.item(), batch_size)
@@ -698,10 +689,7 @@ def valid(val_loader, model, criterion, device, args:InputParam):
                 loss_Ei.update(loss_Ei_val.item(), batch_size)
                 if args.optimizer_param.train_egroup is True:
                     loss_Egroup.update(loss_Egroup_val.item(), batch_size)
-                if args.optimizer_param.train_virial is True:
-                    loss_Virial.update(loss_Virial_val.item(), _Virial_label.shape[0])
-                    loss_Virial_per_atom.update(loss_Virial_per_atom_val.item(), _Virial_label.shape[0])
-                loss_Force.update(loss_F_val.item(), batch_size)
+                loss_Force.update(loss_F_val.item(), batch_size * natoms)
             # measure elapsed time
         batch_time.update(time.time() - end)
         end = time.time()
@@ -709,7 +697,6 @@ def valid(val_loader, model, criterion, device, args:InputParam):
         if i % args.optimizer_param.print_freq == 0:
             progress.display(i + 1) 
         
-
     batch_time = AverageMeter("Time", ":6.3f", Summary.NONE)
     losses = AverageMeter("Loss", ":.4e", Summary.AVERAGE)
     loss_Etot = AverageMeter("Etot", ":.4e", Summary.ROOT)
@@ -1027,94 +1014,3 @@ def calculate_scaler(val_loader, model, criterion, device, args:InputParam):
 def save_checkpoint(state, filename, prefix):
     filename = os.path.join(prefix, filename)
     torch.save(state, filename)
-
-
-
-class Summary(Enum):
-    NONE = 0
-    AVERAGE = 1
-    SUM = 2
-    COUNT = 3
-    ROOT = 4
-
-
-class AverageMeter(object):
-    """Computes and stores the average and current value"""
-
-    def __init__(self, name, fmt=":f", summary_type=Summary.AVERAGE):
-        self.name = name
-        self.fmt = fmt
-        self.summary_type = summary_type
-        self.reset()
-
-    def reset(self):
-        self.val = 0
-        self.avg = 0
-        self.sum = 0
-        self.count = 0
-        self.root = 0
-    
-    def update(self, val, n=1):
-        self.val = val
-        if n > 0: # for same data, such as virial, some images do not have virial datas, the n will be 0
-            self.sum += val * n
-            self.count += n
-            self.avg = self.sum / self.count
-            self.root = self.avg**0.5
-
-    def all_reduce(self):
-        if torch.cuda.is_available():
-            device = torch.device("cuda")
-        elif torch.backends.mps.is_available():
-            device = torch.device("mps")
-        else:
-            device = torch.device("cpu")
-
-        total = torch.tensor([self.sum, self.count], dtype=torch.float32, device=device)
-        # total = hvd.allreduce(total, hvd.Sum)
-        # dist.all_reduce(total, dist.ReduceOp.SUM, async_op=False)
-        self.sum, self.count = total.tolist()
-        self.avg = self.sum / self.count
-        self.root = self.avg**0.5
-
-    def __str__(self):
-        fmtstr = "{name} {val" + self.fmt + "} ({avg" + self.fmt + "})"
-        return fmtstr.format(**self.__dict__)
-
-    def summary(self):
-        fmtstr = ""
-        if self.summary_type is Summary.NONE:
-            fmtstr = ""
-        elif self.summary_type is Summary.AVERAGE:
-            fmtstr = "{name} {avg:.3f}"
-        elif self.summary_type is Summary.SUM:
-            fmtstr = "{name} {sum:.3f}"
-        elif self.summary_type is Summary.COUNT:
-            fmtstr = "{name} {count:.3f}"
-        elif self.summary_type is Summary.ROOT:
-            fmtstr = "{name} {root:.3f}"
-        else:
-            raise ValueError("invalid summary type %r" % self.summary_type)
-
-        return fmtstr.format(**self.__dict__)
-
-
-class ProgressMeter(object):
-    def __init__(self, num_batches, meters, prefix=""):
-        self.batch_fmtstr = self._get_batch_fmtstr(num_batches)
-        self.meters = meters
-        self.prefix = prefix
-
-    def display(self, batch):
-        entries = [self.prefix + self.batch_fmtstr.format(batch)]
-        entries += [str(meter) for meter in self.meters]
-        print("\t".join(entries), flush=True)
-
-    def display_summary(self, entries=[" *"]):
-        entries += [meter.summary() for meter in self.meters]
-        print(" ".join(entries), flush=True)
-
-    def _get_batch_fmtstr(self, num_batches):
-        num_digits = len(str(num_batches // 1))
-        fmt = "{:" + str(num_digits) + "d}"
-        return "[" + fmt + "/" + fmt.format(num_batches) + "]"

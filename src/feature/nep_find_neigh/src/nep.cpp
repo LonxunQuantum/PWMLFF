@@ -1463,6 +1463,7 @@ void find_force_ZBL_small_box(
       g_total_virial[4] -= r12[1] * f12[1]; // yy
       g_total_virial[5] -= r12[1] * f12[2]; // yz
       g_total_virial[8] -= r12[2] * f12[2]; // zz
+      
       g_pe[n1] += f * 0.5;
     }
   }
@@ -2781,9 +2782,9 @@ void NEP3_CPU::compute(
   for (int n = 0; n < force.size(); ++n) {
     force[n] = 0.0;
   }
-  // for (int n = 0; n < virial.size(); ++n) {
-  //   virial[n] = 0.0;
-  // }
+  for (int n = 0; n < 9; ++n) {
+    total_virial[n] = 0.0;
+  }
 
   find_neighbor_compute(
     paramb.rc_radial, paramb.rc_angular, N, MN, box, position, num_cells, ebox, 

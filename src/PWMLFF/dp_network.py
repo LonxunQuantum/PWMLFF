@@ -316,19 +316,6 @@ class dp_network:
         print("fitting time:", end - start, 's')
 
         # print infos
-        data_mask = res_pd['RMSE_Virial'] > -1e6
-        inference_cout = ""
-        inference_cout += "For {} images: \n".format(len(train_loader))
-        inference_cout += "Avarage REMSE of Etot: {} \n".format(res_pd['RMSE_Etot'].mean())
-        inference_cout += "Avarage REMSE of Etot per atom: {} \n".format(res_pd['RMSE_Etot_per_atom'].mean())
-        inference_cout += "Avarage REMSE of Ei: {} \n".format(res_pd['RMSE_Ei'].mean())
-        inference_cout += "Avarage REMSE of RMSE_F: {} \n".format(res_pd['RMSE_F'].mean())
-        inference_cout += "Avarage REMSE of RMSE_virial: {} \n".format(res_pd['RMSE_Virial'][data_mask].mean())
-        inference_cout += "Avarage REMSE of RMSE_virial_per_atom: {} \n".format(res_pd['RMSE_Virial_per_atom'][data_mask].mean())
-        
-        inference_cout += "\nMore details can be found under the file directory:\n{}\n".format(os.path.realpath(self.dp_params.file_paths.test_dir))
-        print(inference_cout)
-
         inference_path = self.dp_params.file_paths.test_dir
         if os.path.exists(inference_path) is False:
             os.makedirs(inference_path)
@@ -346,11 +333,19 @@ class dp_network:
         write_arrays_to_file(os.path.join(inference_path, "dft_virial.txt"), virial_label_list, head_line="#\txx\txy\txz\tyy\tyz\tzz")
         write_arrays_to_file(os.path.join(inference_path, "inference_virial.txt"), virial_predict_list, head_line="#\txx\txy\txz\tyy\tyz\tzz")
 
-        res_pd.to_csv(os.path.join(inference_path, "inference_loss.csv"))
+        # res_pd.to_csv(os.path.join(inference_path, "inference_loss.csv"))
+        rmse_E, rmse_F, rmse_V = inference_plot(inference_path)
 
+        inference_cout = ""
+        inference_cout += "For {} images: \n".format(len(train_loader))
+        inference_cout += "Average RMSE of Etot per atom: {} \n".format(rmse_E)
+        inference_cout += "Average RMSE of Force: {} \n".format(rmse_F)
+        inference_cout += "Average RMSE of Virial per atom: {} \n".format(rmse_V)
+        inference_cout += "\nMore details can be found under the file directory:\n{}\n".format(os.path.realpath(self.dp_params.file_paths.test_dir))
+        print(inference_cout)
         with open(os.path.join(inference_path, "inference_summary.txt"), 'w') as wf:
             wf.writelines(inference_cout)
-        inference_plot(inference_path)
+
         return 
 
     def train(self):

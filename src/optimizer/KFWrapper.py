@@ -201,8 +201,9 @@ class KFOptimizerWrapper:
     def update_virial(
         self, inputs: list, Virial_label: torch.Tensor, update_prefactor: float = 1, train_type = "DP"
     ) -> None:
+        index = [0,1,2,4,5,8]
         data_mask = Virial_label[:, 9] > 0
-        _Virial_label = Virial_label[:, :9][data_mask]
+        _Virial_label = Virial_label[:, index][data_mask]
         if data_mask.any().item() is False:
             return None
         if train_type == "DP":
@@ -258,8 +259,8 @@ class KFOptimizerWrapper:
         
         self.optimizer.zero_grad()
         bs = _Virial_label.shape[0]  
-        
-        error = _Virial_label.squeeze(1) - Virial_predict
+        _Virial_predict = Virial_predict[:, index]
+        error = _Virial_label.squeeze(1) - _Virial_predict
         error = error / natoms_sum
         mask = error < 0
 
@@ -269,7 +270,7 @@ class KFOptimizerWrapper:
         
         error = error.mean()
 
-        _Virial_predict = update_prefactor * Virial_predict
+        _Virial_predict = update_prefactor * _Virial_predict
         _Virial_predict[mask] = -1.0 * _Virial_predict[mask]
         
         _Virial_predict.sum().backward()
