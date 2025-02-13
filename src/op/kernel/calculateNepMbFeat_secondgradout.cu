@@ -8,59 +8,44 @@
 
 __global__ void compute_gradsecond_mbgradout(
     const double *grad_second, // Shape: [batch_size, atom_nums, maxneighs, 4]
-    const double *dfeat_2b,    // Shape: [batch_size, atom_nums, maxneighs, feat_mb_num, 4]
+    const double *dfeat_drij,    // Shape: [batch_size, atom_nums, maxneighs, feat_mb_num, 4]
     double *gradsecond_gradout, // Shape: [batch_size, atom_nums, feat_mb_num]
-    int batch_size,
     int atom_nums,
     int maxneighs,
     int feat_mb_num)
 {
-    int batch_idx = blockIdx.x * blockDim.x + threadIdx.x;
-    int atom_idx = blockIdx.y * blockDim.y + threadIdx.y;
-    int grad_idx = 0;
-    int feat_idx = 0;
-    double tmp_grad0 = 0.0;
-    double tmp_grad1 = 0.0;
-    double tmp_grad2 = 0.0;
-    double tmp_grad3 = 0.0;
-    if (batch_idx < batch_size && atom_idx < atom_nums) {
-        for (int neigh = 0; neigh < maxneighs; ++neigh) {
-            grad_idx = (batch_idx * atom_nums + atom_idx) * maxneighs * 4 + neigh * 4;
-            tmp_grad0 = grad_second[grad_idx+0];
-            tmp_grad1 = grad_second[grad_idx+1];
-            tmp_grad2 = grad_second[grad_idx+2];
-            tmp_grad3 = grad_second[grad_idx+3];
-            for (int n = 0; n < feat_mb_num; ++n) {
-                feat_idx = (batch_idx * atom_nums + atom_idx) * maxneighs * feat_mb_num * 4 + neigh * feat_mb_num * 4 + n * 4;
-                gradsecond_gradout[(batch_idx * atom_nums + atom_idx) * feat_mb_num + n] += tmp_grad0 * dfeat_2b[feat_idx] + 
-                                                                                            tmp_grad1 * dfeat_2b[feat_idx + 1] +
-                                                                                            tmp_grad2 * dfeat_2b[feat_idx + 2] +
-                                                                                            tmp_grad3 * dfeat_2b[feat_idx + 3];
+    int atom_idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int feat_idx = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (atom_idx < atom_nums && feat_idx < feat_mb_num) {
+        float sum = 0.0f;
+        for (int neigh_idx = 0; neigh_idx < maxneighs; ++neigh_idx) {
+            for (int dim = 0; dim < 4; ++dim) {
+                int dfeat_index = ((atom_idx * maxneighs + neigh_idx) * feat_mb_num + feat_idx) * 4 + dim;
+                int grad_index = (atom_idx * maxneighs + neigh_idx) * 4 + dim;
+                sum += dfeat_drij[dfeat_index] * grad_second[grad_index];
             }
         }
+        gradsecond_gradout[atom_idx * feat_mb_num + feat_idx] = sum;
     }
 }
-
 
 void launch_calculate_nepmbfeat_secondgradout(
     const double * grad_second,
     const double * dfeat_b,
     double * gradsecond_gradout,
-    const int batch_size, 
     const int atom_nums, 
     const int maxneighs, 
     const int feat_mb_nums, 
     const int device
 ) {
     cudaSetDevice(device);
-    dim3 threadsPerBlock(16, 16);
-    dim3 numBlocks((batch_size + threadsPerBlock.x - 1) / threadsPerBlock.x, (atom_nums + threadsPerBlock.y - 1) / threadsPerBlock.y);
-
-    compute_gradsecond_mbgradout<<<numBlocks, threadsPerBlock>>>(
+    dim3 blockDim(16, 16);
+    dim3 gridDim((atom_nums + blockDim.x - 1) / blockDim.x, (feat_mb_nums + blockDim.y - 1) / blockDim.y);
+    compute_gradsecond_mbgradout<<<gridDim, blockDim>>>(
         grad_second, 
         dfeat_b, 
         gradsecond_gradout,
-        batch_size, 
         atom_nums, 
         maxneighs, 
         feat_mb_nums
@@ -72,15 +57,14 @@ void launch_calculate_nepmbfeat_secondgradout(
 void launch_calculate_nepmbfeat_secondgradout_c3(
     const double * grad_second,
     const double * d12,
-    const int * NL,
+    const int64_t * NL,
     const double * de_dfeat,
     const double * dsnlm_dc,
     const double * sum_fxyz,
-    const int * atom_map,
+    const int64_t * atom_map,
     const double * coeff3,
     double * gradsecond_c3,
     const double rcut_angular,
-    const int batch_size, 
     const int atom_nums, 
     const int maxneighs, 
     const int n_max_3b, 
@@ -146,10 +130,10 @@ void launch_calculate_nepmbfeat_secondgradout_c3(
     //     }
     // }
 
-    int total_elements = batch_size * atom_nums * maxneighs;
+    int total_elements = atom_nums * maxneighs;
     int threads_per_block = 256;
     int num_blocks = (total_elements + threads_per_block - 1) / threads_per_block;
-    const int N = batch_size * atom_nums;
+    const int N = atom_nums;
     GPU_Vector<double> dfeat_c3(N * maxneighs * atom_types * n_max_3b * n_base_3b, 0.0);
     find_angular_gardc_neigh<<<num_blocks, threads_per_block>>>(
         total_elements,
@@ -164,7 +148,6 @@ void launch_calculate_nepmbfeat_secondgradout_c3(
         dfeat_c3.data(),
         rcut_angular,
         rcinv_angular,
-        batch_size, 
         atom_nums, 
         maxneighs, 
         n_max_3b,
@@ -190,7 +173,6 @@ void launch_calculate_nepmbfeat_secondgradout_c3(
         dfeat_c3.data(),
         tmp_dfeat_c3.data(),
         N,
-        batch_size, 
         atom_nums, 
         maxneighs, 
         atom_types,

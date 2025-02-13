@@ -23,10 +23,6 @@ def nep_train(input_json: json, cmd:str):
     nep_param = InputParam(input_json, cmd)
     nep_param.print_input_params(json_file_save_name="std_input.json")
     nep_trainer = nep_network(nep_param)
-    if len(nep_param.file_paths.raw_path) > 0:
-        data_paths = nep_trainer.generate_data()
-        print(data_paths)
-        nep_param.file_paths.set_datasets_path(data_paths)
     nep_trainer.train()
 
 # '''
@@ -60,7 +56,7 @@ def nep_test(input_json: json, cmd:str):
             raise Exception("ERROR! The input model file cannot be parsed!")
 
     if model_load_path is None or not os.path.exists(model_load_path):
-        raise Exception("Error! NEP test should have (nep.txt and nep.in) files or nep_model.ckpt file!")
+        raise Exception("Error! NEP test should have nep.txt files or nep_model.ckpt file!")
     input_dict = {}
     input_dict["model_type"] = "NEP"
     # get atom_type from nep.txt file

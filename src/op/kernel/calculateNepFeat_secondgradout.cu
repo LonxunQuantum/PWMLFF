@@ -25,23 +25,21 @@ __global__ void compute_gradsecond_gradout(
     const double *grad_second, // Shape: [batch_size, atom_nums, maxneighs, 4]
     const double *dfeat_2b,    // Shape: [batch_size, atom_nums, maxneighs, n_max_2b]
     double *gradsecond_gradout, // Shape: [batch_size, atom_nums, n_max_2b]
-    int batch_size,
     int atom_nums,
     int maxneighs,
     int n_max_2b)
 {
-    int batch_idx = blockIdx.x * blockDim.x + threadIdx.x;
-    int atom_idx = blockIdx.y * blockDim.y + threadIdx.y;
+    int atom_idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if (batch_idx < batch_size && atom_idx < atom_nums) {
+    if (atom_idx < atom_nums) {
         for (int neigh = 0; neigh < maxneighs; ++neigh) {
             for (int n = 0; n < n_max_2b; ++n) {
                 // 取 grad_second 的最后一个维度的第0列
-                double grad_second_val = grad_second[(batch_idx * atom_nums + atom_idx) * maxneighs * 4 + neigh * 4];
+                double grad_second_val = grad_second[atom_idx * maxneighs * 4 + neigh * 4];
                 // dfeat_2b 的最后一个维度
-                double dfeat_2b_val = dfeat_2b[(batch_idx * atom_nums + atom_idx) * maxneighs * n_max_2b + neigh * n_max_2b + n];
+                double dfeat_2b_val = dfeat_2b[atom_idx * maxneighs * n_max_2b + neigh * n_max_2b + n];
                 // 累加到 gradsecond_gradout
-                gradsecond_gradout[(batch_idx * atom_nums + atom_idx) * n_max_2b + n] += grad_second_val * dfeat_2b_val;
+                gradsecond_gradout[atom_idx * n_max_2b + n] += grad_second_val * dfeat_2b_val;
             }
         }
     }
@@ -52,7 +50,6 @@ __global__ void compute_gradsecond_c2(
     const double *de_feat, // Shape: [batch_size, atom_nums, n_max_2b]
     const double *dfeat_2b_noc, // Shape: [batch_size, atom_nums, maxneighs, n_base_2b, 4]
     double *tmp_grad, // Shape: [batch_size, atom_nums, maxneighs, n_base_2b]
-    int batch_size,
     int atom_nums,
     int maxneighs,
     int n_max_2b,
@@ -60,20 +57,18 @@ __global__ void compute_gradsecond_c2(
     int multi_feat_num)
 {
     // 计算总元素数目
-    int total_elements = batch_size * atom_nums * maxneighs;
+    int total_elements = atom_nums * maxneighs;
     int elem_idx = threadIdx.x + blockIdx.x * blockDim.x; // 网格中的元素索引
 
     if (elem_idx < total_elements) {
         // 计算对应的 atom_idx 和 maxneigh_idx
-        int batch_idx = elem_idx / (atom_nums * maxneighs);
-        int remaining = elem_idx % (atom_nums * maxneighs);
-        int atom_idx = remaining / maxneighs;
-        int maxneigh_idx = remaining % maxneighs;
+        int atom_idx = elem_idx / maxneighs;
+        int maxneigh_idx = elem_idx % maxneighs;
         
-        int dfeat_start = batch_idx * atom_nums * (n_max_2b + multi_feat_num) + atom_idx * (n_max_2b + multi_feat_num);
-        int dnoc_start = (batch_idx * atom_nums + atom_idx) * maxneighs * n_base_2b * 4 + maxneigh_idx * n_base_2b * 4;
-        int grad2_start = (batch_idx * atom_nums + atom_idx) * maxneighs * 4 + maxneigh_idx * 4;
-        int tmp_grad_start = (batch_idx * atom_nums + atom_idx) * maxneighs * n_max_2b * n_base_2b + maxneigh_idx * n_max_2b * n_base_2b;
+        int dfeat_start = atom_idx * (n_max_2b + multi_feat_num);
+        int dnoc_start = atom_idx * maxneighs * n_base_2b * 4 + maxneigh_idx * n_base_2b * 4;
+        int grad2_start = atom_idx * maxneighs * 4 + maxneigh_idx * 4;
+        int tmp_grad_start = atom_idx * maxneighs * n_max_2b * n_base_2b + maxneigh_idx * n_max_2b * n_base_2b;
 
         double noc0 = 0.0, noc1 = 0.0, noc2 = 0.0, noc3 = 0.0;
         double dfeat_val = 0.0;
@@ -106,9 +101,8 @@ __global__ void compute_gradsecond_c2(
 
 __global__ void reduce_kernel(
     double *tmp_grad,          // 输入的tmp_grad数组，维度为(batch_size, atom_nums, maxneighs, n_max_2b, n_base_2b)
-    const int *atom_map,            // atom_map数组，维度为(atom_nums)
-    const int *NL_radial,           // NL_radial数组，维度为(batch_size, atom_nums, maxneighs)
-    const int batch_size,           // batch_size的大小
+    const int64_t *atom_map,            // atom_map数组，维度为(atom_nums)
+    const int64_t *NL_radial,           // NL_radial数组，维度为(batch_size, atom_nums, maxneighs)
     const int atom_nums,            // atom_nums的大小
     const int maxneighs,            // maxneighs的大小
     const int n_max_2b,             // n_max_2b的大小
@@ -118,14 +112,12 @@ __global__ void reduce_kernel(
 ) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;  // 线程索引
     // 计算对应的 batch_idx, atom_idx 和 maxneigh_idx
-    int b = idx / (atom_nums * maxneighs);  
-    int i = (idx % (atom_nums * maxneighs)) / maxneighs;  
-    int maxneighs_j = idx % maxneighs;
-    if (b < batch_size && i < atom_nums && maxneighs_j < maxneighs) {
-        int n2 = NL_radial[b * atom_nums * maxneighs + i * maxneighs + maxneighs_j] -1;
+    int i = idx / maxneighs;  
+    int maxneighs_j = idx % maxneighs;  
+    if (i < atom_nums && maxneighs_j < maxneighs) {
+        int n2 = NL_radial[i * maxneighs + maxneighs_j];
         if (n2 < 0) return;
-        int tmp_grad_start = b * atom_nums * maxneighs * n_max_2b * n_base_2b
-                            + i * maxneighs * n_max_2b * n_base_2b
+        int tmp_grad_start = i * maxneighs * n_max_2b * n_base_2b
                                 + maxneighs_j * n_max_2b * n_base_2b;
         // 临时变量用于存储计算结果
         // double result[MAX_NUM_BEADS] = {0.0};
@@ -133,7 +125,7 @@ __global__ void reduce_kernel(
         // 第一步：根据NL_radial规约tmp_grad的maxneighs维度
         // 获取NL_radial中对应邻居的元素类型
         
-        int atom_type_j = atom_map[NL_radial[b * atom_nums * maxneighs + i * maxneighs + maxneighs_j] - 1];  // 使用NL_radial索引获取邻居的元素类型
+        int atom_type_j = atom_map[n2];  // 使用NL_radial索引获取邻居的元素类型
         int atom_type_i = atom_map[i];
         
         for (int k = 0; k < n_max_2b; ++k) {
@@ -164,21 +156,19 @@ void launch_calculate_nepfeat_secondgradout(
     const double * grad_second,
     const double * dfeat_b,
     double * gradsecond_gradout,
-    const int batch_size, 
     const int atom_nums, 
     const int maxneighs, 
     const int n_max, 
     const int device
 ) {
     cudaSetDevice(device);
-    dim3 threadsPerBlock(16, 16);
-    dim3 numBlocks((batch_size + threadsPerBlock.x - 1) / threadsPerBlock.x, (atom_nums + threadsPerBlock.y - 1) / threadsPerBlock.y);
+    dim3 threadsPerBlock(16);
+    dim3 numBlocks((atom_nums + threadsPerBlock.x - 1) / threadsPerBlock.x);
 
     compute_gradsecond_gradout<<<numBlocks, threadsPerBlock>>>(
         grad_second, 
         dfeat_b, 
         gradsecond_gradout,
-        batch_size, 
         atom_nums, 
         maxneighs, 
         n_max
@@ -193,10 +183,9 @@ void launch_calculate_nepfeat_secondgradout_c2(
     const double * grad_second,
     const double * de_feat,
     const double * dfeat_2b_noc,
-    const int * atom_map,
-    const int * NL_radial,
+    const int64_t* atom_map,
+    const int64_t* NL_radial,
     double * gradsecond_c2,
-    const int batch_size, 
     const int atom_nums, 
     const int maxneighs, 
     const int n_max_2b, 
@@ -207,16 +196,15 @@ void launch_calculate_nepfeat_secondgradout_c2(
 ) {
     cudaSetDevice(device);
     // 每个线程块的线程数 (这里选择 8 * 16 * 2 = 256，保证不会超过 1024)
-    int total_elements = batch_size * atom_nums * maxneighs;
+    int total_elements = atom_nums * maxneighs;
     int threads_per_block = 256;
     int num_blocks = (total_elements + threads_per_block - 1) / threads_per_block;
-    GPU_Vector<double> tmp_grad(batch_size * atom_nums * maxneighs * n_max_2b * n_base_2b, 0.0);
+    GPU_Vector<double> tmp_grad(atom_nums * maxneighs * n_max_2b * n_base_2b, 0.0);
     compute_gradsecond_c2<<<num_blocks, threads_per_block>>>(
         grad_second, 
         de_feat, 
         dfeat_2b_noc,
         tmp_grad.data(),
-        batch_size, 
         atom_nums, 
         maxneighs, 
         n_max_2b,
@@ -227,7 +215,7 @@ void launch_calculate_nepfeat_secondgradout_c2(
 
     reduce_kernel<<<num_blocks, threads_per_block>>>(
         tmp_grad.data(), atom_map, NL_radial,
-        batch_size, atom_nums, maxneighs,
+        atom_nums, maxneighs,
         n_max_2b, n_base_2b, atom_types, gradsecond_c2
     );
     

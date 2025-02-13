@@ -42,6 +42,19 @@ const int MAX_DIM_ANGULAR = MAX_NUM_N * 6;
 const double PI = 3.14159265358979323846;
 const double HALF_PI = 1.5707963267948966;
 
+static __device__ void dev_apply_mic(double const* __restrict__ h, double& x12, double& y12, double& z12)
+{
+    double sx12 = h[9] * x12 + h[10] * y12 + h[11] * z12;
+    double sy12 = h[12] * x12 + h[13] * y12 + h[14] * z12;
+    double sz12 = h[15] * x12 + h[16] * y12 + h[17] * z12;
+    sx12 -= nearbyint(sx12);
+    sy12 -= nearbyint(sy12);
+    sz12 -= nearbyint(sz12);
+    x12 = h[0] * sx12 + h[1] * sy12 + h[2] * sz12;
+    y12 = h[3] * sx12 + h[4] * sy12 + h[5] * sz12;
+    z12 = h[6] * sx12 + h[7] * sy12 + h[8] * sz12;
+}
+
 static __device__ __forceinline__ void find_fc(double rc, double rcinv, double d12, double& fc)
 {
   if (d12 < rc) {

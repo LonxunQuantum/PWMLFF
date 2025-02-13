@@ -9,4 +9,9 @@ TORCH_LIBRARY(CalcOps_cuda, m) {
     m.def("calculateCompress", calculateCompress);
     m.def("calculateNepFeat", calculateNepFeat);
     m.def("calculateNepMbFeat", calculateNepMbFeat);
+    m.def("calculateNepForce", calculateNepForce);
+    m.def("calculateNepVirial", calculateNepVirial);
+    m.def("calculate_maxneigh", calculate_maxneigh);
+    m.def("calculate_neighbor", calculate_neighbor);
+    m.def("calculate_descriptor", calculate_descriptor);
 }

@@ -7,15 +7,14 @@
 void launch_calculate_nepmbfeat(
     const double * coeff3,
     const double * d12,
-    const int * NL,
-    const int * atom_map,
+    const int64_t * NL,
+    const int64_t * atom_map,
     double * feat_3b,
     double * dfeat_c3,
     double * dfeat_3b,
     double * dfeat_3b_noc,
     double * sum_fxyz,
     const double rcut_angular,
-    const int batch_size,
     const int natoms,
     const int neigh_num,
     const int n_max_3b, 
@@ -28,7 +27,7 @@ void launch_calculate_nepmbfeat(
 ){
     cudaSetDevice(device_id);
     const int BLOCK_SIZE = 64;
-    const int N = batch_size * natoms;// N = natoms * batch_size
+    const int N = natoms;// N = natoms * batch_size
     const int grid_size = (N - 1) / BLOCK_SIZE + 1;
     const int num_types_sq = n_types * n_types;
     double rcinv_angular = 1.0 / rcut_angular;

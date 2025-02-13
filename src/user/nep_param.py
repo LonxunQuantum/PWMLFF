@@ -217,7 +217,7 @@ class NepParam(object):
         self.zbl = get_parameter("zbl", descriptor_dict, None)
         self.train_2b = get_parameter("train_2b", descriptor_dict, True)
         if self.zbl is not None:
-            if self.zbl > 2.5 or self.zbl < 1.0:
+            if self.zbl > 5 or self.zbl < 1.0:
                 raise Exception("ERROR! the 'zbl' in json file should be between 1.0 and 2.5")
         self.use_fixed_zbl = False
 
@@ -307,14 +307,18 @@ class NepParam(object):
         content += "neuron      {}\n".format(self.neuron[0]) # filter the output layer
         return content
     
-    def to_nep_txt(self):
+    def to_nep_txt(self, max_NN_radial=None, max_NN_angular=None):
         content = ""
         if self.zbl is not None:
             content += "nep4_zbl   {}\n".format(self.type)    #line1
             content += "zbl   {} {}\n".format(self.zbl/2, self.zbl)    #line zbl
         else:
             content += "nep4   {}\n".format(self.type)    #line1
-        content += "cutoff {}\n".format(" ".join(map(str, self.cutoff)))    #line2
+        if max_NN_radial is not None:
+            cutoff_line = "{} {} {} {}".format(self.cutoff[0], self.cutoff[1], max_NN_radial, max_NN_angular)
+        else:
+            cutoff_line = "{} {}".format(self.cutoff[0], self.cutoff[1])
+        content += "cutoff {}\n".format(cutoff_line)    #line2
         content += "n_max  {}\n".format(" ".join(map(str, self.n_max)))    #line3
         content += "basis_size {}\n".format(" ".join(map(str, self.basis_size)))    #line4
         content += "l_max  {}\n".format(" ".join(map(str, self.l_max)))    #line5

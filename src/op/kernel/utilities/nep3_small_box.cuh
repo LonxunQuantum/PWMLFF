@@ -34,7 +34,7 @@ static __device__ __inline__ double atomicAdd(double* address, double val)
 //后面删除了nepmb的代码之后，将这部分移动到mbnepgrad下面
 static __global__ void aggregate_features(
     double* dfeat_c2,     // 输入张量，维度 [N, n_types, n_max_2b, n_base_2b]
-    const int* atom_map,       // 原子类型映射，维度 [N]
+    const int64_t* atom_map,       // 原子类型映射，维度 [N]
     double* output,             // 输出张量，维度 [n_types, n_types, n_max_2b, n_base_2b]
     int N,                     // 中心原子数量
     int n_types,
@@ -78,10 +78,10 @@ static __global__ void find_mb_descriptor_small_box(
   const double rcinv_angular,
   const int n_max_angular,
   const int basis_size_angular,
-  const int* g_NL,
+  const int64_t* g_NL,
   const double * coeff3,
   double * feats,
-  const int* g_type,
+  const int64_t* g_type,
   const double* g_d12_radial,
   double* g_sum_fxyz)
 {
@@ -100,7 +100,7 @@ static __global__ void find_mb_descriptor_small_box(
     for (int n = 0; n < n_max_angular; ++n) {
       double s[NUM_OF_ABC] = {0.0};
       for (int i1 = 0; i1 < neigh_num; ++i1) {
-        int n2 = g_NL[neigh_start_idx + i1]-1;
+        int n2 = g_NL[neigh_start_idx + i1];
         if (n2 < 0) break;
         int t2 = g_type[n2];
         int rij_idx = r12_start_idx + i1*4;
@@ -159,10 +159,10 @@ static __global__ void find_angular_gard_small_box(
   const double rcinv_angular,
   const int n_max_angular,
   const int basis_size_angular,
-  const int* g_NL_radial,
+  const int64_t* g_NL_radial,
   const double* g_d12_radial,
   const double * coeff3,
-  const int* g_type,
+  const int64_t* g_type,
   const double * grad_output,
   const double* g_sum_fxyz,
   double* dsnlm_dc,
@@ -234,7 +234,7 @@ static __global__ void find_angular_gard_small_box(
     int t1 = g_type[n1];
     int c3_start_idx = t1 * num_types * n_max_angular * basis_size_angular;
     for (int i1 = 0; i1 < neigh_num; ++i1) {
-      int n2 = g_NL_radial[neigh_start_idx + i1]-1;
+      int n2 = g_NL_radial[neigh_start_idx + i1];
       if (n2 < 0) break;
       int t2 = g_type[n2];
       int rij_idx = r12_start_idx + i1*4;
@@ -360,6 +360,104 @@ static __global__ void find_angular_gard_small_box(
       grad_d12_angular[rij_idx+1]+= f12[0];
       grad_d12_angular[rij_idx+2]+= f12[1];
       grad_d12_angular[rij_idx+3]+= f12[2];
+    }
+  }
+}
+
+
+static __global__ void find_descriptor(
+  const int N,
+  const int num_types,
+  const int num_types_sq,
+  const int neigh_num,
+  const int L_max3,
+  const int L_max4,
+  const int L_max5,
+  const int feat_nums,
+  const double rc_radial,
+  const double rcinv_radial,
+  const double rc_angular,
+  const double rcinv_angular,
+  const int n_max_radial,
+  const int basis_size_radial,
+  const int n_max_angular,
+  const int basis_size_angular,
+  const int64_t* g_NL_radial,
+  const double * coeff2,
+  const double * coeff3,
+  double * feats,
+  const int64_t* g_type,
+  const double* g_d12_radial)
+{
+  int n1 = blockIdx.x * blockDim.x + threadIdx.x;
+  if (n1 < N) {
+    int t1 = g_type[n1];
+    // double q[MAX_DIM] = {static_cast<double>(0.0)};
+    // get radial descriptors
+    double q[MAX_DIM] = {0.0};
+    int neigh_start_idx = n1 * neigh_num;
+    int r12_start_idx =  n1 * neigh_num * 3;
+    int feat_start_idx = n1 * feat_nums; 
+    int c2_start_idx = t1 * num_types * n_max_radial * basis_size_radial;
+    for (int i1 = 0; i1 < neigh_num; ++i1) {
+      int n2 = g_NL_radial[neigh_start_idx + i1]; //the data from cuda find_neighbor 
+      if (n2 < 0) break;
+      int t2 = g_type[n2];
+      int c_I_J_idx = c2_start_idx + t2 * n_max_radial * basis_size_radial;
+      int rij_idx = r12_start_idx + i1*3;
+      double r12[3] = {g_d12_radial[rij_idx], g_d12_radial[rij_idx+1], g_d12_radial[rij_idx+2]};
+      double d12    = sqrt(r12[0] * r12[0] + r12[1] * r12[1] + r12[2] * r12[2]);
+      double fc12;
+      find_fc(rc_radial, rcinv_radial, d12, fc12);
+      
+      double fn12[MAX_NUM_N];
+
+      find_fn(basis_size_radial, rcinv_radial, d12, fc12, fn12);
+      for (int n = 0; n < n_max_radial; ++n) {
+        double gn12 = 0.0;
+        for (int k = 0; k < basis_size_radial; ++k) {
+          int c_index = c_I_J_idx + n * basis_size_radial + k;
+          gn12 += fn12[k] * coeff2[c_index];
+        }
+        // 2b feats
+        q[n] += gn12;
+      }
+    }
+
+    // get angular descriptors
+    int c3_start_idx = t1 * num_types * n_max_angular * basis_size_angular;
+    for (int n = 0; n < n_max_angular; ++n) {
+      double s[NUM_OF_ABC] = {0.0};
+      for (int i1 = 0; i1 < neigh_num; ++i1) {
+        int n2 = g_NL_radial[neigh_start_idx + i1];
+        if (n2 < 0) continue;
+        int t2 = g_type[n2];
+        int rij_idx = r12_start_idx + i1*3;
+        double r12[3] = {g_d12_radial[rij_idx], g_d12_radial[rij_idx+1], g_d12_radial[rij_idx+2]};
+        double d12    = sqrt(r12[0] * r12[0] + r12[1] * r12[1] + r12[2] * r12[2]);
+        if (d12 > rc_angular) continue;
+        double fc12;
+        find_fc(rc_angular, rcinv_angular, d12, fc12);
+        double fn12[MAX_NUM_N];
+        find_fn(basis_size_angular, rcinv_angular, d12, fc12, fn12);
+        double gn12 = 0.0;
+        int c_I_J_idx = c3_start_idx + t2 * n_max_angular * basis_size_angular;
+        for (int k = 0; k < basis_size_angular; ++k) {
+          int c_index = c_I_J_idx + n * basis_size_angular + k;
+          gn12 += fn12[k] * coeff3[c_index];
+        }
+        accumulate_s(d12, r12[0], r12[1], r12[2], gn12, s);
+      }
+      if (L_max5 == 1) {
+          find_q_with_5body(n_max_angular, n, s, q + n_max_radial);
+      } else if (L_max4 ==2) {
+        find_q_with_4body(n_max_angular, n, s, q + n_max_radial);
+      } else {
+        find_q(n_max_angular, n, s, q + n_max_radial);
+      }
+    }
+    for (int n1 = 0; n1 < feat_nums; ++n1) {
+      feats[feat_start_idx+n1] = q[n1];
     }
   }
 }

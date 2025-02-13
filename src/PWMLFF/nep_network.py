@@ -35,8 +35,8 @@ from src.model.nep_net import NEP
 from src.optimizer.GKF import GKFOptimizer
 from src.optimizer.LKF import LKFOptimizer
 
-from src.pre_data.nep_data_loader import MovementDataset, get_stat, gen_train_data, type_map, NepTestData
-from src.PWMLFF.nep_mods.nep_trainer import train_KF, train, valid, save_checkpoint, predict, calculate_scaler
+from src.pre_data.nep_data_loader import calculate_neighbor_num_max_min, calculate_neighbor_scaler, UniDataset, variable_length_collate_fn, type_map, NepTestData
+from src.PWMLFF.nep_mods.nep_trainer import train_KF, train, valid, save_checkpoint, predict
 from src.PWMLFF.dp_param_extract import load_atomtype_energyshift_from_checkpoint
 from src.user.input_param import InputParam
 from utils.file_operation import write_arrays_to_file, write_force_ei
@@ -45,8 +45,6 @@ from src.aux.inference_plot import inference_plot
 import concurrent.futures
 import multiprocessing
 from queue import Queue
-
-calc = None
 
 class nep_network:
     def __init__(self, nep_param:InputParam):
@@ -80,120 +78,67 @@ class nep_network:
 
         self.criterion = nn.MSELoss().to(self.device)
 
-    def generate_data(self):    
-        """
-        Generate training data for MLFF model.
-
-        Returns:
-            list: list of labels path
-        """
-        raw_data_path = self.input_param.file_paths.raw_path
-        datasets_path = os.path.join(self.input_param.file_paths.json_dir, self.input_param.file_paths.trainSetDir)
-        train_ratio = self.input_param.train_valid_ratio
-        train_data_path = self.input_param.file_paths.trainDataPath
-        valid_data_path = self.input_param.file_paths.validDataPath
-        labels_path = gen_train_data(train_ratio, raw_data_path, datasets_path, 
-                               train_data_path, valid_data_path, 
-                               self.input_param.valid_shuffle, self.input_param.seed, self.input_param.format)
-        return labels_path
-    
-    '''
-    description: 
-        get energy shift and max atom numbers of image from inference model/loaded model/pwdata
-    param {*} self
-    return {*}
-    author: wuxingxing
-    '''    
-    def _get_stat(self):
-        # data_file_config = self.nep_params.get_data_file_dict()
+    def load_data(self):
         if self.input_param.inference:
-            if self.input_param.nep_param.nep_txt_file is not None and os.path.exists(self.input_param.nep_param.nep_txt_file):
-                atom_map = self.input_param.atom_type
-                energy_shift = [1.0 for _ in atom_map] # just for init model, the bias will be replaced by nep.txt or params in ckpt
-            elif self.input_param.file_paths.model_load_path is not None and os.path.exists(self.input_param.file_paths.model_load_path):
-                # load davg, dstd from checkpoint of model
-                atom_map, energy_shift = load_atomtype_energyshift_from_checkpoint(self.input_param.file_paths.model_load_path)
-            elif os.path.exists(self.input_param.file_paths.model_save_path):
-                atom_map, energy_shift = load_atomtype_energyshift_from_checkpoint(self.input_param.file_paths.model_save_path)
-            else:
-                raise Exception("Erorr! Loading model for inference can not find checkpoint: \
-                                \nmodel load path: {} \n or model at work path: {}\n"\
-                                .format(self.input_param.file_paths.model_load_path, self.input_param.file_paths.model_save_path))
-            stat_add = [atom_map, energy_shift]
-            # return energy_shift, None, None 
-        else:
-            stat_add = None
-        
-        if self.input_param.file_paths.datasets_path is None or len(self.input_param.file_paths.datasets_path) == 0:# for togpumd model
-            return energy_shift, 100, None
-        # get max_atom_nums from current datapath
-        energy_shift, max_atom_nums, image_path = get_stat(self.input_param, stat_add, self.input_param.file_paths.datasets_path, 
-                         self.input_param.file_paths.json_dir, self.input_param.chunk_size)
-
-        return energy_shift, max_atom_nums, image_path
-    
-    def load_data(self, energy_shift, max_atom_nums):
-        config = self.input_param.get_data_file_dict()
-        if self.input_param.inference:
-            data_paths = []
-            for data_path in self.input_param.file_paths.datasets_path:
-                if os.path.exists(os.path.join(os.path.join(data_path, config['trainDataPath'], "position.npy"))):
-                    data_paths.append(os.path.join(os.path.join(data_path, config['trainDataPath']))) #train dir
-                if os.path.exists(os.path.join(os.path.join(data_path, config['validDataPath'], "position.npy"))):
-                    data_paths.append(os.path.join(os.path.join(data_path, config['validDataPath']))) #valid dir
-                if os.path.exists(os.path.join(data_path, "position.npy")) > 0: # add train or valid data
-                    data_paths.append(data_path)
-                else:# with out data
-                    pass
-            train_dataset = MovementDataset(data_paths, 
-                                            config, self.input_param, energy_shift, max_atom_nums)
-            valid_dataset = None
-        else:   
-            train_dataset = MovementDataset([os.path.join(_, config['trainDataPath']) 
-                                            for _ in self.input_param.file_paths.datasets_path
-                                            if os.path.exists(os.path.join(_, config['trainDataPath']))],
-                                            config, self.input_param, energy_shift, max_atom_nums)
-
-            valid_dataset = MovementDataset([os.path.join(_, config['validDataPath']) 
-                                             for _ in self.input_param.file_paths.datasets_path
-                                             if os.path.exists(os.path.join(_, config['validDataPath']))],
-                                             config, self.input_param, energy_shift, max_atom_nums)
-
-        energy_shift, atom_map = train_dataset.get_stat()
-
-        # if self.input_param.hvd:
-        #     train_sampler = torch.utils.data.distributed.DistributedSampler(
-        #         train_dataset, num_replicas=hvd.size(), rank=hvd.rank()
-        #     )
-        #     val_sampler = torch.utils.data.distributed.DistributedSampler(
-        #         valid_dataset, num_replicas=hvd.size(), rank=hvd.rank(), drop_last=True
-        #     )
-        # else:
-        train_sampler = None
-        val_sampler = None
-
-        # should add a collate function for padding
-        train_loader = torch.utils.data.DataLoader(
-            train_dataset,
-            batch_size=self.input_param.optimizer_param.batch_size,
-            shuffle=self.input_param.data_shuffle,
-            num_workers=self.input_param.workers,   
-            pin_memory=True,
-            sampler=train_sampler,
-        )
-        
-        if self.input_param.inference:
-            val_loader = None
-        else:
-            val_loader = torch.utils.data.DataLoader(
-                valid_dataset,
-                batch_size=self.input_param.optimizer_param.batch_size,
+            test_dataset = UniDataset(self.input_param.file_paths.test_data_path, 
+                                            self.input_param.file_paths.format, 
+                                            self.input_param.atom_type,
+                                            cutoff_radial = self.input_param.nep_param.cutoff[0],
+                                            cutoff_angular= self.input_param.nep_param.cutoff[1],
+                                            cal_energy=False)
+            test_loader = torch.utils.data.DataLoader(
+                test_dataset,
+                batch_size=1,
                 shuffle=False,
-                num_workers=self.input_param.workers,
+                collate_fn= variable_length_collate_fn, 
+                num_workers=self.input_param.workers,   
+                drop_last=True,
                 pin_memory=True,
-                sampler=val_sampler,
             )
-        return energy_shift, atom_map, train_loader, val_loader
+            energy_shift = test_dataset.get_energy_shift()
+            return energy_shift, test_loader, None, test_dataset
+        else:
+            train_dataset = UniDataset(self.input_param.file_paths.train_data_path, 
+                                            self.input_param.file_paths.format, 
+                                            self.input_param.atom_type,
+                                            cutoff_radial = self.input_param.nep_param.cutoff[0],
+                                            cutoff_angular= self.input_param.nep_param.cutoff[1],
+                                            cal_energy=True)
+
+            valid_dataset = UniDataset(self.input_param.file_paths.valid_data_path, 
+                                            self.input_param.file_paths.format, 
+                                            self.input_param.atom_type,
+                                            cutoff_radial = self.input_param.nep_param.cutoff[0],
+                                            cutoff_angular= self.input_param.nep_param.cutoff[1],
+                                            cal_energy=False
+                                            )
+
+            energy_shift = train_dataset.get_energy_shift()
+
+            # should add a collate function for padding
+            train_loader = torch.utils.data.DataLoader(
+                train_dataset,
+                batch_size=self.input_param.optimizer_param.batch_size,
+                shuffle=self.input_param.data_shuffle,
+                collate_fn= variable_length_collate_fn, 
+                num_workers=self.input_param.workers,   
+                drop_last=True,
+                pin_memory=True,
+            )
+            
+            if self.input_param.inference:
+                val_loader = None
+            else:
+                val_loader = torch.utils.data.DataLoader(
+                    valid_dataset,
+                    batch_size=self.input_param.optimizer_param.batch_size,
+                    shuffle=False,
+                    collate_fn= variable_length_collate_fn, 
+                    num_workers=self.input_param.workers,
+                    pin_memory=True,
+                    drop_last=True
+                )
+            return energy_shift, train_loader, val_loader, train_dataset
     
     '''
     description:
@@ -329,15 +274,38 @@ class nep_network:
         """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
         # scheduler = StepLR(optimizer, step_size=30, gamma=0.1)
         '''
-        # model.device = optimizer._state["P"][0].device
+        # self.device = optimizer._state["P"][0].device
         # set params device
         return model, optimizer
-          
+
     def train(self):
-        energy_shift, max_atom_nums, image_path = self._get_stat()
+        energy_shift, train_loader, val_loader, train_datset = self.load_data()
         #energy_shift is same as energy_shift of upper; atom_map is the user input order
         model, optimizer = self.load_model_optimizer(energy_shift)
-        energy_shift, atom_map, train_loader, val_loader = self.load_data(energy_shift, max_atom_nums)
+        
+        max_NN_radial, min_NN_radial, max_NN_angular, min_NN_angular = \
+                        calculate_neighbor_num_max_min(dataset=train_datset, device = self.device)
+        
+        model.max_NN_radial  = max(model.max_NN_radial, max_NN_radial)
+        model.min_NN_radial  = min(model.min_NN_radial, min_NN_radial)
+        model.max_NN_angular = max(model.max_NN_angular, max_NN_angular)
+        model.min_NN_angular = min(model.min_NN_angular, min_NN_angular)
+
+        if model.q_scaler is None:
+            q_scaler = calculate_neighbor_scaler(
+                            train_datset,
+                            model.max_NN_radial,
+                            model.max_NN_angular,
+                            model.n_max_radial,
+                            model.n_base_radial,
+                            model.n_max_angular,
+                            model.n_base_angular,
+                            model.l_max_3b,
+                            model.l_max_4b,
+                            model.l_max_5b,
+                            self.device)
+
+            model.reset_scaler(q_scaler, self.training_type, self.device)
 
         if not os.path.exists(self.input_param.file_paths.model_store_dir):
             os.makedirs(self.input_param.file_paths.model_store_dir)
@@ -402,18 +370,6 @@ class nep_network:
                 f_valid_log.write("# %s\n" % (valid_format % tuple(valid_lists)))
 
         for epoch in range(self.input_param.optimizer_param.start_epoch, self.input_param.optimizer_param.epochs + 1):
-            time_start = time.time()
-            if epoch == 1:
-                model.update_scaler = True
-                calculate_scaler(
-                        train_loader, model, self.criterion, self.device, self.input_param
-                    )
-                model.update_scaler = False
-                model.q_scaler = (1/(model.q_max-model.q_min)).detach()
-                print("calculate q_scaler time is {}".format(time.time()-time_start))
-                print("model.q_scaler:\n")
-                print(model.q_scaler)
-            
             time_start = time.time()
             if self.input_param.optimizer_param.opt_name == "LKF" or self.input_param.optimizer_param.opt_name == "GKF":
                 loss, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_egroup, loss_virial, loss_virial_per_atom, loss_l1, loss_l2 = train_KF(
@@ -497,7 +453,7 @@ class nep_network:
                     "epoch": epoch,
                     "state_dict": model.state_dict(),
                     "energy_shift":energy_shift,
-                    "atom_type_order": atom_map,    #atom type order of davg/dstd/energy_shift, the user input order
+                    "atom_type_order": self.input_param.atom_type,    #atom type order of davg/dstd/energy_shift, the user input order
                     # "sij_max":Sij_max,
                     "q_scaler": model.get_q_scaler(),
                     "optimizer":optimizer.state_dict()
@@ -513,7 +469,7 @@ class nep_network:
                     "state_dict": model.state_dict(),
                     "energy_shift":energy_shift,
                     "q_scaler": model.get_q_scaler(),
-                    "atom_type_order": atom_map    #atom type order of davg/dstd/energy_shift
+                    "atom_type_order": self.input_param.atom_type    #atom type order of davg/dstd/energy_shift
                     # "optimizer":optimizer.state_dict()
                     # "sij_max":Sij_max
                     },
@@ -541,7 +497,7 @@ class nep_network:
             # save_nep_in_path = os.path.join(save_dir, self.input_param.file_paths.nep_in_file)
             save_nep_txt_path = os.path.join(save_dir, self.input_param.file_paths.nep_model_file)            
         # extract parameters
-        txt_head = self.input_param.nep_param.to_nep_txt()
+        txt_head = self.input_param.nep_param.to_nep_txt(model.max_NN_radial, model.max_NN_angular)
         txt_body = model.get_nn_params()
         txt_body_str = "\n".join(map(str, txt_body))
         txt_head += txt_body_str

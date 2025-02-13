@@ -21,16 +21,15 @@ static __global__ void find_angular_gardc_small_box(
   const int N,
   const double* grad_second,
   const double* g_d12,
-  const int* g_NL,
+  const int64_t* g_NL,
   const double* de_dfeat,
   const double* dsnlm_dc, //[i, J, nbase, 24]
   const double* g_sum_fxyz,
-  const int* g_type,
+  const int64_t* g_type,
   const double * coeff3,
   double * dfeat_c3,
   const double rc_angular,
   const double rcinv_angular,
-  const int batch_size,
   const int atom_nums,
   const int neigh_num,
   const int max_3b,
@@ -117,7 +116,7 @@ static __global__ void find_angular_gardc_small_box(
     int t1 = g_type[n1];
     int c3_start_idx = t1 * num_types * max_3b * base_3b;
     for (int i1 = 0; i1 < neigh_num; ++i1) {
-      int n2 = g_NL[neigh_start_idx + i1]-1;
+      int n2 = g_NL[neigh_start_idx + i1];
       if (n2 < 0) break;
       int t2 = g_type[n2];
       int rij_idx = r12_start_idx + i1*4;
@@ -206,16 +205,15 @@ static __global__ void find_angular_gardc_neigh(
   const int N,
   const double* grad_second,
   const double* g_d12,
-  const int* g_NL,
+  const int64_t* g_NL,
   const double* de_dfeat,
   const double* dsnlm_dc, //[i, J, nbase, 24]
   const double* g_sum_fxyz,
-  const int* g_type,
+  const int64_t* g_type,
   const double * coeff3,
   double * dfeat_c3,
   const double rc_angular,
   const double rcinv_angular,
-  const int batch_size,
   const int atom_nums,
   const int neigh_num,
   const int max_3b,
@@ -232,16 +230,14 @@ static __global__ void find_angular_gardc_neigh(
   // int total_elements = batch_size * atom_nums * neigh_num;
   int elem_idx = threadIdx.x + blockIdx.x * blockDim.x; // 网格中的元素索引
   if (elem_idx >= N) return;
-  
-  int batch_idx = elem_idx / (atom_nums * neigh_num);
-  int remaining = elem_idx % (atom_nums * neigh_num);
-  int n1 = remaining / neigh_num + batch_idx * atom_nums;
-  int i1 = remaining % neigh_num;
+
+  int n1 = elem_idx / neigh_num;
+  int i1 = elem_idx % neigh_num;
   
   int neigh_start_idx = n1 * neigh_num;
 
   int t1 = g_type[n1];
-  int n2 = g_NL[neigh_start_idx + i1]-1;
+  int n2 = g_NL[neigh_start_idx + i1];
   if (n2 < 0) return;
   int t2 = g_type[n2];
 
@@ -371,12 +367,11 @@ static __global__ void find_angular_gardc_neigh(
 
 
 static __global__ void aggregate_dfeat_c3(
-  const int* g_NL,
-  const int* g_type,
+  const int64_t* g_NL,
+  const int64_t* g_type,
   const double* dfeat_c3,
   double* tmp_dfeat_c3,
   const int N,
-  const int batch_size,
   const int atom_nums,
   const int neigh_num,
   const int num_types,
@@ -391,7 +386,7 @@ static __global__ void aggregate_dfeat_c3(
     int neigh_start_idx = n1 * neigh_num;
     // int t1 = g_type[n1];
     for (int i1 = 0; i1 < neigh_num; ++i1) {
-      int n2 = g_NL[neigh_start_idx + i1]-1;
+      int n2 = g_NL[neigh_start_idx + i1];
       if (n2 < 0) break;
       // int t2 = g_type[n2];
       int dc_idx = dc_start_idx + i1 * num_types * max_3b * base_3b;

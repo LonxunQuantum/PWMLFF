@@ -9,15 +9,14 @@ void launch_calculate_nepmbfeat_grad(
             const double * grad_output,
             const double * coeff3, 
             const double * r12,
-            const int    * NL, 
-            const int    * atom_map, 
+            const int64_t * NL, 
+            const int64_t * atom_map, 
             double * sum_fxyz,
             double * grad_coeff3, 
             double * grad_d12_3b,
             double * dsnlm_dc, // dsnlm/dc_NK_IJ used in second grad mb c
             double * dfeat_drij,
             const int rcut_angular,
-            const int batch_size, 
             const int atom_nums, 
             const int neigh_num, 
             const int feat_2b_num, 
@@ -31,7 +30,7 @@ void launch_calculate_nepmbfeat_grad(
 ) {
     cudaSetDevice(device_id);
     const int BLOCK_SIZE = 64;
-    const int N = batch_size * atom_nums; // N = natoms * batch_size
+    const int N = atom_nums; // N = natoms * batch_size
     const int grid_size = (N - 1) / BLOCK_SIZE + 1;
     const int num_types_sq = n_types * n_types;
     double rcinv_angular = 1.0 / rcut_angular;

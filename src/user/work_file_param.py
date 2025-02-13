@@ -25,7 +25,10 @@ class WorkFileStructure(object):
         self.test_feature_path = []
         self.datasets_path = []
         self.model_load_path = ""
-
+        
+        self.train_data_path = []
+        self.valid_data_path = []
+        self.test_data_path  = []
     # def _set_training_path(self, train_raw_path:list, train_feature_path:list, train_dir: str):
     #     self.raw_path = train_raw_path
     #     self.train_feature_path = train_feature_path
@@ -165,8 +168,28 @@ class WorkFileStructure(object):
 
     def set_train_valid_file(self, json_input:dict):
         # set trian movement file path
+        self.format = get_parameter("format", json_input, "pwmat/movement").lower() # used in new file and raw_file
+        train_data = get_parameter("train_data", json_input, [])
+        for _train_data in train_data:
+            if os.path.exists(_train_data) is False:
+                raise Exception("Error! train data: {} file not exist!".format(_train_data))
+            else:
+                self.train_data_path.append(os.path.abspath(_train_data))
+        valid_data = get_parameter("valid_data", json_input, [])
+        for _valid_data in valid_data:
+            if os.path.exists(_valid_data) is False:
+                raise Exception("Error! valid data: {} file not exist!".format(_valid_data))
+            else:
+                self.valid_data_path.append(os.path.abspath(_valid_data))
+        test_data = get_parameter("test_data", json_input, [])
+        for _test_data in test_data:
+            if os.path.exists(_test_data) is False:
+                raise Exception("Error! test data: {} file not exist!".format(_test_data))
+            else:
+                self.test_data_path.append(os.path.abspath(_test_data))
+
+        #--- old data format start----
         raw_path = get_parameter("raw_files", json_input, [])
-        self.format = get_parameter("format", json_input, "pwmat/movement").lower()
         for raw_data in raw_path:
             if os.path.exists(raw_data) is False:
                 raise Exception("Error! train data: {} file not exist!".format(raw_data))
@@ -179,20 +202,8 @@ class WorkFileStructure(object):
                 raise Exception("Error! train data: {} file not exist!".format(data_path))
         datasets_path = [os.path.abspath(_) for _ in datasets_path]
         self.datasets_path = datasets_path
-        '''if len(raw_path) > 0:
-            raw_path = sorted(raw_path)
-        train_feature_path = get_parameter("train_feature_path", json_input, [])
-        for feat_path in train_feature_path:
-            if os.path.exists(feat_path) is False:
-                raise Exception("Error! train movement: {} file not exist!".format(feat_path))
-        train_feature_path = [os.path.abspath(_) for _ in train_feature_path]
-        self._set_training_path(raw_path=raw_path, 
-                                      train_feature_path=train_feature_path,
-                                      train_dir=os.path.join(self.work_dir, "feature"))
-        
-        alive_atomic_energy = get_parameter("alive_atomic_energy", json_input, False)
-        alive_atomic_energy = is_alive_atomic_energy(raw_path)
-        self._set_alive_atomic_energy(alive_atomic_energy)'''
+        #--- old data format end----
+
 
     def _set_PWdata_dirs(self, json_input:dict):
         # set Pwdata dir file structure, they are used in feature generation

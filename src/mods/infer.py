@@ -2,12 +2,12 @@ import torch
 import numpy as np
 import os
 
-from PWMLFF.dp_network import dp_network
+from src.PWMLFF.dp_network import dp_network
 from src.user.nep_work import tonepckpt
-from PWMLFF.nep_network import nep_network
-from user.input_param import InputParam
+from src.PWMLFF.nep_network import nep_network
+from src.user.input_param import InputParam
 from pwdata import Save_Data
-from pre_data.dp_data_loader import type_map, find_neighbore
+from src.pre_data.dp_data_loader import type_map, find_neighbore
 from pwdata import Config
 from utils.nep_to_gpumd import extract_model, get_atomic_number_from_name
 

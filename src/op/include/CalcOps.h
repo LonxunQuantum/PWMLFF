@@ -232,3 +232,83 @@ torch::autograd::variable_list calculateNepMbFeat(
     int64_t lmax_4,
     int64_t lmax_5,
     double rcut_angluar);
+
+//nep force
+class CalculateNepForce : public torch::autograd::Function<CalculateNepForce> {
+    public:
+        static torch::autograd::variable_list forward(
+            torch::autograd::AutogradContext *ctx,
+            at::Tensor list_neigh,
+            at::Tensor dE,
+            at::Tensor Ri_d,
+            at::Tensor F);
+
+        static torch::autograd::variable_list backward(
+            torch::autograd::AutogradContext *ctx,
+            torch::autograd::variable_list grad_output);
+};
+
+torch::autograd::variable_list calculateNepForce(
+    at::Tensor list_neigh,
+    at::Tensor dE,
+    at::Tensor Ri_d,
+    at::Tensor F);
+
+//nep virial
+class CalculateNepVirial : public torch::autograd::Function<CalculateNepVirial> {
+    public:
+        static torch::autograd::variable_list forward(
+            torch::autograd::AutogradContext *ctx,
+            at::Tensor list_neigh,
+            at::Tensor dE,
+            at::Tensor Rij,
+            at::Tensor Ri_d,
+            at::Tensor num_atom);
+
+        static torch::autograd::variable_list backward(
+            torch::autograd::AutogradContext *ctx,
+            torch::autograd::variable_list grad_output);
+};
+
+torch::autograd::variable_list calculateNepVirial(
+    at::Tensor list_neigh,
+    at::Tensor dE,
+    at::Tensor Rij,
+    at::Tensor Ri_d,
+    at::Tensor num_atom);
+
+std::vector<torch::Tensor> calculate_maxneigh(
+    const torch::Tensor &num_atoms,
+    const torch::Tensor &box,
+    const torch::Tensor &box_orig, 
+    const torch::Tensor &num_cell, 
+    const torch::Tensor &position,
+    const double cutoff_2b,
+    const double cutoff_3b);
+
+std::vector<torch::Tensor> calculate_neighbor(
+    const torch::Tensor &num_atoms, 
+    const torch::Tensor &atom_type_map,
+    const torch::Tensor &atom_types, 
+    const torch::Tensor &box, 
+    const torch::Tensor &box_orig, 
+    const torch::Tensor &num_cell, 
+    const torch::Tensor &position,
+    const double cutoff_2b,
+    const double cutoff_3b,
+    const int64_t max_NN_radial,
+    const int64_t max_NN_angular,
+    const bool with_rij=false);
+
+std::vector<torch::Tensor> calculate_descriptor(
+    const torch::Tensor &weight_radial,
+    const torch::Tensor &weight_angular,
+    const torch::Tensor &Ri_radial,
+    const torch::Tensor &NL_radial,
+    const torch::Tensor &atom_type_map,
+    const double cutoff_radial,
+    const double cutoff_angular,
+    const int64_t max_NN_radial,
+    const int64_t lmax_3,
+    const int64_t lmax_4,
+    const int64_t lmax_5);

@@ -31,6 +31,7 @@ class KFOptimizerWrapper:
     def update_energy(
         self, inputs: list, Etot_label: torch.Tensor, update_prefactor: float = 1, train_type = "DP"
     ) -> None:
+        natoms_sum = None
         if train_type == "DP":
             Etot_predict, _, _, _, _ = self.model(
                 inputs[0],
@@ -52,11 +53,11 @@ class KFOptimizerWrapper:
                 inputs[5],
                 inputs[6],
                 inputs[7],
-                0,
                 inputs[8],
                 inputs[9],
                 is_calc_f=False,
             )
+            natoms_sum = int(inputs[0].shape[0]/inputs[6].shape[0])
         elif train_type == "NN": # nn training
             Etot_predict, _, _, _, _ = self.model(
                 inputs[0],
@@ -82,7 +83,8 @@ class KFOptimizerWrapper:
         else:
             raise Exception("Error! the train type {} is not realized!".format(train_type))
         # natoms_sum = inputs[2][0, 0]
-        natoms_sum = inputs[0].shape[1]
+        if natoms_sum is None:
+            natoms_sum = inputs[0].shape[1] # dp or nn model
         self.optimizer.set_grad_prefactor(natoms_sum)
 
         self.optimizer.zero_grad()
@@ -116,7 +118,9 @@ class KFOptimizerWrapper:
     def update_egroup(
         self, inputs: list, Egroup_label: torch.Tensor, update_prefactor: float = 1, train_type = "DP"
     ) -> None:
+        natoms_sum = None
         if train_type == "DP":
+            
             _, _, _, Egroup_predict, _ = self.model( #dp inputs has 7 para
                 inputs[0],
                 inputs[1],
@@ -137,11 +141,11 @@ class KFOptimizerWrapper:
                 inputs[5],
                 inputs[6],
                 inputs[7],
-                0,
                 inputs[8],
                 inputs[9],
                 is_calc_f=False,
             )
+            natoms_sum = int(inputs[0].shape[0]/inputs[6].shape[0])
         elif train_type == "NN": # nn training
             _, _, _, Egroup_predict, _ = self.model(
                 inputs[0],
@@ -166,7 +170,8 @@ class KFOptimizerWrapper:
             )
         else:
             raise Exception("Error! the train type {} is not realized!".format(train_type))
-        natoms_sum = inputs[0].shape[1]
+        if natoms_sum is None:
+            natoms_sum = inputs[0].shape[1]
         self.optimizer.set_grad_prefactor(1.0)
 
         self.optimizer.zero_grad()
@@ -202,8 +207,9 @@ class KFOptimizerWrapper:
         self, inputs: list, Virial_label: torch.Tensor, update_prefactor: float = 1, train_type = "DP"
     ) -> None:
         index = [0,1,2,4,5,8]
-        data_mask = Virial_label[:, 9] > 0
+        data_mask = Virial_label[:, 0] > -1e6
         _Virial_label = Virial_label[:, index][data_mask]
+        natoms_sum = None
         if data_mask.any().item() is False:
             return None
         if train_type == "DP":
@@ -218,18 +224,18 @@ class KFOptimizerWrapper:
             )
         elif train_type == "NEP":
             Etot_predict, _, _, _, Virial_predict = self.model(
-                inputs[0][data_mask],
-                inputs[1][data_mask],
-                inputs[2][data_mask],
-                inputs[3][data_mask],
-                inputs[4][data_mask],
-                inputs[5][data_mask],
+                inputs[0],
+                inputs[1],
+                inputs[2],
+                inputs[3],
+                inputs[4],
+                inputs[5],
                 inputs[6],
                 inputs[7],
-                0,
                 inputs[8],
                 inputs[9]
             )
+            natoms_sum = int(inputs[0].shape[0]/inputs[6].shape[0])
         elif train_type == "NN":
             Etot_predict, _, _, Virial_predict = self.model(
                 inputs[0],
@@ -253,14 +259,14 @@ class KFOptimizerWrapper:
             )
         else:
             raise Exception("Error! the train type {} is not realized!".format(train_type))
-
-        natoms_sum = inputs[0].shape[1]
+        if natoms_sum is None:
+            natoms_sum = inputs[0].shape[1]
         self.optimizer.set_grad_prefactor(natoms_sum)
         
         self.optimizer.zero_grad()
         bs = _Virial_label.shape[0]  
         _Virial_predict = Virial_predict[:, index]
-        error = _Virial_label.squeeze(1) - _Virial_predict
+        error = _Virial_label - _Virial_predict
         error = error / natoms_sum
         mask = error < 0
 
@@ -326,12 +332,19 @@ class KFOptimizerWrapper:
     def update_force(
         self, inputs: list, Force_label: torch.Tensor, update_prefactor: float = 1, train_type = "DP"
     ) -> None:
-        natoms_sum = inputs[0].shape[1]
-        bs = Force_label.shape[0]
+        if train_type == "NEP":
+            natoms_sum = int(inputs[0].shape[0]/inputs[6].shape[0])
+            bs = inputs[6].shape[0]
+        else:
+            natoms_sum = inputs[0].shape[1]
+            bs = Force_label.shape[0]
         self.optimizer.set_grad_prefactor(natoms_sum * self.atoms_per_group * 3)
 
-        index = self.__sample(self.atoms_selected, self.atoms_per_group, natoms_sum)
-
+        index = self.__sample(self.atoms_selected, self.atoms_per_group, inputs[0].shape[0])
+        index = np.array([[20, 21,  0, 13, 22, 12],
+                        [21, 12, 22,  6,  6,  6],
+                        [ 1,  5,  7,  1, 14,  1],
+                        [ 5,  2, 16,  3, 17, 16]])
         for i in range(index.shape[0]):
             self.optimizer.zero_grad()
             if train_type == "DP":
@@ -352,8 +365,13 @@ class KFOptimizerWrapper:
                 )
             else:
                 raise Exception("Error! the train type {} is not realized!".format(train_type))
- 
-            error_tmp = Force_label[:, index[i]] - Force_predict[:, index[i]]
+
+            index_list = []
+            for j in range(0, 1):
+                index_list.extend(index[i]+(j*96))
+            index_list = np.array(index_list)
+
+            error_tmp = Force_label[index_list] - Force_predict[index_list] # index[i]
             error_tmp = update_prefactor * error_tmp
             mask = error_tmp < 0
             error_tmp[mask] = -1 * error_tmp[mask]
@@ -368,7 +386,7 @@ class KFOptimizerWrapper:
             #         dist.all_reduce(error)
             #         error /= dist.get_world_size()
 
-            tmp_force_predict = Force_predict[:, index[i]] * update_prefactor
+            tmp_force_predict = Force_predict[index_list] * update_prefactor #index[i]
             tmp_force_predict[mask] = -1.0 * tmp_force_predict[mask]
 
             # In order to solve a pytorch bug, reference: https://github.com/pytorch/pytorch/issues/43259
