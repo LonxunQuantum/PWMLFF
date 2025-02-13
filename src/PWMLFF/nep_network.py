@@ -186,6 +186,8 @@ class nep_network:
                     checkpoint = torch.load(model_path, map_location=loc)
                 # start afresh
                 if self.input_param.optimizer_param.reset_epoch:
+                    if checkpoint["epoch"] != 1:
+                        print("The loaded model has been trained for {} epochs. Reset the starting epoch to 1. To disable it, please set 'reset_epoch' in the JSON file to false".format(checkpoint["epoch"]))
                     self.input_param.optimizer_param.start_epoch = 1
                 else:
                     self.input_param.optimizer_param.start_epoch = checkpoint["epoch"] + 1

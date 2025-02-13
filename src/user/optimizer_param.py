@@ -10,11 +10,10 @@ class OptimizerParam(object):
         self.opt_name = get_parameter("optimizer", optimizer_dict, "LKF")
         self.batch_size = get_parameter("batch_size", optimizer_dict, 1)
         # self.batch_size = 1
-        print("Currently does not support multi batch training, automatically adjust batch_size=1!")
         self.epochs = get_parameter("epochs", optimizer_dict, 30)
         self.print_freq = get_parameter("print_freq", optimizer_dict, 10)
         # the start epoch could be reset at the resume model code block
-        self.reset_epoch = get_parameter("reset_epoch", optimizer_dict, False)
+        self.reset_epoch = get_parameter("reset_epoch", optimizer_dict, True)
         self.start_epoch = get_parameter("start_epoch", optimizer_dict, 1)
 
         self.lambda_1 = None

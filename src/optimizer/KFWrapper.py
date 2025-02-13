@@ -341,10 +341,6 @@ class KFOptimizerWrapper:
         self.optimizer.set_grad_prefactor(natoms_sum * self.atoms_per_group * 3)
 
         index = self.__sample(self.atoms_selected, self.atoms_per_group, inputs[0].shape[0])
-        index = np.array([[20, 21,  0, 13, 22, 12],
-                        [21, 12, 22,  6,  6,  6],
-                        [ 1,  5,  7,  1, 14,  1],
-                        [ 5,  2, 16,  3, 17, 16]])
         for i in range(index.shape[0]):
             self.optimizer.zero_grad()
             if train_type == "DP":
