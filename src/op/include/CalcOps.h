@@ -312,3 +312,41 @@ std::vector<torch::Tensor> calculate_descriptor(
     const int64_t lmax_3,
     const int64_t lmax_4,
     const int64_t lmax_5);
+
+
+
+std::vector<torch::Tensor> calculate_maxneigh_cpu(
+    const torch::Tensor &num_atoms,
+    const torch::Tensor &box,
+    const torch::Tensor &box_orig, 
+    const torch::Tensor &num_cell, 
+    const torch::Tensor &position,
+    const double cutoff_2b,
+    const double cutoff_3b);
+
+std::vector<torch::Tensor> calculate_neighbor_cpu(
+    const torch::Tensor &num_atoms, 
+    const torch::Tensor &atom_type_map,
+    const torch::Tensor &atom_types, 
+    const torch::Tensor &box, 
+    const torch::Tensor &box_orig, 
+    const torch::Tensor &num_cell, 
+    const torch::Tensor &position,
+    const double cutoff_2b,
+    const double cutoff_3b,
+    const int64_t max_NN_radial,
+    const int64_t max_NN_angular,
+    const bool with_rij=false);
+
+std::vector<torch::Tensor> calculate_descriptor_cpu(
+    const torch::Tensor &weight_radial,
+    const torch::Tensor &weight_angular,
+    const torch::Tensor &Ri_radial,
+    const torch::Tensor &NL_radial,
+    const torch::Tensor &atom_type_map,
+    const double cutoff_radial,
+    const double cutoff_angular,
+    const int64_t max_NN_radial,
+    const int64_t lmax_3,
+    const int64_t lmax_4,
+    const int64_t lmax_5);

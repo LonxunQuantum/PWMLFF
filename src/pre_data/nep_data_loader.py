@@ -45,28 +45,40 @@ class NepTestData():
     def __init__(self, input_param:InputParam):
         self.image_list = []
         self.input_param = input_param
-        data_paths = []
-        for data_path in self.input_param.file_paths.datasets_path:
-            if os.path.exists(os.path.join(os.path.join(data_path, "train", "position.npy"))):
-                data_paths.append(os.path.join(os.path.join(data_path, "train"))) #train dir
-            if os.path.exists(os.path.join(os.path.join(data_path, "valid", "position.npy"))):
-                data_paths.append(os.path.join(os.path.join(data_path, "valid"))) #valid dir
-            if os.path.exists(os.path.join(data_path, "position.npy")) > 0: # add train or valid data
-                data_paths.append(data_path)
+        # data_paths = []
+        # for data_path in self.input_param.file_paths.datasets_path:
+        #     if os.path.exists(os.path.join(os.path.join(data_path, "train", "position.npy"))):
+        #         data_paths.append(os.path.join(os.path.join(data_path, "train"))) #train dir
+        #     if os.path.exists(os.path.join(os.path.join(data_path, "valid", "position.npy"))):
+        #         data_paths.append(os.path.join(os.path.join(data_path, "valid"))) #valid dir
+        #     if os.path.exists(os.path.join(data_path, "position.npy")) > 0: # add train or valid data
+        #         data_paths.append(data_path)
 
-        if len(data_paths) > 0:
-            for config in data_paths:
-                image_read = Config(data_path=config, format="pwmlff/npy").images
+        # if len(data_paths) > 0:
+        #     for config in data_paths:
+        #         image_read = Config(data_path=config, format="pwmlff/npy").images
+        #         if isinstance(image_read, list):
+        #             self.image_list.extend(image_read)
+        #         else:
+        #             self.image_list.append(image_read)
+        # for image in self.image_list:
+        #     # if image.cartesian is True:
+        #     #     image._set_fractional()
+        #     if image.cartesian is False:
+        #         image._set_cartesian()
+        if len(self.input_param.file_paths.test_data) > 0:
+            for config in self.input_param.file_paths.test_data:
+                image_read = Config(data_path=config, format=self.input_param.file_paths.format).images
                 if isinstance(image_read, list):
                     self.image_list.extend(image_read)
                 else:
                     self.image_list.append(image_read)
+
         for image in self.image_list:
-            # if image.cartesian is True:
-            #     image._set_fractional()
             if image.cartesian is False:
                 image._set_cartesian()
-
+                # image.lattice = image.lattice.T
+            # image.atom_types_image = np.array([self.atom_types.index(_) for _ in image.atom_types_image])
         # return image_list
 
 class UniDataset(Dataset):
