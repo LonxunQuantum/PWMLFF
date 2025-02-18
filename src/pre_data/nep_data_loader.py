@@ -66,8 +66,8 @@ class NepTestData():
         #     #     image._set_fractional()
         #     if image.cartesian is False:
         #         image._set_cartesian()
-        if len(self.input_param.file_paths.test_data) > 0:
-            for config in self.input_param.file_paths.test_data:
+        if len(self.input_param.file_paths.test_data_path) > 0:
+            for config in self.input_param.file_paths.test_data_path:
                 image_read = Config(data_path=config, format=self.input_param.file_paths.format).images
                 if isinstance(image_read, list):
                     self.image_list.extend(image_read)

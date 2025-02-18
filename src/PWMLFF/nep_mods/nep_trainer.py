@@ -132,13 +132,6 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
         for param_group in optimizer.param_groups:
             param_group["lr"] = real_lr * (avg_atom_number**0.5)
 
-        # if args.optimizer_param.train_egroup is True:
-        #     Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
-        #         dR_neigh_list, ImageDR, dR_neigh_type_list, \
-        #             dR_neigh_list_angular, ImageDR_angular, dR_neigh_type_list_angular, \
-        #             atom_type_map[0], atom_type[0], 0, Egroup_weight, Divider)
-
-            # atom_type_map: we only need the first element, because it is same for each image of MOVEMENT
         Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
                 NN_radial, NL_radial, Ri_radial, 
                     NN_angular, NL_angular, Ri_angular,
@@ -165,111 +158,111 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
                 loss_Virial_per_atom.update(loss_Virial_per_atom_val.item(), _Virial_label.shape[0])
                 loss_val += args.optimizer_param.pre_fac_virial * loss_Virial_val
 
-            w_f, w_e, w_v, w_eg, w_ei = 0, 0, 0, 0, 0
+        w_f, w_e, w_v, w_eg, w_ei = 0, 0, 0, 0, 0
 
-            if args.optimizer_param.train_force is True:
-                w_f = 1.0 
-                loss_val += loss_F_val
-            
-            if args.optimizer_param.train_energy is True:
-                w_e = 1.0
-                loss_val += loss_Etot_val
-            
-            if args.optimizer_param.train_virial is True and data_mask.any().item():
-                w_v = 1.0 
-                loss_val += loss_Virial_val
-            
-            if args.optimizer_param.train_egroup is True:
-                w_eg = 1.0 
-                loss_val += loss_Egroup_val
+        if args.optimizer_param.train_force is True:
+            w_f = 1.0 
+            loss_val += loss_F_val
+        
+        if args.optimizer_param.train_energy is True:
+            w_e = 1.0
+            loss_val += loss_Etot_val
+        
+        if args.optimizer_param.train_virial is True and data_mask.any().item():
+            w_v = 1.0 
+            loss_val += loss_Virial_val
+        
+        if args.optimizer_param.train_egroup is True:
+            w_eg = 1.0 
+            loss_val += loss_Egroup_val
 
-            if args.optimizer_param.train_egroup is True and args.optimizer_param.train_virial is True:
-                loss, _, _ = dp_loss(
-                    args,
-                    0.001,
-                    real_lr,
-                    1,
-                    w_f,
-                    loss_F_val,
-                    w_e,
-                    loss_Etot_val,
-                    w_v,
-                    loss_Virial_val,
-                    w_eg,
-                    loss_Egroup_val,
-                    w_ei,
-                    loss_Ei_val,
-                    avg_atom_number,
-                )
-            elif args.optimizer_param.train_egroup is True and args.optimizer_param.train_virial is False:
-                loss, _, _ = dp_loss(
-                    args,
-                    0.001,
-                    real_lr,
-                    2,
-                    w_f,
-                    loss_F_val,
-                    w_e,
-                    loss_Etot_val,
-                    w_eg,
-                    loss_Egroup_val,
-                    w_ei,
-                    loss_Ei_val,
-                    avg_atom_number,
-                )
-            elif args.optimizer_param.train_egroup is False and \
-                    args.optimizer_param.train_virial is True and data_mask.any().item():
-                loss, _, _ = dp_loss(
-                    args,
-                    0.001,
-                    real_lr,
-                    3,
-                    w_f,
-                    loss_F_val,
-                    w_e,
-                    loss_Etot_val,
-                    w_v,
-                    loss_Virial_val,
-                    w_ei,
-                    loss_Ei_val,
-                    avg_atom_number,
-                )
-            else:
-                loss, _, _ = dp_loss(
-                    args,
-                    0.001,
-                    real_lr,
-                    4,
-                    w_f,
-                    loss_F_val,
-                    w_e,
-                    loss_Etot_val,
-                    w_ei,
-                    loss_Ei_val,
-                    avg_atom_number,
-                )
-            # import ipdb;ipdb.set_trace()
-            loss.backward()
-            optimizer.step()
+        if args.optimizer_param.train_egroup is True and args.optimizer_param.train_virial is True:
+            loss, _, _ = dp_loss(
+                args,
+                0.001,
+                real_lr,
+                1,
+                w_f,
+                loss_F_val,
+                w_e,
+                loss_Etot_val,
+                w_v,
+                loss_Virial_val,
+                w_eg,
+                loss_Egroup_val,
+                w_ei,
+                loss_Ei_val,
+                avg_atom_number,
+            )
+        elif args.optimizer_param.train_egroup is True and args.optimizer_param.train_virial is False:
+            loss, _, _ = dp_loss(
+                args,
+                0.001,
+                real_lr,
+                2,
+                w_f,
+                loss_F_val,
+                w_e,
+                loss_Etot_val,
+                w_eg,
+                loss_Egroup_val,
+                w_ei,
+                loss_Ei_val,
+                avg_atom_number,
+            )
+        elif args.optimizer_param.train_egroup is False and \
+                args.optimizer_param.train_virial is True and data_mask.any().item():
+            loss, _, _ = dp_loss(
+                args,
+                0.001,
+                real_lr,
+                3,
+                w_f,
+                loss_F_val,
+                w_e,
+                loss_Etot_val,
+                w_v,
+                loss_Virial_val,
+                w_ei,
+                loss_Ei_val,
+                avg_atom_number,
+            )
+        else:
+            loss, _, _ = dp_loss(
+                args,
+                0.001,
+                real_lr,
+                4,
+                w_f,
+                loss_F_val,
+                w_e,
+                loss_Etot_val,
+                w_ei,
+                loss_Ei_val,
+                avg_atom_number,
+            )
+        # import ipdb;ipdb.set_trace()
+        loss.backward()
+        optimizer.step()
 
-            loss_val = loss
-            L1, L2 = print_l1_l2(model)
-            if args.optimizer_param.lambda_2 is not None:
-                loss_val += L2
+        loss_val = loss
+        L1, L2 = print_l1_l2(model)
+        if args.optimizer_param.lambda_2 is not None:
+            loss_val += L2
 
-            # measure accuracy and record loss
-            losses.update(loss_val.item(), batch_size)
-            loss_Etot.update(loss_Etot_val.item(), batch_size)
-            loss_Etot_per_atom.update(loss_Etot_per_atom_val.item(), batch_size)
-            loss_Ei.update(loss_Ei_val.item(), batch_size)
-            
-            loss_L1.update(L1.item(), batch_size)
-            loss_L2.update(L2.item(), batch_size)
+        # measure accuracy and record loss
+        losses.update(loss_val.item(), batch_size)
+        loss_Etot.update(loss_Etot_val.item(), batch_size)
+        loss_Etot_per_atom.update(loss_Etot_per_atom_val.item(), batch_size)
+        loss_Ei.update(loss_Ei_val.item(), batch_size)
+        
+        loss_L1.update(L1.item(), batch_size)
+        loss_L2.update(L2.item(), batch_size)
 
-            if args.optimizer_param.train_egroup is True:
-                loss_Egroup.update(loss_Egroup_val.item(), batch_size)
+        if args.optimizer_param.train_egroup is True:
+            loss_Egroup.update(loss_Egroup_val.item(), batch_size)
 
-            loss_Force.update(loss_F_val.item(), Ei_predict.shape[0])
+        loss_Force.update(loss_F_val.item(), Ei_predict.shape[0])
 
         # measure elapsed time
         batch_time.update(time.time() - end)

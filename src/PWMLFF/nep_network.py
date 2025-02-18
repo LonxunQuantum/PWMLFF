@@ -796,16 +796,18 @@ class nep_network:
         calc = FindNeigh()
         calc.init_model(nep_txt_path)
         # t1 = time.time()
+        # results = []
         # for idx, image in enumerate(images):
-        #      self.process_image(idx, image)
-        # t2 = time.time()
+        #     result = self.process_image(idx, image)
+        #     results.append(result)
+        t2 = time.time()
         with concurrent.futures.ProcessPoolExecutor(max_workers=cpu_count) as executor:
             futures = [
                 executor.submit(self.process_image, idx, image)
                 for idx, image in enumerate(images)
             ]
             results = [future.result() for future in concurrent.futures.as_completed(futures)]
-        # t3 = time.time()
+        t3 = time.time()
         # print("{} {}".format(t3-t2, t2-t1))
         time1 = time.time()
 

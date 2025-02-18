@@ -623,8 +623,8 @@ class NEP(nn.Module):
                 Virial_angular = CalcOps.calculateNepVirial(list_neigh_angular, dE_angular, ImageDR_angular, Ri_d_angular, num_atom)[0]
             if Ri_zbl is not None:
                 Ri_d_zbl = Ri_d_zbl.view(natoms_sum, -1, 3)
-                dE_zbl = dE_zbl.view(natoms_sum, 1, -1)
-                Force_zbl = -1 * torch.matmul(dE_zbl, Ri_d_zbl).squeeze(-2)
+                dE_zbl_tmp = dE_zbl.view(natoms_sum, 1, -1)
+                Force_zbl = -1 * torch.matmul(dE_zbl_tmp, Ri_d_zbl).squeeze(-2)
                 ImageDR_zbl = Ri_zbl[:,:,1:].clone()
                 # list_neigh_zbl = torch.unsqueeze(list_neigh_zbl,2)
                 # list_neigh_zbl = (list_neigh_zbl - 1).type(torch.int)

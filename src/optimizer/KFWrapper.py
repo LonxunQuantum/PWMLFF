@@ -335,12 +335,14 @@ class KFOptimizerWrapper:
         if train_type == "NEP":
             natoms_sum = int(inputs[0].shape[0]/inputs[6].shape[0])
             bs = inputs[6].shape[0]
+            index = self.__sample(self.atoms_selected, self.atoms_per_group, inputs[0].shape[0])
         else:
             natoms_sum = inputs[0].shape[1]
             bs = Force_label.shape[0]
+            index = self.__sample(self.atoms_selected, self.atoms_per_group, inputs[0].shape[0])
+            
         self.optimizer.set_grad_prefactor(natoms_sum * self.atoms_per_group * 3)
 
-        index = self.__sample(self.atoms_selected, self.atoms_per_group, inputs[0].shape[0])
         for i in range(index.shape[0]):
             self.optimizer.zero_grad()
             if train_type == "DP":
@@ -362,10 +364,10 @@ class KFOptimizerWrapper:
             else:
                 raise Exception("Error! the train type {} is not realized!".format(train_type))
 
-            index_list = []
-            for j in range(0, 1):
-                index_list.extend(index[i]+(j*96))
-            index_list = np.array(index_list)
+            # index_list = []
+            # for j in range(0, len(index)):
+            #     index_list.extend(index[i]+(j*96))
+            index_list = index[i]
 
             error_tmp = Force_label[index_list] - Force_predict[index_list] # index[i]
             error_tmp = update_prefactor * error_tmp
