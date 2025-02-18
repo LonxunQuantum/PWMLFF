@@ -23,6 +23,8 @@ void cpu_dev_apply_mic(const double* box, double& x12, double& y12, double& z12)
 
 void find_fc(double rc, double rcinv, double d12, double& fc);
 
+void find_fn(const int n_max, const double rcinv, const double d12, const double fc12, double* fn);
+
 void find_fn(const int n, const double rcinv, const double d12, const double fc12, double& fn);
 
 void accumulate_s(const double d12, double x12, double y12, double z12, const double fn, double* s);

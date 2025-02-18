@@ -194,14 +194,14 @@ std::vector<torch::Tensor> calculate_descriptor_cpu(
     int64_t dim_radial = n_max_radial;
     torch::Tensor feats = torch::zeros({total_atoms, dim_radial+dim_angular}, torch::TensorOptions().dtype(dtype).device(device));
     launch_calculate_descriptor_cpu(
-        (double  *) weight_radial, 
-        (double  *) weight_angular, 
-        (double  *) Ri_radial,
-        (int64_t *) NL_radial, 
-        (int64_t *) atom_type_map, 
+        (double  *) weight_radial.data_ptr(), 
+        (double  *) weight_angular.data_ptr(), 
+        (double  *) Ri_radial.data_ptr(),
+        (int64_t *) NL_radial.data_ptr(), 
+        (int64_t *) atom_type_map.data_ptr(), 
         cutoff_radial, 
         cutoff_angular, 
-        (double  *) feats, 
+        (double  *) feats.data_ptr(), 
         total_atoms,
         max_NN_radial, 
         n_max_radial, 

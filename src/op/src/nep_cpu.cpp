@@ -1,4 +1,4 @@
-#include "nep_cpu.h"
+#include "../include/nep_cpu.h"
 #include <cmath>
 
 void cpu_dev_apply_mic(const double* box, double& x12, double& y12, double& z12) {
@@ -20,6 +20,19 @@ void find_fc(double rc, double rcinv, double d12, double& fc) {
     } else {
         fc = 0.0;
     }
+}
+
+void find_fn(const int n_max, const double rcinv, const double d12, const double fc12, double* fn)
+{
+  double x = 2.0 * (d12 * rcinv - 1.0) * (d12 * rcinv - 1.0) - 1.0;
+  fn[0] = 1.0;
+  fn[1] = x;
+  for (int m = 2; m <= n_max; ++m) {
+    fn[m] = 2.0 * x * fn[m - 1] - fn[m - 2];
+  }
+  for (int m = 0; m <= n_max; ++m) {
+    fn[m] = (fn[m] + 1.0) * 0.5 * fc12;
+  }
 }
 
 void find_fn(const int n, const double rcinv, const double d12, const double fc12, double& fn) {

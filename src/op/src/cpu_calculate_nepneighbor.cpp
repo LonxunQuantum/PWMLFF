@@ -97,7 +97,7 @@ void launch_calculate_neighbor_cpu(
     int64_t      * NL_angular,
     double       * Ri_radial, 
     double       * Ri_angular,
-    bool with_rij = false
+    bool with_rij
 ) {
     for (int64_t frame = 0; frame < total_frames; ++frame) {
         int64_t N2 = num_atoms_sum[frame];
