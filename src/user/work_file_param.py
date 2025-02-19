@@ -244,5 +244,11 @@ class WorkFileStructure(object):
         if len(self.datasets_path) > 0:
             dicts["datasets_path"] = self.datasets_path
             # dicts["model_store_dir"] = self.model_store_dir
-
+        if len(self.train_data_path) > 0:
+            dicts["train_data"] = self.train_data_path
+        if len(self.valid_data_path) > 0:
+            dicts["valid_data"] = self.valid_data_path
+        if len(self.test_data_path) > 0:
+            dicts["test_data"] = self.test_data_path
+                
         return dicts

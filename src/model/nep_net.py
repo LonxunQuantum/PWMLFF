@@ -586,8 +586,7 @@ class NEP(nn.Module):
                 Force_zbl = torch.zeros((natoms_sum + 1, 3), device=device, dtype=dtype)
                 Force_zbl[1:natoms_sum + 1, :] = -1 * dE_Rid_zbl.sum(dim=-2)
                 Virial_zbl = torch.zeros((batch_size, 9), device=device, dtype=dtype)
-
-                indice = (list_neigh_zbl+1).flatten().unsqueeze(-1).expand(-1, 3).to(torch.int64) # list_neigh's index start from 1, so the Force's dimension should be natoms_sum + 1
+                indice = (list_neigh_zbl+1).flatten().unsqueeze(-1).expand(-1, 3).to(torch.int64)
                 values = dE_Rid_zbl.view(-1, 3)
                 Force_zbl.scatter_add_(0, indice, values).view(natoms_sum + 1, 3)
 
@@ -930,8 +929,8 @@ class NEP(nn.Module):
         ri_d_zbl[mask] = 0
 
         # 3. 创建 neigh_zbl：对于 ri_zbl 中整行置 0 的位置，对应的 neigh_angular 中的元素置 0
-        neigh_zbl = list_neigh_angular.clone().detach() + 1
-        neigh_zbl[mask] = 0
+        neigh_zbl = list_neigh_angular.clone().detach()
+        neigh_zbl[mask] = -1
 
         # 4. 创建 type_zbl：对于 ri_zbl 中整行置 0 的位置，对应的 type_angular 中的元素置 -1
         # 创建一个与 list_neigh_angular 形状相同的张量，初始值为 -1

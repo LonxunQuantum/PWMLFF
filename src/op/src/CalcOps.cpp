@@ -97,6 +97,7 @@ torch::autograd::variable_list CalculateNepForce::backward(
     torch::autograd::AutogradContext *ctx,
     torch::autograd::variable_list grad_output)
     {
+        // std::cout << "CalculateNepForce::backward in grad_output shape: " << grad_output[0].sizes() << std::endl;
         auto saved = ctx->get_saved_variables();
         auto list_neigh = saved[0];
         auto dE = saved[1];
@@ -129,7 +130,7 @@ torch::autograd::variable_list CalculateNepForce::backward(
             natoms, 
             neigh_num, 
             grad);
-
+        // std::cout << "CalculateNepForce::backward out grad shape: " << grad.sizes() << std::endl;
         // gradin = grad.to(torch::kCPU);  // 确保它在 CPU 上
         // gradin_data = gradin.data<double>();
         // gradin_shape = gradin.sizes();
@@ -270,6 +271,7 @@ torch::autograd::variable_list CalculateNepVirial::backward(
     torch::autograd::AutogradContext *ctx,
     torch::autograd::variable_list grad_output)
     {
+        // std::cout << "CalculateNepVirial::backward in grad_output[0] shape: " << grad_output[0].sizes() << std::endl;
         auto saved = ctx->get_saved_variables();
         auto list_neigh = saved[0];
         auto dE = saved[1];
@@ -305,7 +307,7 @@ torch::autograd::variable_list CalculateNepVirial::backward(
         //     gradin_data[i * gradin_dim1 * gradin_dim2 + j * 4 + 3]);
         //     }
         // }
-
+        // std::cout << "CalculateNepVirial::backward out grad shape: " << grad.sizes() << std::endl;
         return {torch::autograd::Variable(), 
                 grad, 
                 torch::autograd::Variable(), 
@@ -418,7 +420,7 @@ torch::autograd::variable_list CalculateNepFeat::backward(
     torch::autograd::AutogradContext *ctx,
     torch::autograd::variable_list grad_output) 
     {
-        // std::cout << "CalculateNepFeat::backward grad_output 2b shape: " << grad_output[0].sizes() << std::endl;
+        // std::cout << "CalculateNepFeat::backward in grad_output 2b shape: " << grad_output[0].sizes() << std::endl;
         // auto gradin = grad_output[0].to(torch::kCPU);  // 确保它在 CPU 上
         // auto gradin_data = gradin.data<double>();         // 获取数据，假设数据是 float 类型
         // auto gradin_shape = gradin.sizes();
@@ -497,7 +499,7 @@ torch::autograd::variable_list CalculateNepFeat::backward(
         //     }
         // }
         // printf("====end====");
-
+        // std::cout << "CalculateNepFeat::backward out grad_coeff2 2b shape: " << grad_coeff2.sizes() << std::endl;
         return {grad_coeff2, 
                 grad_d12_radial, 
                 torch::autograd::Variable(), 
@@ -520,7 +522,6 @@ torch::autograd::variable_list CalculateNepFeatGrad::forward(
             at::Tensor atom_map,
             int64_t multi_feat_num) 
     {
-        // printf("============ 2b firstgrad forward ===========\n");
         auto dims_2b = coeff2.sizes();
         int64_t atom_types = dims_2b[0];
         int64_t n_max_2b = dims_2b[2];
@@ -546,7 +547,7 @@ torch::autograd::variable_list CalculateNepFeatGrad::backward(
     torch::autograd::AutogradContext *ctx,
     torch::autograd::variable_list grad_second) 
     {
-        // printf("============ 2b secondgrad backward ===========\n");
+        // std::cout << "CalculateNepFeatGrad::backward in grad_second[1] 2b shape: " << grad_second[1].sizes() << " grad_second[0] 2b shape: " << grad_second[0].sizes() << std::endl;;
         auto saved = ctx->get_saved_variables();
         auto coeff2 = saved[0];
         auto d12_radial = saved[1];
@@ -651,7 +652,7 @@ torch::autograd::variable_list CalculateNepFeatGrad::backward(
 
         // gradsecond_c2 = gradsecond_c2.sum(0).sum(0).sum(0).unsqueeze(0).unsqueeze(0);
         // gradsecond_c2 = gradsecond_c2.permute({0, 1, 3, 2});
-
+        // std::cout << "CalculateNepFeatGrad::backward out gradsecond_gradout 2b shape: " << gradsecond_gradout.sizes() << " gradsecond_c2 2b shape: " << gradsecond_c2.sizes() << std::endl;;
         return {
             gradsecond_gradout,
             gradsecond_c2,
@@ -722,6 +723,7 @@ torch::autograd::variable_list CalculateNepMbFeat::backward(
     torch::autograd::AutogradContext *ctx,
     torch::autograd::variable_list grad_output) 
     {
+        // std::cout << "CalculateNepMbFeat::backward in grad_output[0] 3b shape: " << grad_output[0].sizes() << std::endl;;
         auto saved = ctx->get_saved_variables();
         auto coeff3 = saved[0];
         auto d12 = saved[1];
@@ -739,6 +741,7 @@ torch::autograd::variable_list CalculateNepMbFeat::backward(
         auto result = CalculateNepMbFeatGrad::apply(grad_output[0], coeff3, d12, NL, dfeat_c3, dfeat_3b, dfeat_3b_noc, sum_fxyz, atom_map, feat_2b_num, lmax_3, lmax_4, lmax_5, rcut_angular);
         auto grad_coeff3 = result[0];
         auto grad_d12_angular = result[1];
+        // std::cout << "CalculateNepMbFeat::backward out grad_coeff3 3b shape: " << grad_coeff3.sizes() << " grad_d12_angular 3b shape: " << grad_d12_angular.sizes() << std::endl;;
         return {grad_coeff3, 
                 grad_d12_angular, 
                 torch::autograd::Variable(), 
@@ -873,7 +876,7 @@ torch::autograd::variable_list CalculateNepMbFeatGrad::backward(
     torch::autograd::AutogradContext *ctx,
     torch::autograd::variable_list grad_second) 
     {
-        // printf("============ 3b secondgrad backward ===========\n");
+        // std::cout << "CalculateNepMbFeatGrad::backward in grad_second[1] 3b shape: " << grad_second[1].sizes() << " grad_second[0] 3b shape: " << grad_second[0].sizes() << std::endl;;
         // std::cout << "CalculateNepMbFeatGrad::backward grad_second[0] shape: " << grad_second[0].sizes() << std::endl;
         // std::cout << "CalculateNepMbFeatGrad::backward grad_second[1] shape: " << grad_second[1].sizes() << std::endl;
         // auto gradin = grad_second[1].to(torch::kCPU);  // 确保它在 CPU 上
@@ -985,7 +988,7 @@ torch::autograd::variable_list CalculateNepMbFeatGrad::backward(
         //         }
         //     }
         // }
-
+        // std::cout << "CalculateNepMbFeatGrad::backward out gradsecond_gradout 3b shape: " << gradsecond_gradout.sizes() << " gradsecond_c3 3b shape: " << gradsecond_c3.sizes() << std::endl;;
         return {
             gradsecond_gradout,
             gradsecond_c3,
