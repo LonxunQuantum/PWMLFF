@@ -15,10 +15,18 @@ if torch.cuda.is_available():
     lib_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "op/build/lib/libCalcOps_bind.so")
     torch.ops.load_library(lib_path)
     CalcOps = torch.ops.CalcOps_cuda
+    device = torch.cuda.current_device()
+    memory_total = torch.cuda.get_device_properties(device).total_memory
+    memory_total_gb = memory_total / (1024 ** 3)
+    if memory_total_gb < 13:
+        load_batch_size = 1024
+    else:
+        load_batch_size = 2048
 else:
     lib_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "op/build/lib/libCalcOps_bind_cpu.so")
     torch.ops.load_library(lib_path)    # load the custom op, no use for cpu version
     CalcOps = torch.ops.CalcOps_cpu     # only for compile while no cuda device
+    load_batch_size = 1024
 
 def get_det(box: np.array):
     matrix = box.reshape((3, 3))
@@ -312,9 +320,10 @@ def calculate_neighbor_num_max_min(
     max_angular = -1e10
     min_angular = 1e10
 
+    
     dataloader = torch.utils.data.DataLoader(
         dataset,
-        batch_size=1024,
+        batch_size=load_batch_size,
         shuffle=False,
         collate_fn=variable_length_collate_fn,
         num_workers=4,
@@ -336,7 +345,8 @@ def calculate_neighbor_num_max_min(
         min_radial = min(min_radial, nn_radial.min().item())
         max_angular = max(max_angular, nn_angular.max().item())
         min_angular = min(min_angular, nn_angular.min().item())
-    torch.cuda.empty_cache()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
     return max_radial, min_radial, max_angular, min_angular
 
 def calculate_neighbor_scaler(
@@ -353,7 +363,7 @@ def calculate_neighbor_scaler(
                 device: torch.device):
     dataloader = torch.utils.data.DataLoader(
         dataset,
-        batch_size=1024,
+        batch_size=load_batch_size,
         shuffle=False,
         collate_fn=variable_length_collate_fn,
         num_workers=4,
@@ -418,8 +428,8 @@ def calculate_neighbor_scaler(
     qscaler_radial = 1.0 / (desc.amax(dim=0) - desc.amin(dim=0))
     qscaler = []
     qscaler.extend(qscaler_radial.tolist()) 
-
-    torch.cuda.empty_cache()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
     return qscaler
 
 
