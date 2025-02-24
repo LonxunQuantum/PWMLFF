@@ -1,603 +1,389 @@
-import os
-import pandas as pd
 import numpy as np
-import time
+import os
+import math
+from torch.utils.data import Dataset
 import torch
-from torch.utils.data import Subset
-from torch.autograd import Variable
-from src.loss.dploss import dp_loss, adjust_lr
-from src.optimizer.KFWrapper import KFOptimizerWrapper
-# import horovod.torch as hvd
-from torch.profiler import profile, record_function, ProfilerActivity
+import yaml
 from src.user.input_param import InputParam
+from pwdata import Config
+from pwdata.image import Image
+# from src.feature.nep_find_neigh.findneigh import FindNeigh
+import random
+from typing import Union, Optional
 from utils.debug_operation import check_cuda_memory
-from collections import defaultdict
-from utils.train_log import AverageMeter, Summary, ProgressMeter
 
 if torch.cuda.is_available():
-    lib_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 
-        "op/build/lib/libCalcOps_bind.so")
+    lib_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "op/build/lib/libCalcOps_bind.so")
     torch.ops.load_library(lib_path)
     CalcOps = torch.ops.CalcOps_cuda
 else:
-    lib_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-        "op/build/lib/libCalcOps_bind_cpu.so")
+    lib_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "op/build/lib/libCalcOps_bind_cpu.so")
     torch.ops.load_library(lib_path)    # load the custom op, no use for cpu version
     CalcOps = torch.ops.CalcOps_cpu     # only for compile while no cuda device
 
-# abandon this function
-def get_ri_rid_by_cutoff(
-    Ri:torch.Tensor,
-    list_neigh :torch.Tensor, 
-    list_neigh_type :torch.Tensor, 
-    cutoff: float,
-    max_neighbor_type:int
-    ):
-    # calculate ri_d
-    mask = Ri[:, :, :, 0].abs() > 1e-5
-    Ri_d = torch.zeros(Ri.shape[0], Ri.shape[1], max_neighbor_type, 4, 3, dtype=Ri.dtype, device=Ri.device)
-    Ri_d[:, :, :, 0, 0][mask] = Ri[:, :, :, 1][mask] / Ri[:, :, :, 0][mask]
-    Ri_d[:, :, :, 1, 0][mask] = 1
-    # dy
-    Ri_d[:, :, :, 0, 1][mask] = Ri[:, :, :, 2][mask] / Ri[:, :, :, 0][mask]
-    Ri_d[:, :, :, 2, 1][mask] = 1
-    # dz
-    Ri_d[:, :, :, 0, 2][mask] = Ri[:, :, :, 3][mask] / Ri[:, :, :, 0][mask]
-    Ri_d[:, :, :, 3, 2][mask] = 1 
+def get_det(box: np.array):
+    matrix = box.reshape((3, 3))
+    return np.linalg.det(matrix)
 
-    # 1. Ri 的第 0 列元素如果大于 cutoff 就将整行置 0
-    ri_new = Ri.clone().detach()
-    mask = (Ri[:, :, :, 0] > cutoff)
-    ri_new[mask] = 0
-    # ri_new.requires_grad_()
-    # 2. 创建 ri_d：对于 ri_new 中整行置 0 的位置，对应的 Ri_d 中的元素置 0
-    ri_d_new = Ri_d.clone().detach()
-    ri_d_new[mask] = 0
+def get_area(a: np.array, b: np.array):
+    s1 = a[1] * b[2] - a[2] * b[1]
+    s2 = a[2] * b[0] - a[0] * b[2]
+    s3 = a[0] * b[1] - a[1] * b[0]
+    return math.sqrt(s1 * s1 + s2 * s2 + s3 * s3)
 
-    # 3. 创建 neigh：对于 ri_new 中整行置 0 的位置，对应的 neigh 中的元素置 0
-    neigh_new = list_neigh.clone().detach()
-    neigh_new[mask] = 0
+def variable_length_collate_fn(batch):
+    keys = batch[0].keys()
+    res = {}
 
-    # 4. 创建 type：对于 ri_new 中整行置 0 的位置，对应的 type 中的元素置 -1
-    type_new = list_neigh_type.clone().detach()
-    type_new[mask] = -1
-    return Ri_d, ri_new, ri_d_new, neigh_new, type_new
+    def extract_items(tensors, key):
+        return [x[key] for x in tensors]
 
-
-def print_l1_l2(model):
-    params = model.parameters()
-    dtype = next(params).dtype
-    device = next(params).device
-    L1 = torch.tensor(0.0, device=device, dtype=dtype).detach().requires_grad_(False)
-    L2 = torch.tensor(0.0, device=device, dtype=dtype).detach().requires_grad_(False)
-    nums_param = 0
-    for p in params:
-        L1 += torch.sum(torch.abs(p))
-        L2 += torch.sum(p**2)
-        nums_param += p.nelement()
-    L1 = L1 / nums_param
-    L2 = L2 / nums_param
-    return L1, L2
-
-def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, args:InputParam):
-    batch_time = AverageMeter("Time", ":6.3f")
-    data_time = AverageMeter("Data", ":6.3f")
-    losses = AverageMeter("Loss", ":.4e", Summary.AVERAGE)
-    loss_Etot = AverageMeter("Etot", ":.4e", Summary.ROOT)
-    loss_Etot_per_atom = AverageMeter("Etot_per_atom", ":.4e", Summary.ROOT)
-    loss_Force = AverageMeter("Force", ":.4e", Summary.ROOT)
-    loss_Virial = AverageMeter("Virial", ":.4e", Summary.ROOT)
-    loss_Virial_per_atom = AverageMeter("Virial_per_atom", ":.4e", Summary.ROOT)
-    loss_Ei = AverageMeter("Ei", ":.4e", Summary.ROOT)
-    loss_Egroup = AverageMeter("Egroup", ":.4e", Summary.ROOT)
-    loss_L1 = AverageMeter("Loss_L1", ":.4e", Summary.ROOT)
-    loss_L2 = AverageMeter("Loss_L2", ":.4e", Summary.ROOT)
-    progress = ProgressMeter(
-        len(train_loader),
-        [batch_time, data_time, losses, loss_L1, loss_L2, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_Egroup, loss_Virial, loss_Virial_per_atom],
-        prefix="Epoch: [{}]".format(epoch),
-    )
-    
-    # switch to train mode
-    model.train()
-
-    end = time.time()
-    for i, sample in enumerate(train_loader):
-        sample = {key: value.to(device) for key, value in sample.items()}
-        FFAtomType = torch.from_numpy(np.array(model.atom_type)).to(device=device, dtype=sample["atom_type_map"].dtype)
-        NN_radial, NN_angular, NL_radial, NL_angular, Ri_radial, Ri_angular = \
-            CalcOps.calculate_neighbor(
-            sample["num_atom"],
-            sample["atom_type_map"],
-            FFAtomType-1,
-            sample["box"],
-            sample["box_original"],
-            sample["num_cell"],
-            sample["position"],
-            model.cutoff_radial,
-            model.cutoff_angular,
-            model.max_NN_radial,
-            model.max_NN_angular,
-            True #calculate_neighbor
-        )
-        Virial_label = sample["virial"]
-        Etot_label   = sample["energy"]
-        Ei_label     = sample["ei"]
-        Egroup_label = None
-        Force_label  = sample["force"]
-
-        # measure data loading time
-        data_time.update(time.time() - end)
-        batch_size =  sample["num_atom"].shape[0]
-        avg_atom_number = (sample['num_atom_sum'][-1] / batch_size).item()
-        nr_batch_sample = sample["num_atom"].shape[0]
-        global_step = (epoch - 1) * len(train_loader) + i * nr_batch_sample
-        real_lr = adjust_lr(global_step, start_lr, \
-                            args.optimizer_param.stop_step, args.optimizer_param.decay_step, args.optimizer_param.stop_lr) #  stop_step, decay_step
-        for param_group in optimizer.param_groups:
-            param_group["lr"] = real_lr * (avg_atom_number**0.5)
-
-        Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
-                NN_radial, NL_radial, Ri_radial, 
-                    NN_angular, NL_angular, Ri_angular,
-                        sample["num_atom"], sample["atom_type_map"], None, None)
-     
-        optimizer.zero_grad()
-
-        loss_F_val = criterion(Force_predict, Force_label)
-        loss_Etot_val = criterion(Etot_predict, Etot_label)
-        loss_Etot_per_atom_val = criterion(Etot_predict/sample["num_atom"], Etot_label/sample["num_atom"])
-        loss_Ei_val = criterion(Ei_predict, Ei_label)
-        loss_val = torch.zeros_like(loss_F_val)
-
-        if args.optimizer_param.train_egroup is True:
-            loss_Egroup_val = criterion(Egroup_predict, Egroup_label)
-        if args.optimizer_param.train_virial is True:
-            # loss_Virial_val = criterion(Virial_predict, Virial_label.squeeze(1))  #115.415137283393
-            data_mask = Virial_label[:, 0] > -1e6
-            _Virial_label = Virial_label[:, [0,1,2,4,5,8]][data_mask]
-            if data_mask.any().item():
-                loss_Virial_val = criterion(Virial_predict[data_mask][:,[0,1,2,4,5,8]], _Virial_label)
-                loss_Virial_per_atom_val = criterion(Virial_predict[data_mask][:,[0,1,2,4,5,8]]/sample["num_atom"][data_mask], _Virial_label/sample["num_atom"][data_mask])
-                loss_Virial.update(loss_Virial_val.item(), _Virial_label.shape[0])
-                loss_Virial_per_atom.update(loss_Virial_per_atom_val.item(), _Virial_label.shape[0])
-                loss_val += args.optimizer_param.pre_fac_virial * loss_Virial_val
-
-        w_f, w_e, w_v, w_eg, w_ei = 0, 0, 0, 0, 0
-
-        if args.optimizer_param.train_force is True:
-            w_f = 1.0 
-            loss_val += loss_F_val
-        
-        if args.optimizer_param.train_energy is True:
-            w_e = 1.0
-            loss_val += loss_Etot_val
-        
-        if args.optimizer_param.train_virial is True and data_mask.any().item():
-            w_v = 1.0 
-            loss_val += loss_Virial_val
-        
-        if args.optimizer_param.train_egroup is True:
-            w_eg = 1.0 
-            loss_val += loss_Egroup_val
-
-        if args.optimizer_param.train_egroup is True and args.optimizer_param.train_virial is True:
-            loss, _, _ = dp_loss(
-                args,
-                0.001,
-                real_lr,
-                1,
-                w_f,
-                loss_F_val,
-                w_e,
-                loss_Etot_val,
-                w_v,
-                loss_Virial_val,
-                w_eg,
-                loss_Egroup_val,
-                w_ei,
-                loss_Ei_val,
-                avg_atom_number,
-            )
-        elif args.optimizer_param.train_egroup is True and args.optimizer_param.train_virial is False:
-            loss, _, _ = dp_loss(
-                args,
-                0.001,
-                real_lr,
-                2,
-                w_f,
-                loss_F_val,
-                w_e,
-                loss_Etot_val,
-                w_eg,
-                loss_Egroup_val,
-                w_ei,
-                loss_Ei_val,
-                avg_atom_number,
-            )
-        elif args.optimizer_param.train_egroup is False and \
-                args.optimizer_param.train_virial is True and data_mask.any().item():
-            loss, _, _ = dp_loss(
-                args,
-                0.001,
-                real_lr,
-                3,
-                w_f,
-                loss_F_val,
-                w_e,
-                loss_Etot_val,
-                w_v,
-                loss_Virial_val,
-                w_ei,
-                loss_Ei_val,
-                avg_atom_number,
-            )
+    for key in keys:
+        if key in ["position", "force", "atom_type_map", "ei"]:
+            res[key] = torch.concat(extract_items(batch, key), dim=0)
         else:
-            loss, _, _ = dp_loss(
-                args,
-                0.001,
-                real_lr,
-                4,
-                w_f,
-                loss_F_val,
-                w_e,
-                loss_Etot_val,
-                w_ei,
-                loss_Ei_val,
-                avg_atom_number,
-            )
-        # import ipdb;ipdb.set_trace()
-        loss.backward()
-        optimizer.step()
+            res[key] = torch.stack(extract_items(batch, key), dim=0)
+    res["num_atom_sum"] = res["num_atom"].cumsum(0).to(res["num_atom"].dtype)
+    return res
 
-        loss_val = loss
-        L1, L2 = print_l1_l2(model)
-        if args.optimizer_param.lambda_2 is not None:
-            loss_val += L2
+class NepTestData():
+    def __init__(self, input_param:InputParam):
+        self.image_list = []
+        self.input_param = input_param
+        # data_paths = []
+        # for data_path in self.input_param.file_paths.datasets_path:
+        #     if os.path.exists(os.path.join(os.path.join(data_path, "train", "position.npy"))):
+        #         data_paths.append(os.path.join(os.path.join(data_path, "train"))) #train dir
+        #     if os.path.exists(os.path.join(os.path.join(data_path, "valid", "position.npy"))):
+        #         data_paths.append(os.path.join(os.path.join(data_path, "valid"))) #valid dir
+        #     if os.path.exists(os.path.join(data_path, "position.npy")) > 0: # add train or valid data
+        #         data_paths.append(data_path)
 
-        # measure accuracy and record loss
-        losses.update(loss_val.item(), batch_size)
-        loss_Etot.update(loss_Etot_val.item(), batch_size)
-        loss_Etot_per_atom.update(loss_Etot_per_atom_val.item(), batch_size)
-        loss_Ei.update(loss_Ei_val.item(), batch_size)
-        
-        loss_L1.update(L1.item(), batch_size)
-        loss_L2.update(L2.item(), batch_size)
+        # if len(data_paths) > 0:
+        #     for config in data_paths:
+        #         image_read = Config(data_path=config, format="pwmlff/npy").images
+        #         if isinstance(image_read, list):
+        #             self.image_list.extend(image_read)
+        #         else:
+        #             self.image_list.append(image_read)
+        # for image in self.image_list:
+        #     # if image.cartesian is True:
+        #     #     image._set_fractional()
+        #     if image.cartesian is False:
+        #         image._set_cartesian()
+        if len(self.input_param.file_paths.test_data_path) > 0:
+            for config in self.input_param.file_paths.test_data_path:
+                image_read = Config(data_path=config, format=self.input_param.file_paths.format).images
+                if isinstance(image_read, list):
+                    self.image_list.extend(image_read)
+                else:
+                    self.image_list.append(image_read)
 
-        if args.optimizer_param.train_egroup is True:
-            loss_Egroup.update(loss_Egroup_val.item(), batch_size)
+        for image in self.image_list:
+            if image.cartesian is False:
+                image._set_cartesian()
+                # image.lattice = image.lattice.T
+            # image.atom_types_image = np.array([self.atom_types.index(_) for _ in image.atom_types_image])
+        # return image_list
 
-        loss_Force.update(loss_F_val.item(), Ei_predict.shape[0])
-
-        # measure elapsed time
-        batch_time.update(time.time() - end)
-        end = time.time()
-
-        if i % args.optimizer_param.print_freq == 0:
-            progress.display(i + 1)
-
-    progress.display_summary(["Training Set:"])
-    return (
-        losses.avg,
-        loss_Etot.root,
-        loss_Etot_per_atom.root,
-        loss_Force.root,
-        loss_Ei.root,
-        loss_Egroup.root,
-        loss_Virial.root,
-        loss_Virial_per_atom.root,
-        real_lr,
-        loss_L1.root,
-        loss_L2.root
-        # Sij_max,    
-    )
-
-def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:InputParam):
-    batch_time = AverageMeter("Time", ":6.3f")
-    data_time = AverageMeter("Data", ":6.3f")
-    losses = AverageMeter("Loss", ":.4e", Summary.AVERAGE)
-    loss_Etot = AverageMeter("Etot", ":.4e", Summary.ROOT)
-    loss_Etot_per_atom = AverageMeter("Etot_per_atom", ":.4e", Summary.ROOT)
-    loss_Force = AverageMeter("Force", ":.4e", Summary.ROOT)
-    loss_Ei = AverageMeter("Ei", ":.4e", Summary.ROOT)
-    loss_Egroup = AverageMeter("Egroup", ":.4e", Summary.ROOT)
-    loss_Virial = AverageMeter("Virial", ":.4e", Summary.ROOT)
-    loss_Virial_per_atom = AverageMeter("Virial_per_atom", ":.4e", Summary.ROOT)
-    loss_L1 = AverageMeter("Loss_L1", ":.4e", Summary.ROOT)
-    loss_L2 = AverageMeter("Loss_L2", ":.4e", Summary.ROOT)    
-    progress = ProgressMeter(
-        len(train_loader),
-        [batch_time, data_time, losses, loss_L1, loss_L2, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_Egroup, loss_Virial, loss_Virial_per_atom],
-        prefix="Epoch: [{}]".format(epoch),
-    )
-
-    KFOptWrapper = KFOptimizerWrapper(
-        model, optimizer, args.optimizer_param.nselect, args.optimizer_param.groupsize, lambda_l1 = args.optimizer_param.lambda_1, lambda_l2 = args.optimizer_param.lambda_2
-    )
-    
-    # switch to train mode
-    model.train()
-
-    end = time.time()
-    for i, sample in enumerate(train_loader):
-        # measure data loading time
-        sample = {key: value.to(device) for key, value in sample.items()}
-        FFAtomType = torch.from_numpy(np.array(model.atom_type)).to(device=device, dtype=sample["atom_type_map"].dtype)
-        NN_radial, NN_angular, NL_radial, NL_angular, Ri_radial, Ri_angular = \
-            CalcOps.calculate_neighbor(
-            sample["num_atom"],
-            sample["atom_type_map"],
-            FFAtomType-1,
-            sample["box"],
-            sample["box_original"],
-            sample["num_cell"],
-            sample["position"],
-            model.cutoff_radial,
-            model.cutoff_angular,
-            model.max_NN_radial,
-            model.max_NN_angular,
-            True #calculate_neighbor
+class UniDataset(Dataset):
+    def __init__(self, 
+                data_paths, 
+                format, 
+                atom_types, 
+                cutoff_radial=0, 
+                cutoff_angular=0,
+                cal_energy=False,
+                dtype: Union[torch.dtype, str] = torch.float64, 
+                index_type: Union[torch.dtype, str] = torch.int64,
+                use_cartesian=True):
+        super(UniDataset, self).__init__()
+        self.dtype = dtype if isinstance(dtype, torch.dtype) else getattr(torch, dtype)
+        self.dirs = data_paths  # include all movement data path
+        self.format = format
+        self.image_list = []
+        self.atom_types = atom_types
+        self.cal_energy = cal_energy
+        self.cutoff_radial = cutoff_radial
+        self.cutoff_angular = cutoff_angular
+        self.max_NN_radial = 100
+        self.max_NN_angular= 100
+        self.use_cartesian = use_cartesian
+        self.dtype = dtype if isinstance(dtype, torch.dtype) else getattr(torch, dtype)
+        self.index_type = (
+            index_type
+            if isinstance(index_type, torch.dtype)
+            else getattr(torch, index_type)
         )
-        kalman_inputs = [NN_radial, NL_radial, Ri_radial, NN_angular, NL_angular, Ri_angular, \
-                            sample["num_atom"], sample["atom_type_map"], None, None]
-        Virial_label = sample["virial"]
-        Etot_label   = sample["energy"]
-        Ei_label     = sample["ei"]
-        Egroup_label = None
-        Force_label  = sample["force"]
-        if args.optimizer_param.train_virial is True:
-            # check_cuda_memory(epoch, i, "train_virial start")
-            Virial_predict = KFOptWrapper.update_virial(kalman_inputs, Virial_label, args.optimizer_param.pre_fac_virial, train_type = "NEP")
-        if args.optimizer_param.train_energy is True: 
-            # check_cuda_memory(epoch, i, "update_energy start")
-            Etot_predict = KFOptWrapper.update_energy(kalman_inputs, Etot_label, args.optimizer_param.pre_fac_etot, train_type = "NEP")
-            # check_cuda_memory(-1, -1, "update_energy end")
-        if args.optimizer_param.train_ei is True:
-            Ei_predict = KFOptWrapper.update_ei(kalman_inputs, Ei_label, args.optimizer_param.pre_fac_ei, train_type = "NEP")
+        self.image_list, self.total_images = self.__concatenate_data()
 
-        if args.optimizer_param.train_egroup is True:
-            Egroup_predict = KFOptWrapper.update_egroup(kalman_inputs, Egroup_label, args.optimizer_param.pre_fac_egroup, train_type = "NEP")
+        if self.total_images > 0:
+            data = self.__load_data(0)
+        # print()
 
-        if args.optimizer_param.train_force is True:
-            # check_cuda_memory(epoch, i, "update_force start")
-            Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = KFOptWrapper.update_force(
-                kalman_inputs, Force_label, args.optimizer_param.pre_fac_force, train_type = "NEP")
-                # check_cuda_memory(-1, -1, "update_force end")
-        # Force_predict = Force_label
-        # Ei_predict = Ei_label
-        loss_F_val = criterion(Force_predict, Force_label)
-        L1, L2 = print_l1_l2(model)
+    def __concatenate_data(self):
+        if len(self.dirs) > 0:
+            for config in self.dirs:
+                image_read = Config(data_path=config, format=self.format).images
+                if isinstance(image_read, list):
+                    self.image_list.extend(image_read)
+                else:
+                    self.image_list.append(image_read)
 
-        # divide by natoms 
-        loss_Etot_val = criterion(Etot_predict, Etot_label)
-        loss_Etot_per_atom_val = criterion(Etot_predict/sample["num_atom"], Etot_label/sample["num_atom"])
+        for image in self.image_list:
+            if self.use_cartesian:
+                if image.cartesian is False:
+                    image._set_cartesian()
+                    image.lattice = image.lattice.T
+            else:
+                if image.cartesian is True:
+                    image._set_fractional()
+            image.atom_types_image = np.array([self.atom_types.index(_) for _ in image.atom_types_image])
+
+        if self.cal_energy:
+            self.energy_shift = self.set_energy_shift()
+        else:
+            self.energy_shift = [0 for _ in self.atom_types] # for valid or test the energy shift is reused from models
         
-        loss_Ei_val = criterion(Ei_predict, Ei_label)   
-        if args.optimizer_param.train_egroup is True:
-            loss_Egroup_val = criterion(Egroup_predict, Egroup_label)
-
-        loss_val = args.optimizer_param.pre_fac_force * loss_F_val + \
-                    args.optimizer_param.pre_fac_etot * loss_Etot_val
-
-        if args.optimizer_param.train_virial is True:
-            data_mask = Virial_label[:, 0] > -1e6
-            _Virial_label = Virial_label[:, [0,1,2,4,5,8]][data_mask]
-            if data_mask.any().item():
-                loss_Virial_val = criterion(Virial_predict[data_mask][:,[0,1,2,4,5,8]], _Virial_label)
-                loss_Virial_per_atom_val = criterion(Virial_predict[data_mask][:,[0,1,2,4,5,8]]/sample["num_atom"][data_mask], _Virial_label/sample["num_atom"][data_mask])
-                loss_Virial.update(loss_Virial_val.item(), _Virial_label.shape[0])
-                loss_Virial_per_atom.update(loss_Virial_per_atom_val.item(), _Virial_label.shape[0])
-                loss_val += args.optimizer_param.pre_fac_virial * loss_Virial_val
-                
-        if args.optimizer_param.lambda_2 is not None:
-            loss_val += L2
-        if args.optimizer_param.lambda_1 is not None:
-            loss_val += L1
-        batch_size = sample["num_atom"].shape[0]
-        # measure accuracy and record loss
-        losses.update(loss_val.item(), batch_size)
-        loss_L1.update(L1.item(), batch_size)
-        loss_L2.update(L2.item(), batch_size)
-
-        loss_Etot.update(loss_Etot_val.item(), batch_size)
-        loss_Etot_per_atom.update(loss_Etot_per_atom_val.item(), batch_size)
-        loss_Ei.update(loss_Ei_val.item(), Ei_predict.shape[0])
-        if args.optimizer_param.train_egroup is True:
-            loss_Egroup.update(loss_Egroup_val.item(), batch_size)
-        loss_Force.update(loss_F_val.item(), Ei_predict.shape[0])
-
-        # measure elapsed time
-        batch_time.update(time.time() - end)
-        end = time.time()
-
-        if i % args.optimizer_param.print_freq == 0:
-            progress.display(i + 1)
-        
-    """
-    if args.hvd:
-        losses.all_reduce()
-        loss_Etot.all_reduce()
-        loss_Etot_per_atom.all_reduce()
-        loss_Force.all_reduce()
-        loss_Ei.all_reduce()
-        if args.optimizer_param.train_egroup is True:
-            loss_Egroup.all_reduce()
-        if args.optimizer_param.train_virial is True:
-            loss_Virial.all_reduce()
-            loss_Virial_per_atom.all_reduce()
-        batch_time.all_reduce()
-    """
-    progress.display_summary(["Training Set:"])
-    return losses.avg, loss_Etot.root, loss_Etot_per_atom.root, loss_Force.root, loss_Ei.root, loss_Egroup.root, loss_Virial.root, loss_Virial_per_atom.root, loss_L1.root, loss_L2.root
-
-def valid(val_loader, model, criterion, device, args:InputParam):
-    def run_validate(loader, base_progress=0):
-        end = time.time()
-        L1, L2 = print_l1_l2(model)
-        for i, sample in enumerate(val_loader):
-            sample = {key: value.to(device) for key, value in sample.items()}
-            FFAtomType = torch.from_numpy(np.array(model.atom_type)).to(device=device, dtype=sample["atom_type_map"].dtype)
-            NN_radial, NN_angular, NL_radial, NL_angular, Ri_radial, Ri_angular = \
-                CalcOps.calculate_neighbor(
-                sample["num_atom"],
-                sample["atom_type_map"],
-                FFAtomType-1,
-                sample["box"],
-                sample["box_original"],
-                sample["num_cell"],
-                sample["position"],
-                model.cutoff_radial,
-                model.cutoff_angular,
-                model.max_NN_radial,
-                model.max_NN_angular,
-                True #calculate_neighbor
-            )
-            Virial_label = sample["virial"]
-            Etot_label   = sample["energy"]
-            Ei_label     = sample["ei"]
-            Egroup_label = None
-            Force_label  = sample["force"]
-
-            # measure data loading time
-            batch_size =  sample["num_atom"].shape[0]
-            avg_atom_number = (sample['num_atom_sum'][-1] / batch_size).item()
-            nr_batch_sample = sample["num_atom"].shape[0]
-
-            # if args.optimizer_param.train_egroup is True:
-            #     Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
-            #         dR_neigh_list, ImageDR, dR_neigh_type_list, \
-            #             dR_neigh_list_angular, ImageDR_angular, dR_neigh_type_list_angular, \
-            #             atom_type_map[0], atom_type[0], 0, Egroup_weight, Divider)
-
-                # atom_type_map: we only need the first element, because it is same for each image of MOVEMENT
-            Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
-                    NN_radial, NL_radial, Ri_radial, 
-                        NN_angular, NL_angular, Ri_angular,
-                            sample["num_atom"], sample["atom_type_map"], None, None)
-                                                    
-            loss_F_val = criterion(Force_predict, Force_label)
-            loss_Etot_val = criterion(Etot_predict, Etot_label)
-            loss_Etot_per_atom_val = criterion(Etot_predict/sample["num_atom"], Etot_label/sample["num_atom"])
-            loss_Ei_val = criterion(Ei_predict, Ei_label)
-            if args.optimizer_param.train_egroup is True:
-                loss_Egroup_val = criterion(Egroup_predict, Egroup_label)
-
-            loss_val = args.optimizer_param.pre_fac_force * loss_F_val + \
-                    args.optimizer_param.pre_fac_etot * loss_Etot_val
-
-            if args.optimizer_param.train_virial is True:
-                # loss_Virial_val = criterion(Virial_predict, Virial_label.squeeze(1))  #115.415137283393
-                data_mask = Virial_label[:, 0] > -1e6
-                _Virial_label = Virial_label[:, [0,1,2,4,5,8]][data_mask]
-                if data_mask.any().item():
-                    loss_Virial_val = criterion(Virial_predict[data_mask][:,[0,1,2,4,5,8]], _Virial_label)
-                    loss_Virial_per_atom_val = criterion(Virial_predict[data_mask][:,[0,1,2,4,5,8]]/sample["num_atom"][data_mask], _Virial_label/sample["num_atom"][data_mask])
-                    loss_Virial.update(loss_Virial_val.item(), _Virial_label.shape[0])
-                    loss_Virial_per_atom.update(loss_Virial_per_atom_val.item(), _Virial_label.shape[0])
-                    loss_val += args.optimizer_param.pre_fac_virial * loss_Virial_val
-                if args.optimizer_param.lambda_2 is not None:
-                    loss_val += L2
-                if args.optimizer_param.lambda_1 is not None:
-                    loss_val += L1
-                # measure accuracy and record loss
-                losses.update(loss_val.item(), batch_size)
-                loss_Etot.update(loss_Etot_val.item(), batch_size)
-                loss_Etot_per_atom.update(loss_Etot_per_atom_val.item(), batch_size)
-                loss_Ei.update(loss_Ei_val.item(), batch_size)
-                if args.optimizer_param.train_egroup is True:
-                    loss_Egroup.update(loss_Egroup_val.item(), batch_size)
-                loss_Force.update(loss_F_val.item(), Ei_predict.shape[0])
-            # measure elapsed time
-        batch_time.update(time.time() - end)
-        end = time.time()
-
-        if i % args.optimizer_param.print_freq == 0:
-            progress.display(i + 1) 
-        
-    batch_time = AverageMeter("Time", ":6.3f", Summary.NONE)
-    losses = AverageMeter("Loss", ":.4e", Summary.AVERAGE)
-    loss_Etot = AverageMeter("Etot", ":.4e", Summary.ROOT)
-    loss_Etot_per_atom = AverageMeter("Etot_per_atom", ":.4e", Summary.ROOT)
-    loss_Force = AverageMeter("Force", ":.4e", Summary.ROOT)
-    loss_Ei = AverageMeter("Ei", ":.4e", Summary.ROOT)
-    loss_Egroup = AverageMeter("Egroup", ":.4e", Summary.ROOT)
-    loss_Virial = AverageMeter("Virial", ":.4e", Summary.ROOT)
-    loss_Virial_per_atom = AverageMeter("Virial_per_atom", ":.4e", Summary.ROOT)
-
-    progress = ProgressMeter(
-        len(val_loader),
-        [batch_time, losses, loss_Etot, loss_Etot_per_atom, loss_Force, loss_Ei, loss_Egroup, loss_Virial, loss_Virial_per_atom],
-        prefix="Test: ",    
-    )
+        return self.image_list, len(self.image_list)
     
-    # switch to evaluate mode
-    model.eval()
+    def set_energy_shift(self):
+        energy_dict = {}
+        atom_type_searched = set()
+        repeat_num = 0
+        for atom in self.atom_types:
+            energy_dict[atom] = []
+        energy_dict['E'] = []
+        shuffled_list = random.sample(self.image_list, len(self.image_list))
+        for image in shuffled_list:
+            atom_types = image.arrays['atom_types_image']
+            cout_type, cout_num = np.unique(atom_types, return_counts=True)
+            atom_types_image_dict = dict(zip(cout_type, cout_num))
+            for element in self.atom_types:
+                if element in atom_types_image_dict.keys():
+                    energy_dict[element].append(atom_types_image_dict[element])
+                else:
+                    energy_dict[element].append(0)
+            energy_dict['E'].append(image.Ep)
+            for element in atom_types_image_dict.keys():
+                atom_type_searched.add(element)
+            if len(atom_type_searched) == len(self.atom_types):
+                repeat_num += 1
+                atom_type_searched.clear()
+            if repeat_num > 5:
+                break
+        _num_matrix = []
+        for key in energy_dict.keys():
+            if key != 'E':
+                _num_matrix.append(energy_dict[key])
+        x, residuals, rank, s = np.linalg.lstsq(np.array(_num_matrix).T, energy_dict['E'], rcond=None)
+        energy_shift = x.tolist()
+        return energy_shift
+
+    def get_energy_shift(self):
+        return self.energy_shift
+
+    def __getitem__(self, index):
+        data = self.__load_data(index)
+        # if self.train_hybrid is True:
+        #     data = self.__completing_tensor_rows(data)
+        return data
     
-    run_validate(val_loader)
+    def __len__(self): 
+        return self.total_images
 
-    """
-    if args.hvd and (len(val_loader.sampler) * hvd.size() < len(val_loader.dataset)):
-        aux_val_dataset = Subset(
-            val_loader.dataset,
-            range(len(val_loader.sampler) * hvd.size(), len(val_loader.dataset)),
+    def __load_data(self, index):
+        data = {}
+        num_cell = np.zeros(3, dtype=int)
+        box = np.zeros(18, dtype=float) 
+        volume = self.expand_box(self.image_list[index].lattice.flatten(), self.cutoff_radial, num_cell, box)
+        data["box"] = torch.from_numpy(box).to(self.dtype)
+        data["box_original"] = torch.from_numpy(self.image_list[index].lattice.flatten()).to(self.dtype)
+        data["num_cell"] = torch.from_numpy(num_cell).to(self.index_type)
+        data["volume"] = torch.from_numpy(np.array([volume])).to(self.dtype)
+        # data["atom_type"] = torch.from_numpy(self.image_list[index].atom_type).to(self.index_type)
+        data["atom_type_map"] = torch.from_numpy(self.image_list[index].atom_types_image).to(self.index_type)
+        data["num_atom"] = torch.from_numpy(np.array([len(data["atom_type_map"])])).to(self.index_type)
+        data["force"] = torch.from_numpy(self.image_list[index].force).to(self.dtype)
+        data["ei"] = torch.from_numpy(self.image_list[index].atomic_energy).to(self.dtype)
+        data["energy"] = torch.from_numpy(np.array([self.image_list[index].Ep])).to(self.dtype)
+        data["position"] = torch.from_numpy(self.image_list[index].position).to(self.dtype)
+        data["virial"] = torch.from_numpy(np.ones([9]) * -1e6).to(self.dtype) if len(self.image_list[index].virial) == 0 \
+                            else torch.from_numpy(self.image_list[index].virial.flatten()).to(self.dtype)
+        return data
+        # for key in list(data.keys()):
+        #     print(key)
+        #     print(data[key].shape)
+    def expand_box(self, lattice, cutoff_radial, num_cell, box):
+        a = lattice[0::3]
+        b = lattice[1::3]
+        c = lattice[2::3]
+        det = get_det(lattice)
+        volume = abs(det)
+        num_cell[0] = int(
+            math.ceil(2.0 * cutoff_radial / (volume / get_area(b, c)))
         )
-        aux_val_loader = torch.utils.data.DataLoader(
-            aux_val_dataset,
-            batch_size=args.batch_size,
-            shuffle=False,
-            num_workers=args.workers,
-            pin_memory=True,
+        num_cell[1] = int(
+            math.ceil(2.0 * cutoff_radial / (volume / get_area(c, a)))
         )
-        run_validate(aux_val_loader, len(val_loader))
+        num_cell[2] = int(
+            math.ceil(2.0 * cutoff_radial / (volume / get_area(a, b)))
+        )
 
-    if args.hvd:
-        losses.all_reduce()
-        loss_Etot.all_reduce()
-        loss_Etot_per_atom.all_reduce()
-        loss_Force.all_reduce()
-        loss_Ei.all_reduce()
-        if args.optimizer_param.train_virial is True:
-            loss_Virial.all_reduce()
-            loss_Virial_per_atom.all_reduce()
+        box[0:9:3] = lattice[0::3] * num_cell[0]
+        box[1:9:3] = lattice[1::3] * num_cell[1]
+        box[2:9:3] = lattice[2::3] * num_cell[2]
+
+        box[9] = box[4] * box[8] - box[5] * box[7]
+        box[10] = box[2] * box[7] - box[1] * box[8]
+        box[11] = box[1] * box[5] - box[2] * box[4]
+        box[12] = box[5] * box[6] - box[3] * box[8]
+        box[13] = box[0] * box[8] - box[2] * box[6]
+        box[14] = box[2] * box[3] - box[0] * box[5]
+        box[15] = box[3] * box[7] - box[4] * box[6]
+        box[16] = box[1] * box[6] - box[0] * box[7]
+        box[17] = box[0] * box[4] - box[1] * box[3]
+
+        det *= num_cell[0] * num_cell[1] * num_cell[2]
+        for n in range(9, 18):
+            box[n] /= det
+        return volume    
+
+def type_map(atom_types_image, atom_type):
     """
+    Maps the atom types to their corresponding indices in the atom_type array.
 
-    progress.display_summary(["Test Set:"])
+    Args:
+    atom_types_image (numpy.ndarray): Array of atom types to be mapped.
+    atom_type (numpy.ndarray): Array of integers representing the atom type of each atom in the system.
 
-    return losses.avg, loss_Etot.root, loss_Etot_per_atom.root, loss_Force.root, loss_Ei.root, loss_Egroup.root, loss_Virial.root, loss_Virial_per_atom.root
+    Returns:
+    list: List of indices corresponding to the atom types in the atom_type array.
+
+    Raises:
+    AssertionError: If no atom types in atom_types_image are found in atom_type.
+
+    Examples: CH4 molecule
+    >>> atom_types_image = array([6, 1, 1, 1, 1])
+    >>> atom_type = array([6, 1])
+    >>> type_map(atom_types_image, atom_type)
+    [0, 1, 1, 1, 1]
+    """
+    atom_type_map = []
+    if isinstance(atom_types_image.tolist(), int):
+        atom_types_image = [atom_types_image.tolist()]
+    for elem in atom_types_image:
+        if elem in atom_type:
+            atom_type_map.append(np.where(atom_type == elem)[0][0])
+    assert len(atom_type_map) != 0, "this atom type didn't found"
+    return atom_type_map
 
 '''
 description: 
-this function is used for inference:
-the output is a pandas DataFrame object
-param {*} val_loader
-param {*} model
-param {*} criterion
-param {*} device
-param {*} args
+ nouse
+param {*} chunk_size
+param {*} _Ei
+param {*} atom_types_nums
 return {*}
 author: wuxingxing
 '''
-def predict(val_loader, model, criterion, device, args:InputParam, isprofile=False):
-    train_lists = ["img_idx"] #"Etot_lab", "Etot_pre", "Ei_lab", "Ei_pre", "Force_lab", "Force_pre"
-    train_lists.extend(["RMSE_Etot", "RMSE_Etot_per_atom", "RMSE_Ei", "RMSE_F"])
-    if args.optimizer_param.train_egroup:
-        train_lists.append("RMSE_Egroup")
-    if args.optimizer_param.train_virial:
-        train_lists.append("RMSE_virial")
-        train_lists.append("RMSE_virial_per_atom")
+def calculate_energy_shift(chunk_size, _Ei, atom_types_nums):
+    Ei = _Ei[:chunk_size]
+    res = []
+    current_type = 0
+    for atom_type_num in atom_types_nums:
+        current_type_indices = current_type + atom_type_num
+        avg_Ei = np.mean(Ei[:, current_type:current_type_indices])
+        res.append(avg_Ei)
+        current_type = current_type_indices
+    return res
 
-    res_pd = pd.DataFrame(columns=train_lists)
-    force_label_list = []
-    force_predict_list = []
-    ei_label_list = []
-    ei_predict_list = []
-    etot_label_list = []
-    etot_predict_list = []
-    model.eval()
+"""
+Calculate the maximum and minimum neighbor numbers for radial and angular distributions.
 
-    for i, sample in enumerate(val_loader):
+:param dataloader: DataLoader object containing the dataset.
+:param device: The device (CPU or GPU) to which the data should be moved.
+:return: None
+"""
+def calculate_neighbor_num_max_min(
+                dataset: UniDataset, 
+                device: torch.device) -> None:
+    max_radial = -1e10
+    min_radial = 1e10
+    max_angular = -1e10
+    min_angular = 1e10
+
+    dataloader = torch.utils.data.DataLoader(
+        dataset,
+        batch_size=1024,
+        shuffle=False,
+        collate_fn=variable_length_collate_fn,
+        num_workers=4,
+    )
+    
+    for _, sample in enumerate(dataloader):
         sample = {key: value.to(device) for key, value in sample.items()}
-        FFAtomType = torch.from_numpy(np.array(model.atom_type)).to(device=device, dtype=sample["atom_type_map"].dtype)
+        nn_radial, nn_angular = CalcOps.calculate_maxneigh(
+            sample["num_atom"],
+            sample["box"],
+            sample["box_original"],
+            sample["num_cell"],
+            sample["position"],
+            dataset.cutoff_radial,
+            dataset.cutoff_angular
+        )
+        # print(_, torch.sum(nn_radial))
+        max_radial = max(max_radial, nn_radial.max().item())
+        min_radial = min(min_radial, nn_radial.min().item())
+        max_angular = max(max_angular, nn_angular.max().item())
+        min_angular = min(min_angular, nn_angular.min().item())
+    
+    # check_cuda_memory(-2, -2, "calcualte max")
+    return max_radial, min_radial, max_angular, min_angular
+
+def calculate_neighbor_scaler(
+                dataset: UniDataset,
+                max_NN_radial,
+                max_NN_angular,
+                n_max_radial,
+                basis_size_radial,
+                n_max_angular,
+                basis_size_angular,
+                lmax_3,
+                lmax_4,
+                lmax_5,
+                device: torch.device):
+    dataloader = torch.utils.data.DataLoader(
+        dataset,
+        batch_size=1024,
+        shuffle=False,
+        collate_fn=variable_length_collate_fn,
+        num_workers=4,
+    )
+
+    dtype = dataset.dtype
+    weight_radial = 1 * torch.ones(
+        len(dataset.atom_types),
+        len(dataset.atom_types),
+        n_max_radial + 1,
+        basis_size_radial + 1,
+        dtype=dtype,
+        device=device,
+    )
+
+    weight_angular = 1 * torch.ones(
+        len(dataset.atom_types),
+        len(dataset.atom_types),
+        n_max_angular + 1,
+        basis_size_angular + 1,
+        dtype=dtype,
+        device=device,
+    )
+    
+    FFAtomType = torch.from_numpy(np.array(dataset.atom_types)).to(device=device, dtype=dataset.index_type)
+    tmp_desc = []
+    for _, sample in enumerate(dataloader):
+        sample = {key: value.to(device) for key, value in sample.items()}
         NN_radial, NN_angular, NL_radial, NL_angular, Ri_radial, Ri_angular = \
             CalcOps.calculate_neighbor(
             sample["num_atom"],
@@ -607,81 +393,75 @@ def predict(val_loader, model, criterion, device, args:InputParam, isprofile=Fal
             sample["box_original"],
             sample["num_cell"],
             sample["position"],
-            model.cutoff_radial,
-            model.cutoff_angular,
-            model.max_NN_radial,
-            model.max_NN_angular,
-            True #calculate_neighbor
+            dataset.cutoff_radial,
+            dataset.cutoff_angular,
+            max_NN_radial,
+            max_NN_angular,
+            False # with_rij
         )
-        Virial_label = sample["virial"]
-        Etot_label   = sample["energy"]
-        Ei_label     = sample["ei"]
-        Egroup_label = None
-        Force_label  = sample["force"]
 
-        # measure data loading time
-        batch_size =  sample["num_atom"].shape[0]
-        avg_atom_number = (sample['num_atom_sum'][-1] / batch_size).item()
-        nr_batch_sample = sample["num_atom"].shape[0]
+        descriptor = CalcOps.calculate_descriptor(
+            weight_radial,
+            weight_angular,
+            Ri_radial,
+            NL_radial,
+            sample["atom_type_map"],
+            dataset.cutoff_radial,
+            dataset.cutoff_angular,
+            max_NN_radial,
+            lmax_3,
+            lmax_4,
+            lmax_5
+        )[0]
+        tmp_desc.append(descriptor)
 
-        # if args.optimizer_param.train_egroup is True:
-        #     Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
-        #         dR_neigh_list, ImageDR, dR_neigh_type_list, \
-        #             dR_neigh_list_angular, ImageDR_angular, dR_neigh_type_list_angular, \
-        #             atom_type_map[0], atom_type[0], 0, Egroup_weight, Divider)
+    desc = torch.concat(tmp_desc, dim=0)
 
-            # atom_type_map: we only need the first element, because it is same for each image of MOVEMENT
-        Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = model(
-                NN_radial, NL_radial, Ri_radial, 
-                    NN_angular, NL_angular, Ri_angular,
-                        sample["num_atom"], sample["atom_type_map"], None, None)
-        # mse
-        loss_F_val = criterion(Force_predict, Force_label)
-        loss_Etot_val = criterion(Etot_predict, Etot_label)
-        loss_Etot_per_atom_val = criterion(Etot_predict/sample["num_atom"], Etot_label/sample["num_atom"])
-        loss_Ei_val = criterion(Ei_predict, Ei_label)
-        if args.optimizer_param.train_egroup is True:
-            loss_Egroup_val = criterion(Egroup_predict, Egroup_label)
-
-        loss_val = args.optimizer_param.pre_fac_force * loss_F_val + \
-                args.optimizer_param.pre_fac_etot * loss_Etot_val
-
-        if args.optimizer_param.train_virial is True:
-            # loss_Virial_val = criterion(Virial_predict, Virial_label.squeeze(1))  #115.415137283393
-            data_mask = Virial_label[:, 0] > -1e6
-            _Virial_label = Virial_label[:, [0,1,2,4,5,8]][data_mask]
-            if data_mask.any().item():
-                loss_Virial_val = criterion(Virial_predict[data_mask][:,[0,1,2,4,5,8]], _Virial_label)
-                loss_Virial_per_atom_val = criterion(Virial_predict[data_mask][:,[0,1,2,4,5,8]]/sample["num_atom"][data_mask], _Virial_label/sample["num_atom"][data_mask])
-                # loss_Virial.update(loss_Virial_val.item(), _Virial_label.shape[0])
-                # loss_Virial_per_atom.update(loss_Virial_per_atom_val.item(), _Virial_label.shape[0])
-                loss_val += args.optimizer_param.pre_fac_virial * loss_Virial_val
-
-        # rmse
-        Etot_rmse = loss_Etot_val ** 0.5
-        etot_atom_rmse = loss_Etot_per_atom_val**0.5
-        Ei_rmse = loss_Ei_val ** 0.5
-        F_rmse = loss_F_val ** 0.5
-
-        res_list = [i, float(Etot_rmse), float(etot_atom_rmse), float(Ei_rmse), float(F_rmse)]
-        #float(Etot_predict), float(Ei_label.abs().mean()), float(Ei_predict.abs().mean()), float(Force_label.abs().mean()), float(Force_predict.abs().mean()),\
-        if args.optimizer_param.train_egroup:
-            res_list.append(float(loss_Egroup_val))
-        if args.optimizer_param.train_virial:
-            res_list.append(float(loss_Virial_val))
-            res_list.append(float(loss_Virial_per_atom_val))
-        
-        force_label_list.append(Force_label.flatten().cpu().numpy())
-        force_predict_list.append(Force_predict.flatten().detach().cpu().numpy())
-        ei_label_list.append(Ei_label.flatten().cpu().numpy())
-        ei_predict_list.append(Ei_predict.flatten().detach().cpu().numpy())
-        etot_label_list.append(float(Etot_label))
-        etot_predict_list.append(float(Etot_predict))
-        res_pd.loc[res_pd.shape[0]] = res_list
-
-    return res_pd, etot_label_list, etot_predict_list, ei_label_list, ei_predict_list, force_label_list, force_predict_list
+    qscaler_radial = 1.0 / (desc.amax(dim=0) - desc.amin(dim=0))
+    qscaler = []
+    qscaler.extend(qscaler_radial.tolist()) 
+    # check_cuda_memory(-2, -2, "calcualte scaler")
+    torch.cuda.empty_cache()
+    return qscaler
 
 
-def save_checkpoint(state, filename, prefix):
-    filename = os.path.join(prefix, filename)
-    torch.save(state, filename)
+def main():
+    input_json = "/data/home/wuxingxing/codespace/PWMLFF_nep/pwmat_mlff_workdir/hfo2/nep_train/train.json"
+    nep_param = InputParam(input_json, "train")
+    #     print("Read Config successful")
+    # import ipdb; ipdb.set_trace()
+    # load_type, nep_param:InputParam, energy_shift, max_atom_nums
+    energy_shift = [-6.052877426125001, -12.10575485225]
+    max_atom_nums = 96
+    dataset = UniDataset("train", nep_param, energy_shift, max_atom_nums)
+
+    dataloader = torch.utils.data.DataLoader(
+        dataset,
+        batch_size=4,
+        shuffle=False,
+        num_workers=4,
+        pin_memory=True,
+    )
+    
+    for i, sample_batches in enumerate(dataloader):
+        # import ipdb;ipdb.set_trace()
+
+        print(sample_batches["Force"].shape)
+        print(sample_batches["Virial"].shape)
+        print(sample_batches["Ei"].shape)
+        print(sample_batches["energy"].shape)
+        #print(sample_batches["Egroup"].shape)
+        #print(sample_batches["Divider"].shape)
+        #print(sample_batches["Egroup_weight"].shape)
+
+        print(sample_batches["ListNeighbor"].shape)
+        print(sample_batches["Position"].shape)
+        # print(sample_batches["NeighborType"].shape)
+        # print(sample_batches["Ri"].shape)
+        # print(sample_batches["ImageDR"].shape)
+        # print(sample_batches["Ri_d"].shape)
+        print(sample_batches["ImageAtomNum"].shape)
+
+
+if __name__ == "__main__":
+    main()
