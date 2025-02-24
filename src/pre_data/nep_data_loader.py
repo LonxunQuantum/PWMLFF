@@ -336,6 +336,7 @@ def calculate_neighbor_num_max_min(
         min_radial = min(min_radial, nn_radial.min().item())
         max_angular = max(max_angular, nn_angular.max().item())
         min_angular = min(min_angular, nn_angular.min().item())
+    torch.cuda.empty_cache()
     return max_radial, min_radial, max_angular, min_angular
 
 def calculate_neighbor_scaler(
@@ -417,6 +418,8 @@ def calculate_neighbor_scaler(
     qscaler_radial = 1.0 / (desc.amax(dim=0) - desc.amin(dim=0))
     qscaler = []
     qscaler.extend(qscaler_radial.tolist()) 
+
+    torch.cuda.empty_cache()
     return qscaler
 
 
