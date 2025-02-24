@@ -59,6 +59,11 @@ class DP(nn.Module):
             raise RuntimeError("train(): unsupported training data type")
         self.davg = torch.tensor(davg, dtype=self.dtype)
         self.dstd = torch.tensor(dstd, dtype=self.dtype)
+        import numpy as np
+        # np.save('/data/home/wuxingxing2/data/pwmlff/LiSiC_NEP/ADAM/dp-std/davg.npy', self.davg.cpu().numpy())
+        # np.save('/data/home/wuxingxing2/data/pwmlff/LiSiC_NEP/ADAM/dp-std/dstd.npy', self.dstd.cpu().numpy())
+        # np.save('/data/home/wuxingxing2/data/pwmlff/LiSiC_NEP/ADAM/dp-std/energy.npy', energy_shift)
+        
         # self.energy_shift = torch.tensor(energy_shift, dtype=self.dtype)
 
         self.embedding_net = nn.ModuleList()

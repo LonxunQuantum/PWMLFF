@@ -109,7 +109,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
             Sij_max = max(Sij_max_cpu)
 
         dR_neigh_list_cpu = sample_batches["ListNeighbor"].int()
-        natoms_img_cpu = sample_batches["ImageAtomNum"].int()
+        natoms_img_cpu = sample_batches["ImageAtomNum"].int().squeeze(-1)
         atom_type_cpu = sample_batches["AtomType"].int()
         atom_type_map_cpu = sample_batches["AtomTypeMap"].int()
         # classify batchs according to their atom type and atom nums
@@ -385,7 +385,7 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
             Sij_max = max(Sij_max_cpu)
 
         dR_neigh_list_cpu = sample_batches["ListNeighbor"].int()
-        natoms_img_cpu = sample_batches["ImageAtomNum"].int()
+        natoms_img_cpu = sample_batches["ImageAtomNum"].int().squeeze(-1)
         atom_type_cpu = sample_batches["AtomType"].int()
         atom_type_map_cpu = sample_batches["AtomTypeMap"].int()
         # classify batchs according to their atom type and atom nums
@@ -547,7 +547,6 @@ def valid(val_loader, model, criterion, device, args:InputParam):
         end = time.time()
         L1, L2 = print_l1_l2(model)
         for i, sample_batches in enumerate(loader):
-
             i = base_progress + i
             if args.precision == "float64":
                 Ei_label_cpu = sample_batches["Ei"].double()
@@ -586,7 +585,7 @@ def valid(val_loader, model, criterion, device, args:InputParam):
                 raise Exception("Error! Please specify floating point type: float32 or float64 by the parameter --datatype! ")
             
             dR_neigh_list_cpu = sample_batches["ListNeighbor"].int()
-            natoms_img_cpu = sample_batches["ImageAtomNum"].int()
+            natoms_img_cpu = sample_batches["ImageAtomNum"].int().squeeze(-1)
             atom_type_cpu = sample_batches["AtomType"].int()
             atom_type_map_cpu = sample_batches["AtomTypeMap"].int()
             # classify batchs according to their atom type and atom nums
@@ -791,7 +790,7 @@ def predict(val_loader, model, criterion, device, args:InputParam, isprofile=Fal
             raise Exception("Error! Please specify floating point type: float32 or float64 by the parameter --datatype! ")
         
         dR_neigh_list_cpu = sample_batches["ListNeighbor"].int()
-        natoms_img_cpu = sample_batches["ImageAtomNum"].int()
+        natoms_img_cpu = sample_batches["ImageAtomNum"].int().squeeze(-1)
         atom_type_cpu = sample_batches["AtomType"].int()
         atom_type_map_cpu = sample_batches["AtomTypeMap"].int()
         # classify batchs according to their atom type and atom nums

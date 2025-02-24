@@ -153,17 +153,26 @@ class WorkFileStructure(object):
 
     def set_train_valid_file(self, json_input:dict):
         # set trian movement file path
-        train_movement_path = get_parameter("raw_files", json_input, [])
-        if len(train_movement_path) == 0:
-            train_movement_path = get_parameter("train_movement_file", json_input, [])
-
-        for mvm in train_movement_path:
-            if os.path.exists(mvm) is False:
-                raise Exception("Error! train movement: {} file not exist!".format(mvm))
-        # set train feature path
-        train_movement_path = [os.path.abspath(_) for _ in train_movement_path]
-        if len(train_movement_path) > 0:
-            train_movement_path = sorted(train_movement_path)
+        self.format = get_parameter("format", json_input, "pwmat/movement").lower() # used in new file and raw_file
+        train_data = get_parameter("train_data", json_input, [])
+        for _train_data in train_data:
+            if os.path.exists(_train_data) is False:
+                raise Exception("Error! train data: {} file not exist!".format(_train_data))
+            else:
+                self.train_data_path.append(os.path.abspath(_train_data))
+        valid_data = get_parameter("valid_data", json_input, [])
+        for _valid_data in valid_data:
+            if os.path.exists(_valid_data) is False:
+                raise Exception("Error! valid data: {} file not exist!".format(_valid_data))
+            else:
+                self.valid_data_path.append(os.path.abspath(_valid_data))
+        test_data = get_parameter("test_data", json_input, [])
+        for _test_data in test_data:
+            if os.path.exists(_test_data) is False:
+                raise Exception("Error! test data: {} file not exist!".format(_test_data))
+            else:
+                self.test_data_path.append(os.path.abspath(_test_data))
+                
         train_feature_path = get_parameter("train_feature_path", json_input, [])
         for feat_path in train_feature_path:
             if os.path.exists(feat_path) is False:

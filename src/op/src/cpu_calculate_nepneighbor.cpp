@@ -178,7 +178,6 @@ void launch_calculate_neighbor_cpu(
                     }
                 }
             }
-
             NN_radial[n1] = count_radial;
             NN_angular[n1] = count_angular;
         }
@@ -188,7 +187,7 @@ void launch_calculate_neighbor_cpu(
 void launch_calculate_descriptor_cpu(
     const double  * coeff2,
     const double  * coeff3,
-    const double  * r12,
+    const double  * rij,
     const int64_t * NL,
     const int64_t * atom_map,
     const double rcut_radial,
@@ -205,7 +204,7 @@ void launch_calculate_descriptor_cpu(
     const int64_t lmax_5,
     const int64_t n_types
 ){
-    const int N = total_atoms; // N = natoms * batch_size
+    const int64_t N = total_atoms; // N = natoms * batch_size
 
     int feat_2b_num = 0;
     int feat_3b_num = 0;
@@ -218,24 +217,23 @@ void launch_calculate_descriptor_cpu(
     double rcinv_angular = 1.0 / rcut_angular;
 
     // CPU parallel loop
-    #pragma omp parallel for
+    // #pragma omp parallel for
     for (int n1 = 0; n1 < N; ++n1) {
         int t1 = atom_map[n1];
-
         // Get radial descriptors
         double q[MAX_DIM] = {0.0};
         int neigh_start_idx = n1 * neigh_num;
         int r12_start_idx =  n1 * neigh_num * 3;
         int feat_start_idx = n1 * (feat_2b_num + feat_3b_num); 
         int c2_start_idx = t1 * n_types * n_max_2b * n_base_2b;
-
+        
         for (int i1 = 0; i1 < neigh_num; ++i1) {
             int n2 = NL[neigh_start_idx + i1]; // the data from neighbor list
             if (n2 < 0) break;
             int t2 = atom_map[n2];
             int c_I_J_idx = c2_start_idx + t2 * n_max_2b * n_base_2b;
             int rij_idx = r12_start_idx + i1 * 3;
-            double r12[3] = {r12[rij_idx], r12[rij_idx + 1], r12[rij_idx + 2]};
+            double r12[3] = {rij[rij_idx], rij[rij_idx + 1], rij[rij_idx + 2]};
             double d12 = sqrt(r12[0] * r12[0] + r12[1] * r12[1] + r12[2] * r12[2]);
             double fc12;
             find_fc(rcut_radial, rcinv_radial, d12, fc12);
@@ -251,6 +249,8 @@ void launch_calculate_descriptor_cpu(
                 // 2b feats
                 q[n] += gn12;
             }
+            // printf("2b n1=%d t1=%d i1=%d n2=%d t2=%d neigh_num=%d r12_start_idx=%d rij_idx=%d d12=%f xyz=% lf %lf %lf\n",
+            //      n1, t1, i1, n2, t2, neigh_num, r12_start_idx, rij_idx, d12, r12[0], r12[1], r12[2]);
         }
 
         // Get angular descriptors
@@ -259,24 +259,26 @@ void launch_calculate_descriptor_cpu(
             double s[NUM_OF_ABC] = {0.0};
             for (int i1 = 0; i1 < neigh_num; ++i1) {
                 int n2 = NL[neigh_start_idx + i1];
+                // printf("3b n1=%d i1=%d n2=%d n=%d\n", n1, i1, n2, n);
                 if (n2 < 0) continue;
                 int t2 = atom_map[n2];
                 int rij_idx = r12_start_idx + i1 * 3;
-                double r12[3] = {r12[rij_idx], r12[rij_idx + 1], r12[rij_idx + 2]};
+                double r12[3] = {rij[rij_idx], rij[rij_idx + 1], rij[rij_idx + 2]};
                 double d12 = sqrt(r12[0] * r12[0] + r12[1] * r12[1] + r12[2] * r12[2]);
                 if (d12 > rcut_angular) continue;
-
+                // printf("3b n1=%d t1=%d i1=%d n2=%d t2=%d n=%d d12=%f\n", n1, i1, t1, n2, t2, n, d12);
                 double fc12;
                 find_fc(rcut_angular, rcinv_angular, d12, fc12);
                 double fn12[MAX_NUM_N];
                 find_fn(n_base_3b, rcinv_angular, d12, fc12, fn12);
-
+                // printf("3b n1=%d t1=%d i1=%d n2=%d t2=%d n=%d d12=%f fn12[0]=%f\n", n1, i1, t1, n2, t2, n, d12, fn12[0]);
                 double gn12 = 0.0;
                 int c_I_J_idx = c3_start_idx + t2 * n_max_3b * n_base_3b;
                 for (int k = 0; k < n_base_3b; ++k) {
                     int c_index = c_I_J_idx + n * n_base_3b + k;
                     gn12 += fn12[k] * coeff3[c_index];
                 }
+                // printf("3b n1=%d t1=%d i1=%d n2=%d t2=%d n=%d d12=%f fn12[0]=%f gn12=%f\n", n1, i1, t1, n2, t2, n, d12, fn12[0], gn12);
                 accumulate_s(d12, r12[0], r12[1], r12[2], gn12, s);
             }
 

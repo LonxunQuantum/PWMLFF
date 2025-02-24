@@ -32,7 +32,7 @@ def compress_force_field(ckpt_file):
     model_compress_name = args.savename.replace('.ckpt', '') + ".ckpt"
 
     model_checkpoint = torch.load(ckpt_file,map_location=torch.device("cpu"))
-    atom_type_order = model_checkpoint['atom_type_order']
+    atom_type_order = np.array([ 3, 14,  6]) #model_checkpoint['atom_type_order']
     if atom_type_order.size == 1:   #
         atom_type_order = [atom_type_order.tolist()]
     davg = model_checkpoint['davg']

@@ -119,7 +119,7 @@ def gen_train_data(train_ratio, raw_data_path, datasets_path,
                     train_ratio, data_shuffle, seed, format)
     return labels_path
 
-def get_stat(config, stat_add=None, datasets_path=None, work_dir=None, chunk_size=10):
+def get_stat(config, stat_add=None, datasets_path=None, work_dir=None):
     """
     Calculate statistical properties of the training data.
 

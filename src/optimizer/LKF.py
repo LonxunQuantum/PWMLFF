@@ -185,13 +185,9 @@ class LKFOptimizer(Optimizer):
         
         #print ("\n*************printing params*************\n")
         for idx, param in enumerate(self._params):
-            
-            #print(param.size())
-            #print(param)
-            
-            #if (True in torch.isnan(param.grad)):
-            #    print("nan found:")
-            #    print(param.grad)
+            # if param.grad is not None:
+            # print(idx, torch.sum(param.grad))
+
             if idx == 0 and kwargs.get('c_param') is not None:
                 # get c_param for chebychev
                 c_param = kwargs.get('c_param')

@@ -15,8 +15,10 @@ const double C4B[5] = {
   -0.007499480826664, -0.134990654879954, 0.067495327439977, 0.404971964639861, -0.809943929279723};
 const double C5B[3] = {0.026596810706114, 0.053193621412227, 0.026596810706114};
 const double K_C_SP = 14.399645; // 1/(4*PI*epsilon_0)
-const double PI = 3.141592653589793;
-const double PI_HALF = 1.570796326794897;
+// const double PI = 3.141592653589793;
+// const double PI_HALF = 1.570796326794897;
+const double PI = 3.14159265358979323846;
+const double HALF_PI = 1.5707963267948966;
 const int NUM_ELEMENTS = 103;
 
 void cpu_dev_apply_mic(const double* box, double& x12, double& y12, double& z12);

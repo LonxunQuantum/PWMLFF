@@ -30,7 +30,7 @@ def convert_to_dp(model_dict:dict, input_json:dict, savename:str, save_dir:str, 
     if len(dp_param.file_paths.raw_path) > 0:
         datasets_path = dp_trainer.generate_data()
         dp_param.file_paths.set_datasets_path(datasets_path)
-    davg, dstd, energy_shift, max_atom_nums = dp_trainer._get_stat()#跟energy_shift没关系
+    davg, dstd, energy_shift, max_atom_nums = dp_trainer.load_davg_from_ckpt()#跟energy_shift没关系
     davg = np.load(os.path.join(davg_dir, "davg.npy"))
     dstd = np.load(os.path.join(davg_dir, "dstd.npy"))
     davg, dstd, energy_shift, atom_map, train_loader, val_loader = dp_trainer.load_data(davg, dstd, energy_shift, max_atom_nums) #davg, dstd, energy_shift, atom_map

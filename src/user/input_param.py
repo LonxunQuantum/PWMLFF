@@ -194,11 +194,8 @@ class InputParam(object):
         # set feature related params
         self.valid_shuffle = get_parameter("valid_shuffle", json_input, False)
         self.data_shuffle = get_parameter("data_shuffle", json_input, True)
-        self.train_valid_ratio = get_parameter("train_valid_ratio", json_input, 0.8)
         self.seed = get_parameter("seed", json_input, 2023)
         self.precision = get_parameter("precision", json_input, "float64")
-        self.chunk_size = get_parameter("chunk_size", json_input, 10)
-        self.format = get_parameter("format", json_input, "pwmat/movement")
 
     '''
     description: 
@@ -232,9 +229,7 @@ class InputParam(object):
         self.recover_train = True
         self.optimizer_param.batch_size = 1     # set batch size to 1, so that each image inference info will be saved
         self.data_shuffle = False
-        self.train_valid_ratio = 1
         self.valid_shuffle = False
-        self.format = get_parameter("format", json_input, "pwmat/movement")
         self.file_paths.set_inference_paths(json_input,is_nep_txt = is_nep_txt)
     
     '''
@@ -266,14 +261,14 @@ class InputParam(object):
     author: wuxingxing
     '''    
     def get_data_file_dict(self):
-        data_file_dict = self.file_paths.get_data_file_structure()
+        data_file_dict = {}
+        # data_file_dict = self.file_paths.get_data_file_structure()
         data_file_dict["M2"] = self.descriptor.M2
         data_file_dict["maxNeighborNum"] = self.max_neigh_num
         data_file_dict["atomType"]=self.atom_type_dict
         data_file_dict["Rc_M"] = self.descriptor.Rmax
         data_file_dict["E_tolerance"] = self.descriptor.E_tolerance
         data_file_dict["train_egroup"] = self.optimizer_param.train_egroup
-        data_file_dict["ratio"] = self.train_valid_ratio
 
         return data_file_dict
     
@@ -281,7 +276,8 @@ class InputParam(object):
         params_dict = {}
         params_dict["model_type"] = self.model_type
         params_dict["atom_type"] = self.atom_type
-        params_dict["max_neigh_num"] = self.max_neigh_num
+        if self.model_type !="NEP":
+            params_dict["max_neigh_num"] = self.max_neigh_num
         if self.seed is not None:
             params_dict["seed"] = self.seed
         if self.model_num > 1 :
@@ -335,6 +331,5 @@ class InputParam(object):
         print(params_dict)
         
 def help_info():
-    print("train: do model training")
-    print("test: do dp model inference")
+    print("Please visit http://doc.lonxun.com/PWMLFF/ to view the user manual.")
     

@@ -38,7 +38,9 @@ from src.model.dp_dp import DP
 from src.optimizer.GKF import GKFOptimizer
 from src.optimizer.LKF import LKFOptimizer
 import src.pre_data.dp_mlff as dp_mlff
-from src.pre_data.dp_data_loader import MovementDataset
+# from src.pre_data.dp_data_loader import MovementDataset
+from src.pre_data.dpuni_data_loader import UniDataset, type_map, variable_length_collate_fn
+
 from src.PWMLFF.dp_mods.dp_trainer import train_KF, train, valid, save_checkpoint, predict
 from src.PWMLFF.dp_param_extract import load_davg_dstd_from_checkpoint, load_davg_dstd_from_feature_path
 from src.user.input_param import InputParam
@@ -77,7 +79,8 @@ class dp_network:
             self.training_type = torch.float64
 
         self.criterion = nn.MSELoss().to(self.device)
-        
+    
+    # delete in 2025
     def generate_data(self):    
         """
         Generate training data for MLFF model.
@@ -96,8 +99,7 @@ class dp_network:
                                self.dp_params.valid_shuffle, self.dp_params.seed, self.dp_params.format)
         return labels_path
 
-    def _get_stat(self):
-        data_file_config = self.dp_params.get_data_file_dict()
+    def load_davg_from_ckpt(self):
         if self.dp_params.inference:
             if os.path.exists(self.dp_params.file_paths.model_load_path):
                 # load davg, dstd from checkpoint of model
@@ -108,77 +110,62 @@ class dp_network:
                 raise Exception("Erorr! Loading model for inference can not find checkpoint: \
                                 \nmodel load path: {} \n or model at work path: {}\n"\
                                 .format(self.dp_params.file_paths.model_load_path, self.dp_params.file_paths.model_save_path))
-            stat_add = [davg, dstd, atom_map, energy_shift]
+            return davg, dstd, atom_map, energy_shift
         else:
-            stat_add = None
-        
-        davg, dstd, energy_shift, max_atom_nums = dp_mlff.get_stat(data_file_config, stat_add, self.dp_params.file_paths.datasets_path, 
-                         self.dp_params.file_paths.json_dir, self.dp_params.chunk_size)
-        return davg, dstd, energy_shift, max_atom_nums
-    
-    def load_data(self, davg, dstd, energy_shift, max_atom_nums):
-        config = self.dp_params.get_data_file_dict()
-        # Create dataset
-        if self.dp_params.inference:
-            data_paths = []
-            for data_path in self.dp_params.file_paths.datasets_path:
-                if os.path.exists(os.path.join(os.path.join(data_path, config['trainDataPath'], "position.npy"))):
-                    data_paths.append(os.path.join(os.path.join(data_path, config['trainDataPath']))) #train dir
-                if os.path.exists(os.path.join(os.path.join(data_path, config['validDataPath'], "position.npy"))):
-                    data_paths.append(os.path.join(os.path.join(data_path, config['validDataPath']))) #valid dir
-                if os.path.exists(os.path.join(data_path, "position.npy")) > 0: # add train or valid data
-                    data_paths.append(data_path)
-                else:# with out data
-                    pass
-            train_dataset = MovementDataset(data_paths, config, davg, dstd, energy_shift, max_atom_nums)
-            valid_dataset = None
-        else:            
-            train_dataset = MovementDataset([os.path.join(_, config['trainDataPath']) 
-                                            for _ in self.dp_params.file_paths.datasets_path 
-                                            if os.path.exists(os.path.join(_, config['trainDataPath']))],
-                                            config, davg, dstd, energy_shift, max_atom_nums)
-                                            
-            valid_dataset = MovementDataset([os.path.join(_, config['validDataPath']) 
-                                             for _ in self.dp_params.file_paths.datasets_path
-                                             if os.path.exists(os.path.join(_, config['validDataPath']))],
-                                             config, davg, dstd, energy_shift, max_atom_nums)
-        
-        davg, dstd, energy_shift, atom_map = train_dataset.get_stat()
+            if os.path.exists(self.dp_params.file_paths.model_save_path):
+                davg, dstd, atom_map, energy_shift = load_davg_dstd_from_checkpoint(self.dp_params.file_paths.model_save_path)
+                return davg, dstd, atom_map, energy_shift
+        return None, None, None, None
 
-        # if self.dp_params.hvd:
-        #     train_sampler = torch.utils.data.distributed.DistributedSampler(
-        #         train_dataset, num_replicas=hvd.size(), rank=hvd.rank()
-        #     )
-        #     val_sampler = torch.utils.data.distributed.DistributedSampler(
-        #         valid_dataset, num_replicas=hvd.size(), rank=hvd.rank(), drop_last=True
-        #     )
-        # else:
-        train_sampler = None
-        val_sampler = None
-
-        # should add a collate function for padding
-        train_loader = torch.utils.data.DataLoader(
-            train_dataset,
-            batch_size=self.dp_params.optimizer_param.batch_size,
-            shuffle=self.dp_params.data_shuffle,
-            num_workers=self.dp_params.workers,   
-            pin_memory=True,
-            sampler=train_sampler,
-        )
-        
+    def load_data(self, dp_config:dict):
         if self.dp_params.inference:
-            val_loader = None
-        else:
-            val_loader = torch.utils.data.DataLoader(
-                valid_dataset,
-                batch_size=self.dp_params.optimizer_param.batch_size,
+            test_dataset = UniDataset(dp_config,
+                                    self.dp_params.file_paths.test_data_path, 
+                                    self.dp_params.file_paths.format)
+            test_loader = torch.utils.data.DataLoader(
+                test_dataset,
+                batch_size=1,
                 shuffle=False,
-                num_workers=self.dp_params.workers,
+                collate_fn= variable_length_collate_fn, 
+                num_workers=self.dp_params.workers,   
+                drop_last=True,
                 pin_memory=True,
-                sampler=val_sampler,
             )
-        return davg, dstd, energy_shift, atom_map, train_loader, val_loader
-    
+            return test_loader, None, test_dataset
+        else:
+            train_dataset = UniDataset(dp_config,
+                                self.dp_params.file_paths.train_data_path, 
+                                self.dp_params.file_paths.format)
+
+            valid_dataset = UniDataset(dp_config,
+                                self.dp_params.file_paths.valid_data_path, 
+                                self.dp_params.file_paths.format
+                                )
+            # should add a collate function for padding
+            train_loader = torch.utils.data.DataLoader(
+                train_dataset,
+                batch_size=self.dp_params.optimizer_param.batch_size,
+                shuffle=self.dp_params.data_shuffle,
+                collate_fn= variable_length_collate_fn, 
+                num_workers=self.dp_params.workers,   
+                drop_last=True,
+                pin_memory=True,
+            )
+            
+            if self.dp_params.inference:
+                val_loader = None
+            else:
+                val_loader = torch.utils.data.DataLoader(
+                    valid_dataset,
+                    batch_size=self.dp_params.optimizer_param.batch_size,
+                    shuffle=False,
+                    collate_fn= variable_length_collate_fn, 
+                    num_workers=self.dp_params.workers,
+                    pin_memory=True,
+                    drop_last=True
+                )
+            return train_loader, val_loader, train_dataset
+
     '''
     description:
         if davg, dstd and energy_shift not from load_data, get it from model_load_file
@@ -305,13 +292,15 @@ class dp_network:
 
         return model, optimizer
 
-    def inference(self, davg, dstd, energy_shift, max_atom_nums):
+    def inference(self):
         # do inference
-        davg, dstd, energy_shift, atom_map, train_loader, val_loader = self.load_data(davg, dstd, energy_shift, max_atom_nums)
+        dp_config = self.dp_params.get_data_file_dict()
+        davg, dstd, atom_map, energy_shift = self.load_davg_from_ckpt()
+        test_loader, _, test_dataset = self.load_data(dp_config) #davg, dstd, energy_shift, atom_map
         model, optimizer = self.load_model_optimizer(davg, dstd, energy_shift)
         start = time.time()
         atom_num_list, res_pd, etot_label_list, etot_predict_list, ei_label_list, ei_predict_list, force_label_list, force_predict_list, virial_label_list, virial_predict_list\
-        = predict(train_loader, model, self.criterion, self.device, self.dp_params)
+        = predict(test_loader, model, self.criterion, self.device, self.dp_params)
         end = time.time()
         print("fitting time:", end - start, 's')
 
@@ -349,8 +338,12 @@ class dp_network:
         return 
 
     def train(self):
-        davg, dstd, energy_shift, max_atom_nums = self._get_stat()
-        davg, dstd, energy_shift, atom_map, train_loader, val_loader = self.load_data(davg, dstd, energy_shift, max_atom_nums) #davg, dstd, energy_shift, atom_map
+        dp_config = self.dp_params.get_data_file_dict()
+        davg, dstd, atom_map, energy_shift = self.load_davg_from_ckpt()
+        train_loader, val_loader, train_dataset = self.load_data(dp_config) #davg, dstd, energy_shift, atom_map
+        if davg is None:
+            energy_shift = train_dataset.get_energy_shift()
+            davg, dstd = train_dataset.get_davg_dstd()
         model, optimizer = self.load_model_optimizer(davg, dstd, energy_shift)
         if not os.path.exists(self.dp_params.file_paths.model_store_dir):
             os.makedirs(self.dp_params.file_paths.model_store_dir)
@@ -504,7 +497,7 @@ class dp_network:
                     "davg":davg,
                     "dstd":dstd,
                     "energy_shift":energy_shift,
-                    "atom_type_order": atom_map,    #atom type order of davg/dstd/energy_shift
+                    "atom_type_order": np.array(self.dp_params.atom_type),    #atom type order of davg/dstd/energy_shift
                     "sij_max":Sij_max,
                     "optimizer":optimizer.state_dict()
                     },
@@ -520,7 +513,7 @@ class dp_network:
                     "davg":davg,
                     "dstd":dstd,
                     "energy_shift":energy_shift,
-                    "atom_type_order": atom_map,    #atom type order of davg/dstd/energy_shift
+                    "atom_type_order": np.array(self.dp_params.atom_type),    #atom type order of davg/dstd/energy_shift
                     "sij_max":Sij_max
                     },
                     self.dp_params.file_paths.model_name,

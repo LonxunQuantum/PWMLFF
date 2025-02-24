@@ -20,10 +20,6 @@ def dp_train(input_json: json, cmd:str):
     dp_param = InputParam(input_json, cmd) 
     dp_param.print_input_params(json_file_save_name="std_input.json")
     dp_trainer = dp_network(dp_param)
-    if len(dp_param.file_paths.raw_path) > 0:
-        datasets_path = dp_trainer.generate_data()
-        dp_param.file_paths.set_datasets_path(datasets_path)
-    
     dp_trainer.train()
     if os.path.exists(dp_param.file_paths.model_save_path) is False:
         if os.path.exists(dp_param.file_paths.model_load_path):
@@ -52,12 +48,7 @@ def dp_test(input_json: json, cmd:str):
     dp_param.set_test_relative_params(input_json)
     dp_param.print_input_params(json_file_save_name="std_input.json")
     dp_trainer = dp_network(dp_param)
-    if len(dp_param.file_paths.raw_path) > 0:
-        datasets_path = dp_trainer.generate_data()
-        dp_param.file_paths.set_datasets_path(datasets_path)
-    davg, dstd, energy_shift, max_atom_nums = dp_trainer._get_stat()
-    dp_trainer.dp_params.optimizer_param.train_virial = False
-    dp_trainer.inference(davg, dstd, energy_shift, max_atom_nums)
+    dp_trainer.inference()
 
 '''
 description: 

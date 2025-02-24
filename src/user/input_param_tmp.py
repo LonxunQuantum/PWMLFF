@@ -152,8 +152,8 @@ class InputParam(object):
         # set feature related params
         self.valid_shuffle = get_parameter("valid_shuffle", json_input, False)
         self.data_shuffle = get_parameter("data_shuffle", json_input, True)
-        self.train_valid_ratio = get_parameter("train_valid_ratio", json_input, 0.8)
-        self.dwidth = get_parameter("dwidth", json_input, 3.0)
+        # self.train_valid_ratio = get_parameter("train_valid_ratio", json_input, 0.8)
+        # self.dwidth = get_parameter("dwidth", json_input, 3.0)
         self.seed = get_parameter("seed", json_input, 2023)
         self.precision = get_parameter("precision", json_input, "float64")
 

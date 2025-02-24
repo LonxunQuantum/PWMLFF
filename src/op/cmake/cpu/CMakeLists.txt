@@ -1,5 +1,9 @@
 # 4. add_library
-add_library(CalcOps_cpu SHARED ${CMAKE_SOURCE_DIR}/src/CalcOps_cpu.cpp)
+add_library(CalcOps_cpu SHARED 
+    ${CMAKE_SOURCE_DIR}/src/CalcOps_cpu.cpp
+    ${CMAKE_SOURCE_DIR}/src/cpu_calculate_nepneighbor.cpp
+    ${CMAKE_SOURCE_DIR}/src/nep_cpu.cpp
+)
 target_include_directories(CalcOps_cpu PRIVATE ${CMAKE_SOURCE_DIR})
 target_link_libraries(CalcOps_cpu PRIVATE ${TORCH_LIBRARIES})
 # target_link_libraries(CalcOps_cpu PRIVATE "/data/home/hfhuang/software/anaconda3/envs/pytorch2/lib/python3.11/site-packages/torch/lib/libtorch.so")

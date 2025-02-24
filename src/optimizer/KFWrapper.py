@@ -207,8 +207,12 @@ class KFOptimizerWrapper:
         self, inputs: list, Virial_label: torch.Tensor, update_prefactor: float = 1, train_type = "DP"
     ) -> None:
         index = [0,1,2,4,5,8]
-        data_mask = Virial_label[:, 0] > -1e6
-        _Virial_label = Virial_label[:, index][data_mask]
+        if train_type == "NEP":
+            data_mask = Virial_label[:, 0] > -1e6
+            _Virial_label = Virial_label[:, index][data_mask]
+        else:
+            data_mask = Virial_label[:, 9] > 0
+            _Virial_label = Virial_label[:, index][data_mask]
         natoms_sum = None
         if data_mask.any().item() is False:
             return None
@@ -339,12 +343,13 @@ class KFOptimizerWrapper:
         else:
             natoms_sum = inputs[0].shape[1]
             bs = Force_label.shape[0]
-            index = self.__sample(self.atoms_selected, self.atoms_per_group, inputs[0].shape[0])
+            index = self.__sample(self.atoms_selected, self.atoms_per_group, inputs[0].shape[1])
             
         self.optimizer.set_grad_prefactor(natoms_sum * self.atoms_per_group * 3)
 
         for i in range(index.shape[0]):
             self.optimizer.zero_grad()
+            index_list = index[i]
             if train_type == "DP":
                 Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = self.model(
                     inputs[0], inputs[1], inputs[2], inputs[3], 0, inputs[4], inputs[5]
@@ -364,29 +369,18 @@ class KFOptimizerWrapper:
             else:
                 raise Exception("Error! the train type {} is not realized!".format(train_type))
 
-            # index_list = []
-            # for j in range(0, len(index)):
-            #     index_list.extend(index[i]+(j*96))
-            index_list = index[i]
+            if train_type == "NEP":
+                error_tmp = Force_label[index_list] - Force_predict[index_list] # index[i]
+                tmp_force_predict = Force_predict[index_list] * update_prefactor
 
-            error_tmp = Force_label[index_list] - Force_predict[index_list] # index[i]
+            else:
+                error_tmp = Force_label[:, index_list] - Force_predict[:, index_list]
+                tmp_force_predict = Force_predict[:, index_list] * update_prefactor
             error_tmp = update_prefactor * error_tmp
             mask = error_tmp < 0
             error_tmp[mask] = -1 * error_tmp[mask]
             error = error_tmp.mean() / natoms_sum
-
-            # if self.is_distributed:
-            #     if self.distributed_backend == "horovod":
-            #         import horovod as hvd
-
-            #         error = hvd.torch.allreduce(error)
-            #     elif self.distributed_backend == "torch":
-            #         dist.all_reduce(error)
-            #         error /= dist.get_world_size()
-
-            tmp_force_predict = Force_predict[index_list] * update_prefactor #index[i]
             tmp_force_predict[mask] = -1.0 * tmp_force_predict[mask]
-
             # In order to solve a pytorch bug, reference: https://github.com/pytorch/pytorch/issues/43259
             (tmp_force_predict.sum() + Etot_predict.sum() * 0).backward(retain_graph=True) # retain_graph=True is added for nep training
             error = error * math.sqrt(bs)

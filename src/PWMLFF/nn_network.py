@@ -181,10 +181,10 @@ class nn_network:
     def generate_data(self, chunk_size=1, shuffle=False):
         if self.dp_params.inference:
             gen_feature_data = self.dp_params.file_paths.test_dir
-            movement_path = self.dp_params.file_paths.test_movement_path
+            movement_path = self.dp_params.file_paths.test_data_path
         else:
             gen_feature_data = self.dp_params.file_paths.train_dir
-            movement_path = self.dp_params.file_paths.train_movement_path
+            movement_path = self.dp_params.file_paths.train_data_path
             
         if os.path.exists(gen_feature_data) is True: # work_dir/feature dir
             shutil.rmtree(gen_feature_data)

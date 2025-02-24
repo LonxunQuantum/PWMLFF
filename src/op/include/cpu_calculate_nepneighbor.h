@@ -41,7 +41,7 @@ void launch_calculate_neighbor_cpu(
 void launch_calculate_descriptor_cpu(
     const double  * coeff2,
     const double  * coeff3,
-    const double  * r12,
+    const double  * rij,
     const int64_t * NL,
     const int64_t * atom_map,
     const double rcut_radial,

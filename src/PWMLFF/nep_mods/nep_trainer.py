@@ -19,6 +19,11 @@ if torch.cuda.is_available():
         "op/build/lib/libCalcOps_bind.so")
     torch.ops.load_library(lib_path)
     CalcOps = torch.ops.CalcOps_cuda
+else:
+    lib_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        "op/build/lib/libCalcOps_bind_cpu.so")
+    torch.ops.load_library(lib_path)    # load the custom op, no use for cpu version
+    CalcOps = torch.ops.CalcOps_cpu     # only for compile while no cuda device
 
 # abandon this function
 def get_ri_rid_by_cutoff(
@@ -341,9 +346,10 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
         Egroup_label = None
         Force_label  = sample["force"]
         if args.optimizer_param.train_virial is True:
+            # check_cuda_memory(epoch, i, "train_virial start")
             Virial_predict = KFOptWrapper.update_virial(kalman_inputs, Virial_label, args.optimizer_param.pre_fac_virial, train_type = "NEP")
         if args.optimizer_param.train_energy is True: 
-            # check_cuda_memory(-1, -1, "update_energy start")
+            # check_cuda_memory(epoch, i, "update_energy start")
             Etot_predict = KFOptWrapper.update_energy(kalman_inputs, Etot_label, args.optimizer_param.pre_fac_etot, train_type = "NEP")
             # check_cuda_memory(-1, -1, "update_energy end")
         if args.optimizer_param.train_ei is True:
@@ -353,7 +359,7 @@ def train_KF(train_loader, model, criterion, optimizer, epoch, device, args:Inpu
             Egroup_predict = KFOptWrapper.update_egroup(kalman_inputs, Egroup_label, args.optimizer_param.pre_fac_egroup, train_type = "NEP")
 
         if args.optimizer_param.train_force is True:
-            # check_cuda_memory(-1, -1, "update_force start")
+            # check_cuda_memory(epoch, i, "update_force start")
             Etot_predict, Ei_predict, Force_predict, Egroup_predict, Virial_predict = KFOptWrapper.update_force(
                 kalman_inputs, Force_label, args.optimizer_param.pre_fac_force, train_type = "NEP")
                 # check_cuda_memory(-1, -1, "update_force end")

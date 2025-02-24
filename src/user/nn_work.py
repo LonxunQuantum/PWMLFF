@@ -1,7 +1,7 @@
 import os
 import json
 import torch
-from src.user.input_param_tmp import InputParam
+from src.user.input_param import InputParam
 from src.PWMLFF.nn_param_extract import extract_force_field
 from src.PWMLFF.nn_network import nn_network
 from utils.file_operation import delete_tree, copy_tree, copy_file
@@ -20,7 +20,7 @@ def nn_train(input_json: json, cmd:str):
     nn_param = InputParam(input_json, cmd) 
     nn_param.print_input_params(json_file_save_name="std_input.json")
     nn_trainer = nn_network(nn_param)
-    if len(nn_param.file_paths.train_movement_path) > 0:
+    if len(nn_param.file_paths.train_data_path) > 0:
         feature_path = nn_trainer.generate_data()
         # feature_path = '/data/home/wuxingxing/datas/pwmat_mlff_workdir/hfo2/debug/nn/work_dir/feature'
         nn_param.file_paths.set_train_feature_path([feature_path])

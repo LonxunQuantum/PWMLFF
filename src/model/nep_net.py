@@ -41,7 +41,7 @@ class NEP(nn.Module):
         
         self.set_cparam(np.mean(energy_shift))
 
-        self.maxNeighborNum = input_param.max_neigh_num
+        # self.maxNeighborNum = input_param.max_neigh_num nep this value is calculated online
         self.fitting_net = nn.ModuleList()
         self.update_scaler = True
         for i in range(self.ntypes):
@@ -536,7 +536,7 @@ class NEP(nn.Module):
         if device.type == "cpu": #True: 
             batch_size = num_atom.shape[0]
             image_atom_index = torch.cumsum(num_atom, dim=0).squeeze(-1)
-            image_atom_index = torch.cat((torch.tensor([0], device='cuda:0'), image_atom_index), dim=0)
+            image_atom_index = torch.cat((torch.tensor([0], device=device), image_atom_index), dim=0)
             if self.train_2b:
                 dE = torch.unsqueeze(dE, dim=-1)
                 dE_Rid = torch.mul(dE, Ri_d).sum(dim=-2)
@@ -686,7 +686,7 @@ class NEP(nn.Module):
 
         # j_type_map = j_type_map.clone()
         mask = j_type_map > -1
-        j_type_map[mask] = (Imagetype_map*self.ntypes).unsqueeze(-1).repeat(1, self.maxNeighborNum)[mask]+j_type_map[mask]
+        j_type_map[mask] = (Imagetype_map*self.ntypes).unsqueeze(-1).repeat(1, j_type_map.shape[1])[mask]+j_type_map[mask]
         j_type_map3 = j_type_map.flatten()
         mask2 = j_type_map3 > -1
         

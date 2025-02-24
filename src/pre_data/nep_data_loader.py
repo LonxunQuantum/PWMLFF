@@ -15,6 +15,10 @@ if torch.cuda.is_available():
     lib_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "op/build/lib/libCalcOps_bind.so")
     torch.ops.load_library(lib_path)
     CalcOps = torch.ops.CalcOps_cuda
+else:
+    lib_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "op/build/lib/libCalcOps_bind_cpu.so")
+    torch.ops.load_library(lib_path)    # load the custom op, no use for cpu version
+    CalcOps = torch.ops.CalcOps_cpu     # only for compile while no cuda device
 
 def get_det(box: np.array):
     matrix = box.reshape((3, 3))
@@ -90,7 +94,8 @@ class UniDataset(Dataset):
                 cutoff_angular=0,
                 cal_energy=False,
                 dtype: Union[torch.dtype, str] = torch.float64, 
-                index_type: Union[torch.dtype, str] = torch.int64):
+                index_type: Union[torch.dtype, str] = torch.int64,
+                use_cartesian=True):
         super(UniDataset, self).__init__()
         self.dtype = dtype if isinstance(dtype, torch.dtype) else getattr(torch, dtype)
         self.dirs = data_paths  # include all movement data path
@@ -102,7 +107,7 @@ class UniDataset(Dataset):
         self.cutoff_angular = cutoff_angular
         self.max_NN_radial = 100
         self.max_NN_angular= 100
-
+        self.use_cartesian = use_cartesian
         self.dtype = dtype if isinstance(dtype, torch.dtype) else getattr(torch, dtype)
         self.index_type = (
             index_type
@@ -125,9 +130,13 @@ class UniDataset(Dataset):
                     self.image_list.append(image_read)
 
         for image in self.image_list:
-            if image.cartesian is False:
-                image._set_cartesian()
-                image.lattice = image.lattice.T
+            if self.use_cartesian:
+                if image.cartesian is False:
+                    image._set_cartesian()
+                    image.lattice = image.lattice.T
+            else:
+                if image.cartesian is True:
+                    image._set_fractional()
             image.atom_types_image = np.array([self.atom_types.index(_) for _ in image.atom_types_image])
 
         if self.cal_energy:
@@ -387,13 +396,6 @@ def calculate_neighbor_scaler(
             max_NN_angular,
             False # with_rij
         )
-
-        # sample["NN_radial"] = NN_radial
-        # sample["NL_radial"] = NL_radial
-        # sample["Ri_radial"] = Ri_radial
-        # sample["NN_angular"] = NN_angular
-        # sample["NL_angular"] = NL_angular
-        # sample["Ri_angular"] = Ri_angular
 
         descriptor = CalcOps.calculate_descriptor(
             weight_radial,
