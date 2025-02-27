@@ -72,21 +72,17 @@ def make_test_json(train_file:str, save_path:str):
     train_json = json.load(open(train_file))
     test_dict = {}
     test_dict["model_type"] = train_json["model_type"]
-
-    if "datasets_path" in train_json.keys() and len(train_json["datasets_path"]) > 0:
-        test_dict["datasets_path"] = train_json["datasets_path"]
-    if "raw_files" in train_json.keys() and len(train_json["raw_files"]) > 0:
-        test_dict["raw_files"] = train_json["raw_files"]
-        test_dict["format"] = train_json["format"]
+    test_dict["format"] = train_json["format"]
+    test_dict["test_data"] = train_json["train_data"]
     
     if test_dict["model_type"].upper() == "LINEAR":
         test_dict["atom_type"] = train_json["atom_type"]
-        mvm_file = train_json["raw_files"][0]
+        mvm_file = train_json["train_data"][0]
         md_dir = os.path.join(os.path.dirname(save_path), "MD")
         if not os.path.exists(md_dir):
             os.makedirs(md_dir)
         copy_file(mvm_file, os.path.join(md_dir, "MOVEMENT"))
-        test_dict["raw_files"] = ["./MD/MOVEMENT"]
+        test_dict["test_data"] = ["./MD/MOVEMENT"]
 
     if test_dict["model_type"] == "DP":
         test_dict["model_load_file"] = "./model_record/dp_model.ckpt"
@@ -99,10 +95,8 @@ def make_test_json(train_file:str, save_path:str):
 
 def set_json(train_input:TrainInput, epoch:int, save_path:str):
     train_json = json.load(open(train_input.json_file))
-    train_json["raw_files"] = []
-    train_json["datasets_path"] = []
-    if "train_movement_file" in train_json.keys():
-        train_json.pop("train_movement_file")
+
+    train_json["train_data"] = []
 
     if epoch is not None:
         if "optimizer" in train_json.keys():
@@ -110,11 +104,10 @@ def set_json(train_input:TrainInput, epoch:int, save_path:str):
         else:
             train_json["optimizer"] = {}
             train_json["optimizer"]["epochs"] = epoch
-    if len(train_input.raw_files) > 0:
-        train_json["raw_files"] = train_input.raw_files
+    if len(train_input.train_data) > 0:
+        train_json["train_data"] = train_input.train_data
         train_json["format"] = train_input.format
-    if train_input.pwdata_dir is not None:
-        train_json["datasets_path"] = train_input.pwdata_datasets_path
+        train_json["valid_data"] = train_input.train_data
     json.dump(train_json, open(save_path, "w"), indent=4)
 
 def set_train_cmd(train:TrainInput, resource:Resource):

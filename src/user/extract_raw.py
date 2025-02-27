@@ -20,7 +20,7 @@ class Extract_Param(object):
     def __init__(self, json_input:dict) -> None:
         self.set_params(json_input)
         self.set_workdir_structures(json_input)
-        self.file_paths._set_PWdata_dirs(json_input)
+        self.file_paths._set_NN_PWdata_dirs(json_input)
         self.file_paths.set_train_valid_file(json_input)
         
     '''

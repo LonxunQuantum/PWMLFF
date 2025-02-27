@@ -651,7 +651,7 @@ param {*} args
 return {*}
 author: wuxingxing
 '''
-def predict(train_loader, valid_loader, model, criterion, device, args:InputParam):
+def predict(train_loader, model, criterion, device, args:InputParam):
 
     train_lists = ["img_idx"] #"Etot_lab", "Etot_pre", "Ei_lab", "Ei_pre", "Force_lab", "Force_pre"
     train_lists.extend(["RMSE_Etot", "RMSE_Etot_per_atom", "RMSE_Ei", "RMSE_F"])
@@ -670,8 +670,7 @@ def predict(train_loader, valid_loader, model, criterion, device, args:InputPara
     etot_predict_list = []
     model.eval()
 
-    for _val_loader in [train_loader, valid_loader]:
-        for i, sample_batches in enumerate(_val_loader):
+    for i, sample_batches in enumerate(train_loader):
             if args.precision == "float64":
                 Ei_label_cpu = sample_batches['output_energy'][:,:,:].double()
                 Force_label_cpu = sample_batches['output_force'][:,:,:].double()

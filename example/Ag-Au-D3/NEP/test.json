@@ -3,7 +3,8 @@
     "atom_type": [47, 79],
     "model_load_file": "./model_record/dp_model.ckpt",
 
-    "datasets_path": [
+    "format":"pwmlff/npy",
+    "test_data": [
       "../PWdata_cpu/Ag10Au14",
       "../PWdata_cpu/Ag22Au10",
       "../PWdata_cpu/Ag28Au4",

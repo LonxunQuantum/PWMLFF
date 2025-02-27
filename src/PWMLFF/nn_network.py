@@ -178,14 +178,9 @@ class nn_network:
         # if custom_feat_2 is not None:
         #     pm.Ftype2_para = custom_feat_2.copy()
             
-    def generate_data(self, chunk_size=1, shuffle=False):
-        if self.dp_params.inference:
-            gen_feature_data = self.dp_params.file_paths.test_dir
-            movement_path = self.dp_params.file_paths.test_data_path
-        else:
-            gen_feature_data = self.dp_params.file_paths.train_dir
-            movement_path = self.dp_params.file_paths.train_data_path
-            
+    def generate_data(self, chunk_size=1, shuffle=False, movement_path:list[str]=None, feature_type="train_feature"):
+        gen_feature_data = os.path.abspath(os.path.join(self.dp_params.file_paths.nn_work, feature_type))
+        # movement_path = self.dp_params.file_paths.train_data_path
         if os.path.exists(gen_feature_data) is True: # work_dir/feature dir
             shutil.rmtree(gen_feature_data)
 
@@ -232,8 +227,8 @@ class nn_network:
         source_output_dir = os.path.join(sub_work_dir[0], "output")
         if os.path.exists(output_dir) is False:
             shutil.copytree(source_output_dir, output_dir)
-        os.chdir(self.dp_params.file_paths.work_dir)
-        self._reset_pm_params(self.dp_params.file_paths.work_dir, self.atom_type)
+        os.chdir(self.dp_params.file_paths.nn_work)
+        self._reset_pm_params(self.dp_params.file_paths.nn_work, self.atom_type)
         
         return gen_feature_data
 
@@ -309,66 +304,53 @@ class nn_network:
         pm.f_data_scaler = pm.d_nnFi+'data_scaler.npy'
         pm.f_Wij_np  = pm.d_nnFi+'Wij.npy'
 
-    def scale_hybrid(self, train_data:MovementHybridDataset, valid_data:MovementHybridDataset, data_num:int):
-        feat_train, feat_valid = None, None
-        shape_train, shape_valid = [0], [0]
+    def scale_data(self, input_data:MovementHybridDataset, data_num:int):
+        feat_data = None
+        shape_data = [0]
         for data_index in range(data_num):
-            feat_train = train_data.feat[data_index] if feat_train is None else np.concatenate((feat_train,train_data.feat[data_index]),0)
-            feat_valid = valid_data.feat[data_index] if feat_valid is None else np.concatenate((feat_valid,valid_data.feat[data_index]),0)
-            shape_train.append(train_data.feat[data_index].shape[0] + sum(shape_train))
-            shape_valid.append(valid_data.feat[data_index].shape[0] + sum(shape_valid))
-
+            feat_data = input_data.feat[data_index] if feat_data is None else np.concatenate((feat_data,input_data.feat[data_index]),0)
+            shape_data.append(input_data.feat[data_index].shape[0] + sum(shape_data))            
         # scale feat
         if  self.scaler is not None:
-            feat_train = self.scaler.transform(feat_train)
-            feat_valid = self.scaler.transform(feat_valid)
+            feat_data = self.scaler.transform(feat_data)
         else:
             self.scaler = MinMaxScaler()
-            feat_train = self.scaler.fit_transform(feat_train)
-            feat_valid = self.scaler.transform(feat_valid)
-        for i in range(len(shape_train)-1):
-            train_data.feat[data_index] = feat_train[shape_train[i]:shape_train[i+1]]
-            valid_data.feat[data_index] = feat_valid[shape_valid[i]:shape_valid[i+1]]
-        
+            if os.path.exists(self.dp_params.file_paths.model_store_dir) is False:
+                os.makedirs(self.dp_params.file_paths.model_store_dir)
+            pickle.dump(self.scaler, open(os.path.join(self.dp_params.file_paths.model_store_dir, "scaler.pkl"),'wb'))
+            print ("scaler.pkl saved to:",self.dp_params.file_paths.model_store_dir)
+            feat_data = self.scaler.fit_transform(feat_data)
+
+        for i in range(len(shape_data)-1):
+            input_data.feat[data_index] = feat_data[shape_data[i]:shape_data[i+1]]
         # scale dfeat
         if pm.is_dfeat_sparse == False:
             for data_index in range(data_num):
                 trans = lambda x : x.transpose(0, 1, 3, 2) 
-                train_data.dfeat[data_index] = trans(trans(train_data.dfeat[data_index]) * self.scaler.scale_) 
-                valid_data.dfeat[data_index] = trans(trans(valid_data.dfeat[data_index]) * self.scaler.scale_)           
+                input_data.dfeat[data_index] = trans(trans(input_data.dfeat[data_index]) * self.scaler.scale_) 
+        return input_data
 
-        if os.path.exists(self.dp_params.file_paths.model_store_dir) is False:
-            os.makedirs(self.dp_params.file_paths.model_store_dir)
-        pickle.dump(self.scaler, open(os.path.join(self.dp_params.file_paths.model_store_dir, "scaler.pkl"),'wb'))
-        print ("scaler.pkl saved to:",self.dp_params.file_paths.model_store_dir)
-
-        return train_data, valid_data
-
-    def load_data_hybrid(self, data_shuffle=True, alive_atomic_energy=False, train_egroup = False):
-        # load anything other than dfeat
-        if self.dp_params.inference:
-            feature_paths = self.dp_params.file_paths.test_feature_path
-        else:
-            feature_paths = self.dp_params.file_paths.train_feature_path
-        self.set_nFeature(feature_paths)
+    def load_data(self, feature_paths:list[str], data_shuffle=True, batch_size=1, workers=1, alive_atomic_energy=False, train_egroup = False, save_flag=False):
+        def search_data_paths(feature_paths:list[str]):
+            data_list = []
+            for feature_path in feature_paths:
+                data_dirs = os.listdir(feature_path)
+                for data_dir in data_dirs:
+                    if os.path.exists(os.path.join(feature_path, data_dir, "train_data", "final_train")):
+                        data_list.append(os.path.join(feature_path, data_dir, "train_data"))
+            return data_list
+        self.load_nFeature(feature_paths)
         self.dfread_dfeat_input = load_dfeat_input(os.path.join(feature_paths[0], "fread_dfeat"),
                                                          os.path.join(feature_paths[0], "input"),
                                                          os.path.join(feature_paths[0], "output"))
-
-        data_list = []
-        for feature_path in feature_paths:
-            data_dirs = os.listdir(feature_path)
-            for data_dir in data_dirs:
-                if os.path.exists(os.path.join(feature_path, data_dir, "train_data", "final_train")):
-                    data_list.append(os.path.join(feature_path, data_dir, "train_data"))
-        # data_dirs = sorted(data_dirs, key=lambda x: len(x.split('_')), reverse = True)
-        torch_train_data = get_torch_data_hybrid(data_list, "final_train", alive_atomic_energy, train_egroup, \
+        data_list = search_data_paths(feature_paths)
+        if len(data_list) < 1:
+            return None
+        torch_data = get_torch_data_hybrid(data_list, "final_train", alive_atomic_energy, train_egroup, \
                                                  atom_type = pm.atomType, is_dfeat_sparse=pm.is_dfeat_sparse)
-        self.energy_shift = torch_train_data.energy_shift
+        if save_flag:
+            self.energy_shift = torch_data.energy_shift
 
-        torch_valid_data = get_torch_data_hybrid(data_list, "final_test", alive_atomic_energy, train_egroup, \
-                                                 atom_type = pm.atomType, is_dfeat_sparse=pm.is_dfeat_sparse)
-        
         if self.dp_params.inference:
             if os.path.exists(self.dp_params.file_paths.model_load_path):
                 self.scaler = load_scaler_from_checkpoint(self.dp_params.file_paths.model_load_path)
@@ -376,40 +358,19 @@ class nn_network:
                 self.scaler = load_scaler_from_checkpoint(self.dp_params.file_paths.model_save_path)
             else:
                 raise Exception("Error! Load scaler from checkpoint: {}".format(self.dp_params.file_paths.model_load_path))
-
-        torch_train_data, torch_valid_data = self.scale_hybrid(torch_train_data, torch_valid_data, len(data_list))
         
-        assert self.scaler != None, "scaler is not correctly saved"
-
+        torch_data = self.scale_data(torch_data, len(data_list))
         train_sampler = None
-        val_sampler = None
-
-        self.train_loader = torch.utils.data.DataLoader(
-            torch_train_data,
-            batch_size=self.dp_params.optimizer_param.batch_size,
+        data_loader = torch.utils.data.DataLoader(
+            torch_data,
+            batch_size=batch_size,
             shuffle=data_shuffle, #(train_sampler is None)
-            num_workers=self.dp_params.workers, 
+            num_workers=workers, 
             pin_memory=True,
-            sampler=train_sampler,
+            sampler=train_sampler
         )
-
-        self.val_loader = torch.utils.data.DataLoader(
-            torch_valid_data,
-            batch_size=self.dp_params.optimizer_param.batch_size,
-            shuffle=False,
-            num_workers=self.dp_params.workers, 
-            pin_memory=True,
-            sampler=val_sampler,
-        )
-        """
-            Note! When using sparse dfeat, shuffle must be False. 
-            sparse dfeat class only works under the batch order before calling Data.DataLoader
-        """
-        assert self.train_loader != None, "training data (except dfeat) loading fails"
-        assert self.val_loader != None, "validation data (except dfeat) loading fails"
-
         # load sparse dfeat. This is the default setting 
-        if pm.is_dfeat_sparse == True:     
+        if save_flag is True and pm.is_dfeat_sparse == True:     
             self.dfeat = dfeat_raw( input_dfeat_record_path_train = pm.f_train_dfeat, 
                                     input_feat_path_train = pm.f_train_feat,
                                     input_natoms_path_train = pm.f_train_natoms,
@@ -418,6 +379,7 @@ class nn_network:
                                     input_natoms_path_valid = pm.f_test_natoms,
                                     scaler = self.scaler)
             self.dfeat.load() 
+        return data_loader
 
     def set_model_optimizer(self, start_epoch = 1, model_name = None):
         # initialize model 
@@ -489,6 +451,24 @@ class nn_network:
         print("network initialized")
    
     def train(self):
+        self.train_loader = self.load_data(
+                        feature_paths = self.dp_params.file_paths.train_feature_path,
+                        data_shuffle=self.dp_params.data_shuffle, 
+                        batch_size=self.dp_params.optimizer_param.batch_size,
+                        workers=self.dp_params.workers,
+                        alive_atomic_energy=self.dp_params.file_paths.alive_atomic_energy, 
+                        train_egroup = self.dp_params.optimizer_param.train_egroup,
+                        save_flag=True)
+        self.val_loader  = self.load_data(
+                        feature_paths = self.dp_params.file_paths.valid_feature_path,
+                        data_shuffle=False, 
+                        batch_size=1,
+                        workers=self.dp_params.workers,
+                        alive_atomic_energy=self.dp_params.file_paths.alive_atomic_energy, 
+                        train_egroup = self.dp_params.optimizer_param.train_egroup,
+                        save_flag=False)
+        self.set_model_optimizer()
+
         """    
             trianing method for the class 
         """ 
@@ -498,9 +478,6 @@ class nn_network:
         train_log = os.path.join(self.dp_params.file_paths.model_store_dir, "epoch_train.dat")
         f_train_log = open(train_log, "w")
 
-        valid_log = os.path.join(self.dp_params.file_paths.model_store_dir, "epoch_valid.dat")
-        f_valid_log = open(valid_log, "w")
-        
         # Define the lists based on the training type
         train_lists = ["epoch", "loss"]
         valid_lists = ["epoch", "loss"]
@@ -553,7 +530,10 @@ class nn_network:
         valid_format = "".join(["%{}s".format(train_print_width[i]) for i in valid_lists])
 
         f_train_log.write("%s\n" % (train_format % tuple(train_lists)))
-        f_valid_log.write("%s\n" % (valid_format % tuple(valid_lists)))
+        if self.val_loader is not None:
+            valid_log = os.path.join(self.dp_params.file_paths.model_store_dir, "epoch_valid.dat")
+            f_valid_log = open(valid_log, "w")
+            f_valid_log.write("%s\n" % (valid_format % tuple(valid_lists)))
 
         for epoch in range(self.dp_params.optimizer_param.start_epoch, self.dp_params.optimizer_param.epochs + 1):
             # train for one epoch
@@ -570,59 +550,56 @@ class nn_network:
                 )
             time_end = time.time()
             # check_cuda_memory(epoch, self.dp_params.optimizer_param.epochs, "after train")
-            # evaluate on validation set
-            vld_loss, vld_loss_Etot, vld_loss_Etot_per_atom, vld_loss_Force, vld_loss_Ei, val_loss_egroup, val_loss_virial, val_loss_virial_per_atom = valid(
-                self.val_loader, self.model, self.criterion, self.device, self.dp_params
-            )
             # check_cuda_memory(epoch, self.dp_params.optimizer_param.epochs, "after valid")
             f_train_log = open(train_log, "a")
-            f_valid_log = open(valid_log, "a")
 
             # Write the log line to the file based on the training mode
             train_log_line = "%5d%18.10e" % (
                 epoch,
                 loss,
             )
-            valid_log_line = "%5d%18.10e" % (
-                epoch,
-                vld_loss,
-            )
             if self.dp_params.optimizer_param.lambda_1 is not None:
                 train_log_line += "%18.10e" % (loss_l1)
             if self.dp_params.optimizer_param.lambda_2 is not None:
                 train_log_line += "%18.10e" % (loss_l2)
-
             if self.dp_params.optimizer_param.train_energy:
-                # train_log_line += "%18.10e" % (loss_Etot)
-                # valid_log_line += "%18.10e" % (vld_loss_Etot)
                 train_log_line += "%21.10e" % (loss_Etot_per_atom)
-                valid_log_line += "%21.10e" % (vld_loss_Etot_per_atom)
             if self.dp_params.optimizer_param.train_ei:
                 train_log_line += "%18.10e" % (loss_Ei)
-                valid_log_line += "%18.10e" % (vld_loss_Ei)
             if self.dp_params.optimizer_param.train_egroup:
                 train_log_line += "%18.10e" % (loss_egroup)
-                valid_log_line += "%18.10e" % (val_loss_egroup)
             if self.dp_params.optimizer_param.train_force:
                 train_log_line += "%18.10e" % (loss_Force)
-                valid_log_line += "%18.10e" % (vld_loss_Force)
             if self.dp_params.optimizer_param.train_virial:
-                # train_log_line += "%18.10e" % (loss_virial)
-                # valid_log_line += "%18.10e" % (val_loss_virial)
                 train_log_line += "%23.10e" % (loss_virial_per_atom)
-                valid_log_line += "%23.10e" % (val_loss_virial_per_atom)
-
             if self.dp_params.optimizer_param.opt_name == "LKF" or self.dp_params.optimizer_param.opt_name == "GKF":
                 train_log_line += "%18.4f" % (time_end - time_start)
             else:
                 train_log_line += "%18.10e%18.4f" % (real_lr, time_end - time_start)
 
             f_train_log.write("%s\n" % (train_log_line))
-            f_valid_log.write("%s\n" % (valid_log_line))
-        
             f_train_log.close()
-            f_valid_log.close()
-                    
+
+            if self.val_loader is not None:
+            # evaluate on validation set
+                vld_loss, vld_loss_Etot, vld_loss_Etot_per_atom, vld_loss_Force, vld_loss_Ei, val_loss_egroup, val_loss_virial, val_loss_virial_per_atom = valid(
+                    self.val_loader, self.model, self.criterion, self.device, self.dp_params
+                )
+                f_valid_log = open(valid_log, "a")
+                valid_log_line = "%5d%18.10e" % (epoch, vld_loss)
+                if self.dp_params.optimizer_param.train_energy:
+                    valid_log_line += "%21.10e" % (vld_loss_Etot_per_atom)
+                if self.dp_params.optimizer_param.train_ei:
+                    valid_log_line += "%18.10e" % (vld_loss_Ei)
+                if self.dp_params.optimizer_param.train_egroup:
+                    valid_log_line += "%18.10e" % (val_loss_egroup)
+                if self.dp_params.optimizer_param.train_force:
+                    valid_log_line += "%18.10e" % (vld_loss_Force)
+                if self.dp_params.optimizer_param.train_virial:
+                    valid_log_line += "%23.10e" % (val_loss_virial_per_atom)
+                f_valid_log.write("%s\n" % (valid_log_line))
+                f_valid_log.close()
+
             # save model
             # if not self.dp_params.hvd or (self.dp_params.hvd and hvd.rank() == 0):
             if self.dp_params.file_paths.save_p_matrix:
@@ -655,20 +632,17 @@ class nn_network:
         filename = os.path.join(prefix, filename)
         torch.save(state, filename)
 
-    def load_and_train(self):
-        # transform data
-        self.load_data_hybrid(data_shuffle=self.dp_params.data_shuffle, 
-                              alive_atomic_energy=self.dp_params.file_paths.alive_atomic_energy, 
-                              train_egroup = self.dp_params.optimizer_param.train_egroup)
-        # else:
-        #     self.load_data()
-        # initialize the network
+    def inference(self):
+        self.test_loader  = self.load_data(
+                        feature_paths = self.dp_params.file_paths.test_feature_path,
+                        data_shuffle=False, 
+                        batch_size=1,
+                        workers=self.dp_params.workers,
+                        alive_atomic_energy=self.dp_params.file_paths.alive_atomic_energy, 
+                        train_egroup = self.dp_params.optimizer_param.train_egroup,
+                        save_flag=True)
         self.set_model_optimizer()
-        # initialize the optimizer and related scheduler
-        if self.dp_params.inference:
-            predict(self.train_loader, self.val_loader, self.model, self.criterion, self.device, self.dp_params)
-        else:
-            self.train()
+        predict(self.test_loader, self.model, self.criterion, self.device, self.dp_params)
 
     """ 
         ============================================================
@@ -736,12 +710,9 @@ class nn_network:
         print (command)
         subprocess.run(command, shell=True) 
     
-    def set_nFeature(self, feature_path):
+    def load_nFeature(self, feature_path):
         # obtain number of feature from fread_dfeat/feat.info
-        if self.dp_params.inference:
-            feat_info = os.path.join(feature_path[0], "fread_dfeat/feat.info")
-        else:
-            feat_info = os.path.join(feature_path[0], "fread_dfeat/feat.info")
+        feat_info = os.path.join(feature_path[0], "fread_dfeat/feat.info")
         f = open(feat_info,'r')
         raw = f.readlines()[-1].split()
         pm.nFeatures = sum([int(item) for item in raw])

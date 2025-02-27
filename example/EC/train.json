@@ -1,6 +1,0 @@
-{   
-    "train_movement_file":["./EC_MOVEMENT"],
-
-    "model_type": "NN",
-    "atom_type":[8,6,1]
-}

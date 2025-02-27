@@ -1,5 +1,6 @@
 {   
-    "raw_files":["0_300_MOVEMENT", "1_500_MOVEMENT"],
+    "format":"pwmat/movement",
+    "train_data":["0_300_MOVEMENT", "1_500_MOVEMENT"],
     "model_type": "NEP",
     "atom_type":[29]
 }

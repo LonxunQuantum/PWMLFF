@@ -2,7 +2,8 @@
     "model_type": "NEP",
     "atom_type": [3, 14, 6],
     "max_neigh_num": 100,
-    "datasets_path": [
+    "format":"pwmlff/npy",
+    "train_data": [
         "./PWdata/C2",
         "./PWdata/C448",
         "./PWdata/C448Li75",

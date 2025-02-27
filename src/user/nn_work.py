@@ -21,25 +21,37 @@ def nn_train(input_json: json, cmd:str):
     nn_param.print_input_params(json_file_save_name="std_input.json")
     nn_trainer = nn_network(nn_param)
     if len(nn_param.file_paths.train_data_path) > 0:
-        feature_path = nn_trainer.generate_data()
-        # feature_path = '/data/home/wuxingxing/datas/pwmat_mlff_workdir/hfo2/debug/nn/work_dir/feature'
+        feature_path = nn_trainer.generate_data(shuffle=False, 
+                                movement_path = nn_param.file_paths.train_data_path,
+                                feature_type="train_feature")
         nn_param.file_paths.set_train_feature_path([feature_path])
-    nn_trainer.load_and_train()
+
+    if len(nn_param.file_paths.valid_data_path) > 0:
+        feature_path = nn_trainer.generate_data(shuffle=False, 
+                                movement_path = nn_param.file_paths.valid_data_path,
+                                feature_type="valid_feature")
+        nn_param.file_paths.set_valid_feature_path([feature_path])
+    nn_trainer.train()
     # if the input epochs to the end, model will not be trained and will not be saved at work_dir
     if os.path.exists(nn_param.file_paths.model_save_path) is False:
         if os.path.exists(nn_param.file_paths.model_load_path):
             nn_param.file_paths.model_save_path = nn_param.file_paths.model_load_path
     extract_force_field(nn_param)
     
-    if os.path.realpath(nn_param.file_paths.json_dir) != os.path.realpath(nn_param.file_paths.work_dir) :
+    if os.path.realpath(nn_param.file_paths.json_dir) != os.path.realpath(nn_param.file_paths.nn_work) :
         copy_train_result(nn_param.file_paths.json_dir, \
                     nn_param.file_paths.model_store_dir, nn_param.file_paths.forcefield_dir)
-        
+        # delete train_feature and valid_feature files
         if nn_param.file_paths.reserve_feature is False:
-            delete_tree(nn_param.file_paths.train_dir)
-
+            if len(nn_param.file_paths.train_feature_path) > 0:
+                for feature_path in nn_param.file_paths.train_feature_path:
+                    delete_tree(feature_path)
+            if len(nn_param.file_paths.valid_feature_path) > 0:
+                for feature_path in nn_param.file_paths.valid_feature_path:   
+                    delete_tree(feature_path)
+        # delete workdir
         if nn_param.file_paths.reserve_work_dir is False:
-            delete_tree(nn_param.file_paths.work_dir)
+            delete_tree(nn_param.file_paths.nn_work)
 
 def gen_nn_feature(input_json: json, cmd:str):
     nn_param = InputParam(input_json, cmd) 
@@ -65,8 +77,10 @@ def nn_test(input_json: json, cmd:str):
     model_load_path = get_required_parameter("model_load_file", input_json)
     model_checkpoint = torch.load(model_load_path, map_location=torch.device("cpu"))
     json_dict_train = model_checkpoint["json_file"]
-
-    json_dict_train["work_dir"] = get_parameter("work_dir", input_json, "work_test_dir")
+    json_dict_train["train_data"] = []
+    json_dict_train["valid_data"] = []
+    json_dict_train["test_data"] = input_json["test_data"]
+    json_dict_train["format"] = get_parameter("format", input_json, "pwmat/movement")
     
     nn_param = InputParam(json_dict_train, "test".upper())
     # set inference param
@@ -74,16 +88,18 @@ def nn_test(input_json: json, cmd:str):
     nn_param.print_input_params(json_file_save_name="std_input.json")
 
     nn_trainer = nn_network(nn_param)
-    if len(nn_param.file_paths.test_movement_path) > 0:
-        gen_feat_dir = nn_trainer.generate_data()
-        nn_param.file_paths.set_test_feature_path([gen_feat_dir])
+    if len(nn_param.file_paths.test_data_path) > 0:
+        feature_path = nn_trainer.generate_data(shuffle=False, 
+            movement_path = nn_param.file_paths.test_data_path,
+            feature_type="test_feature")
+        nn_param.file_paths.set_test_feature_path([feature_path])
 
-    nn_trainer.load_and_train()
+    nn_trainer.inference()
 
-    if os.path.realpath(nn_param.file_paths.json_dir) != os.path.realpath(nn_param.file_paths.work_dir) :
+    if os.path.realpath(nn_param.file_paths.json_dir) != os.path.realpath(nn_param.file_paths.nn_work) :
         copy_test_result(nn_param.file_paths.json_dir, nn_param.file_paths.test_dir)
         if nn_param.file_paths.reserve_work_dir is False:
-            delete_tree(nn_param.file_paths.work_dir)
+            delete_tree(nn_param.file_paths.nn_work)
 
 '''
 description: 

@@ -145,7 +145,8 @@ class UniDataset(Dataset):
             else:
                 if image.cartesian is True:
                     image._set_fractional()
-            image.atom_types_image = np.array([self.atom_types.index(_) for _ in image.atom_types_image])
+            if not hasattr(image, 'atom_type_map'):
+                image.atom_type_map = np.array([self.atom_types.index(_) for _ in image.atom_types_image])
 
         if self.cal_energy:
             self.energy_shift = self.set_energy_shift()
@@ -163,7 +164,7 @@ class UniDataset(Dataset):
         energy_dict['E'] = []
         shuffled_list = random.sample(self.image_list, len(self.image_list))
         for image in shuffled_list:
-            atom_types = image.arrays['atom_types_image']
+            atom_types = image.atom_types_image
             cout_type, cout_num = np.unique(atom_types, return_counts=True)
             atom_types_image_dict = dict(zip(cout_type, cout_num))
             for element in self.atom_types:
@@ -209,13 +210,13 @@ class UniDataset(Dataset):
         data["num_cell"] = torch.from_numpy(num_cell).to(self.index_type)
         data["volume"] = torch.from_numpy(np.array([volume])).to(self.dtype)
         # data["atom_type"] = torch.from_numpy(self.image_list[index].atom_type).to(self.index_type)
-        data["atom_type_map"] = torch.from_numpy(self.image_list[index].atom_types_image).to(self.index_type)
+        data["atom_type_map"] = torch.from_numpy(self.image_list[index].atom_type_map).to(self.index_type)
         data["num_atom"] = torch.from_numpy(np.array([len(data["atom_type_map"])])).to(self.index_type)
         data["force"] = torch.from_numpy(self.image_list[index].force).to(self.dtype)
         data["ei"] = torch.from_numpy(self.image_list[index].atomic_energy).to(self.dtype)
         data["energy"] = torch.from_numpy(np.array([self.image_list[index].Ep])).to(self.dtype)
         data["position"] = torch.from_numpy(self.image_list[index].position).to(self.dtype)
-        data["virial"] = torch.from_numpy(np.ones([9]) * -1e6).to(self.dtype) if len(self.image_list[index].virial) == 0 \
+        data["virial"] = torch.from_numpy(np.ones([9]) * -1e6).to(self.dtype) if self.image_list[index].virial is None \
                             else torch.from_numpy(self.image_list[index].virial.flatten()).to(self.dtype)
         return data
         # for key in list(data.keys()):

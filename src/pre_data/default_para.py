@@ -360,7 +360,7 @@ cuda_dev = '0'       # unoccupied gpu, using 'nvidia-smi' cmd
 cupyFeat=True
 tf_dtype = 'float64' # dtype of tensorflow trainning, 'float32' faster than 'float64'
 
-test_ratio = 0.2
+test_ratio = 0.0 #all is training data
 is_rand_seper = False 
 
 #================================================================================

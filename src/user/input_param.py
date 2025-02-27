@@ -38,13 +38,17 @@ class InputParam(object):
 
         self.set_feature_params(json_input)
         self.set_workdir_structures(json_input)
+        if self.inference and self.model_type in ["NN", "LINEAR"]:
+            self.file_paths.nn_work = os.path.join(self.file_paths.json_dir, "work_test_dir")
 
         if self.model_type in ["DP", "NN", "NEP", "LINEAR", "CHEBY"]:
             self.set_model_init_params(json_input)
             self.set_default_multi_gpu_info(json_input)
             # set optimizer
             self.set_optimizer(json_input)
-
+            if self.model_type in ["NN", "LINEAR"]:
+                self.optimizer_param.batch_size = 1
+                print("Warning! NN and Linear models only support single batch, automatically adjust batch_size=1.")
         # elif self.model_type in ["NEP"]:
         #     self.set_nep_in_params(json_input)
             
@@ -207,9 +211,6 @@ class InputParam(object):
     '''
     def set_workdir_structures(self, json_input:dict):
         # set file structures
-        work_dir = get_parameter("work_dir", json_input, None)
-        if work_dir is None:
-            work_dir = os.getcwd()
         self.file_paths = WorkFileStructure(json_dir=os.getcwd(), 
                             reserve_work_dir=get_parameter("reserve_work_dir", json_input, False), 
                             reserve_feature = get_parameter("reserve_feature", json_input, False), 
@@ -331,5 +332,19 @@ class InputParam(object):
         print(params_dict)
         
 def help_info():
-    print("Please visit http://doc.lonxun.com/PWMLFF/ to view the user manual.")
-    
+    # 使用双线边框和加粗标题
+    print("\n\033[1;36m╔" + "=" * 48 + "╗\033[0m")  # 双线上边框
+    print("\033[1;36m║" + " " * 10 + "\033[1;35m PWMLFF Basic Information \033[0m" + " " * 12 + "\033[1;36m║\033[0m")  # 标题
+    print("\033[1;36m╚" + "=" * 48 + "╝\033[0m")  # 双线下边框
+    print(f"\033[1;32mVersion:\033[0m 2025.02")
+    print(f"\033[1;32mCompatible pwdata:\033[0m >= 0.4.8")
+    print(f"\033[1;32mCompatible pwact:\033[0m >= 0.2.1")
+    print(f"\033[1;32mLast Commit:\033[0m 2025.03.05")
+    print(f"\033[1;32mGit Hash:\033[0m 7bdaa90da15a5bfca6a831e739ebdd67fca22299")
+    print(f"\033[1;32mContact:\033[0m support@pwmat.com")
+    print(f"\033[1;32mCitation:\033[0m https://github.com/LonxunQuantum/PWMLFF")
+    print(f"\033[1;32mManual online:\033[0m http://doc.lonxun.com/PWMLFF/")
+    print("\033[1;36m" + "=" * 50 + "\033[0m")  # 青色分隔线
+    print("\n\n")
+# 调用函数
+help_info()

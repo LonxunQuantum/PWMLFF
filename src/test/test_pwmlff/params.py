@@ -62,36 +62,20 @@ class TrainInput(object):
             self.optimizer = get_parameter("optimizer", train_dict["optimizer"], "LKF")
         else:
             self.optimizer = "LKF"
-        # get datas
-        raw_files = get_parameter("raw_files", json_dict, [])
-        self.raw_files = []
-        if len(raw_files) > 0:
-            for raw_file in raw_files:
+        # get train_data
+        train_data = get_parameter("train_data", json_dict, [])
+        self.train_data = []
+        if len(train_data) > 0:
+            for raw_file in train_data:
                 raw_file = self.get_abs_path(raw_file, path_prefix)
-                self.raw_files.append(raw_file)
+                self.train_data.append(raw_file)
             self.format = get_parameter("format", json_dict, "pwmat/movement")
             if self.model_type == "LINEAR" or self.model_type == "NN":
                 if self.format != "pwmat/movement":
                     raise Exception("ERROR! the raw_file format {} should be pwmlff/movement for LINEAR or NN models!")
-        
-        pwdata = get_parameter("pwdata", json_dict, None)
-        self.pwdata_dir = None
-        if pwdata is not None:
-            if self.model_type == "LINEAR" or self.model_type == "NN":
-                raise Exception("ERROR! the LINEAR or NN model does not support the param pwdata format ")
-            self.pwdata_dir = self.get_abs_path(pwdata, path_prefix)
-            self.pwdata_datasets_path = self.read_pwdata_list(self.pwdata_dir)
-        
+
         self.do_test = get_required_parameter("do_test", json_dict, True)
         # print("extract {}, the optimizer is {}, the model type is {}\n\n".format(self.json_file, self.optimizer, self.model_type))
-
-    def read_pwdata_list(self, pwdata_dir:str):
-        res = []
-        for root, dirs, files in os.walk(pwdata_dir):
-            if 'energies.npy' in files:
-                if "train" in os.path.basename(root):
-                    res.append(os.path.dirname(root))
-        return res
 
     def get_abs_path(self, file:str, path_prefix:str=None):
         if not os.path.isabs(file) and path_prefix is not None:

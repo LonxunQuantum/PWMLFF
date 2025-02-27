@@ -1,0 +1,7 @@
+{   
+    "format":"pwmat/movement",
+    "train_data":["./EC_MOVEMENT"],
+    "model_type": "NN",
+    "atom_type":[8,6,1],
+    "feature_type":[5]
+}

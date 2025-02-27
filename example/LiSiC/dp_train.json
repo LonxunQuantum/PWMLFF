@@ -22,7 +22,8 @@
         "pre_fac_virial": 1.0,
         "pre_fac_egroup": 0.1
     },
-    "datasets_path": [
+    "format":"pwmlff/npy",
+    "train_data": [
         "./PWdata/C2",
         "./PWdata/C448",
         "./PWdata/C448Li75",

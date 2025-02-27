@@ -42,15 +42,12 @@ def write_natoms_dfeat(chunk_size, shuffle=True, atom_num = 1, alive_atomic_ener
         pp.collectAllSourceFiles()
     
     f_train_natom = open(pm.f_train_natoms, 'w')
-    f_test_natom = open(pm.f_test_natoms, 'w')
     kk = 0
     f_train_dfeat = {}
-    f_test_dfeat = {}
     dfeat_names = {}
 
     for i in pm.use_Ftype:
         f_train_dfeat[i] = open(pm.f_train_dfeat+str(i), 'w')
-        f_test_dfeat[i] = open(pm.f_test_dfeat+str(i), 'w')
         feat_head_tmp = pd.read_csv(os.path.join(
             pm.trainSetDir, 'trainData.txt'+'.Ftype'+str(i)), header=None).values[:, :3]
         feat_tmp = pd.read_csv(os.path.join(
@@ -74,7 +71,6 @@ def write_natoms_dfeat(chunk_size, shuffle=True, atom_num = 1, alive_atomic_ener
         egroup_all = egroup_all.fillna(0)
         egroup_all = egroup_all.values[:, :].astype(float)
         egroup_train = np.empty([0, egroup_all.shape[1]])
-        egroup_test = np.empty([0, egroup_all.shape[1]])
         
 
     # ep_all = pd.read_csv(os.path.join(pm.trainSetDir, 'ep.txt'), header=None).values
@@ -83,8 +79,7 @@ def write_natoms_dfeat(chunk_size, shuffle=True, atom_num = 1, alive_atomic_ener
     Imgcount = 0
 
     feat_train = np.empty([0, feat_all.shape[1]])
-    feat_test = np.empty([0, feat_all.shape[1]])
-    #used to randomly seperate training set and test set
+    #used to randomly seperate training set
     from numpy.random import choice, shuffle
 
     system_dir = list(set(pm.sourceFileList))
@@ -92,12 +87,10 @@ def write_natoms_dfeat(chunk_size, shuffle=True, atom_num = 1, alive_atomic_ener
     sys_natom = {}
     sys_imgNum = {}
     #sys_train_img = {}
-    #sys_test_img = {}
     img_num_base = {} 
     line_num_base = {}
     
     sys_img_list_train =  [] 
-    sys_img_list_test = [] 
 
     img_base = 0 
     line_base = 0
@@ -129,11 +122,10 @@ def write_natoms_dfeat(chunk_size, shuffle=True, atom_num = 1, alive_atomic_ener
         sys_natom[system] = natom
         sys_imgNum[system] = ImgNum
 
-        trainImgNum = int(ImgNum*(1-pm.test_ratio))
+        trainImgNum = ImgNum
 
-        # chunk num for training and valid set
+        # chunk num for training set
         train_chunk_num = floor(trainImgNum/chunk_size)
-        valid_chun_num = floor(ImgNum/chunk_size) - train_chunk_num
 
         # shuffle images within a system. Start from 0 
         #randomIdx = [i for i in range(ImgNum)]
@@ -148,14 +140,7 @@ def write_natoms_dfeat(chunk_size, shuffle=True, atom_num = 1, alive_atomic_ener
         for i in range(train_chunk_num):
             sys_img_list_train.append([(system, j) for j in randomIdx[i:i+chunk_size]]) 
 
-        for i in range(train_chunk_num,train_chunk_num+valid_chun_num):
-            sys_img_list_test.append([(system, j) for j in randomIdx[i:i+chunk_size]])
-
-        #sys_img_list_train += [(system, i) for i in randomIdx[:trainImgNum]]
-        #sys_img_list_test += [(system, i) for i in randomIdx[trainImgNum:]]
-
     #print (sys_img_list_train)
-    #print (sys_img_list_test)
     print (img_num_base)
     print (line_num_base)
     
@@ -167,161 +152,53 @@ def write_natoms_dfeat(chunk_size, shuffle=True, atom_num = 1, alive_atomic_ener
     # for item in sys_img_list_train:   #sys_img_list_train[0][0][1]
     #     print (item)
     
-    # print("valid set") 
-    # for item in sys_img_list_test:
-    #     print (item)
-
-    if pm.test_ratio > 0 and pm.test_ratio < 1:
-        """
-            shuffle the images in all MOVEMENTs
-            
-            after this step 4 groups of data will be generated in fread_dfeat/NN_output
-            1) dfeatname_train&test , path to dfeat binary file
-            2) egroup_train&test, value of egroup 
-            3) feat_train&test, value of feature
-            4) natoms_train&test, number of atoms 
-            
-        """
-        
-        # re-arrange data for training set
-        for chunk in sys_img_list_train:
-            for system, idx_in_sys in chunk:
-
-                # global image index within feat_all 
-                Imgcount = img_num_base[system] 
-                count = line_num_base[system] 
-                natom = sys_natom[system]
-
-                # natom
-                f_train_natom.writelines(str(int(natom))+' '+str(int(natom))+'\n')
-                
-                #dfeatname 
-                for mm in pm.use_Ftype:
-                    f_train_dfeat[mm].writelines(str(os.path.join(system, 'dfeat.fbin.Ftype'+str(mm)))+', '+str(idx_in_sys+1)+', '+str(dfeat_names[mm][int(Imgcount+idx_in_sys), 1])+'\n')
-            
-                idx_start = count + natom*idx_in_sys
-                idx_end = count + natom*(idx_in_sys+1)
-
-                # feat 
-                # Note: the order of feat_train.csv is not chaned yet
-                feat_train = np.concatenate(
-                    (feat_train, feat_all[idx_start:idx_end,:]), axis=0)
-                
-                #egroup
-                if alive_atomic_energy and train_egroup:
-                    egroup_train = np.concatenate(
-                        (egroup_train, egroup_all[idx_start:idx_end,:]), axis=0) 
-                
-        # valid set
-        for chunk in sys_img_list_test:
-            for system, idx_in_sys in chunk: 
-                
-                Imgcount = img_num_base[system] 
-                count = line_num_base[system] 
-                natom = sys_natom[system]
-
-                # natom
-                f_test_natom.writelines(str(int(sys_natom[system]))+' '+str(int(sys_natom[system]))+'\n')
-
-                # dfeatname 
-                for mm in pm.use_Ftype:
-                    f_test_dfeat[mm].writelines(str(os.path.join(system, 'dfeat.fbin.Ftype'+str(mm)))+', '+str(idx_in_sys+1)+', '+str(dfeat_names[mm][int(Imgcount+idx_in_sys), 1])+'\n')
-
-                idx_start = count + natom*idx_in_sys
-                idx_end = count + natom*(idx_in_sys+1)
-                
-                # feat 
-                feat_test = np.concatenate(
-                    (feat_test, feat_all[idx_start:idx_end,:]), axis=0)
-                
-                #egroup
-                if alive_atomic_energy and train_egroup:
-                    egroup_test = np.concatenate(
-                        (egroup_test, egroup_all[idx_start:idx_end,:]), axis=0)
-
-            
     """
-    for system in system_dir:
+        shuffle the images in all MOVEMENTs
         
-        infodata = pd.read_csv(os.path.join(system, 'info.txt.Ftype'+str(
-            pm.use_Ftype[0])), header=None, delim_whitespace=True).values[:, 0].astype(int)
+        after this step 4 groups of data will be generated in fread_dfeat/NN_output
+        1) dfeatname_train , path to dfeat binary file
+        2) egroup_train, value of egroup 
+        3) feat_train, value of feature
+        4) natoms_train, number of atoms 
         
-        natom = infodata[1]
+    """
+        
+    # re-arrange data for training set
+    for chunk in sys_img_list_train:
+        for system, idx_in_sys in chunk:
 
-        ImgNum = infodata[2]-(len(infodata)-3)
+            # global image index within feat_all 
+            Imgcount = img_num_base[system] 
+            count = line_num_base[system] 
+            natom = sys_natom[system]
 
-        if pm.test_ratio > 0 and pm.test_ratio < 1:
+            # natom
+            f_train_natom.writelines(str(int(natom))+' '+str(int(natom))+'\n')
             
-            # shuffle within the movement
-            trainImgNum = int(ImgNum*(1-pm.test_ratio))
-                
-            randomIdx = choice(ImgNum,ImgNum,replace = False) 
+            #dfeatname 
+            for mm in pm.use_Ftype:
+                f_train_dfeat[mm].writelines(str(os.path.join(system, 'dfeat.fbin.Ftype'+str(mm)))+', '+str(idx_in_sys+1)+', '+str(dfeat_names[mm][int(Imgcount+idx_in_sys), 1])+'\n')
+        
+            idx_start = count + natom*idx_in_sys
+            idx_end = count + natom*(idx_in_sys+1)
 
-            trainImg = randomIdx[:trainImgNum]
-            testImg = randomIdx[trainImgNum:]
-
-            for i in trainImg:
-                f_train_natom.writelines(str(int(natom))+' '+str(int(natom))+'\n')
-                for mm in pm.use_Ftype:
-                    f_train_dfeat[mm].writelines(str(os.path.join(system, 'dfeat.fbin.Ftype'+str(mm)))+', '+str(i+1)+', '+str(dfeat_names[mm][int(Imgcount+i), 1])+'\n')
-                        
-            for i in testImg:
-                f_test_natom.writelines(str(int(natom))+' '+str(int(natom))+'\n')
-                for mm in pm.use_Ftype:
-                    f_test_dfeat[mm].writelines(str(os.path.join(system, 'dfeat.fbin.Ftype'+str(mm)))+', '+str(i+1)+', '+str(dfeat_names[mm][int(Imgcount+i), 1])+'\n')
-
-
-
-            # image-wise? 
+            # feat 
+            # Note: the order of feat_train.csv is not chaned yet
             feat_train = np.concatenate(
-                (feat_train, feat_all[count:(count+natom*len(trainImg)), :]), axis=0)
+                (feat_train, feat_all[idx_start:idx_end,:]), axis=0)
             
-            egroup_train = np.concatenate(
-                (egroup_train, egroup_all[count:(count+natom*len(trainImg)), :]), axis=0)
-
-            feat_test = np.concatenate(
-                (feat_test, feat_all[(count+natom*len(trainImg)):(count+natom*ImgNum), :]), axis=0)
-
-            egroup_test = np.concatenate(
-                (egroup_test, egroup_all[(count+natom*len(trainImg)):(count+natom*ImgNum), :]), axis=0)
-
-            count = count+natom*ImgNum
-            Imgcount = Imgcount+ImgNum
-
-        elif pm.test_ratio == 1:
-            testImg = np.arange(0, ImgNum)
-            for i in testImg:
-                f_test_natom.writelines(str(int(natom))+' '+str(int(natom))+'\n')
-                for mm in pm.use_Ftype:
-                    f_test_dfeat[mm].writelines(str(os.path.join(system, 'dfeat.fbin.Ftype'+str(
-                        mm)))+', '+str(i+1)+', '+str(dfeat_names[mm][int(Imgcount+i), 1])+'\n')
-            feat_test = np.concatenate(
-                (feat_test, feat_all[count:(count+natom*ImgNum), :]), axis=0)
-            egroup_test = np.concatenate((egroup_test, egroup_all[(
-                count):(count+natom*ImgNum), :]), axis=0)
+            #egroup
+            if alive_atomic_energy and train_egroup:
+                egroup_train = np.concatenate(
+                    (egroup_train, egroup_all[idx_start:idx_end,:]), axis=0) 
             
-            count = count+natom*ImgNum
-            Imgcount = Imgcount+ImgNum  
-    """   
-
-    # feat_train/test.csv 
-    if pm.test_ratio != 1:
+    if feat_train.shape[0] > 0:
         np.savetxt(pm.f_train_feat, feat_train, delimiter=',')
         if alive_atomic_energy and train_egroup:
             np.savetxt(pm.f_train_egroup, egroup_train, delimiter=',')
         f_train_natom.close()
         for i in pm.use_Ftype:
             f_train_dfeat[i].close()
-
-    np.savetxt(pm.f_test_feat, feat_test, delimiter=',')
-
-    if alive_atomic_energy and train_egroup:
-        np.savetxt(pm.f_test_egroup, egroup_test, delimiter=',')
-
-    f_test_natom.close()
-
-    for i in pm.use_Ftype:
-        f_test_dfeat[i].close()
 
 def write_dR_neigh():
     # 需要生成一个自己的info文件 先用gen2b的代替
@@ -337,31 +214,17 @@ def write_dR_neigh():
         tmp = img_num * natom * len(pm.atomType) * pm.maxNeighborNum
         dR_neigh_tmp = dR_neigh[count:count+tmp]
 
-        if pm.test_ratio > 0 and pm.test_ratio < 1:
-            train_img_num = int(img_num * (1 - pm.test_ratio))
-            index = train_img_num * natom * len(pm.atomType) * pm.maxNeighborNum
+        if dR_neigh.shape[0] > 0:
             if count == 0:
-                train_img = dR_neigh_tmp[:index]
-                test_img = dR_neigh_tmp[index:]
+                train_img = dR_neigh_tmp[:]
             else:
-                train_img = train_img.append(dR_neigh_tmp[:index])
-                test_img = test_img.append(dR_neigh_tmp[index:])
+                train_img = train_img.append(dR_neigh_tmp[:])
             count += tmp
-        elif pm.test_ratio == 1:
-            testImg = np.arange(0, img_num)
-            if count == 0:
-                test_img = dR_neigh_tmp[:]
-            else:
-                test_img = test_img.append(dR_neigh_tmp[:])
-            count += tmp
-
+        
     if count != dR_neigh.shape[0]:
         raise ValueError("collected dR dimension mismatches the original")
 
-    if pm.test_ratio != 1:
-        train_img.to_csv(pm.f_train_dR_neigh, header=False, index=False)
-    
-    test_img.to_csv(pm.f_test_dR_neigh, header=False, index=False)
+    train_img.to_csv(pm.f_train_dR_neigh, header=False, index=False)
     
 def seperate_data(chunk_size = 10, shuffle=True, atom_num = 1, alive_atomic_energy = False, train_egroup = False):
 

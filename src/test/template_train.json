@@ -11,7 +11,7 @@
             "custom_flags": [
             ],
             "source_list": [
-                "/share/app/PWMLFF/PWMLFF-dev/env.sh"
+                "/share/app/PWMLFF/PWMLFF-dev-batch/env.sh"
             ],
             "module_list": [
             ],
@@ -51,15 +51,15 @@
             "custom_flags": [
             ],
             "source_list": [
-                "/data/home/wuxingxing/pack/pack_gpu/test/PWMLFF-2024.5/pwmlff-2024.5/bin/activate"
+                "/data/home/wuxingxing2/pack/pack_gpu/test/PWMLFF-2024.5/pwmlff-2024.5/bin/activate"
             ],
             "module_list": [
                 "cuda/11.8-share",
                 "intel/2020"
             ],
             "env_list": [
-                "export PYTHONPATH=/data/home/wuxingxing/pack/pack_gpu/test/PWMLFF-2024.5/PWMLFF/src:$PYTHONPATH",
-                "export PATH=/data/home/wuxingxing/pack/pack_gpu/test/PWMLFF-2024.5/PWMLFF/src/bin:$PATH"
+                "export PYTHONPATH=/data/home/wuxingxing2/pack/pack_gpu/test/PWMLFF-2024.5/PWMLFF/src:$PYTHONPATH",
+                "export PATH=/data/home/wuxingxing2/pack/pack_gpu/test/PWMLFF-2024.5/PWMLFF/src/bin:$PATH"
             ]
         },
         {
@@ -73,15 +73,15 @@
             "custom_flags": [
             ],
             "source_list": [
-                "/data/home/wuxingxing/pack/pack_gpu/test/PWMLFF-2024.5/pwmlff-2024.5/bin/activate"
+                "/data/home/wuxingxing2/pack/pack_gpu/test/PWMLFF-2024.5/pwmlff-2024.5/bin/activate"
             ],
             "module_list": [
                 "cuda/11.8-share",
                 "intel/2020"
             ],
             "env_list": [
-                "export PYTHONPATH=/data/home/wuxingxing/pack/pack_gpu/test/PWMLFF-2024.5/PWMLFF/src:$PYTHONPATH",
-                "export PATH=/data/home/wuxingxing/pack/pack_gpu/test/PWMLFF-2024.5/PWMLFF/src/bin:$PATH"
+                "export PYTHONPATH=/data/home/wuxingxing2/pack/pack_gpu/test/PWMLFF-2024.5/PWMLFF/src:$PYTHONPATH",
+                "export PATH=/data/home/wuxingxing2/pack/pack_gpu/test/PWMLFF-2024.5/PWMLFF/src/bin:$PATH"
             ]
         },
         {
@@ -95,14 +95,14 @@
             "custom_flags": [
             ],
             "source_list": [
-                "/data/home/wuxingxing/pack/pack_cpu/test/PWMLFF_cpu-2024.5/pwmlff_cpu-2024.5/bin/activate"
+                "/data/home/wuxingxing2/pack/pack_cpu/test/PWMLFF_cpu-2024.5/pwmlff_cpu-2024.5/bin/activate"
             ],
             "module_list": [
                 "intel/2020"
             ],
             "env_list": [
-                "export PYTHONPATH=/data/home/wuxingxing/pack/pack_cpu/test/PWMLFF_cpu-2024.5/PWMLFF/src:$PYTHONPATH",
-                "export PATH=/data/home/wuxingxing/pack/pack_cpu/test/PWMLFF_cpu-2024.5/PWMLFF/src/bin:$PATH"
+                "export PYTHONPATH=/data/home/wuxingxing2/pack/pack_cpu/test/PWMLFF_cpu-2024.5/PWMLFF/src:$PYTHONPATH",
+                "export PATH=/data/home/wuxingxing2/pack/pack_cpu/test/PWMLFF_cpu-2024.5/PWMLFF/src/bin:$PATH"
             ]
         },
         {
@@ -116,16 +116,16 @@
             "custom_flags": [
             ],
             "source_list": [
-                "/data/home/wuxingxing/anaconda3/etc/profile.d/conda.sh"
+                "/data/home/wuxingxing2/anaconda3/etc/profile.d/conda.sh"
             ],
             "module_list": [
                 "intel/2020",
                 "cuda/11.8-share"
             ],
             "env_list": [
-                "export PYTHONPATH=/data/home/wuxingxing/codespace/PWMLFF_grad_opt/src:$PYTHONPATH",
-                "export PATH=/data/home/wuxingxing/codespace/PWMLFF_grad_opt/src/bin:$PATH",
-                "conda activate pwmlff-2024.5"
+                "export PYTHONPATH=/data/home/wuxingxing2/codespace/PWMLFF_grad_batch/src:$PYTHONPATH",
+                "export PATH=/data/home/wuxingxing2/codespace/PWMLFF_grad_batch/src/bin:$PATH",
+                "conda activate PWMLFF"
             ]
         },
         {
@@ -139,16 +139,16 @@
             "custom_flags": [
             ],
             "source_list": [
-                "/data/home/wuxingxing/anaconda3/etc/profile.d/conda.sh"
+                "/data/home/wuxingxing2/anaconda3/etc/profile.d/conda.sh"
             ],
             "module_list": [
                 "intel/2020",
                 "cuda/11.8-share"
             ],
             "env_list": [
-                "export PYTHONPATH=/data/home/wuxingxing/codespace/PWMLFF_grad_opt/src:$PYTHONPATH",
-                "export PATH=/data/home/wuxingxing/codespace/PWMLFF_grad_opt/src/bin:$PATH",
-                "conda activate pwmlff-2024.5"
+                "export PYTHONPATH=/data/home/wuxingxing2/codespace/PWMLFF_grad_batch/src:$PYTHONPATH",
+                "export PATH=/data/home/wuxingxing2/codespace/PWMLFF_grad_batch/src/bin:$PATH",
+                "conda activate PWMLFF"
             ]
         },
         {
@@ -162,46 +162,53 @@
             "custom_flags": [
             ],
             "source_list": [
-                "/data/home/wuxingxing/anaconda3/etc/profile.d/conda.sh"
+                "/data/home/wuxingxing2/anaconda3/etc/profile.d/conda.sh"
             ],
             "module_list": [
                 "intel/2020"
             ],
             "env_list": [
-                "export PYTHONPATH=/data/home/wuxingxing/codespace/PWMLFF_cpu/src:$PYTHONPATH",
-                "export PATH=/data/home/wuxingxing/codespace/PWMLFF_cpu/src/bin:$PATH",
-                "conda activate pwmlff_cpu-2024.5"
+                "export PYTHONPATH=/data/home/wuxingxing2/codespace/PWMLFF_grad_batch/src:$PYTHONPATH",
+                "export PATH=/data/home/wuxingxing2/codespace/PWMLFF_grad_batch/src/bin:$PATH",
+                "conda activate PWMLFF"
             ]
         }
     ],
     "_envs": ["0 mcloud_gpu", "1 mcloud_usecpu", "2 off_gpu", "3 off_gpu_usecpu", "4 off_cpu", "5 dev_gpu", "6 dev_gpu_usecpu", "7 dev_cpu"],
     "path_prefix": "../../example",
     "train_inputs": [
-        {"_idx":0,  "json_file" : "Cu/train.json",     "model_type" :"DP",    "do_test": true, "raw_files":["Cu/0_300_MOVEMENT","Cu/1_500_MOVEMENT"], "format":"pwmat/movement"},
-        {"_idx":1,  "json_file" : "Cu/nep_train.json", "model_type":"NEP",    "do_test": true, "raw_files":["Cu/0_300_MOVEMENT"], "format":"pwmat/movement"},
-        {"_idx":2,  "json_file" : "EC/train.json",     "model_type" :"NN",    "do_test": true, "raw_files":["EC/EC_MOVEMENT"], "format":"pwmat/movement"},
-        {"_idx":3,  "json_file" : "LiGePS/train.json", "model_type" :"DP",    "do_test": true, "raw_files":["LiGePS/100_1200k_movement"], "format":"pwmat/movement"},
-        {"_idx":4,  "json_file" : "LiSi/train.json",   "model_type" :"NEP",   "do_test": true, "raw_files":["LiSi/MOVEMENT"], "format":"pwmat/movement"},
-        {"_idx":5,  "json_file" : "SiC/train.json",    "model_type" :"LINEAR","do_test": true, "raw_files":["SiC/1_300_MOVEMENT"], "format":"pwmat/movement"},
-        {"_idx":6,  "json_file" : "HfO2/nep_train.json", "model_type" :"NEP", "do_test": true, "pwdata":"HfO2/pwdata"},
-        {"_idx":7,  "json_file" : "HfO2/DP_train.json",  "model_type" :"DP",  "do_test": true, "pwdata":"HfO2/pwdata"},
-        {"_idx":8,  "json_file" : "Ag-Au-D3/NEP/adam_nep.json",  "model_type" :"NEP", "do_test": true, "pwdata":"Ag-Au-D3/PWdata_cpu"},
-        {"_idx":9,  "json_file" : "Ag-Au-D3/NEP/lkf_nep.json",   "model_type" :"NEP", "do_test": true, "pwdata":"Ag-Au-D3/PWdata_cpu"},
-        {"_idx":10,  "json_file" : "Ag-Au-D3/DP/adam_train.json", "model_type" :"DP",  "do_test": true, "pwdata":"Ag-Au-D3/PWdata_cpu"},
-        {"_idx":11, "json_file" : "Ag-Au-D3/DP/lkf_train.json",  "model_type" :"DP",  "do_test": true, "pwdata":"Ag-Au-D3/PWdata_cpu"},
-        {"_idx":12, "json_file" : "LiSiC/dp_train.json",  "model_type" :"DP",  "do_test": true, "pwdata":"LiSiC/PWdata"},
-        {"_idx":13, "json_file" : "LiSiC/nep_train.json",  "model_type" :"NEP",  "do_test": true, "pwdata":"LiSiC/PWdata"},
-        {"_idx":14, "json_file" : "AuAg/nep_lkf.json",  "model_type" :"NEP",  "do_test": true, "pwdata":"AuAg/PWdata"},
-        {"_idx":15, "json_file" : "AuAg/nep_adam.json",  "model_type" :"NEP",  "do_test": true, "pwdata":"AuAg/PWdata"},
-        {"_idx":16, "json_file" : "AuAg/dp_lkf.json",  "model_type" :"DP",  "do_test": true, "pwdata":"AuAg/PWdata"},
-        {"_idx":17, "json_file" : "AuAg/dp_adam.json",  "model_type" :"DP",  "do_test": true, "pwdata":"AuAg/PWdata"}
+        {"_idx":0,  "json_file" : "EC/train12.json",   "model_type" :"NN",    "do_test": true, "train_data":["EC/EC_MOVEMENT"], "format":"pwmat/movement"},
+        {"_idx":1,  "json_file" : "EC/train34.json",   "model_type" :"NN",    "do_test": true, "train_data":["EC/EC_MOVEMENT"], "format":"pwmat/movement"},
+        {"_idx":2,  "json_file" : "EC/train5.json",    "model_type" :"NN",    "do_test": true, "train_data":["EC/EC_MOVEMENT"], "format":"pwmat/movement"},
+        {"_idx":3,  "json_file" : "EC/train6.json",    "model_type" :"NN",    "do_test": true, "train_data":["EC/EC_MOVEMENT"], "format":"pwmat/movement"},
+        {"_idx":4,  "json_file" : "EC/train7.json",    "model_type" :"NN",    "do_test": true, "train_data":["EC/EC_MOVEMENT"], "format":"pwmat/movement"},
+        {"_idx":5,  "json_file" : "EC/train8.json",    "model_type" :"NN",    "do_test": true, "train_data":["EC/EC_MOVEMENT"], "format":"pwmat/movement"},
+        {"_idx":6,  "json_file" : "Cu/train.json",     "model_type" :"DP",    "do_test": true, "train_data":["Cu/0_300_MOVEMENT","Cu/1_500_MOVEMENT"], "format":"pwmat/movement"},
+        {"_idx":7,  "json_file" : "Cu/nep_train.json", "model_type":"NEP",    "do_test": true, "train_data":["Cu/0_300_MOVEMENT"], "format":"pwmat/movement"},
+
+        {"_idx":8,  "json_file" : "LiGePS/train.json",  "model_type" :"DP",    "do_test": true, "train_data":["LiGePS/100_1200k_movement"], "format":"pwmat/movement"},
+        {"_idx":9,  "json_file" : "LiSi/train.json",    "model_type" :"NEP",   "do_test": true, "train_data":["LiSi/MOVEMENT"], "format":"pwmat/movement"},
+        {"_idx":10,  "json_file" : "SiC/train.json",    "model_type" :"LINEAR","do_test": true, "train_data":["SiC/1_300_MOVEMENT"], "format":"pwmat/movement"},
+        {"_idx":11,  "json_file" : "HfO2/nep_train.json", "model_type" :"NEP", "do_test": true, "format":"pwmlff/npy", "train_data": ["HfO2/pwdata/init_000_50","HfO2/pwdata/init_004_50","HfO2/pwdata/init_008_50","HfO2/pwdata/init_012_50","HfO2/pwdata/init_016_50","HfO2/pwdata/init_020_20","HfO2/pwdata/init_024_20","HfO2/pwdata/init_001_50","HfO2/pwdata/init_005_50","HfO2/pwdata/init_009_50","HfO2/pwdata/init_013_50","HfO2/pwdata/init_017_50","HfO2/pwdata/init_021_20","HfO2/pwdata/init_025_20","HfO2/pwdata/init_002_50","HfO2/pwdata/init_006_50","HfO2/pwdata/init_010_50","HfO2/pwdata/init_014_50","HfO2/pwdata/init_018_50","HfO2/pwdata/init_022_20","HfO2/pwdata/init_026_20","HfO2/pwdata/init_003_50","HfO2/pwdata/init_007_50","HfO2/pwdata/init_011_50","HfO2/pwdata/init_015_30","HfO2/pwdata/init_019_50","HfO2/pwdata/init_023_20","HfO2/pwdata/init_027_20"]},
+        {"_idx":12,  "json_file" : "HfO2/DP_train.json",  "model_type" :"DP",  "do_test": true, "format":"pwmlff/npy", "train_data": ["HfO2/pwdata/init_000_50","HfO2/pwdata/init_004_50","HfO2/pwdata/init_008_50","HfO2/pwdata/init_012_50","HfO2/pwdata/init_016_50","HfO2/pwdata/init_020_20","HfO2/pwdata/init_024_20","HfO2/pwdata/init_001_50","HfO2/pwdata/init_005_50","HfO2/pwdata/init_009_50","HfO2/pwdata/init_013_50","HfO2/pwdata/init_017_50","HfO2/pwdata/init_021_20","HfO2/pwdata/init_025_20","HfO2/pwdata/init_002_50","HfO2/pwdata/init_006_50","HfO2/pwdata/init_010_50","HfO2/pwdata/init_014_50","HfO2/pwdata/init_018_50","HfO2/pwdata/init_022_20","HfO2/pwdata/init_026_20","HfO2/pwdata/init_003_50","HfO2/pwdata/init_007_50","HfO2/pwdata/init_011_50","HfO2/pwdata/init_015_30","HfO2/pwdata/init_019_50","HfO2/pwdata/init_023_20","HfO2/pwdata/init_027_20"]},
+        {"_idx":13,  "json_file" : "Ag-Au-D3/NEP/adam_nep.json", "model_type" :"NEP", "do_test": true, "format":"pwmlff/npy", "train_data": ["Ag-Au-D3/PWdata_cpu/Ag10Au14", "Ag-Au-D3/PWdata_cpu/Ag12Au36", "Ag-Au-D3/PWdata_cpu/Ag24Au24", "Ag-Au-D3/PWdata_cpu/Ag28Au4", "Ag-Au-D3/PWdata_cpu/Ag30Au18", "Ag-Au-D3/PWdata_cpu/Ag3Au21", "Ag-Au-D3/PWdata_cpu/Ag4Au20", "Ag-Au-D3/PWdata_cpu/Ag7Au17", "Ag-Au-D3/PWdata_cpu/Ag8Au8", "Ag-Au-D3/PWdata_cpu/Au32", "Ag-Au-D3/PWdata_cpu/Ag12Au12", "Ag-Au-D3/PWdata_cpu/Ag22Au10", "Ag-Au-D3/PWdata_cpu/Ag27Au21", "Ag-Au-D3/PWdata_cpu/Ag29Au19", "Ag-Au-D3/PWdata_cpu/Ag32Au16", "Ag-Au-D3/PWdata_cpu/Ag45Au3", "Ag-Au-D3/PWdata_cpu/Ag5Au43", "Ag-Au-D3/PWdata_cpu/Ag8Au40", "Ag-Au-D3/PWdata_cpu/Ag9Au15"]},
+        {"_idx":14,  "json_file" : "Ag-Au-D3/NEP/lkf_nep.json",  "model_type" :"NEP", "do_test": true, "format":"pwmlff/npy", "train_data": ["Ag-Au-D3/PWdata_cpu/Ag10Au14", "Ag-Au-D3/PWdata_cpu/Ag12Au36", "Ag-Au-D3/PWdata_cpu/Ag24Au24", "Ag-Au-D3/PWdata_cpu/Ag28Au4", "Ag-Au-D3/PWdata_cpu/Ag30Au18", "Ag-Au-D3/PWdata_cpu/Ag3Au21", "Ag-Au-D3/PWdata_cpu/Ag4Au20", "Ag-Au-D3/PWdata_cpu/Ag7Au17", "Ag-Au-D3/PWdata_cpu/Ag8Au8", "Ag-Au-D3/PWdata_cpu/Au32", "Ag-Au-D3/PWdata_cpu/Ag12Au12", "Ag-Au-D3/PWdata_cpu/Ag22Au10", "Ag-Au-D3/PWdata_cpu/Ag27Au21", "Ag-Au-D3/PWdata_cpu/Ag29Au19", "Ag-Au-D3/PWdata_cpu/Ag32Au16", "Ag-Au-D3/PWdata_cpu/Ag45Au3", "Ag-Au-D3/PWdata_cpu/Ag5Au43", "Ag-Au-D3/PWdata_cpu/Ag8Au40", "Ag-Au-D3/PWdata_cpu/Ag9Au15"]},
+        {"_idx":15,  "json_file" : "Ag-Au-D3/DP/adam_train.json","model_type" :"DP",  "do_test": true, "format":"pwmlff/npy", "train_data": ["Ag-Au-D3/PWdata_cpu/Ag10Au14", "Ag-Au-D3/PWdata_cpu/Ag12Au36", "Ag-Au-D3/PWdata_cpu/Ag24Au24", "Ag-Au-D3/PWdata_cpu/Ag28Au4", "Ag-Au-D3/PWdata_cpu/Ag30Au18", "Ag-Au-D3/PWdata_cpu/Ag3Au21", "Ag-Au-D3/PWdata_cpu/Ag4Au20", "Ag-Au-D3/PWdata_cpu/Ag7Au17", "Ag-Au-D3/PWdata_cpu/Ag8Au8", "Ag-Au-D3/PWdata_cpu/Au32", "Ag-Au-D3/PWdata_cpu/Ag12Au12", "Ag-Au-D3/PWdata_cpu/Ag22Au10", "Ag-Au-D3/PWdata_cpu/Ag27Au21", "Ag-Au-D3/PWdata_cpu/Ag29Au19", "Ag-Au-D3/PWdata_cpu/Ag32Au16", "Ag-Au-D3/PWdata_cpu/Ag45Au3", "Ag-Au-D3/PWdata_cpu/Ag5Au43", "Ag-Au-D3/PWdata_cpu/Ag8Au40", "Ag-Au-D3/PWdata_cpu/Ag9Au15"]},
+        {"_idx":16, "json_file" : "Ag-Au-D3/DP/lkf_train.json",  "model_type" :"DP",  "do_test": true, "format":"pwmlff/npy", "train_data": ["Ag-Au-D3/PWdata_cpu/Ag10Au14", "Ag-Au-D3/PWdata_cpu/Ag12Au36", "Ag-Au-D3/PWdata_cpu/Ag24Au24", "Ag-Au-D3/PWdata_cpu/Ag28Au4", "Ag-Au-D3/PWdata_cpu/Ag30Au18", "Ag-Au-D3/PWdata_cpu/Ag3Au21", "Ag-Au-D3/PWdata_cpu/Ag4Au20", "Ag-Au-D3/PWdata_cpu/Ag7Au17", "Ag-Au-D3/PWdata_cpu/Ag8Au8", "Ag-Au-D3/PWdata_cpu/Au32", "Ag-Au-D3/PWdata_cpu/Ag12Au12", "Ag-Au-D3/PWdata_cpu/Ag22Au10", "Ag-Au-D3/PWdata_cpu/Ag27Au21", "Ag-Au-D3/PWdata_cpu/Ag29Au19", "Ag-Au-D3/PWdata_cpu/Ag32Au16", "Ag-Au-D3/PWdata_cpu/Ag45Au3", "Ag-Au-D3/PWdata_cpu/Ag5Au43", "Ag-Au-D3/PWdata_cpu/Ag8Au40", "Ag-Au-D3/PWdata_cpu/Ag9Au15"]},
+        {"_idx":17, "json_file" : "LiSiC/dp_train.json",         "model_type" :"DP",  "do_test": true, "format":"pwmlff/npy", "train_data": ["LiSiC/PWdata/C2", "LiSiC/PWdata/C448", "LiSiC/PWdata/C448Li75", "LiSiC/PWdata/C64Si32", "LiSiC/PWdata/Li1Si24", "LiSiC/PWdata/Li3Si8", "LiSiC/PWdata/Li8", "LiSiC/PWdata/Li88Si20", "LiSiC/PWdata/Si1", "LiSiC/PWdata/Si217"]},
+        {"_idx":18, "json_file" : "LiSiC/nep_train.json",        "model_type" :"NEP", "do_test": true, "format":"pwmlff/npy", "train_data": ["LiSiC/PWdata/C2", "LiSiC/PWdata/C448", "LiSiC/PWdata/C448Li75", "LiSiC/PWdata/C64Si32", "LiSiC/PWdata/Li1Si24", "LiSiC/PWdata/Li3Si8", "LiSiC/PWdata/Li8", "LiSiC/PWdata/Li88Si20", "LiSiC/PWdata/Si1", "LiSiC/PWdata/Si217"]},
+        {"_idx":19, "json_file" : "AuAg/nep_lkf.json",           "model_type" :"NEP", "do_test": true, "format":"pwmlff/npy", "train_data": ["AuAg/PWdata/Ag10Au22", "AuAg/PWdata/Ag10Au38", "AuAg/PWdata/Ag10Au6", "AuAg/PWdata/Ag11Au21", "AuAg/PWdata/Ag11Au37", "AuAg/PWdata/Ag11Au5", "AuAg/PWdata/Ag12"]},
+        {"_idx":20, "json_file" : "AuAg/nep_adam.json",          "model_type" :"NEP", "do_test": true, "format":"pwmlff/npy", "train_data": ["AuAg/PWdata/Ag10Au22", "AuAg/PWdata/Ag10Au38", "AuAg/PWdata/Ag10Au6", "AuAg/PWdata/Ag11Au21", "AuAg/PWdata/Ag11Au37", "AuAg/PWdata/Ag11Au5", "AuAg/PWdata/Ag12"]},
+        {"_idx":21, "json_file" : "AuAg/dp_lkf.json",            "model_type" :"DP",  "do_test": true, "format":"pwmlff/npy", "train_data": ["AuAg/PWdata/Ag10Au22", "AuAg/PWdata/Ag10Au38", "AuAg/PWdata/Ag10Au6", "AuAg/PWdata/Ag11Au21", "AuAg/PWdata/Ag11Au37", "AuAg/PWdata/Ag11Au5", "AuAg/PWdata/Ag12"]},
+        {"_idx":22, "json_file" : "AuAg/dp_adam.json",           "model_type" :"DP",  "do_test": true, "format":"pwmlff/npy", "train_data": ["AuAg/PWdata/Ag10Au22", "AuAg/PWdata/Ag10Au38", "AuAg/PWdata/Ag10Au6", "AuAg/PWdata/Ag11Au21", "AuAg/PWdata/Ag11Au37", "AuAg/PWdata/Ag11Au5", "AuAg/PWdata/Ag12"]}
+    
     ],
 
     "work_dir": "./test_workdir",
     "work_list": [
         {
             "_work_type":"mcloud envs(gpu and cpu) for DP, NEP",
-            "envs":[0],
+            "envs":[5],
             "epochs":[1,1,1,1,1],
             "train_inputs":[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,13,14,15,16,17]
         }

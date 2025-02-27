@@ -19,6 +19,7 @@ class WorkFileStructure(object):
         self.movement_name = "MOVEMENT"
         # self.raw_path = []
         self.train_feature_path = []
+        self.valid_feature_path = []
         self.test_feature_path = []
         # self.datasets_path = []
         self.model_load_path = ""
@@ -27,14 +28,13 @@ class WorkFileStructure(object):
         self.valid_data_path = []
         self.test_data_path  = []
         
-
+        if self.model_type == "NN" or self.model_type == "LINEAR":
+            self._set_NN_PWdata_dirs() 
     # def _set_training_path(self, train_raw_path:list, train_feature_path:list, train_dir: str):
     #     self.raw_path = train_raw_path
     #     self.train_feature_path = train_feature_path
     #     self.train_dir = os.path.join(self.json_dir, train_dir)
 
-    def _set_alive_atomic_energy(self, alive_atomic_energy:bool):
-        self.alive_atomic_energy = alive_atomic_energy
 
     # def _set_data_file_paths(self, trainSetDir:str, dRFeatureInputDir:str, dRFeatureOutputDir:str,\
     #                     trainDataPath:str, validDataPath:str):
@@ -59,7 +59,11 @@ class WorkFileStructure(object):
 
     def set_inference_paths(self, json_input:dict, is_nep_txt:bool=False):
         test_dir_name = get_parameter("test_dir_name", json_input, "test_result")
-        self.test_dir = os.path.join(self.json_dir, test_dir_name)
+        
+        if json_input["model_type"].upper() in ["LINEAR", "NN"]:
+            self.test_dir = os.path.join(self.nn_work, test_dir_name)
+        else:
+            self.test_dir = os.path.join(self.json_dir, test_dir_name)
 
         if not json_input["model_type"].upper() == "LINEAR":
             if is_nep_txt:
@@ -88,6 +92,9 @@ class WorkFileStructure(object):
     '''
     def set_train_feature_path(self, feature_path:list):
         self.train_feature_path.extend(feature_path)
+
+    def set_valid_feature_path(self, feature_path:list):
+        self.valid_feature_path.extend(feature_path)
 
     def set_test_feature_path(self, feature_path:list):
         self.test_feature_path.extend(feature_path)
@@ -126,7 +133,6 @@ class WorkFileStructure(object):
         best_model_path = os.path.join(self.json_dir, "best_model.ckpt")
         forcefield_name = get_parameter("forcefield_name", json_input, "forcefield.ff")
         forcefield_dir = get_parameter("forcefield_dir", json_input, "forcefield")
-        self.set_forcefield_path(forcefield_dir, forcefield_name)
         # p matix, resume p matrix when recover is not realized
         # p matrix should extract to checkpoint files or a single file.
         # current not realized
@@ -139,7 +145,14 @@ class WorkFileStructure(object):
 
         # common dir 
         model_store_dir = get_parameter("model_store_dir", json_input, "model_record")
-        model_store_dir = os.path.join(self.json_dir, model_store_dir)
+        if self.model_type == "NN":
+            model_store_dir = os.path.join(self.nn_work, model_store_dir)
+            self.forcefield_dir = os.path.join(self.nn_work, forcefield_dir)
+            self.forcefield_name = forcefield_name
+        else:
+            self.forcefield_dir = os.path.join(self.json_dir, forcefield_dir)
+            self.forcefield_name = forcefield_name
+            model_store_dir = os.path.join(self.json_dir, model_store_dir)
         self._set_model_paths(model_store_dir = model_store_dir, \
                                     model_name = model_name, best_model_path=best_model_path)
         
@@ -148,7 +161,11 @@ class WorkFileStructure(object):
     def set_train_valid_file(self, json_input:dict):
         # set trian movement file path
         self.format = get_parameter("format", json_input, "pwmat/movement").lower() # used in new file and raw_file
+        if self.model_type.upper() in ["NN", "LINEAR"]:
+            if self.format != "pwmat/movement":
+                raise Exception("Error! For NN or Linear model, the input 'format' should be 'pwmat/movement'!")
         train_data = get_parameter("train_data", json_input, [])
+        
         for _train_data in train_data:
             if os.path.exists(_train_data) is False:
                 raise Exception("Error! train data: {} file not exist!".format(_train_data))
@@ -166,6 +183,20 @@ class WorkFileStructure(object):
                 raise Exception("Error! test data: {} file not exist!".format(_test_data))
             else:
                 self.test_data_path.append(os.path.abspath(_test_data))
+
+        if self.format == "pwmat/movement": # for nn
+            self.alive_atomic_energy = False
+            if len(self.train_data_path) > 0:
+                alive_atomic_energy = is_alive_atomic_energy(self.train_data_path)
+                self.alive_atomic_energy = alive_atomic_energy
+
+            if len(self.valid_data_path) > 0:
+                alive_atomic_energy = is_alive_atomic_energy(self.valid_data_path)
+                self.alive_atomic_energy = alive_atomic_energy
+            
+            if len(self.test_data_path) > 0:
+                alive_atomic_energy = is_alive_atomic_energy(self.test_data_path)
+                self.alive_atomic_energy = alive_atomic_energy
 
     def set_nn_file(self, json_input:dict):
         self.train_feature_path = []
@@ -188,10 +219,10 @@ class WorkFileStructure(object):
             if os.path.exists(feat_path) is False:
                 raise Exception("Error! test_feature_path: {} file not exist!".format(feat_path))
         self.test_feature_path = [os.path.abspath(_) for _ in test_feature_path]
-        self.nn_work = "work_dir" # the work dir of nn training or test 
-
-    def _set_PWdata_dirs(self, json_input:dict):
+        
+    def _set_NN_PWdata_dirs(self):
         # set Pwdata dir file structure, they are used in feature generation
+        self.nn_work = os.path.join(os.getcwd(), "work_dir") # the work dir of nn training or test 
         self.trainSetDir = 'PWdata'
         self.dRFeatureInputDir = 'input'# it is not used 2024.04.03
         self.dRFeatureOutputDir = 'output'# it is not used 2024.04.03
@@ -210,10 +241,6 @@ class WorkFileStructure(object):
         # file_dict["trainDataPath"] = self.trainDataPath
         # file_dict["validDataPath"] = self.validDataPath
         return file_dict
-
-    def set_forcefield_path(self, forcefield_dir:str, forcefield_name:str):
-        self.forcefield_dir = os.path.join(self.json_dir, forcefield_dir)
-        self.forcefield_name = forcefield_name
 
     def to_dict(self):
         dicts = {}

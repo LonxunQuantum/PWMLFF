@@ -130,9 +130,10 @@ class UniDataset(Dataset):
             if image.cartesian is True:
                     image._set_fractional()
                     image.lattice = image.lattice.flatten()
-            if isinstance(image.atom_type.tolist(), int):
-                image.atom_type = image.atom_type.reshape([1])
-            image.atom_types_image = np.array([self.atom_types_list.index(_) for _ in image.atom_types_image])
+            # if isinstance(image.atom_type.tolist(), int): # resconstructed the pwdata to ensure the shape of atom_type must be (N, )
+            #     image.atom_type = image.atom_type.reshape([1])
+            if not hasattr(image, 'atom_type_map'):
+                image.atom_type_map = np.array([self.atom_types_list.index(_) for _ in image.atom_types_image])
         return self.image_list, len(self.image_list)
 
     def get_davg_dstd(self):
@@ -159,7 +160,7 @@ class UniDataset(Dataset):
             dstd_dict[type] = []
         shuffled_list = random.sample(self.image_list, len(self.image_list))
         for image in shuffled_list:
-            atom_types = image.arrays['atom_types_image']
+            atom_types = image.atom_types_image
             cout_type, indices = np.unique(atom_types, return_index=True)
             sorted_indices = np.argsort(indices)
             cout_type = cout_type[sorted_indices]
@@ -198,7 +199,7 @@ class UniDataset(Dataset):
         energy_dict['E'] = []
         shuffled_list = random.sample(self.image_list, len(self.image_list))
         for image in shuffled_list:
-            atom_types = image.arrays['atom_types_image']
+            atom_types = image.atom_types_image
             cout_type, cout_num = np.unique(atom_types, return_counts=True)
             atom_types_image_dict = dict(zip(cout_type, cout_num))
             for element in self.atom_types:
@@ -242,10 +243,10 @@ class UniDataset(Dataset):
         for i in range(0, len(self.image_list[index].atom_type)):
             atom_in[i] = self.image_list[index].atom_type[i]
         data["AtomType"] = torch.from_numpy(atom_in).to(self.index_type)
-        data["AtomTypeMap"] = torch.from_numpy(self.image_list[index].atom_types_image).to(self.index_type)
+        data["AtomTypeMap"] = torch.from_numpy(self.image_list[index].atom_type_map).to(self.index_type)
         data["ImageAtomNum"] = torch.from_numpy(np.array([len(data["AtomTypeMap"])])).to(self.index_type)
         list_neigh, dR_neigh, max_ri, Egroup_weight, Divider, Egroup = \
-            find_neighbore(self.image_list[index].atom_types_image, 
+            find_neighbore(self.image_list[index].atom_type_map, 
                 self.image_list[index].position, 
                 self.image_list[index].lattice, 
                 self.image_list[index].position.shape[0], 
@@ -265,10 +266,10 @@ class UniDataset(Dataset):
             data["Divider"] = torch.from_numpy(Divider).to(self.dtype)
             data["Egroup"] = torch.from_numpy(Egroup).to(self.dtype)
 
-        if len(self.image_list[index].virial) == 0:
+        if self.image_list[index].virial is None:
             none_virial = -1e6 * np.ones([9])
-            np.insert(none_virial, 9, 0)
-            data["Virial"] = torch.from_numpy(np.hstack((none_virial, ones_column))).to(self.dtype) 
+            ones_column = np.insert(none_virial, 9, 0)
+            data["Virial"] = torch.from_numpy(ones_column).to(self.dtype) 
         else:
             data["Virial"] = torch.from_numpy(np.insert(self.image_list[index].virial.flatten(), 9, 1)).to(self.dtype)
         return data

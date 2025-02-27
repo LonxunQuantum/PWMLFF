@@ -2,7 +2,7 @@ import os,sys
 import glob
 import pathlib
 import random
-
+import numpy as np
 codepath = str(pathlib.Path(__file__).parent.resolve())
 sys.path.append(codepath)
 
@@ -326,7 +326,7 @@ class dp_network:
         rmse_E, rmse_F, rmse_V = inference_plot(inference_path)
 
         inference_cout = ""
-        inference_cout += "For {} images: \n".format(len(train_loader))
+        inference_cout += "For {} images: \n".format(len(test_loader))
         inference_cout += "Average RMSE of Etot per atom: {} \n".format(rmse_E)
         inference_cout += "Average RMSE of Force: {} \n".format(rmse_F)
         inference_cout += "Average RMSE of Virial per atom: {} \n".format(rmse_V)

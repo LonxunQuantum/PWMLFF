@@ -22,9 +22,8 @@ if __name__ == "__main__":
     # cmd_type = "train".upper()
     # cmd_type = "infer".upper()
     # cmd_type = "explore".upper()
-    if cmd_type == "help".upper():
-        help_info()
-    elif cmd_type == "extract_ff".upper():
+    help_info()
+    if cmd_type == "extract_ff".upper():
         ckpt_file = sys.argv[2]
         extract_force_field(ckpt_file, cmd_type)
     elif cmd_type == "compress".upper():

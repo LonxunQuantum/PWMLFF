@@ -1,5 +1,5 @@
 {   
-    "raw_files":["100_1200k_movement"],
+    "train_data":["100_1200k_movement"],
     "model_type": "DP",
     "atom_type":[3,32,15,16],
     "max_neigh_num":100, 

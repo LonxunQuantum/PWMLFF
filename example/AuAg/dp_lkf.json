@@ -53,8 +53,8 @@
     "chunk_size":10,
     "max_neigh_num": 100,
     "seed": 2023,
-    "train_valid_ratio": 0.8,
-    "datasets_path": [
+    "format":"pwmlff/npy",
+    "train_data": [
     "PWdata/Ag10Au14",
 	"PWdata/Ag10Au22",
 	"PWdata/Ag10Au38",

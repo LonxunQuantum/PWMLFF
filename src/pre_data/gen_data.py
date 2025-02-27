@@ -396,42 +396,26 @@ def write_data(alive_atomic_energy, train_egroup):
                                 #    f_feat=pm.f_train_feat)
     # scalers_train = get_scalers(pm.f_train_feat, pm.f_data_scaler, True)
 
-    if pm.test_ratio != 1:
-        print(read_allnn.wp_atom)
-        if alive_atomic_energy and train_egroup:
-            process_list = [pm.f_train_feat,
-                            pm.f_train_dfeat,
-                            pm.f_train_dR_neigh,
-                            pm.f_train_natoms,
-                            pm.f_train_egroup,
-                            pm.train_data_path]
-            process_data(process_list)
-        else:
-            process_list = [pm.f_train_feat,
-                            pm.f_train_dfeat,
-                            pm.f_train_dR_neigh,
-                            pm.f_train_natoms,
-                            pm.train_data_path]
-            process_data(process_list)
+    print(read_allnn.wp_atom)
+    if alive_atomic_energy and train_egroup:
+        process_list = [pm.f_train_feat,
+                        pm.f_train_dfeat,
+                        pm.f_train_dR_neigh,
+                        pm.f_train_natoms,
+                        pm.f_train_egroup,
+                        pm.train_data_path]
+        process_data(process_list)
+    else:
+        process_list = [pm.f_train_feat,
+                        pm.f_train_dfeat,
+                        pm.f_train_dR_neigh,
+                        pm.f_train_natoms,
+                        pm.train_data_path]
+        process_data(process_list)
    
     # # scalers_test = get_scalers(pm.f_test_feat, pm.f_data_scaler, False)
     # # data_scalers = DataScalers(f_ds=pm.f_data_scaler,
     # #                                f_feat=pm.f_test_feat)
-    if alive_atomic_energy and train_egroup:
-        process_list = [pm.f_test_feat,
-                        pm.f_test_dfeat,
-                        pm.f_test_dR_neigh,
-                        pm.f_test_natoms,
-                        pm.f_test_egroup,
-                        pm.test_data_path]
-        process_data(process_list)
-    else:
-        process_list = [pm.f_test_feat,
-                        pm.f_test_dfeat,
-                        pm.f_test_dR_neigh,
-                        pm.f_test_natoms,
-                        pm.test_data_path]
-        process_data(process_list)
 
     print("")
     print("<=============== Summary of feature data file generation  ===============>")

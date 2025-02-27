@@ -74,11 +74,7 @@ def nep_test(input_json: json, cmd:str):
     nep_param = InputParam(input_dict, "test".upper())
     # set inference param
     nep_param.set_test_relative_params(input_json, is_nep_txt=True)
-
     nep_trainer = nep_network(nep_param)
-    if len(nep_param.file_paths.raw_path) > 0:
-        data_paths = nep_trainer.generate_data()
-        nep_param.file_paths.set_datasets_path(data_paths)
     # nep_trainer.inference()
     # nep_trainer.gpu_nep_inference(model_load_path)
     nep_trainer.multi_cpus_nep_inference(model_load_path) # the speed is 1cpu > 1gpu

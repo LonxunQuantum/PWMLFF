@@ -499,14 +499,14 @@ def valid(val_loader, model, criterion, device, args:InputParam):
                     loss_val += L2
                 if args.optimizer_param.lambda_1 is not None:
                     loss_val += L1
-                # measure accuracy and record loss
-                losses.update(loss_val.item(), batch_size)
-                loss_Etot.update(loss_Etot_val.item(), batch_size)
-                loss_Etot_per_atom.update(loss_Etot_per_atom_val.item(), batch_size)
-                loss_Ei.update(loss_Ei_val.item(), batch_size)
-                if args.optimizer_param.train_egroup is True:
-                    loss_Egroup.update(loss_Egroup_val.item(), batch_size)
-                loss_Force.update(loss_F_val.item(), Ei_predict.shape[0])
+            # measure accuracy and record loss
+            losses.update(loss_val.item(), batch_size)
+            loss_Etot.update(loss_Etot_val.item(), batch_size)
+            loss_Etot_per_atom.update(loss_Etot_per_atom_val.item(), batch_size)
+            loss_Ei.update(loss_Ei_val.item(), batch_size)
+            if args.optimizer_param.train_egroup is True:
+                loss_Egroup.update(loss_Egroup_val.item(), batch_size)
+            loss_Force.update(loss_F_val.item(), Ei_predict.shape[0])
             # measure elapsed time
         batch_time.update(time.time() - end)
         end = time.time()

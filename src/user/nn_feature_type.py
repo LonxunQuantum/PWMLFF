@@ -308,5 +308,4 @@ class Descriptor(object):
             dicts["type_embedding"]["physical_property"] = self.type_physical_property
             if self.type_network_size is not None:
                dicts["type_embedding"]["network_size"] = self.type_network_size[1:]
-           
         return dicts

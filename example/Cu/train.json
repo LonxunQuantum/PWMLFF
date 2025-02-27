@@ -1,5 +1,7 @@
 {   
-    "raw_files":["0_300_MOVEMENT", "1_500_MOVEMENT"],
+    "format":"pwmat/movement",
+    "train_data":["0_300_MOVEMENT", "1_500_MOVEMENT"],
+    "valid_data":["valid_movement"],
     "model_type": "DP",
     "atom_type":[29]
 }

@@ -34,7 +34,8 @@
         "train_force": true,
         "train_virial": true
     },
-    "datasets_path": [
+    "format":"pwmlff/npy",
+    "train_data": [
         "../PWdata_cpu/Ag10Au14",
         "../PWdata_cpu/Ag22Au10",
         "../PWdata_cpu/Ag28Au4",

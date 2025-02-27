@@ -1,5 +1,5 @@
 {   
-    "train_movement_file":["./1_300_MOVEMENT", "./2_300_MOVEMENT"],
+    "train_data":["./1_300_MOVEMENT", "./2_300_MOVEMENT"],
     "model_type": "Linear",
     "atom_type":[14, 6]
 }

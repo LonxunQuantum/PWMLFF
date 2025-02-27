@@ -1,5 +1,6 @@
 {   
-    "raw_files":["./EC_MOVEMENT"],
+    "format":   "pwmat/movement",
+    "test_data":["./EC_MOVEMENT"],
     "model_type": "NN",
     "model_load_file":"./model_record/nn_model.ckpt"
 }

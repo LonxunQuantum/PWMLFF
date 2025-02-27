@@ -34,7 +34,8 @@
         "batch_size": 8,
         "train_virial": true
     },
-    "datasets_path": [
+    "format":"pwmlff/npy",
+    "data_train": [
         "../PWdata_cpu/Ag10Au14",
         "../PWdata_cpu/Ag22Au10",
         "../PWdata_cpu/Ag28Au4",

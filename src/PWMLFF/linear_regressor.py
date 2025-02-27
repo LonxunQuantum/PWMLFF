@@ -59,27 +59,31 @@ class linear_regressor:
         pm.fortranFitWeightOfForce = self.dp_params.optimizer_param.pre_fac_force
         pm.fortranFitWeightOfEnergy = self.dp_params.optimizer_param.pre_fac_ei
 
-    def evaluate_prepare_data(self):
+    def evaluate_prepare_data(self, movement_path:list[str]=None, work_dir:str=None):
         # copy movement file to MD/ dir
-        target_dir = os.path.join(self.dp_params.file_paths.train_dir, "MD")
+        target_dir = os.path.join(work_dir, "MD")
         if os.path.exists(target_dir):
             shutil.rmtree(target_dir)
         os.makedirs(target_dir)
-        combine_movement(self.dp_params.file_paths.test_movement_path, 
+        combine_movement(movement_path, 
                          os.path.join(target_dir, self.dp_params.file_paths.movement_name))
         # copy forcefild files from forcefield dir
         source_dir = os.path.join(self.dp_params.file_paths.json_dir, os.path.basename(self.dp_params.file_paths.forcefield_dir))
-        target_dir = self.dp_params.file_paths.train_dir
+        target_dir = work_dir
         # copy fread_dfeat  input  output to target dir
         copy_tree(os.path.join(source_dir, "fread_dfeat"), os.path.join(target_dir, "fread_dfeat"))
         copy_tree(os.path.join(source_dir, "input"), os.path.join(target_dir, "input"))
         copy_tree(os.path.join(source_dir, "output"), os.path.join(target_dir, "output"))
 
-    def generate_data(self):
-        pwdata_work_dir = copy_movements_to_work_dir(self.dp_params.file_paths.train_movement_path,
-                            self.dp_params.file_paths.train_dir, 
-                                self.dp_params.file_paths.trainSetDir, 
-                                    self.dp_params.file_paths.movement_name)
+    def generate_data(self, movement_path:list[str]=None, feature_type:str=None):
+        
+        if os.path.exists(self.dp_params.file_paths.nn_work) is True: # work_dir/feature dir
+            shutil.rmtree(self.dp_params.file_paths.nn_work)
+        os.makedirs(self.dp_params.file_paths.nn_work)
+        pwdata_work_dir = copy_movements_to_work_dir(movement_path,
+                            os.path.abspath(os.path.join(self.dp_params.file_paths.nn_work, feature_type)), 
+                              "PWdata", 
+                                self.dp_params.file_paths.movement_name)
         # generate feature
         cwd = os.getcwd()
         os.chdir(os.path.dirname(pwdata_work_dir))
@@ -91,7 +95,7 @@ class linear_regressor:
         pm.isCalcFeat = False
         os.chdir(cwd)
         
-    def train(self):
+    def train(self, work_path):
         print ("training starts")
         
         pm.isFitLinModel = True     
@@ -104,7 +108,7 @@ class linear_regressor:
 
         #pp.prepare_novdw()
         # change dir to feature dir and do fitting
-        os.chdir(self.dp_params.file_paths.train_dir)
+        os.chdir(work_path)
         ff.fit() 
 
         pm.isFitLinModel = False 
@@ -114,13 +118,13 @@ class linear_regressor:
         pm.isFitLinModel = False 
         """
     
-    def evaluate(self, num_thread = 1, plot_elem = False, save_data = False):
+    def evaluate(self, work_path, num_thread = 1, plot_elem = False, save_data = False):
         """
             evaluate a model w.r.t AIMD
             put a MOVEMENT in /MD and run MD100 
         """
         cwd = os.getcwd()
-        os.chdir(self.dp_params.file_paths.train_dir)
+        os.chdir(work_path)
         if not os.path.exists("MD/MOVEMENT"):
             raise Exception("MD/MOVEMENT not found. It should be an Ab Initio MD result")
         if os.path.exists("MOVEMENT"):

@@ -1,5 +1,5 @@
 {   
-    "raw_files":["100_1200k_movement"],
+    "test_data":["100_1200k_movement"],
     "model_type": "DP",
     "model_load_file":"./model_record/dp_model.ckpt"
 }

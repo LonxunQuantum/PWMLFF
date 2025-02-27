@@ -3,5 +3,5 @@
     "atom_type": [
         3, 14
     ],
-    "raw_files":["MOVEMENT"]
+    "train_data":["MOVEMENT"]
 }
