@@ -7,26 +7,20 @@ import yaml
 from src.user.input_param import InputParam
 from pwdata import Config
 from pwdata.image import Image
+from utils.debug_operation import check_cuda_memory
+import time
 # from src.feature.nep_find_neigh.findneigh import FindNeigh
 import random
 from typing import Union, Optional
-
+from tqdm import tqdm
 if torch.cuda.is_available():
     lib_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "op/build/lib/libCalcOps_bind.so")
     torch.ops.load_library(lib_path)
     CalcOps = torch.ops.CalcOps_cuda
-    device = torch.cuda.current_device()
-    memory_total = torch.cuda.get_device_properties(device).total_memory
-    memory_total_gb = memory_total / (1024 ** 3)
-    if memory_total_gb < 13:
-        load_batch_size = 1024
-    else:
-        load_batch_size = 2048
 else:
     lib_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "op/build/lib/libCalcOps_bind_cpu.so")
     torch.ops.load_library(lib_path)    # load the custom op, no use for cpu version
     CalcOps = torch.ops.CalcOps_cpu     # only for compile while no cuda device
-    load_batch_size = 1024
 
 def get_det(box: np.array):
     matrix = box.reshape((3, 3))
@@ -115,6 +109,7 @@ class UniDataset(Dataset):
         self.cutoff_angular = cutoff_angular
         self.max_NN_radial = 100
         self.max_NN_angular= 100
+        self.max_atom_nums = -1
         self.use_cartesian = use_cartesian
         self.dtype = dtype if isinstance(dtype, torch.dtype) else getattr(torch, dtype)
         self.index_type = (
@@ -145,6 +140,7 @@ class UniDataset(Dataset):
             else:
                 if image.cartesian is True:
                     image._set_fractional()
+            self.max_atom_nums = max(self.max_atom_nums, image.position.shape[0])
             if not hasattr(image, 'atom_type_map'):
                 image.atom_type_map = np.array([self.atom_types.index(_) for _ in image.atom_types_image])
 
@@ -320,17 +316,15 @@ def calculate_neighbor_num_max_min(
     min_radial = 1e10
     max_angular = -1e10
     min_angular = 1e10
-
-    
     dataloader = torch.utils.data.DataLoader(
         dataset,
-        batch_size=load_batch_size,
+        batch_size=1024,
         shuffle=False,
         collate_fn=variable_length_collate_fn,
         num_workers=4,
     )
     
-    for _, sample in enumerate(dataloader):
+    for _, sample in tqdm(enumerate(dataloader), total=len(dataloader), desc="Calculating max neighbors"):
         sample = {key: value.to(device) for key, value in sample.items()}
         nn_radial, nn_angular = CalcOps.calculate_maxneigh(
             sample["num_atom"],
@@ -346,6 +340,7 @@ def calculate_neighbor_num_max_min(
         min_radial = min(min_radial, nn_radial.min().item())
         max_angular = max(max_angular, nn_angular.max().item())
         min_angular = min(min_angular, nn_angular.min().item())
+        
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
     return max_radial, min_radial, max_angular, min_angular
@@ -362,9 +357,11 @@ def calculate_neighbor_scaler(
                 lmax_4,
                 lmax_5,
                 device: torch.device):
+    t1 = time.time()
+    batch_size_num = calculate_batch(dataset.max_atom_nums, max_NN_radial)
     dataloader = torch.utils.data.DataLoader(
         dataset,
-        batch_size=load_batch_size,
+        batch_size=batch_size_num,
         shuffle=False,
         collate_fn=variable_length_collate_fn,
         num_workers=4,
@@ -389,9 +386,13 @@ def calculate_neighbor_scaler(
         device=device,
     )
     
+    # check_cuda_memory(-1, -1, "before calculate_neighbor_scaler ", empty=False)
     FFAtomType = torch.from_numpy(np.array(dataset.atom_types)).to(device=device, dtype=dataset.index_type)
-    tmp_desc = []
-    for _, sample in enumerate(dataloader):
+    # tmp_desc = []
+    first_batch = True
+    global_max = None
+    global_min = None    
+    for _, sample in tqdm(enumerate(dataloader), total=len(dataloader), desc="Calculating neighbors"):
         sample = {key: value.to(device) for key, value in sample.items()}
         NN_radial, NN_angular, NL_radial, NL_angular, Ri_radial, Ri_angular = \
             CalcOps.calculate_neighbor(
@@ -409,6 +410,7 @@ def calculate_neighbor_scaler(
             False # with_rij
         )
 
+        # check_cuda_memory(_, 0, "after calculate_neighbor",empty=False)
         descriptor = CalcOps.calculate_descriptor(
             weight_radial,
             weight_angular,
@@ -422,17 +424,43 @@ def calculate_neighbor_scaler(
             lmax_4,
             lmax_5
         )[0]
-        tmp_desc.append(descriptor)
+        if first_batch:
+            global_max = descriptor.amax(dim=0)
+            global_min = descriptor.amin(dim=0)
+            first_batch = False
+        else:
+            global_max = torch.maximum(global_max, descriptor.amax(dim=0))
+            global_min = torch.minimum(global_min, descriptor.amin(dim=0))
 
-    desc = torch.concat(tmp_desc, dim=0)
+        # check_cuda_memory(_, 1, "in calculate_scaler ",empty=False)
+        del descriptor, NN_radial, NN_angular, NL_radial, NL_angular, Ri_radial, Ri_angular
 
-    qscaler_radial = 1.0 / (desc.amax(dim=0) - desc.amin(dim=0))
-    qscaler = []
-    qscaler.extend(qscaler_radial.tolist()) 
+        torch.cuda.empty_cache()
+
+        # tmp_desc.append(descriptor.detach())
+        # check_cuda_memory(_, 2, "after calculate_scaler ",empty=False)
+
+    # desc = torch.concat(tmp_desc, dim=0)
+    # qscaler_radial = 1.0 / (desc.amax(dim=0) - desc.amin(dim=0))
+    qscaler_radial = 1.0 / (global_max - global_min)
+    qscaler = qscaler_radial.tolist()
+    t2 = time.time()
+    # print("scaler time {}", t2 - t1)
+    # qscaler = []
+    # qscaler.extend(qscaler_radial.tolist()) 
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
     return qscaler
 
+def calculate_batch(N, MN):
+    device = torch.cuda.current_device()
+    memory_total_b = torch.cuda.get_device_properties(device).total_memory
+    all = 0
+    batch = 0
+    while all < memory_total_b:
+        batch += 1
+        all += (2 * (N + N * MN + N * MN * 4) + N * 4 + N * 100) * 8 # (NN + NL + Rij + po) * 2 + N * 3 
+    return batch
 
 def main():
     input_json = "/data/home/wuxingxing/codespace/PWMLFF_nep/pwmat_mlff_workdir/hfo2/nep_train/train.json"

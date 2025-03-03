@@ -100,7 +100,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
     
     # switch to train mode
     model.train()
-
+    # check_cuda_memory(epoch, 0, " start train ")
     end = time.time()
     for i, sample in enumerate(train_loader):
         sample = {key: value.to(device) for key, value in sample.items()}

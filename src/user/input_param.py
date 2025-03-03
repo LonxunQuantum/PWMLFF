@@ -332,19 +332,16 @@ class InputParam(object):
         print(params_dict)
         
 def help_info():
-    # 使用双线边框和加粗标题
-    print("\n\033[1;36m╔" + "=" * 48 + "╗\033[0m")  # 双线上边框
-    print("\033[1;36m║" + " " * 10 + "\033[1;35m PWMLFF Basic Information \033[0m" + " " * 12 + "\033[1;36m║\033[0m")  # 标题
-    print("\033[1;36m╚" + "=" * 48 + "╝\033[0m")  # 双线下边框
-    print(f"\033[1;32mVersion:\033[0m 2025.02")
-    print(f"\033[1;32mCompatible pwdata:\033[0m >= 0.4.8")
-    print(f"\033[1;32mCompatible pwact:\033[0m >= 0.2.1")
-    print(f"\033[1;32mLast Commit:\033[0m 2025.03.05")
-    print(f"\033[1;32mGit Hash:\033[0m 7bdaa90da15a5bfca6a831e739ebdd67fca22299")
-    print(f"\033[1;32mContact:\033[0m support@pwmat.com")
-    print(f"\033[1;32mCitation:\033[0m https://github.com/LonxunQuantum/PWMLFF")
-    print(f"\033[1;32mManual online:\033[0m http://doc.lonxun.com/PWMLFF/")
-    print("\033[1;36m" + "=" * 50 + "\033[0m")  # 青色分隔线
+    print("\n" + "=" * 50) 
+    print("         PWMLFF Basic Information")
+    print("=" * 50) 
+    print("Version: 2025.02")
+    print("Compatible pwdata: >= 0.4.8")
+    print("Compatible pwact: >= 0.2.1")
+    print("Last Commit: 2025.03.05")
+    print("Git Hash: 7bdaa90da15a5bfca6a831e739ebdd67fca22299")
+    print("Contact: support@pwmat.com")
+    print("Citation: https://github.com/LonxunQuantum/PWMLFF")
+    print("Manual online: http://doc.lonxun.com/PWMLFF/")
+    print("=" * 50)  
     print("\n\n")
-# 调用函数
-help_info()

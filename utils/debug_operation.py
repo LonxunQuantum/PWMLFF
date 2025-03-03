@@ -1,8 +1,8 @@
 import torch
 import gc
-
-def check_cuda_memory(epoch, num_epochs, types):
-    torch.cuda.empty_cache()  # Clear the cache to obtain accurate memory usage information.
+def check_cuda_memory(epoch, num_epochs, types, empty=True):
+    if empty:
+        torch.cuda.empty_cache()  # Clear the cache to obtain accurate memory usage information.
     allocated_memory = torch.cuda.memory_allocated() / 1024**3  # Allocated memory, converted to GB
     cached_memory = torch.cuda.memory_reserved() / 1024**3  # cached memory, converted to GB
     log = ""
