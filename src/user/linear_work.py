@@ -3,6 +3,7 @@ import json
 from src.user.input_param import InputParam
 from src.PWMLFF.linear_regressor import linear_regressor
 from utils.file_operation import delete_tree, copy_tree, copy_file
+from src.pre_data.find_maxneighbor import get_max_neighbor
 
 '''
 description: do linear training
@@ -16,6 +17,15 @@ author: wuxingxing
 '''
 def linear_train(input_json: json, cmd:str):
     linear_param = InputParam(input_json, cmd) 
+    max_neighbor, _, _, _ , dataset = get_max_neighbor(
+            data_paths=linear_param.file_paths.train_data_path,
+            format="pwmat/movement",
+            atom_types=linear_param.atom_type,
+            cutoff_radial=linear_param.descriptor.Rmax * 1.25,
+            with_type=False
+    )
+    linear_param.max_neigh_num = max(max_neighbor, linear_param.max_neigh_num)
+
     linear_param.print_input_params("std_input.json")
     linear_trainer = linear_regressor(linear_param)
     if len(linear_param.file_paths.train_data_path) > 0:

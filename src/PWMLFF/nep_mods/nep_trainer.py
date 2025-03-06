@@ -118,7 +118,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
             model.cutoff_angular,
             model.max_NN_radial,
             model.max_NN_angular,
-            True #calculate_neighbor
+            True #calculate_neighbor with rij
         )
         Virial_label = sample["virial"]
         Etot_label   = sample["energy"]

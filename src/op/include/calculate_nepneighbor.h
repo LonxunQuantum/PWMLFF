@@ -10,7 +10,10 @@ void launch_calculate_maxneigh(
     const int64_t  total_frames,
     const int64_t  total_atoms,
     int64_t      * NN_radial, 
-    int64_t      * NN_angular
+    int64_t      * NN_angular,
+    const int64_t atom_type_num,
+    const bool with_type,
+    const int64_t * atom_type_map
 );
 
 void launch_calculate_neighbor(

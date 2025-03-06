@@ -6,6 +6,7 @@ from src.PWMLFF.nn_param_extract import extract_force_field
 from src.PWMLFF.nn_network import nn_network
 from utils.file_operation import delete_tree, copy_tree, copy_file
 from utils.json_operation import get_parameter, get_required_parameter
+from src.pre_data.find_maxneighbor import get_max_neighbor
 '''
 description: do nn training
     step1. generate feature from MOVEMENTs
@@ -18,10 +19,22 @@ author: wuxingxing
 '''
 def nn_train(input_json: json, cmd:str):
     nn_param = InputParam(input_json, cmd) 
+    # set max neighbor
+    max_neighbor, _, _, _ , dataset = get_max_neighbor(
+            data_paths=nn_param.file_paths.train_data_path,
+            format="pwmat/movement",
+            atom_types=nn_param.atom_type,
+            cutoff_radial=nn_param.descriptor.Rmax * 1.25,
+            with_type=False
+    )
+    nn_param.max_neigh_num = max(max_neighbor, nn_param.max_neigh_num)
     nn_param.print_input_params(json_file_save_name="std_input.json")
     nn_trainer = nn_network(nn_param)
     if len(nn_param.file_paths.train_data_path) > 0:
-        feature_path = nn_trainer.generate_data(shuffle=False, 
+        chunk_size = min(10, len(dataset))
+        feature_path = nn_trainer.generate_data(
+                                chunk_size = chunk_size,
+                                shuffle=False, 
                                 movement_path = nn_param.file_paths.train_data_path,
                                 feature_type="train_feature")
         nn_param.file_paths.set_train_feature_path([feature_path])
@@ -81,7 +94,17 @@ def nn_test(input_json: json, cmd:str):
     json_dict_train["valid_data"] = []
     json_dict_train["test_data"] = input_json["test_data"]
     json_dict_train["format"] = get_parameter("format", input_json, "pwmat/movement")
+
+    max_neighbor, _, _, _ , dataset = get_max_neighbor(
+            data_paths=json_dict_train["test_data"],
+            format="pwmat/movement",
+            atom_types=json_dict_train["atom_type"],
+            cutoff_radial=json_dict_train['model']['descriptor']['Rmax'] * 1.25,
+            with_type=False
+    )
     
+    json_dict_train["max_neigh_num"] = max(max_neighbor, get_parameter("max_neigh_num", json_dict_train, 100))
+
     nn_param = InputParam(json_dict_train, "test".upper())
     # set inference param
     nn_param.set_test_relative_params(input_json)

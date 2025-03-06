@@ -284,7 +284,10 @@ std::vector<torch::Tensor> calculate_maxneigh(
     const torch::Tensor &num_cell, 
     const torch::Tensor &position,
     const double cutoff_2b,
-    const double cutoff_3b);
+    const double cutoff_3b,
+    const int64_t atom_type_num,
+    const torch::Tensor &atom_type_map,
+    const bool with_type = false);
 
 std::vector<torch::Tensor> calculate_neighbor(
     const torch::Tensor &num_atoms, 
@@ -322,7 +325,11 @@ std::vector<torch::Tensor> calculate_maxneigh_cpu(
     const torch::Tensor &num_cell, 
     const torch::Tensor &position,
     const double cutoff_2b,
-    const double cutoff_3b);
+    const double cutoff_3b,    
+    const int64_t atom_type_num,
+    const torch::Tensor &atom_type_map,
+    const bool with_type = false
+    );
 
 std::vector<torch::Tensor> calculate_neighbor_cpu(
     const torch::Tensor &num_atoms, 

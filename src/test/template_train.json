@@ -125,7 +125,7 @@
             "env_list": [
                 "export PYTHONPATH=/data/home/wuxingxing2/codespace/PWMLFF_grad_batch/src:$PYTHONPATH",
                 "export PATH=/data/home/wuxingxing2/codespace/PWMLFF_grad_batch/src/bin:$PATH",
-                "conda activate PWMLFF"
+                "conda activate PWMLFF-2025.3"
             ]
         },
         {
@@ -208,7 +208,7 @@
     "work_list": [
         {
             "_work_type":"mcloud envs(gpu and cpu) for DP, NEP",
-            "envs":[0],
+            "envs":[5],
             "epochs":[1,1,1,1,1],
             "train_inputs":[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,13,14,15,16,17]
         }

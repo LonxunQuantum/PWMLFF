@@ -6,6 +6,8 @@ from src.PWMLFF.dp_param_extract import extract_force_field
 from src.PWMLFF.dp_network import dp_network
 from utils.file_operation import delete_tree, copy_tree, copy_file
 from utils.json_operation import get_parameter, get_required_parameter
+from src.pre_data.find_maxneighbor import get_max_neighbor
+
 '''
 description: do dp training
     step1. generate feature from MOVEMENTs
@@ -18,7 +20,16 @@ author: wuxingxing
 '''
 def dp_train(input_json: json, cmd:str):
     dp_param = InputParam(input_json, cmd) 
-    dp_param.print_input_params(json_file_save_name="std_input.json")
+
+    # max_neighbor, _, _, _ , dataset = get_max_neighbor(
+    #         data_paths=dp_param.file_paths.train_data_path,
+    #         format=dp_param.file_paths.format,
+    #         atom_types=dp_param.atom_type,
+    #         cutoff_radial=dp_param.descriptor.Rmax,
+    #         with_type=True
+    # )
+    # dp_param.max_neigh_num = max(max_neighbor, dp_param.max_neigh_num)
+    # dp_param.print_input_params(json_file_save_name="std_input.json")
     dp_trainer = dp_network(dp_param)
     dp_trainer.train()
     if os.path.exists(dp_param.file_paths.model_save_path) is False:
@@ -48,7 +59,6 @@ def dp_test(input_json: json, cmd:str):
     dp_param = InputParam(json_dict_train, "test".upper())
     # set inference param
     dp_param.set_test_relative_params(input_json)
-    dp_param.print_input_params(json_file_save_name="std_input.json")
     dp_trainer = dp_network(dp_param)
     dp_trainer.inference()
 

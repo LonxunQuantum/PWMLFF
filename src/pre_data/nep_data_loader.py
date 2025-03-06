@@ -136,7 +136,6 @@ class UniDataset(Dataset):
             if self.use_cartesian:
                 if image.cartesian is False:
                     image._set_cartesian()
-                    image.lattice = image.lattice.T
             else:
                 if image.cartesian is True:
                     image._set_fractional()
@@ -200,9 +199,9 @@ class UniDataset(Dataset):
         data = {}
         num_cell = np.zeros(3, dtype=int)
         box = np.zeros(18, dtype=float) 
-        volume = self.expand_box(self.image_list[index].lattice.flatten(), self.cutoff_radial, num_cell, box)
+        volume = self.expand_box(self.image_list[index].lattice.T.flatten(), self.cutoff_radial, num_cell, box)
         data["box"] = torch.from_numpy(box).to(self.dtype)
-        data["box_original"] = torch.from_numpy(self.image_list[index].lattice.flatten()).to(self.dtype)
+        data["box_original"] = torch.from_numpy(self.image_list[index].lattice.T.flatten()).to(self.dtype)
         data["num_cell"] = torch.from_numpy(num_cell).to(self.index_type)
         data["volume"] = torch.from_numpy(np.array([volume])).to(self.dtype)
         # data["atom_type"] = torch.from_numpy(self.image_list[index].atom_type).to(self.index_type)
@@ -333,7 +332,10 @@ def calculate_neighbor_num_max_min(
             sample["num_cell"],
             sample["position"],
             dataset.cutoff_radial,
-            dataset.cutoff_angular
+            dataset.cutoff_angular,
+            len(dataset.atom_types),
+            sample["atom_type_map"],
+            False
         )
         # print(_, torch.sum(nn_radial))
         max_radial = max(max_radial, nn_radial.max().item())
@@ -392,7 +394,7 @@ def calculate_neighbor_scaler(
     first_batch = True
     global_max = None
     global_min = None    
-    for _, sample in tqdm(enumerate(dataloader), total=len(dataloader), desc="Calculating neighbors"):
+    for _, sample in tqdm(enumerate(dataloader), total=len(dataloader), desc="Calculating scaler"):
         sample = {key: value.to(device) for key, value in sample.items()}
         NN_radial, NN_angular, NL_radial, NL_angular, Ri_radial, Ri_angular = \
             CalcOps.calculate_neighbor(
@@ -453,13 +455,16 @@ def calculate_neighbor_scaler(
     return qscaler
 
 def calculate_batch(N, MN):
-    device = torch.cuda.current_device()
-    memory_total_b = torch.cuda.get_device_properties(device).total_memory
-    all = 0
-    batch = 0
-    while all < memory_total_b:
-        batch += 1
-        all += (2 * (N + N * MN + N * MN * 4) + N * 4 + N * 100) * 8 # (NN + NL + Rij + po) * 2 + N * 3 
+    if torch.cuda.is_available():
+        device = torch.cuda.current_device()
+        memory_total_b = torch.cuda.get_device_properties(device).total_memory
+        all = 0
+        batch = 0
+        while all < memory_total_b:
+            batch += 1
+            all += (2 * (N + N * MN + N * MN * 4) + N * 4 + N * 100) * 8 # (NN + NL + Rij + po) * 2 + N * 3 
+    else:
+        batch = 512 # for cpu
     return batch
 
 def main():

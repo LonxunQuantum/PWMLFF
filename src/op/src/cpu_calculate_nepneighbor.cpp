@@ -14,14 +14,15 @@ void launch_calculate_maxneigh_cpu(
     const int64_t  total_frames,
     const int64_t  total_atoms,
     int64_t      * NN_radial, 
-    int64_t      * NN_angular
+    int64_t      * NN_angular,
+    const int64_t  atom_type_num,
+    const bool     with_type,
+    const int64_t * atom_type_map
 ) {
-    // 不再需要流和GPU内核调用，直接在CPU上循环执行
     for (int64_t frame = 0; frame < total_frames; ++frame) {
         int64_t N2 = num_atoms_sum[frame];
         int64_t N1 = N2 - num_atoms[frame];
 
-        // 处理每个原子的邻居关系
         for (int64_t n1 = N1; n1 < N2; ++n1) {
             double const* box_frame = box + 18 * frame;
             double const* box_original_frame = box_orig + 9 * frame;
@@ -34,8 +35,11 @@ void launch_calculate_maxneigh_cpu(
             int count_radial = 0;
             int count_angular = 0;
 
-            // 遍历其他原子计算邻居
+            int count_radial_list[50]  = {0};
+            int count_angular_list[50] = {0};
+
             for (int64_t n2 = N1; n2 < N2; ++n2) {
+                int t2 = atom_type_map[n2];
                 for (int ia = 0; ia < num_cell_frame[0]; ++ia) {
                     for (int ib = 0; ib < num_cell_frame[1]; ++ib) {
                         for (int ic = 0; ic < num_cell_frame[2]; ++ic) {
@@ -56,22 +60,35 @@ void launch_calculate_maxneigh_cpu(
 
                             double distance_square = x12 * x12 + y12 * y12 + z12 * z12;
 
-                            // 判断是否为径向和角度邻居
-                            if (distance_square < cutoff_2b * cutoff_2b) {
-                                count_radial++;
-                            }
-
-                            if (distance_square < cutoff_3b * cutoff_3b) {
-                                count_angular++;
+                            if(with_type == true){
+                                if (distance_square < cutoff_2b * cutoff_2b) {
+                                    count_radial_list[t2]++;
+                                }
+                                if (distance_square < cutoff_3b * cutoff_3b) {
+                                    count_angular_list[t2]++;
+                                }                                
+                            } else {
+                                if (distance_square < cutoff_2b * cutoff_2b) {
+                                    count_radial++;
+                                }
+                                if (distance_square < cutoff_3b * cutoff_3b) {
+                                    count_angular++;
+                                }
                             }
                         }
                     }
                 }
             }
 
-            // 将邻居数量保存到结果数组
-            NN_radial[n1] = count_radial;
-            NN_angular[n1] = count_angular;
+            if(with_type == true){
+                for (int _t = 0; _t < atom_type_num; _t++) {
+                   NN_radial[ n1 * atom_type_num + _t] = count_radial_list[_t];
+                   NN_angular[n1 * atom_type_num + _t] = count_angular_list[_t];
+                }
+            } else {
+                NN_radial[n1] = count_radial;
+                NN_angular[n1] = count_angular;
+            }
         }
     }    
 }

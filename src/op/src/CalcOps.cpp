@@ -1029,7 +1029,10 @@ std::vector<torch::Tensor> calculate_maxneigh(
     const torch::Tensor &num_cell, 
     const torch::Tensor &position,
     const double cutoff_2b,
-    const double cutoff_3b
+    const double cutoff_3b,
+    const int64_t atom_type_num,
+    const torch::Tensor &atom_type_map,
+    const bool with_type
 ){
     auto dtype = position.dtype();
     auto index_dtype = num_atoms.dtype();
@@ -1037,25 +1040,50 @@ std::vector<torch::Tensor> calculate_maxneigh(
     int64_t total_frames = num_atoms.sizes()[0];
     int64_t total_atoms = position.sizes()[0];
     torch::Tensor atom_num_list_sum = torch::cumsum(num_atoms, 0, torch::kInt64);
-    torch::Tensor NN_radial = torch::empty({total_atoms}, torch::TensorOptions().dtype(index_dtype).device(device));
-    torch::Tensor NN_angular = torch::empty({total_atoms}, torch::TensorOptions().dtype(index_dtype).device(device));
+    if (with_type == false) {
+        torch::Tensor NN_radial = torch::empty({total_atoms}, torch::TensorOptions().dtype(index_dtype).device(device));
+        torch::Tensor NN_angular = torch::empty({total_atoms}, torch::TensorOptions().dtype(index_dtype).device(device));
+        torch_launch_calculate_maxneigh(
+            num_atoms,
+            atom_num_list_sum,
+            box,
+            box_orig,
+            num_cell,
+            position,
+            cutoff_2b,
+            cutoff_3b,
+            total_frames,
+            total_atoms,
+            NN_radial,
+            NN_angular,
+            atom_type_num,
+            with_type,
+            atom_type_map
+        );
+        return {NN_radial, NN_angular};
+    } else {
+        torch::Tensor NN_radial = torch::empty({total_atoms, atom_type_num}, torch::TensorOptions().dtype(index_dtype).device(device));
+        torch::Tensor NN_angular = torch::empty({total_atoms, atom_type_num}, torch::TensorOptions().dtype(index_dtype).device(device));
+        torch_launch_calculate_maxneigh(
+            num_atoms,
+            atom_num_list_sum,
+            box,
+            box_orig,
+            num_cell,
+            position,
+            cutoff_2b,
+            cutoff_3b,
+            total_frames,
+            total_atoms,
+            NN_radial,
+            NN_angular,
+            atom_type_num,
+            with_type,
+            atom_type_map
+        );
+        return {NN_radial, NN_angular};
+    }
     
-    torch_launch_calculate_maxneigh(
-        num_atoms,
-        atom_num_list_sum,
-        box,
-        box_orig,
-        num_cell,
-        position,
-        cutoff_2b,
-        cutoff_3b,
-        total_frames,
-        total_atoms,
-        NN_radial,
-        NN_angular
-    );
-
-    return {NN_radial, NN_angular};
 }
 
 std::vector<torch::Tensor> calculate_neighbor(

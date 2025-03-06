@@ -39,7 +39,7 @@ from src.optimizer.GKF import GKFOptimizer
 from src.optimizer.LKF import LKFOptimizer
 import src.pre_data.dp_mlff as dp_mlff
 # from src.pre_data.dp_data_loader import MovementDataset
-from src.pre_data.dpuni_data_loader import UniDataset, type_map, variable_length_collate_fn
+from src.pre_data.dpuni_data_loader import UniDataset, type_map, variable_length_collate_fn, calculate_neighbor_num_max_min
 
 from src.PWMLFF.dp_mods.dp_trainer import train_KF, train, valid, save_checkpoint, predict
 from src.PWMLFF.dp_param_extract import load_davg_dstd_from_checkpoint, load_davg_dstd_from_feature_path
@@ -121,7 +121,8 @@ class dp_network:
         if self.dp_params.inference:
             test_dataset = UniDataset(dp_config,
                                     self.dp_params.file_paths.test_data_path, 
-                                    self.dp_params.file_paths.format)
+                                    self.dp_params.file_paths.format,
+                                    calculate_maxnn=True)
             test_loader = torch.utils.data.DataLoader(
                 test_dataset,
                 batch_size=1,
@@ -135,12 +136,21 @@ class dp_network:
         else:
             train_dataset = UniDataset(dp_config,
                                 self.dp_params.file_paths.train_data_path, 
-                                self.dp_params.file_paths.format)
+                                self.dp_params.file_paths.format,
+                                calculate_maxnn=True)
 
             valid_dataset = UniDataset(dp_config,
                                 self.dp_params.file_paths.valid_data_path, 
-                                self.dp_params.file_paths.format
+                                self.dp_params.file_paths.format,
+                                calculate_maxnn=True
                                 )
+            dp_config["maxNeighborNum"] = max(train_dataset.m_neigh, valid_dataset.m_neigh)
+            if len(valid_dataset) > 0:
+                valid_dataset.m_neigh = dp_config["maxNeighborNum"]
+                valid_dataset.config = dp_config
+            train_dataset.m_neigh = dp_config["maxNeighborNum"] 
+            train_dataset.config = dp_config
+
             # should add a collate function for padding
             train_loader = torch.utils.data.DataLoader(
                 train_dataset,
@@ -296,7 +306,11 @@ class dp_network:
         # do inference
         dp_config = self.dp_params.get_data_file_dict()
         davg, dstd, atom_map, energy_shift = self.load_davg_from_ckpt()
+
         test_loader, _, test_dataset = self.load_data(dp_config) #davg, dstd, energy_shift, atom_map
+        self.dp_params.max_neigh_num = max(self.dp_params.max_neigh_num, test_dataset.m_neigh)
+        self.dp_params.print_input_params(json_file_save_name="std_input.json")
+
         model, optimizer = self.load_model_optimizer(davg, dstd, energy_shift)
         start = time.time()
         atom_num_list, res_pd, etot_label_list, etot_predict_list, ei_label_list, ei_predict_list, force_label_list, force_predict_list, virial_label_list, virial_predict_list\
@@ -341,6 +355,10 @@ class dp_network:
         dp_config = self.dp_params.get_data_file_dict()
         davg, dstd, atom_map, energy_shift = self.load_davg_from_ckpt()
         train_loader, val_loader, train_dataset = self.load_data(dp_config) #davg, dstd, energy_shift, atom_map
+        
+        self.dp_params.max_neigh_num = max(self.dp_params.max_neigh_num, train_dataset.m_neigh)
+        self.dp_params.print_input_params(json_file_save_name="std_input.json")
+
         if davg is None:
             energy_shift = train_dataset.get_energy_shift()
             davg, dstd = train_dataset.get_davg_dstd()

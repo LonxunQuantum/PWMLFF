@@ -12,7 +12,7 @@ from src.optimizer.KFWrapper import KFOptimizerWrapper
 from torch.profiler import profile, record_function, ProfilerActivity
 from src.user.input_param import InputParam
 from collections import defaultdict
-
+from utils.debug_operation import check_cuda_memory
 from utils.train_log import AverageMeter, Summary, ProgressMeter
 
 
@@ -55,7 +55,10 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
 
     end = time.time()
     Sij_max = 0.0   # max Rij before davg and dstd cacled
+    # check_cuda_memory(epoch, -1, "start train", False)
     for i, sample_batches in enumerate(train_loader):
+        # if i < 1360:
+        #     continue
         # measure data loading time
         data_time.update(time.time() - end)
 
@@ -288,6 +291,7 @@ def train(train_loader, model, criterion, optimizer, epoch, start_lr, device, ar
             if args.optimizer_param.train_egroup is True:
                 loss_Egroup.update(loss_Egroup_val.item(), batch_size)
             loss_Force.update(loss_F_val.item(), batch_size * natoms)
+            # check_cuda_memory(epoch, i, "after train update", True)
 
         # measure elapsed time
         batch_time.update(time.time() - end)

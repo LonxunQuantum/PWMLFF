@@ -83,7 +83,6 @@ if __name__ == "__main__":
     else:
         json_path = sys.argv[2]
         # cmd_type = "test".upper()
-        
         # json_path = "/data/home/hfhuang/2_MLFF/1-NN/7-json/4-CH4-dbg/nn_new.json"
         os.chdir(os.path.dirname(os.path.abspath(json_path)))
         json_file = json.load(open(json_path))

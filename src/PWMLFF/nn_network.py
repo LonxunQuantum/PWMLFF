@@ -178,7 +178,7 @@ class nn_network:
         # if custom_feat_2 is not None:
         #     pm.Ftype2_para = custom_feat_2.copy()
             
-    def generate_data(self, chunk_size=1, shuffle=False, movement_path:list[str]=None, feature_type="train_feature"):
+    def generate_data(self, chunk_size=10, shuffle=False, movement_path:list[str]=None, feature_type="train_feature"):
         gen_feature_data = os.path.abspath(os.path.join(self.dp_params.file_paths.nn_work, feature_type))
         # movement_path = self.dp_params.file_paths.train_data_path
         if os.path.exists(gen_feature_data) is True: # work_dir/feature dir

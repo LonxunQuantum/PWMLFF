@@ -11,11 +11,16 @@ from pwdata.image import Image
 import random
 from typing import Union, Optional
 from src.lib.NeighConst import neighconst
-
+from tqdm import tqdm
 if torch.cuda.is_available():
     lib_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "op/build/lib/libCalcOps_bind.so")
     torch.ops.load_library(lib_path)
     CalcOps = torch.ops.CalcOps_cuda
+else:
+    lib_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "op/build/lib/libCalcOps_bind_cpu.so")
+    torch.ops.load_library(lib_path)    # load the custom op, no use for cpu version
+    CalcOps = torch.ops.CalcOps_cpu     # only for compile while no cuda device
+
 
 def get_det(box: np.array):
     matrix = box.reshape((3, 3))
@@ -60,6 +65,21 @@ def variable_length_collate_fn(batch):
     # res["num_atom_sum"] = res["num_atom"].cumsum(0).to(res["num_atom"].dtype)
     return res
 
+def variable_length_collate_fn_mn(batch):
+    keys = batch[0].keys()
+    res = {}
+
+    def extract_items(tensors, key):
+        return [x[key] for x in tensors]
+
+    for key in keys:
+        if key in ["Position", "AtomTypeMap"]:
+            res[key] = torch.concat(extract_items(batch, key), dim=0)
+        elif key in ["ImageAtomNum", "box", "Lattice", "num_cell"]:
+            res[key] = torch.stack(extract_items(batch, key), dim=0)
+    res["num_atom_sum"] = res["ImageAtomNum"].cumsum(0).to(res["ImageAtomNum"].dtype)
+    return res
+
 class NepTestData():
     def __init__(self, input_param:InputParam):
         self.image_list = []
@@ -76,7 +96,6 @@ class NepTestData():
         for image in self.image_list:
             if image.cartesian is False:
                 image._set_cartesian()
-                # image.lattice = image.lattice.T
             # image.atom_types_image = np.array([self.atom_types.index(_) for _ in image.atom_types_image])
         # return image_list
 
@@ -87,6 +106,7 @@ class UniDataset(Dataset):
                 format, 
                 dtype: Union[torch.dtype, str] = torch.float64, 
                 index_type: Union[torch.dtype, str] = torch.int64,
+                calculate_maxnn:bool=False
                 ):
         super(UniDataset, self).__init__()
         self.m_neigh = config['maxNeighborNum']
@@ -97,7 +117,7 @@ class UniDataset(Dataset):
         self.Rc_type = np.array([(_['Rc']) for _ in config["atomType"]])
         self.Rm_type = np.array([(_['Rm']) for _ in config["atomType"]])
         self.Egroup = config['train_egroup']
-
+        self.use_fractional = True
         self.dtype = dtype if isinstance(dtype, torch.dtype) else getattr(torch, dtype)
         self.dirs = data_paths  # include all movement data path
         self.format = format
@@ -113,8 +133,10 @@ class UniDataset(Dataset):
         )
         self.image_list, self.total_images = self.__concatenate_data()
         
-        if self.total_images > 0:
-            data = self.__load_data(0)
+        if calculate_maxnn:
+            self.calculate_maxneighbor()
+        # if self.total_images > 0:
+        #     data = self.__load_data(0)
         # print()
 
     def __concatenate_data(self):
@@ -127,14 +149,23 @@ class UniDataset(Dataset):
                     self.image_list.append(image_read)
 
         for image in self.image_list:
-            if image.cartesian is True:
-                    image._set_fractional()
-                    image.lattice = image.lattice.flatten()
+            # if image.cartesian is True:
+            #         image._set_fractional()
+            #         image.lattice = image.lattice.flatten()
             # if isinstance(image.atom_type.tolist(), int): # resconstructed the pwdata to ensure the shape of atom_type must be (N, )
             #     image.atom_type = image.atom_type.reshape([1])
             if not hasattr(image, 'atom_type_map'):
                 image.atom_type_map = np.array([self.atom_types_list.index(_) for _ in image.atom_types_image])
         return self.image_list, len(self.image_list)
+
+    def calculate_maxneighbor(self):
+        if torch.cuda.is_available():
+            device = torch.device("cuda")
+        else:
+            self.device = torch.device("cpu")
+        maxneigh = calculate_neighbor_num_max_min(self, device)
+        self.m_neigh = max(maxneigh, self.m_neigh)
+        self.config['maxNeighborNum'] = self.m_neigh
 
     def get_davg_dstd(self):
         if len(self.davg) < 1:
@@ -224,7 +255,10 @@ class UniDataset(Dataset):
         return np.array(energy_shift)
 
     def __getitem__(self, index):
-        data = self.__load_data(index)
+        if self.use_fractional:
+            data = self.__load_data(index)
+        else:
+            data = self.__load_data_mn(index)
         # if self.train_hybrid is True:
         #     data = self.__completing_tensor_rows(data)
         return data
@@ -232,13 +266,43 @@ class UniDataset(Dataset):
     def __len__(self): 
         return self.total_images
 
+    def __load_data_mn(self, index):
+        data = {}
+        num_cell = np.zeros(3, dtype=int)
+        box = np.zeros(18, dtype=float) 
+        volume = self.expand_box(self.image_list[index].lattice.T.flatten(), self.Rc_type[0], num_cell, box)
+        data["box"] = torch.from_numpy(box).to(self.dtype)
+        data["box_original"] = torch.from_numpy(self.image_list[index].lattice.T.flatten()).to(self.dtype)
+        data["num_cell"] = torch.from_numpy(num_cell).to(self.index_type)
+        data["volume"] = torch.from_numpy(np.array([volume])).to(self.dtype)
+        if self.image_list[index].cartesian is False:
+            self.image_list[index]._set_cartesian()
+        data["Position"] = torch.from_numpy(self.image_list[index].position).to(self.dtype)
+        data["Lattice"] = torch.from_numpy(self.image_list[index].lattice.flatten()).to(self.dtype)
+
+        atom_in = np.zeros_like(self.atom_types)
+        for i in range(0, len(self.image_list[index].atom_type)):
+            atom_in[i] = self.image_list[index].atom_type[i]
+        data["AtomTypeMap"] = torch.from_numpy(self.image_list[index].atom_type_map).to(self.index_type)
+        data["ImageAtomNum"] = torch.from_numpy(np.array([len(data["AtomTypeMap"])])).to(self.index_type)
+        return data
+
     def __load_data(self, index):
         data = {}
+        # num_cell = np.zeros(3, dtype=int)
+        # box = np.zeros(18, dtype=float) 
+        # volume = self.expand_box(self.image_list[index].lattice.flatten(), self.Rc_type[0], num_cell, box)
+        # data["box"] = torch.from_numpy(box).to(self.dtype)
+        # data["num_cell"] = torch.from_numpy(num_cell).to(self.index_type)
+        # data["volume"] = torch.from_numpy(np.array([volume])).to(self.dtype)
         data["Force"] = torch.from_numpy(self.image_list[index].force).to(self.dtype)
         data["Ei"] = torch.from_numpy(self.image_list[index].atomic_energy).to(self.dtype)
         data["Etot"] = torch.from_numpy(np.array([self.image_list[index].Ep])).to(self.dtype)
+        if self.image_list[index].cartesian is True:
+            self.image_list[index]._set_fractional()
         data["Position"] = torch.from_numpy(self.image_list[index].position).to(self.dtype)
         data["Lattice"] = torch.from_numpy(self.image_list[index].lattice.flatten()).to(self.dtype)
+
         atom_in = np.zeros_like(self.atom_types)
         for i in range(0, len(self.image_list[index].atom_type)):
             atom_in[i] = self.image_list[index].atom_type[i]
@@ -273,6 +337,41 @@ class UniDataset(Dataset):
         else:
             data["Virial"] = torch.from_numpy(np.insert(self.image_list[index].virial.flatten(), 9, 1)).to(self.dtype)
         return data
+
+    def expand_box(self, lattice, cutoff_radial, num_cell, box):
+        a = lattice[0::3]
+        b = lattice[1::3]
+        c = lattice[2::3]
+        det = get_det(lattice)
+        volume = abs(det)
+        num_cell[0] = int(
+            math.ceil(2.0 * cutoff_radial / (volume / get_area(b, c)))
+        )
+        num_cell[1] = int(
+            math.ceil(2.0 * cutoff_radial / (volume / get_area(c, a)))
+        )
+        num_cell[2] = int(
+            math.ceil(2.0 * cutoff_radial / (volume / get_area(a, b)))
+        )
+
+        box[0:9:3] = lattice[0::3] * num_cell[0]
+        box[1:9:3] = lattice[1::3] * num_cell[1]
+        box[2:9:3] = lattice[2::3] * num_cell[2]
+
+        box[9] = box[4] * box[8] - box[5] * box[7]
+        box[10] = box[2] * box[7] - box[1] * box[8]
+        box[11] = box[1] * box[5] - box[2] * box[4]
+        box[12] = box[5] * box[6] - box[3] * box[8]
+        box[13] = box[0] * box[8] - box[2] * box[6]
+        box[14] = box[2] * box[3] - box[0] * box[5]
+        box[15] = box[3] * box[7] - box[4] * box[6]
+        box[16] = box[1] * box[6] - box[0] * box[7]
+        box[17] = box[0] * box[4] - box[1] * box[3]
+
+        det *= num_cell[0] * num_cell[1] * num_cell[2]
+        for n in range(9, 18):
+            box[n] /= det
+        return volume    
 
 
 def calculate_davg_dstd(config, lattice, position, _atom_types, input_atom_type, type_maps):
@@ -616,43 +715,91 @@ def compute_Ri(list_neigh, dR_neigh, Rc_type, Rm_type):
     Rij = Rij.unsqueeze(-1).numpy()
     return max_ri, Rij
 
-def main():
-    input_json = "/data/home/wuxingxing/codespace/PWMLFF_nep/pwmat_mlff_workdir/hfo2/nep_train/train.json"
-    nep_param = InputParam(input_json, "train")
-    #     print("Read Config successful")
-    # import ipdb; ipdb.set_trace()
-    # load_type, nep_param:InputParam, energy_shift, max_atom_nums
-    energy_shift = [-6.052877426125001, -12.10575485225]
-    max_atom_nums = 96
-    dataset = UniDataset("train", nep_param, energy_shift, max_atom_nums)
+def calculate_neighbor_num_max_min(
+                dataset: UniDataset, 
+                device: torch.device) -> None:
 
+    dataset.use_fractional = False
     dataloader = torch.utils.data.DataLoader(
         dataset,
-        batch_size=4,
+        batch_size=1024,
         shuffle=False,
+        collate_fn=variable_length_collate_fn_mn,
         num_workers=4,
-        pin_memory=True,
     )
+    global_max = None
+    global_min = None
+
+    for _, sample in tqdm(enumerate(dataloader), total=len(dataloader), desc="Calculating max neighbor"):
+        sample = {key: value.to(device) for key, value in sample.items()}
+        nn_radial, nn_angular = CalcOps.calculate_maxneigh(
+            sample["ImageAtomNum"],
+            sample["box"],
+            sample["Lattice"],
+            sample["num_cell"],
+            sample["Position"],
+            dataset.Rc_type[0],
+            dataset.Rc_type[0],
+            len(dataset.atom_types_list),
+            sample["AtomTypeMap"],
+            True
+        )
+
+        batch_max, _ = torch.max(nn_radial, dim=0)
+        batch_min, _ = torch.min(nn_radial, dim=0)
+
+        if global_max is None:
+            global_max = batch_max
+        else:
+            global_max = torch.max(global_max, batch_max)
+
+        if global_min is None:
+            global_min = batch_min
+        else:
+            global_min = torch.min(global_min, batch_min)
+        
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    dataset.use_fractional = True
+    return global_max.max().item()
+
+# def main():
+#     input_json = "/data/home/wuxingxing2/data/pwmlff/Si-SiO2-La2O3-HfO2-TiN/batch_version/ADAM_novirial/test2/input.json"
+#     nep_param = InputParam(input_json, "train")
+#     #     print("Read Config successful")
+#     # import ipdb; ipdb.set_trace()
+#     # load_type, nep_param:InputParam, energy_shift, max_atom_nums
+#     energy_shift = [-6.052877426125001, -12.10575485225]
+#     max_atom_nums = 96
+#     dataset = UniDataset("train", nep_param, energy_shift, max_atom_nums)
+
+#     dataloader = torch.utils.data.DataLoader(
+#         dataset,
+#         batch_size=4,
+#         shuffle=False,
+#         num_workers=4,
+#         pin_memory=True,
+#     )
     
-    for i, sample_batches in enumerate(dataloader):
-        # import ipdb;ipdb.set_trace()
+#     for i, sample_batches in enumerate(dataloader):
+#         # import ipdb;ipdb.set_trace()
 
-        print(sample_batches["Force"].shape)
-        print(sample_batches["Virial"].shape)
-        print(sample_batches["Ei"].shape)
-        print(sample_batches["energy"].shape)
-        #print(sample_batches["Egroup"].shape)
-        #print(sample_batches["Divider"].shape)
-        #print(sample_batches["Egroup_weight"].shape)
+#         print(sample_batches["Force"].shape)
+#         print(sample_batches["Virial"].shape)
+#         print(sample_batches["Ei"].shape)
+#         print(sample_batches["energy"].shape)
+#         #print(sample_batches["Egroup"].shape)
+#         #print(sample_batches["Divider"].shape)
+#         #print(sample_batches["Egroup_weight"].shape)
 
-        print(sample_batches["ListNeighbor"].shape)
-        print(sample_batches["Position"].shape)
-        # print(sample_batches["NeighborType"].shape)
-        # print(sample_batches["Ri"].shape)
-        # print(sample_batches["ImageDR"].shape)
-        # print(sample_batches["Ri_d"].shape)
-        print(sample_batches["ImageAtomNum"].shape)
+#         print(sample_batches["ListNeighbor"].shape)
+#         print(sample_batches["Position"].shape)
+#         # print(sample_batches["NeighborType"].shape)
+#         # print(sample_batches["Ri"].shape)
+#         # print(sample_batches["ImageDR"].shape)
+#         # print(sample_batches["Ri_d"].shape)
+#         print(sample_batches["ImageAtomNum"].shape)
 
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()

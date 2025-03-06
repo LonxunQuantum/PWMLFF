@@ -13,7 +13,11 @@ void torch_launch_calculate_maxneigh(
     const int64_t total_frames,
     const int64_t total_atoms,
     torch::Tensor &NN_radial, 
-    torch::Tensor &NN_angular 
+    torch::Tensor &NN_angular,
+    const int64_t atom_type_num,
+    const bool with_type,
+    const torch::Tensor &atom_type_map
+
 ){
     launch_calculate_maxneigh(
         (const int64_t *) num_atoms.data_ptr(),
@@ -27,7 +31,10 @@ void torch_launch_calculate_maxneigh(
         total_frames,
         total_atoms,
         (int64_t *) NN_radial.data_ptr(), 
-        (int64_t *) NN_angular.data_ptr()
+        (int64_t *) NN_angular.data_ptr(),
+        atom_type_num,
+        with_type,
+        (int64_t *) atom_type_map.data_ptr()
     );
 }
 

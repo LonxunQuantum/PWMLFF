@@ -42,7 +42,10 @@ std::vector<torch::Tensor> calculate_maxneigh_cpu(
     const torch::Tensor &num_cell, 
     const torch::Tensor &position,
     const double cutoff_2b,
-    const double cutoff_3b
+    const double cutoff_3b,
+    const int64_t atom_type_num,
+    const torch::Tensor &atom_type_map,
+    const bool with_type
 ){
     auto dtype = position.dtype();
     auto index_dtype = num_atoms.dtype();
@@ -50,25 +53,52 @@ std::vector<torch::Tensor> calculate_maxneigh_cpu(
     int64_t total_frames = num_atoms.sizes()[0];
     int64_t total_atoms = position.sizes()[0];
     torch::Tensor atom_num_list_sum = torch::cumsum(num_atoms, 0, torch::kInt64);
-    torch::Tensor NN_radial = torch::empty({total_atoms}, torch::TensorOptions().dtype(index_dtype).device(device));
-    torch::Tensor NN_angular = torch::empty({total_atoms}, torch::TensorOptions().dtype(index_dtype).device(device));
+    if (with_type == false) {
+        torch::Tensor NN_radial = torch::empty({total_atoms}, torch::TensorOptions().dtype(index_dtype).device(device));
+        torch::Tensor NN_angular = torch::empty({total_atoms}, torch::TensorOptions().dtype(index_dtype).device(device));
+        
+        launch_calculate_maxneigh_cpu(
+            (const int64_t *) num_atoms.data_ptr(),
+            (const int64_t *) atom_num_list_sum.data_ptr(),
+            (const double  *) box.data_ptr(),
+            (const double  *) box_orig.data_ptr(),
+            (const int64_t *) num_cell.data_ptr(),
+            (const double  *) position.data_ptr(),
+            cutoff_2b,
+            cutoff_3b,
+            total_frames,
+            total_atoms,
+            (int64_t *) NN_radial.data_ptr(),
+            (int64_t *) NN_angular.data_ptr(),
+            atom_type_num,
+            with_type,
+            (int64_t *) atom_type_map.data_ptr()
+        );
+        return {NN_radial, NN_angular};
+    } else {
+        torch::Tensor NN_radial = torch::empty({total_atoms, atom_type_num}, torch::TensorOptions().dtype(index_dtype).device(device));
+        torch::Tensor NN_angular = torch::empty({total_atoms, atom_type_num}, torch::TensorOptions().dtype(index_dtype).device(device));
+        
+        launch_calculate_maxneigh_cpu(
+            (const int64_t *) num_atoms.data_ptr(),
+            (const int64_t *) atom_num_list_sum.data_ptr(),
+            (const double  *) box.data_ptr(),
+            (const double  *) box_orig.data_ptr(),
+            (const int64_t *) num_cell.data_ptr(),
+            (const double  *) position.data_ptr(),
+            cutoff_2b,
+            cutoff_3b,
+            total_frames,
+            total_atoms,
+            (int64_t *) NN_radial.data_ptr(),
+            (int64_t *) NN_angular.data_ptr(),
+            atom_type_num,
+            with_type,
+            (int64_t *) atom_type_map.data_ptr()
+        );
+        return {NN_radial, NN_angular};        
+    }
     
-    launch_calculate_maxneigh_cpu(
-        (const int64_t *) num_atoms.data_ptr(),
-        (const int64_t *) atom_num_list_sum.data_ptr(),
-        (const double  *) box.data_ptr(),
-        (const double  *) box_orig.data_ptr(),
-        (const int64_t *) num_cell.data_ptr(),
-        (const double  *) position.data_ptr(),
-        cutoff_2b,
-        cutoff_3b,
-        total_frames,
-        total_atoms,
-        (int64_t *) NN_radial.data_ptr(),
-        (int64_t *) NN_angular.data_ptr()
-    );
-
-    return {NN_radial, NN_angular};
 }
 
 std::vector<torch::Tensor> calculate_neighbor_cpu(

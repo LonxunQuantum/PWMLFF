@@ -249,7 +249,11 @@ void torch_launch_calculate_maxneigh(
     const int64_t total_frames,
     const int64_t total_atoms,
     torch::Tensor &NN_radial, 
-    torch::Tensor &NN_angular
+    torch::Tensor &NN_angular,
+    const int64_t atom_type_num,
+    const bool with_type,
+    const torch::Tensor &atom_type_map
+
 );
 
 void torch_launch_calculate_neighbor(
