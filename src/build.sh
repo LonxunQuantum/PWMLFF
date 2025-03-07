@@ -16,23 +16,6 @@ cd build
 cmake -Dpybind11_DIR=$(python -m pybind11 --cmakedir) .. && make
 cp findneigh.* ../findneigh.so
 
-if python -c "import torch; exit(0) if torch.version.cuda is not None else exit(1)"; then
-    cd ../../NEP_GPU
-    echo "PyTorch with CUDA detected, proceeding with NEP_GPU build."
-    rm -rf build/*
-    rm nep3_module.so
-    mkdir build
-    cd build
-    cmake -Dpybind11_DIR=$(python -m pybind11 --cmakedir) .. && make
-    cp nep3_module.* ../nep3_module.so
-    cd ..
-    cd ..
-    cd ..
-else
-    echo "No CUDA support in PyTorch, skipping NEP_GPU build."
-    cd ../../../
-fi
-
 # compile gpumd
 #make -C GPUMD/src
 
@@ -47,10 +30,12 @@ ln -s ../../utils/plot_nn_test.py .
 ln -s ../../utils/plot_mlff_inference.py .
 ln -s ../../utils/read_torch_wij_dp.py . 
 ln -s ../md/fortran_code/main_MD.x .
-ln -s ../../pwmlff_main.py ./PWMLFF
 
-#ln -s ../GPUMD/src/gpumd .
-#ln -s ../GPUMD/src/nep .
+ln -s ../../main.py ./MATPL
+ln -s ../../main.py ./matpl
+ln -s ../../main.py ./MatPL
+ln -s ../../main.py ./PWMLFF
+ln -s ../../main.py ./pwmlff
 
 chmod +x ./mlff.py
 chmod +x ./seper.py

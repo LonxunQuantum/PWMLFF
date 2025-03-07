@@ -1,7 +1,7 @@
 {
     "envs": [
         {
-            "command": "PWMLFF",
+            "command": "MATPL",
             "env_type":"mcloud_gpu",
             "group_size": 1,
             "number_node": 1,
@@ -106,7 +106,7 @@
             ]
         },
         {
-            "command": "PWMLFF",
+            "command": "MATPL",
             "env_type":"dev_gpu",
             "group_size": 1,
             "number_node": 1,

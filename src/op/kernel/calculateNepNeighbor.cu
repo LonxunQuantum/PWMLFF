@@ -115,7 +115,6 @@ static __global__ void gpu_find_neighbor_number_with_type(
         for (int n2 = N1; n2 < N2; ++n2)
         {   
             int t2 = atom_type_map[n2];
-            printf("n1 %d t1 %d n2 %d t2 %d\n", n1, atom_type_map[n1], n2, t2);
             for (int ia = 0; ia < num_cell[0]; ++ia)
             {
                 for (int ib = 0; ib < num_cell[1]; ++ib)
