@@ -404,14 +404,23 @@ class nn_network:
                 self.dp_params.optimizer_param.kalman_lambda,
                 self.dp_params.optimizer_param.kalman_nue
             )
-        elif opt_optimizer == "ADAM":
+        elif self.dp_params.optimizer_param.opt_name == "ADAM":
             if self.dp_params.optimizer_param.lambda_2 is None:
-                self.optimizer = optim.Adam(self.model.parameters(), 
-                                    self.dp_params.optimizer_param.learning_rate)
+                optimizer = optim.Adam(model.parameters(), 
+                                    lr=self.dp_params.optimizer_param.learning_rate)
             else:
-                self.optimizer = optim.Adam(self.model.parameters(), 
-                                    self.dp_params.optimizer_param.learning_rate, weight_decay=self.dp_params.optimizer_param.lambda_2)
+                optimizer = optim.Adam(model.parameters(), 
+                                    lr=self.dp_params.optimizer_param.learning_rate, 
+                                        weight_decay=self.dp_params.optimizer_param.lambda_2)
 
+        elif self.dp_params.optimizer_param.opt_name == "ADAMW":
+            if self.dp_params.optimizer_param.lambda_2 is None:
+                optimizer = optim.AdamW(model.parameters(), 
+                                    lr=self.dp_params.optimizer_param.learning_rate)
+            else:
+                optimizer = optim.AdamW(model.parameters(), 
+                                    lr=self.dp_params.optimizer_param.learning_rate, 
+                                        weight_decay=self.dp_params.optimizer_param.lambda_2)
         elif opt_optimizer == "SGD":
             self.optimizer = optim.SGD(
                 self.model.parameters(),

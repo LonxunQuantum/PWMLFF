@@ -19,7 +19,7 @@ cp findneigh.* ../findneigh.so
 # compile gpumd
 #make -C GPUMD/src
 
-cd bin
+cd ../../../bin
 
 ln -s ../pre_data/mlff.py .
 ln -s ../pre_data/seper.py .

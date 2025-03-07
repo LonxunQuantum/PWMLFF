@@ -237,10 +237,20 @@ class nep_network:
         elif self.input_param.optimizer_param.opt_name == "ADAM":
             if self.input_param.optimizer_param.lambda_2 is None:
                 optimizer = optim.Adam(model.parameters(), 
-                                    self.input_param.optimizer_param.learning_rate)
+                                    lr=self.input_param.optimizer_param.learning_rate)
             else:
                 optimizer = optim.Adam(model.parameters(), 
-                                    self.input_param.optimizer_param.learning_rate, weight_decay=self.input_param.optimizer_param.lambda_2)
+                                    lr=self.input_param.optimizer_param.learning_rate, 
+                                        weight_decay=self.input_param.optimizer_param.lambda_2)
+
+        elif self.input_param.optimizer_param.opt_name == "ADAMW":
+            if self.input_param.optimizer_param.lambda_2 is None:
+                optimizer = optim.AdamW(model.parameters(), 
+                                    lr=self.input_param.optimizer_param.learning_rate)
+            else:
+                optimizer = optim.AdamW(model.parameters(), 
+                                    lr=self.input_param.optimizer_param.learning_rate, 
+                                        weight_decay=self.input_param.optimizer_param.lambda_2)
 
         elif self.input_param.optimizer_param.opt_name == "SGD":
             optimizer = optim.SGD(
@@ -256,7 +266,7 @@ class nep_network:
         if checkpoint is not None and "q_scaler" in checkpoint.keys(): # from model ckpt file
             q_scaler = checkpoint["q_scaler"]
 
-        if self.input_param.optimizer_param.opt_name in ["LKF", "GKF", "ADAM", "SGD"]:
+        if self.input_param.optimizer_param.opt_name in ["LKF", "GKF", "ADAM", "ADAMW", "SGD"]:
             if checkpoint is not None and "optimizer" in checkpoint.keys():
                 optimizer.load_state_dict(checkpoint["optimizer"])
             if checkpoint is not None and self.input_param.optimizer_param.opt_name in ["LKF"] and "optimizer" in checkpoint.keys() and 'P' in checkpoint["optimizer"]['state'][0].keys():
