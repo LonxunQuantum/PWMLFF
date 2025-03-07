@@ -757,7 +757,7 @@ class nn_network:
         
         return l2_loss, pref_fi, pref_etot, pref_egroup
 
-    #update learning rate at iter_num
+    #update learning rate at iter_num noused
     def adjust_lr(self,iter_num):
         stop_lr= self.dp_params.optimizer_param.stop_lr #3.51e-8
         start_lr = self.dp_params.optimizer_param.learning_rate 
@@ -767,7 +767,7 @@ class nn_network:
         real_lr = start_lr * np.power(decay_rate, (iter_num//decay_step))
         return real_lr  
 
-    # implement a linear scheduler
+    # implement a linear scheduler noused
     def LinearLR(self,optimizer, base_lr, target_lr, total_epoch, cur_epoch):
         lr = base_lr - (base_lr - target_lr) * (float(cur_epoch) / float(total_epoch))
         for param_group in optimizer.param_groups:

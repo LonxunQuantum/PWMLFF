@@ -69,6 +69,9 @@ def dp_loss(dp_param:InputParam, start_lr, real_lr, stat, *args):
 def adjust_lr(iter, start_lr, stop_step, decay_step, stop_lr=3.51e-8):
     # stop_step = 1000000
     # decay_step = 5000
+    if iter > stop_step: # or real_lr < stop_lr
+        return stop_lr
+
     decay_rate = np.exp(
         np.log(stop_lr / start_lr) / (stop_step / decay_step)
     )  # 0.9500064099092085
