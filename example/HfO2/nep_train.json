@@ -3,37 +3,41 @@
     "atom_type": [
         8, 72
     ],
+    "format": "pwmlff/npy",
     "train_data": [
-"./pwdata/init_000_50/",
-"./pwdata/init_002_50/",
-"./pwdata/init_004_50/",
-"./pwdata/init_006_50/",
-"./pwdata/init_008_50/",
-"./pwdata/init_010_50/",
-"./pwdata/init_012_50/",
-"./pwdata/init_014_50/",
-"./pwdata/init_016_50/",
-"./pwdata/init_018_50/",
-"./pwdata/init_020_20/",
-"./pwdata/init_022_20/",
-"./pwdata/init_024_20/",
-"./pwdata/init_026_20/",
-
-"./pwdata/init_001_50/",
-"./pwdata/init_003_50/",
-"./pwdata/init_005_50/",
-"./pwdata/init_007_50/",
-"./pwdata/init_009_50/",
-"./pwdata/init_011_50/",
-"./pwdata/init_013_50/",
-"./pwdata/init_015_30/",
-"./pwdata/init_017_50/",
-"./pwdata/init_019_50/",
-"./pwdata/init_021_20/",
-"./pwdata/init_023_20/",
-"./pwdata/init_025_20/",
-"./pwdata/init_027_20/"
-
-]
+    "./pwdata/init_000_50/",
+    "./pwdata/init_002_50/",
+    "./pwdata/init_004_50/",
+    "./pwdata/init_006_50/",
+    "./pwdata/init_008_50/",
+    "./pwdata/init_010_50/",
+    "./pwdata/init_012_50/",
+    "./pwdata/init_014_50/",
+    "./pwdata/init_016_50/",
+    "./pwdata/init_018_50/",
+    "./pwdata/init_020_20/",
+    "./pwdata/init_022_20/",
+    "./pwdata/init_024_20/",
+    "./pwdata/init_026_20/",
+    "./pwdata/init_001_50/",
+    "./pwdata/init_003_50/",
+    "./pwdata/init_005_50/",
+    "./pwdata/init_007_50/",
+    "./pwdata/init_009_50/",
+    "./pwdata/init_011_50/",
+    "./pwdata/init_013_50/",
+    "./pwdata/init_015_30/",
+    "./pwdata/init_017_50/",
+    "./pwdata/init_019_50/",
+    "./pwdata/init_021_20/",
+    "./pwdata/init_023_20/",
+    "./pwdata/init_025_20/",
+    "./pwdata/init_027_20/"
+    ],
+    "valid_data":[
+        "./pwdata/init_000_50/",
+        "./pwdata/init_004_50/",
+        "./pwdata/init_008_50/"       
+    ]
 }
 

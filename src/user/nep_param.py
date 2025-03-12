@@ -59,13 +59,19 @@ class NepParam(object):
         self.model_type = get_parameter("model_type", nep_file_dict, 0) # select to train potential 0, dipole 1, or polarizability 2
         self.zbl = get_parameter("zbl", nep_file_dict, None) # outer cutoff for the universal ZBL potential [Ziegler1985]
         
-        self.cutoff = get_parameter("cutoff", nep_file_dict, [6, 6], out_format=4) # radial () and angular () cutoffs # use dp rcut, default to 6
+        self.cutoff = get_parameter("cutoff", nep_file_dict, [8.0, 4.0], out_format=4) # radial () and angular () cutoffs # use dp rcut, default to 6
         self.n_max = get_parameter("n_max", nep_file_dict, [4, 4], out_format=2) # size of radial () and angular () basis
         if len(self.n_max) != 2:
-            raise Exception("the input 'n_max' should has 2 values, such as [4, 4]")
-        self.basis_size = get_parameter("basis_size", nep_file_dict, [12, 12], out_format=2) # number of radial () and angular () basis functions
+            raise Exception("Error ! The input 'n_max' should has 2 values, default is [4, 4]")
+        if self.n_max[0] <=0 or self.n_max[0] >= 20 or self.n_max[1] <=0 or self.n_max[1] >= 20:
+            raise Exception("Error ! The input 'n_max' value should: 0 < n_max < 20")
+        
+        self.basis_size = get_parameter("basis_size", nep_file_dict, [8, 8], out_format=2) # number of radial () and angular () basis functions
         if len(self.basis_size) != 2:
-            raise Exception("the input 'basis_size' should has 2 values, such as [12, 12]")
+            raise Exception("the input 'basis_size' should has 2 values, such as [8, 8]")
+        if self.n_max[0] <=0 or self.n_max[0] >= 20 or self.n_max[1] <=0 or self.n_max[1] >= 20:
+            raise Exception("Error ! The input 'basis_size' value should: 0 < basis_size < 20")
+        
         self.l_max = get_parameter("l_max", nep_file_dict, [4, 2, 1], out_format=2) # expansion order for angular terms
         if len(self.l_max) != 3 or (self.l_max[0] != 4) or (self.l_max[1] != 2) or (self.l_max[2] > 1) :
             error_log = "the input 'l_max' should has 3 values. The values should be [4, 2, 0] or [4, 2, 1]. The last num '1', means use 5 body features.\n"
