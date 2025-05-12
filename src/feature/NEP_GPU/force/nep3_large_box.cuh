@@ -4,7 +4,7 @@ This code is developed based on the GPUMD source code and adds ghost atom proces
   Support GPUMD NEP shared bias and PWMLFF NEP independent bias forcefield.
 
 We have made the following improvements based on NEP4
-http://doc.lonxun.com/PWMLFF/models/nep/NEP%20model/
+http://doc.lonxun.com/MatPL/models/nep/
 */
 
 /*

@@ -6,4 +6,4 @@ PWMLFF is an open source software under GNU GPL license. It aims at generating f
 
 **Manual**
 
-A complete user manual can be found here: http://doc.lonxun.com/PWMLFF/
+A complete user manual can be found here: http://doc.lonxun.com/MatPL/

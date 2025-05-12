@@ -4,7 +4,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --gres=gpu:1
 #SBATCH --gpus-per-task=1
-#SBATCH --partition=new3080ti,3080ti,3090
+#SBATCH --partition=3080ti,3090
 
 source /share/app/anaconda3/etc/profile.d/conda.sh
 module load conda/3-2020.07

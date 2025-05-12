@@ -8,7 +8,7 @@ List of modified records by Wu Xingxing (email stars_sparkling@163.com)
 4. Support GPUMD NEP shared bias and PWMLFF NEP independent bias forcefield
 
 We have made the following improvements based on NEP4
-http://doc.lonxun.com/PWMLFF/models/nep/NEP%20model/
+http://doc.lonxun.com/MatPL/models/nep/
 */
 
 /*

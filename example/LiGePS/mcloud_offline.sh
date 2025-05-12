@@ -4,7 +4,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --gres=gpu:1
 #SBATCH --gpus-per-task=1
-#SBATCH --partition=new3080ti,3080ti,3090
+#SBATCH --partition=3080ti,3090
 
 module load cuda/11.8-share
 module load intel/2020
